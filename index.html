@@ -176,7 +176,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         <div class="field"><div class="field-label">Chef *</div>
           <select id="n-chef"><option value="">Choisir...</option><option>Benjamin</option><option>Arnaud</option><option>Chloé</option></select></div>
         <div class="field"><div class="field-label">Journaliste *</div>
-          <select id="n-journ"><option value="">Choisir...</option><option>Julien</option><option>Augustin</option><option>Nico</option><option>Mickael</option><option>Juliette</option><option>Mathilde</option><option>Léa</option></select></div>
+          <select id="n-journ" onchange="handleJournalisteChange(this)"><option value="">Choisir...</option><option>Julien</option><option>Augustin</option><option>Nico</option><option>Mickael</option><option>Juliette</option><option>Mathilde</option><option>Léa</option><option>Éloise</option><option value="__nouveau__">+ Nouvelle personne...</option></select>
+          <input type="text" id="n-journ-nouveau" placeholder="Nom de la nouvelle personne" style="display:none;margin-top:6px"></div>
       </div>
       <div class="fg">
         <div class="field"><div class="field-label">Plateforme</div>
@@ -318,7 +319,7 @@ function cardHTML(s){
     <div class="card-hdr"><span class="card-code">${s.code||'—'}</span><span class="card-fmt" style="color:${col}">${s.format||'—'}</span></div>
     <div class="card-title">${s.titre}</div>
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${s.journaliste||'Non attribué'}${s.chef?` · ${s.chef}`:''}</span></div>
-    <div class="card-st"><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · '+fmtDate(s.tourJ1):''}</span></div>
+    <div class="card-st"><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
     <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
   </div>`;
 }
@@ -466,6 +467,12 @@ function selFmt(fmt,el){
   }
 }
 
+function handleJournalisteChange(sel){
+  const input=document.getElementById('n-journ-nouveau');
+  input.style.display=sel.value==='__nouveau__'?'block':'none';
+  if(sel.value!=='__nouveau__') input.value='';
+}
+
 function setBrandMode(mode){
   brandMode=mode;
   document.getElementById('brand-nouveau').style.display=mode==='nouveau'?'block':'none';
@@ -512,7 +519,8 @@ function updateBrandDecliCode(){
 async function createSujet(){
   const titre=document.getElementById('n-titre').value.trim();
   const chef=document.getElementById('n-chef').value;
-  const journ=document.getElementById('n-journ').value;
+  const journSel=document.getElementById('n-journ').value;
+  const journ=journSel==='__nouveau__'?document.getElementById('n-journ-nouveau').value.trim():journSel;
   const plat=document.getElementById('n-plat').value;
   const brief=document.getElementById('n-brief').value.trim();
   const date=document.getElementById('n-date').value;
