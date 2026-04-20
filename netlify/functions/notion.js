@@ -4,30 +4,19 @@ exports.handler = async function(event) {
       statusCode: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS'
       },
       body: ''
     };
   }
 
-  // Vérifier que l'utilisateur est authentifié via Netlify Identity
-  const authHeader = event.headers['authorization'] || '';
-  if (!authHeader.startsWith('Bearer ')) {
-    return {
-      statusCode: 401,
-      headers: { 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ error: 'Non autorisé' })
-    };
-  }
-
-  // Token Notion stocké dans les variables d'environnement Netlify
   const NOTION_TOKEN = process.env.NOTION_TOKEN;
   if (!NOTION_TOKEN) {
     return {
       statusCode: 500,
       headers: { 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ error: 'Token Notion non configuré' })
+      body: JSON.stringify({ error: 'NOTION_TOKEN non configuré dans les variables d\'environnement Netlify' })
     };
   }
 
@@ -51,7 +40,7 @@ exports.handler = async function(event) {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS'
     },
     body: JSON.stringify(data)
