@@ -6,6 +6,7 @@
 <title>Réel Média · Production</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
 :root{--bg:#0a0a0a;--bg2:#111;--bg3:#181818;--bg4:#202020;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--text:#f0f0f0;--text2:#888;--text3:#555;--red:#e63946;--red-dim:rgba(230,57,70,0.15);--green:#1D9E75;--green-dim:rgba(29,158,117,0.15);--amber:#EF9F27;--amber-dim:rgba(239,159,39,0.15);--purple:#7F77DD;--purple-dim:rgba(127,119,221,0.15);--blue:#378ADD;--blue-dim:rgba(55,138,221,0.15);--r:8px;--rl:12px;--font:'DM Sans',sans-serif;--mono:'DM Mono',monospace}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -144,55 +145,235 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .delai-label{font-size:12px;color:var(--text2)}
 .delai-val{font-family:var(--mono);font-size:14px;font-weight:600}
 @media(max-width:700px){.two-col{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
+
+
+/* ─── NOUVELLE ARCHITECTURE ─── */
+/* Reset layout */
+.app-layout{display:flex;height:calc(100vh - 56px)}
+
+/* SIDEBAR navigation */
+.sidebar{
+  width:220px;background:var(--bg2);border-right:1px solid var(--border);
+  padding:0;overflow-y:auto;flex-shrink:0;
+  display:flex;flex-direction:column;
+}
+.sb-logo-section{
+  padding:20px 16px 12px;
+  border-bottom:1px solid var(--border);
+}
+.sb-workspace{
+  font-size:11px;color:var(--text3);font-weight:500;margin-bottom:2px;
+  text-transform:uppercase;letter-spacing:0.06em;
+}
+.sb-workspace-name{
+  font-size:13px;color:var(--text);font-weight:600;font-family:var(--mono);
+}
+.sb-workspace-name span{color:var(--red)}
+
+/* Nav principale sidebar */
+.sb-nav{padding:12px 8px}
+.sb-nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:var(--r);
+  font-size:13px;color:var(--text2);cursor:pointer;
+  transition:all 0.1s;margin-bottom:2px;
+  border:none;background:none;width:100%;text-align:left;font-family:var(--font);
+}
+.sb-nav-item:hover{background:var(--bg3);color:var(--text)}
+.sb-nav-item.active{background:var(--bg4);color:var(--text)}
+.sb-nav-icon{font-size:15px;width:20px;text-align:center}
+.sb-nav-badge{
+  margin-left:auto;font-size:10px;font-family:var(--mono);
+  background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3);
+}
+.sb-nav-badge.red{background:var(--red-dim);color:var(--red)}
+
+/* Séparateur sidebar */
+.sb-sep{height:1px;background:var(--border);margin:8px 16px}
+
+/* Filtres sidebar (section Production) */
+.sb-filters{padding:8px 8px 16px;flex:1}
+.sb-filter-label{
+  font-size:10px;color:var(--text3);text-transform:uppercase;
+  letter-spacing:0.1em;font-weight:600;padding:6px 10px 4px;
+}
+.sb-filter-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:5px 10px;border-radius:var(--r);font-size:12px;color:var(--text2);
+  cursor:pointer;transition:all 0.1s;margin-bottom:1px;
+  border:none;background:none;width:100%;text-align:left;font-family:var(--font);
+}
+.sb-filter-item:hover{background:var(--bg3);color:var(--text)}
+.sb-filter-item.active{background:var(--bg4);color:var(--text)}
+.sb-filter-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-right:2px}
+
+/* Action en bas sidebar */
+.sb-bottom{
+  padding:12px 8px;border-top:1px solid var(--border);
+}
+
+/* ZONE PRINCIPALE */
+.main{flex:1;overflow-y:auto;background:var(--bg);display:flex;flex-direction:column}
+
+/* Header zone principale */
+.main-topbar{
+  padding:0 24px;height:52px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  background:var(--bg);position:sticky;top:0;z-index:10;flex-shrink:0;
+}
+.main-breadcrumb{
+  display:flex;align-items:center;gap:6px;
+  font-size:13px;color:var(--text2);
+}
+.main-breadcrumb-current{color:var(--text);font-weight:500}
+.main-topbar-actions{display:flex;gap:6px;align-items:center}
+
+/* Onglets vues (dans Production) */
+.view-tabs{
+  display:flex;gap:0;padding:0 24px;
+  border-bottom:1px solid var(--border);
+  background:var(--bg);flex-shrink:0;
+}
+.view-tab{
+  padding:10px 14px;font-size:12px;color:var(--text3);
+  cursor:pointer;border-bottom:2px solid transparent;
+  transition:all 0.15s;font-family:var(--font);background:none;border-top:none;border-left:none;border-right:none;
+  white-space:nowrap;
+}
+.view-tab:hover{color:var(--text2)}
+.view-tab.active{color:var(--text);border-bottom-color:var(--red)}
+
+/* Contenu */
+.main-content{flex:1;padding:24px;overflow-y:auto}
+
+/* NAV top */
+nav{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 20px;height:52px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.logo{font-family:var(--mono);font-size:14px;font-weight:500;letter-spacing:-0.03em}
+.logo span{color:var(--red)}
+.nav-r{display:flex;gap:6px;align-items:center}
 </style>
 </head>
 <body>
 
+<!-- NAV TOP -->
 <nav>
-  <div class="logo">réel<span>.</span>media <span style="color:var(--text3);font-size:11px;margin-left:8px;font-family:var(--mono)">production</span></div>
+  <div class="logo">réel<span>.</span>media <span style="color:var(--text3);font-size:10px;margin-left:6px;font-family:var(--mono)">production</span></div>
   <div class="nav-r">
-    <button class="nav-btn" onclick="exportExcel()">Export Excel</button>
-    <button class="nav-btn primary" onclick="openNouveau()">+ Nouveau sujet</button>
-    <button class="nav-btn" onclick="loadSujets()" style="padding:6px 10px">↻</button>
-    <div style="display:flex;gap:2px;background:var(--bg3);border-radius:var(--r);padding:3px">
-      <button id="vue-cards" class="nav-btn primary" onclick="setVue('cards')" style="padding:4px 10px;font-size:11px">⊞ Cartes</button>
-      <button id="vue-statut" class="nav-btn" onclick="setVue('statut')" style="padding:4px 10px;font-size:11px">📊 Statut</button>
-      <button id="vue-journaliste" class="nav-btn" onclick="setVue('journaliste')" style="padding:4px 10px;font-size:11px">👤 Journaliste</button>
-      <button id="vue-calendrier" class="nav-btn" onclick="setVue('calendrier')" style="padding:4px 10px;font-size:11px">📅 Calendrier</button>
-      <button id="vue-dashboard" class="nav-btn" onclick="setVue('dashboard')" style="padding:4px 10px;font-size:11px">📈 Dashboard</button>
-    </div>
+    <button class="nav-btn" onclick="openNouveau()" id="btn-nouveau" style="display:none">
+      <span style="font-size:14px;margin-right:4px">+</span> Nouveau sujet
+    </button>
+    <button class="nav-btn" onclick="exportExcel()" id="btn-export" style="display:none">Export Excel</button>
+    <button class="nav-btn" onclick="loadSujets()" style="padding:6px 10px" title="Actualiser">↻</button>
   </div>
 </nav>
 
 <div class="app-layout">
+
+  <!-- ─── SIDEBAR ─── -->
   <div class="sidebar">
-    <div class="sb-label">Statut</div>
-    <div class="sb-item active" onclick="flt(null,null,this)">Tous <span class="sb-count" id="cnt-all">0</span></div>
-    <div class="sb-item" onclick="flt('s','Brief / Idée',this)">Brief</div>
-    <div class="sb-item" onclick="flt('s','Séquencier en cours',this)">Séquencier</div>
-    <div class="sb-item" onclick="flt('s','En tournage',this)">En tournage</div>
-    <div class="sb-item" onclick="flt('s','Post-prod',this)">Post-prod</div>
-    <div class="sb-item" onclick="flt('s','Montage V1',this)">Montage</div>
-    <div class="sb-item" onclick="flt('s','Retours',this)">Retours</div>
-    <div class="sb-item" onclick="flt('s','Validation chef',this)">Validation</div>
-    <div class="sb-item" onclick="flt('s','PAD',this)">PAD</div>
-    <div class="sb-label">Format</div>
-    <div class="sb-item" onclick="flt('f','MAG',this)">MAG</div>
-    <div class="sb-item" onclick="flt('f','Brand',this)">Brand</div>
-    <div class="sb-item" onclick="flt('f','Face Cam',this)">Face Cam</div>
-    <div class="sb-item" onclick="flt('f','Desk',this)">Desk</div>
-    <div class="sb-item" onclick="flt('f','YouTube',this)">YouTube</div>
-    <div class="sb-item" onclick="flt('f','Prodige',this)">Prodige</div>
-  </div>
-  <div class="main">
-    <div class="main-hdr">
-      <div class="main-title">Suivi de production</div>
+    <div class="sb-logo-section">
+      <div class="sb-workspace">Workspace</div>
+      <div class="sb-workspace-name">Réel<span>.</span>Media</div>
     </div>
-    <div id="cards-wrap"><div class="loading"><div class="spin"></div></div></div>
-    <div id="vue-wrap" style="display:none"></div>
+
+    <div class="sb-nav">
+      <!-- Navigation principale -->
+      <button class="sb-nav-item" id="nav-dashboard" onclick="navTo('dashboard')">
+        <span class="sb-nav-icon">📈</span>
+        <span>Dashboard</span>
+      </button>
+      <button class="sb-nav-item" id="nav-production" onclick="navTo('production')">
+        <span class="sb-nav-icon">🎬</span>
+        <span>Production</span>
+        <span class="sb-nav-badge" id="cnt-all">0</span>
+      </button>
+    </div>
+
+    <div class="sb-sep"></div>
+
+    <!-- Filtres (visibles seulement en mode Production) -->
+    <div class="sb-filters" id="sb-filters" style="display:none">
+      <div class="sb-filter-label">Par statut</div>
+      <button class="sb-filter-item active" onclick="flt(null,null,this)">
+        <span>Tous</span>
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','Brief / Idée',this)">
+        <div class="sb-filter-dot" style="background:#555"></div>Brief / Idée
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','Séquencier en cours',this)">
+        <div class="sb-filter-dot" style="background:var(--blue)"></div>Séquencier
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','En tournage',this)">
+        <div class="sb-filter-dot" style="background:var(--amber)"></div>En tournage
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','Post-prod',this)">
+        <div class="sb-filter-dot" style="background:var(--amber)"></div>Post-prod
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','Montage V1',this)">
+        <div class="sb-filter-dot" style="background:var(--green)"></div>Montage
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','Retours',this)">
+        <div class="sb-filter-dot" style="background:var(--red)"></div>Retours
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','Validation chef',this)">
+        <div class="sb-filter-dot" style="background:var(--purple)"></div>Validation
+      </button>
+      <button class="sb-filter-item" onclick="flt('s','PAD',this)">
+        <div class="sb-filter-dot" style="background:var(--green)"></div>PAD
+      </button>
+
+      <div class="sb-filter-label" style="margin-top:8px">Par format</div>
+      <button class="sb-filter-item" onclick="flt('f','MAG',this)"><span style="color:#378ADD">●</span>&nbsp;MAG</button>
+      <button class="sb-filter-item" onclick="flt('f','Brand',this)"><span style="color:#EF9F27">●</span>&nbsp;Brand</button>
+      <button class="sb-filter-item" onclick="flt('f','Face Cam',this)"><span style="color:#e63946">●</span>&nbsp;Face Cam</button>
+      <button class="sb-filter-item" onclick="flt('f','Desk',this)"><span style="color:#888780">●</span>&nbsp;Desk</button>
+      <button class="sb-filter-item" onclick="flt('f','YouTube',this)"><span style="color:#1D9E75">●</span>&nbsp;YouTube</button>
+      <button class="sb-filter-item" onclick="flt('f','Prodige',this)"><span style="color:#D4537E">●</span>&nbsp;Prodige</button>
+    </div>
+
+    <div class="sb-bottom">
+      <button class="sb-nav-item" onclick="navTo('production');openNouveau()" style="color:var(--red)">
+        <span class="sb-nav-icon">＋</span>
+        <span>Nouveau sujet</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ─── ZONE PRINCIPALE ─── -->
+  <div class="main">
+
+    <!-- Topbar contextuelle -->
+    <div class="main-topbar">
+      <div class="main-breadcrumb">
+        <span id="bc-section" class="main-breadcrumb-current">Dashboard</span>
+        <span id="bc-sub" style="display:none;color:var(--text3)"></span>
+      </div>
+      <div class="main-topbar-actions" id="topbar-actions"></div>
+    </div>
+
+    <!-- Onglets vues (Production seulement) -->
+    <div class="view-tabs" id="view-tabs" style="display:none">
+      <button class="view-tab active" id="tab-cards" onclick="setVue('cards')">⊞ Cartes</button>
+      <button class="view-tab" id="tab-statut" onclick="setVue('statut')">📊 Par statut</button>
+      <button class="view-tab" id="tab-journaliste" onclick="setVue('journaliste')">👤 Par journaliste</button>
+      <button class="view-tab" id="tab-calendrier" onclick="setVue('calendrier')">📅 Calendrier</button>
+    </div>
+
+    <!-- Contenu principal -->
+    <div class="main-content" id="main-content">
+      <div class="loading"><div class="spin"></div></div>
+    </div>
+
   </div>
 </div>
 
+<!-- MODALS & OVERLAYS (inchangés) -->
 <div class="overlay" id="ov-new">
   <div class="modal" style="max-width:480px">
     <div class="modal-hdr">
@@ -213,8 +394,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         </div>
         <div id="code-prev" style="display:none;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--red)">Code : <strong id="code-prev-val"></strong></div>
       </div>
-      <!-- PANNEAU BRAND (affiché seulement si Brand sélectionné) -->
-      <div id="brand-panel" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;display:none;flex-direction:column;gap:10px">
+      <div id="brand-panel" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;flex-direction:column;gap:10px">
         <div style="display:flex;gap:6px">
           <button id="brand-btn-nouveau" class="nav-btn primary" style="flex:1;font-size:11px" onclick="setBrandMode('nouveau')">+ Nouveau client</button>
           <button id="brand-btn-decli" class="nav-btn" style="flex:1;font-size:11px" onclick="setBrandMode('decli')">Déclinaison client existant</button>
@@ -267,9 +447,6 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
-<!-- MODALE CONFIRMATION SUPPRESSION -->
 <div class="overlay" id="ov-confirm">
   <div class="modal" style="max-width:360px">
     <div class="modal-hdr">
@@ -286,7 +463,10 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
+
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
 const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
@@ -1159,6 +1339,132 @@ function calPrev(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalend
 function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendrier();}
 
 window.onload=loadSujets;
+
+
+// ─── NOUVELLE NAVIGATION ───
+let currentPage = 'dashboard';
+
+function navTo(page) {
+  currentPage = page;
+
+  // Update sidebar active state
+  document.querySelectorAll('.sb-nav-item').forEach(el => el.classList.remove('active'));
+  const navEl = document.getElementById('nav-' + page);
+  if(navEl) navEl.classList.add('active');
+
+  // Breadcrumb
+  const labels = {dashboard:'Dashboard', production:'Production'};
+  document.getElementById('bc-section').textContent = labels[page] || page;
+  document.getElementById('bc-sub').style.display = 'none';
+
+  // Filtres sidebar + onglets + actions
+  const isProduction = page === 'production';
+  document.getElementById('sb-filters').style.display = isProduction ? 'block' : 'none';
+  document.getElementById('view-tabs').style.display = isProduction ? 'flex' : 'none';
+  document.getElementById('btn-nouveau').style.display = isProduction ? 'flex' : 'none';
+  document.getElementById('btn-export').style.display = isProduction ? 'flex' : 'none';
+
+  // Topbar actions
+  const topbarActions = document.getElementById('topbar-actions');
+  if(isProduction) {
+    topbarActions.innerHTML = `
+      <button class="nav-btn" onclick="exportExcel()" style="font-size:11px">Export Excel</button>
+      <button class="nav-btn primary" onclick="openNouveau()" style="font-size:11px">+ Nouveau sujet</button>
+    `;
+  } else {
+    topbarActions.innerHTML = '';
+  }
+
+  // Render contenu
+  if(page === 'dashboard') renderDashboard();
+  else if(page === 'production') {
+    document.getElementById('main-content').innerHTML =
+      '<div id="cards-wrap">' + (sujets.length ? '' : '<div class="loading"><div class="spin"></div></div>') + '</div>' +
+      '<div id="vue-wrap" style="display:none"></div>';
+    setVue(vueActive);
+  }
+}
+
+// Override setVue pour mettre à jour les onglets
+const _origSetVue = setVue;
+function setVue(vue) {
+  vueActive = vue;
+  // Update tabs
+  ['cards','statut','journaliste','calendrier'].forEach(v => {
+    const tab = document.getElementById('tab-' + v);
+    if(tab) tab.className = 'view-tab' + (v === vue ? ' active' : '');
+  });
+  // Ensure containers exist
+  if(!document.getElementById('cards-wrap')) {
+    document.getElementById('main-content').innerHTML =
+      '<div id="cards-wrap"></div><div id="vue-wrap" style="display:none"></div>';
+  }
+  const cw = document.getElementById('cards-wrap');
+  const vw = document.getElementById('vue-wrap');
+  if(cw) cw.style.display = vue === 'cards' ? 'block' : 'none';
+  if(vw) vw.style.display = vue === 'cards' ? 'none' : 'block';
+  if(vue === 'cards') renderCards();
+  else if(vue === 'statut') renderStatut();
+  else if(vue === 'journaliste') renderJournaliste();
+  else if(vue === 'calendrier') renderCalendrier();
+  else if(vue === 'dashboard') renderDashboard();
+}
+
+// Override renderDashboard pour afficher dans main-content
+const _origRenderDash = renderDashboard;
+function renderDashboard() {
+  // Recalcul inline (appel la fonction originale mais dans main-content)
+  const container = document.getElementById('main-content');
+  if(!container) return;
+  // Appel la logique du dashboard original en remplaçant vue-wrap par main-content
+  const origVueWrap = document.getElementById('vue-wrap');
+  if(!origVueWrap) {
+    container.innerHTML = '<div id="vue-wrap"></div>';
+  }
+  _origRenderDash();
+  // Déplacer le contenu de vue-wrap vers main-content si besoin
+  const vw = document.getElementById('vue-wrap');
+  if(vw && vw.innerHTML) {
+    container.innerHTML = vw.innerHTML;
+  }
+}
+
+// Override flt pour mettre à jour les filtres sidebar
+const _origFlt = flt;
+function flt(t, v, el) {
+  // Update sidebar filter active state
+  document.querySelectorAll('.sb-filter-item').forEach(i => i.classList.remove('active'));
+  if(el) el.classList.add('active');
+  curFilter = {t, v};
+  renderCards();
+}
+
+// Re-render après loadSujets
+const _origLoad = loadSujets;
+async function loadSujets() {
+  // Show spinner
+  const mc = document.getElementById('main-content');
+  if(currentPage === 'production' && mc) {
+    if(!document.getElementById('cards-wrap')) {
+      mc.innerHTML = '<div id="cards-wrap"><div class="loading"><div class="spin"></div></div></div><div id="vue-wrap" style="display:none"></div>';
+    }
+  }
+  await _origLoad();
+  document.getElementById('cnt-all').textContent = sujets.length;
+  if(currentPage === 'dashboard') renderDashboard();
+  else if(currentPage === 'production') setVue(vueActive);
+}
+
+// Init
+window.onload = async function() {
+  // Show dashboard first, then load data
+  navTo('dashboard');
+  document.getElementById('main-content').innerHTML = '<div class="loading"><div class="spin"></div></div>';
+  // Remove old window.onload from original JS (already called here)
+  await _origLoad();
+  navTo('dashboard');
+};
+
 </script>
 </body>
 </html>
