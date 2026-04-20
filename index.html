@@ -437,11 +437,12 @@ function openDetail(id){
       // Par défaut = monteur stocké, sinon journaliste du sujet
       const monteurVal=s[monteurKeys[v-1]]||s.journaliste||'';
       return`<div class="field" style="margin-bottom:10px">
-        <div class="field-label" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <span>V${v}</span>
-          <input type="datetime-local" value="${s['montJ'+v]?new Date(s['montJ'+v]).toLocaleString('sv-SE',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(' ','T'):''}" style="width:auto;padding:2px 6px;font-size:11px;color:var(--text2)" onchange="upd('${id}','Date montage J${v}','datetime',this.value)">
+        <div class="field-label" style="margin-bottom:4px"><span>V${v}</span></div>
+        <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="onLienBlur(this,'${id}',${v})" style="margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
+          <span id="ts-${id}-${v}" style="font-size:11px;color:var(--text2);font-family:var(--mono)">${s['montJ'+v]?new Date(s['montJ'+v]).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</span>
         </div>
-        <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="upd('${id}','Lien V${v}','url',this.value)" style="margin-bottom:4px">
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
           <select onchange="upd('${id}','Monteur V${v}','sel',this.value)" style="font-size:11px;padding:3px 8px;flex:1">
@@ -479,11 +480,8 @@ async function upd(id,field,type,value){
     else if(type==='date')props[field]=value?{date:{start:value}}:{date:null};
     else if(type==='datetime'){
       if(value){
-        // Convertir datetime-local en ISO avec timezone locale
         const d=new Date(value);
-        const iso=d.toISOString(); // UTC
-        // Notion accepte le format ISO UTC directement
-        props[field]={date:{start:iso,is_datetime:true}};
+        props[field]={date:{start:d.toISOString()}};
       }else{
         props[field]={date:null};
       }
