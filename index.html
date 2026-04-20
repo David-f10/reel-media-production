@@ -431,7 +431,7 @@ function openDetail(id){
   const tousLesNoms=['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
   const monteurKeys=['monteur1','monteur2','monteur3'];
   const nbLiens=[s.lien1,s.lien2,s.lien3].filter(Boolean).length;
-  const montPill=nbLiens===3?'p-green V1 V2 V3':nbLiens===2?'p-green V1 V2':nbLiens===1?'p-amber V1':' p-gray En attente';
+  const montPill=nbLiens===3?'p-green Version 3 disponible':nbLiens===2?'p-green Version 2 disponible':nbLiens===1?'p-amber Version 1 disponible':'p-gray En attente';
   html+=step('Montage',montPill,
     [1,2,3].map(v=>{
       // Par défaut = monteur stocké, sinon journaliste du sujet
