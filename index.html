@@ -190,8 +190,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <div class="toast" id="toast"></div>
 
 <script>
-const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
-const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
+const DB_PROD='88894794-bcfd-41a5-baf3-b061fb75a1a9';
+const DB_COMP='551f8474-f20e-42a0-a928-9afb662f6b6e';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
@@ -259,7 +259,7 @@ function parsePage(p){
     lienRendu:pr['Lien de rendu']?.url||'',
     nomFichier:pr['Nom fichier officiel']?.rich_text?.[0]?.plain_text||'',
     seqValide:pr['Séquencier validé']?.checkbox||false,
-    code:pr['Code suggéré']?.formula?.string||''};
+    code:pr['Code']?.rich_text?.[0]?.plain_text||pr['Code']?.text?.[0]?.plain_text||''};
 }
 
 function renderCards(){
@@ -395,6 +395,8 @@ async function createSujet(){
   try{
     const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}}};
     if(plat)props.Plateforme={select:{name:plat}};
+    const codeVal=`${c.prefixe}${c.dernierNumero+1}`;
+    props['Code']={rich_text:[{text:{content:codeVal}}]};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
     if(date)props['Date de diffusion']={date:{start:date}};
     await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
