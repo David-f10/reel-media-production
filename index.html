@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Réel Média · Production</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --bg2: #111111;
+    --bg3: #181818;
+    --bg4: #202020;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0f0f0;
+    --text2: #888;
+    --text3: #555;
+    --red: #e63946;
+    --red-dim: rgba(230,57,70,0.15);
+    --green: #1D9E75;
+    --green-dim: rgba(29,158,117,0.15);
+    --amber: #EF9F27;
+    --amber-dim: rgba(239,159,39,0.15);
+    --purple: #7F77DD;
+    --purple-dim: rgba(127,119,221,0.15);
+    --blue: #378ADD;
+    --blue-dim: rgba(55,138,221,0.15);
+    --radius: 8px;
+    --radius-lg: 12px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  /* NAV */
+  nav {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.04em;
+  }
+  .logo span { color: var(--red); }
+  .nav-actions { display: flex; gap: 8px; align-items: center; }
+  .nav-btn {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover { background: var(--bg3); color: var(--text); }
+  .nav-btn.primary { background: var(--red); border-color: var(--red); color: #fff; font-weight: 500; }
+  .nav-btn.primary:hover { background: #c0313d; }
+  .user-badge {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--green);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #fff;
+    font-family: var(--mono);
+  }
+
+  /* LAYOUT */
+  .app { display: flex; height: calc(100vh - 56px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 20px 12px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .sidebar-section { margin-bottom: 24px; }
+  .sidebar-label {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    margin-bottom: 6px;
+    padding: 0 8px;
+  }
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.1s;
+    margin-bottom: 1px;
+  }
+  .sidebar-item:hover { background: var(--bg3); color: var(--text); }
+  .sidebar-item.active { background: var(--bg4); color: var(--text); }
+  .sidebar-count {
+    font-size: 11px;
+    font-family: var(--mono);
+    background: var(--bg4);
+    padding: 1px 7px;
+    border-radius: 10px;
+    color: var(--text3);
+  }
+  .sidebar-count.red { background: var(--red-dim); color: var(--red); }
+  .sidebar-count.green { background: var(--green-dim); color: var(--green); }
+  .sidebar-count.amber { background: var(--amber-dim); color: var(--amber); }
+
+  /* MAIN */
+  .main { flex: 1; overflow-y: auto; padding: 24px; background: var(--bg); }
+  .main-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .main-title { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; }
+  .main-actions { display: flex; gap: 8px; }
+
+  /* FILTERS */
+  .filters { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-chip {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.1s;
+    font-family: var(--font);
+  }
+  .filter-chip:hover { border-color: var(--border2); color: var(--text); }
+  .filter-chip.active { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+
+  /* CARDS GRID */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .card:hover { border-color: var(--border2); background: var(--bg3); }
+  .card.selected { border-color: var(--red); }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .card-code { font-family: var(--mono); font-size: 11px; color: var(--red); font-weight: 500; }
+  .card-format {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg4);
+    color: var(--text3);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+  .card-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 10px; line-height: 1.4; }
+  .card-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .avatar {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 600; color: #fff;
+    flex-shrink: 0;
+    font-family: var(--mono);
+  }
+  .card-journalist { font-size: 12px; color: var(--text2); }
+  .card-status { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .status-text { font-size: 11px; color: var(--text2); }
+  .progress { height: 2px; background: var(--bg4); border-radius: 1px; }
+  .progress-bar { height: 100%; border-radius: 1px; transition: width 0.3s; }
+
+  /* DETAIL PANEL */
+  .detail-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .detail-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .detail-code { font-family: var(--mono); font-size: 12px; color: var(--red); margin-bottom: 4px; }
+  .detail-title { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3; }
+  .detail-meta { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .detail-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* BADGE / PILLS */
+  .pill {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .pill-red { background: var(--red-dim); color: var(--red); }
+  .pill-green { background: var(--green-dim); color: var(--green); }
+  .pill-amber { background: var(--amber-dim); color: var(--amber); }
+  .pill-gray { background: var(--bg4); color: var(--text3); }
+  .pill-purple { background: var(--purple-dim); color: var(--purple); }
+  .pill-blue { background: var(--blue-dim); color: var(--blue); }
+
+  /* WORKFLOW STEPS */
+  .steps { padding: 0; }
+  .step {
+    border-bottom: 1px solid var(--border);
+    padding: 20px;
+  }
+  .step:last-child { border-bottom: none; }
+  .step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .step-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; }
+  .step-body { display: flex; flex-direction: column; gap: 10px; }
+  .step-body.hidden { display: none; }
+
+  /* FIELDS */
+  .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+  .field-value { font-size: 13px; color: var(--text); }
+
+  /* FORM ELEMENTS */
+  select, input[type="text"], input[type="url"], input[type="date"], textarea {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: var(--font);
+    width: 100%;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+  select:focus, input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--red);
+  }
+  select option { background: var(--bg3); }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+  /* CHECK ROWS */
+  .check-row { display: flex; align-items: center; gap: 10px; }
+  .check-row input[type="checkbox"] {
+    width: 16px; height: 16px;
+    accent-color: var(--green);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .check-label { font-size: 13px; color: var(--text2); }
+  .check-url { flex: 1; }
+
+  /* COMMENTS */
+  .comments { background: var(--bg3); border-radius: var(--radius); padding: 12px; }
+  .comment { display: flex; gap: 10px; margin-bottom: 12px; }
+  .comment:last-child { margin-bottom: 0; }
+  .comment-body { flex: 1; }
+  .comment-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+  .comment-meta { font-size: 11px; color: var(--text3); margin-top: 3px; }
+  .comment-input-row { display: flex; gap: 8px; margin-top: 10px; }
+  .comment-input-row input { flex: 1; }
+  .btn-send {
+    background: var(--red);
+    border: none;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-family: var(--font);
+    cursor: pointer;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-title { font-size: 16px; font-weight: 600; }
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }
+  .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* FORMAT SELECTOR */
+  .format-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .format-option {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text2);
+    background: var(--bg3);
+  }
+  .format-option:hover { border-color: var(--border2); color: var(--text); }
+  .format-option.selected { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+
+  /* STATUS STEPPER */
+  .stepper { display: flex; gap: 4px; flex-wrap: wrap; }
+  .step-btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.1s;
+  }
+  .step-btn:hover { border-color: var(--border2); color: var(--text2); }
+  .step-btn.current { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+  .step-btn.done { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+  /* LOADING */
+  .loading { display: flex; align-items: center; justify-content: center; padding: 60px; flex-direction: column; gap: 16px; }
+  .spinner { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: var(--red); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+  .empty h3 { font-size: 16px; color: var(--text2); margin-bottom: 8px; }
+
+  /* CONFIG SCREEN */
+  .config-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .config-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    width: 100%;
+    max-width: 480px;
+  }
+  .config-logo { font-family: var(--mono); font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  .config-logo span { color: var(--red); }
+  .config-subtitle { font-size: 13px; color: var(--text2); margin-bottom: 32px; line-height: 1.6; }
+  .config-label { font-size: 12px; color: var(--text2); font-weight: 500; margin-bottom: 8px; }
+  .config-help { font-size: 11px; color: var(--text3); margin-top: 6px; line-height: 1.5; }
+  .config-btn {
+    width: 100%;
+    background: var(--red);
+    border: none;
+    color: #fff;
+    padding: 12px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: var(--font);
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 24px;
+  }
+  .config-btn:hover { background: #c0313d; }
+  .config-divider { height: 1px; background: var(--border); margin: 24px 0; }
+  .config-warning { background: var(--amber-dim); border: 1px solid var(--amber); border-radius: var(--radius); padding: 12px 14px; font-size: 12px; color: var(--amber); line-height: 1.5; margin-bottom: 20px; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 13px;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.2s;
+    max-width: 320px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .cards-grid { grid-template-columns: 1fr; }
+    .field-group { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- CONFIG SCREEN -->
+<div id="config-screen" class="config-screen">
+  <div class="config-card">
+    <div class="config-logo">réel<span>.</span>media</div>
+    <p class="config-subtitle">Tableau de suivi de production.<br>Connectez votre espace Notion pour commencer.</p>
+
+    <div class="config-warning">
+      Ne partagez jamais votre token Notion publiquement. Il est stocké uniquement dans votre navigateur (localStorage).
+    </div>
+
+    <div style="margin-bottom:16px">
+      <div class="config-label">Token Notion (secret_...)</div>
+      <input type="password" id="notion-token-input" placeholder="secret_xxxxxxxxxxxx" style="width:100%">
+      <div class="config-help">
+        Créez une intégration sur notion.so/profile/integrations → copiez le "Internal Integration Secret".<br>
+        Ensuite connectez vos bases Notion à cette intégration via "..." → Connections.
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <div class="config-label">ID base "Suivi de Production"</div>
+      <input type="text" id="db-production-input" placeholder="88894794-bcfd-41a5-baf3-b061fb75a1a9" style="width:100%">
+    </div>
+
+    <div>
+      <div class="config-label">ID base "Compteurs de codes"</div>
+      <input type="text" id="db-compteurs-input" placeholder="551f8474-f20e-42a0-a928-9afb662f6b6e" style="width:100%">
+    </div>
+
+    <button class="config-btn" onclick="saveConfig()">Connexion →</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <nav>
+    <div class="logo">réel<span>.</span>media <span style="color:var(--text3);font-size:11px;margin-left:8px;font-family:var(--mono)">production</span></div>
+    <div class="nav-actions">
+      <button class="nav-btn" onclick="exportExcel()">Export Excel</button>
+      <button class="nav-btn primary" onclick="openNewModal()">+ Nouveau sujet</button>
+      <div class="user-badge" id="user-badge">?</div>
+      <button class="nav-btn" onclick="logout()" style="font-size:11px;padding:4px 10px;color:var(--text3)">Déconnexion</button>
+    </div>
+  </nav>
+
+  <div class="app">
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Statut</div>
+        <div class="sidebar-item active" onclick="filterBy('statut', null, this)">Tous <span class="sidebar-count" id="count-all">0</span></div>
+        <div class="sidebar-item" onclick="filterBy('statut', 'Brief / Idée', this)">Brief <span class="sidebar-count"></span></div>
+        <div class="sidebar-item" onclick="filterBy('statut', 'Séquencier en cours', this)">Séquencier <span class="sidebar-count"></span></div>
+        <div class="sidebar-item" onclick="filterBy('statut', 'En tournage', this)">En tournage <span class="sidebar-count amber"></span></div>
+        <div class="sidebar-item" onclick="filterBy('statut', 'Post-prod', this)">Post-prod <span class="sidebar-count"></span></div>
+        <div class="sidebar-item" onclick="filterBy('statut', 'Montage V1', this)">Montage <span class="sidebar-count"></span></div>
+        <div class="sidebar-item" onclick="filterBy('statut', 'Validation chef', this)">Validation <span class="sidebar-count purple"></span></div>
+        <div class="sidebar-item" onclick="filterBy('statut', 'PAD', this)">PAD <span class="sidebar-count green"></span></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Format</div>
+        <div class="sidebar-item" onclick="filterBy('format', 'MAG', this)">MAG</div>
+        <div class="sidebar-item" onclick="filterBy('format', 'Brand', this)">Brand</div>
+        <div class="sidebar-item" onclick="filterBy('format', 'Face Cam', this)">Face Cam</div>
+        <div class="sidebar-item" onclick="filterBy('format', 'Desk', this)">Desk</div>
+        <div class="sidebar-item" onclick="filterBy('format', 'YouTube', this)">YouTube</div>
+        <div class="sidebar-item" onclick="filterBy('format', 'Prodige', this)">Prodige</div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="main-header">
+        <div class="main-title">Suivi de production</div>
+        <div class="main-actions">
+          <button class="nav-btn" onclick="loadSujets()">↻ Actualiser</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="filter-chip active" onclick="setFilter('all', this)">Tous</div>
+        <div class="filter-chip" onclick="setFilter('week', this)">Cette semaine</div>
+        <div class="filter-chip" onclick="setFilter('late', this)">En retard</div>
+      </div>
+
+      <div id="cards-container">
+        <div class="loading"><div class="spinner"></div><span style="color:var(--text3)">Chargement...</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NOUVEAU SUJET -->
+<div class="modal-overlay" id="modal-new">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nouveau sujet</div>
+      <button class="modal-close" onclick="closeModal('modal-new')">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="config-label">Titre du sujet *</div>
+        <input type="text" id="new-titre" placeholder="Ex: Reportage sur l'IA en rédaction">
+      </div>
+      <div>
+        <div class="config-label">Format *</div>
+        <div class="format-grid" id="format-grid">
+          <div class="format-option" onclick="selectFormat('MAG')">MAG</div>
+          <div class="format-option" onclick="selectFormat('Brand')">Brand</div>
+          <div class="format-option" onclick="selectFormat('Face Cam')">Face Cam</div>
+          <div class="format-option" onclick="selectFormat('Desk')">Desk</div>
+          <div class="format-option" onclick="selectFormat('YouTube')">YouTube</div>
+          <div class="format-option" onclick="selectFormat('Prodige')">Prodige</div>
+        </div>
+        <div id="code-preview" style="margin-top:10px;font-family:var(--mono);font-size:13px;color:var(--red);display:none">
+          Code : <span id="code-preview-val"></span>
+        </div>
+      </div>
+      <div>
+        <div class="config-label">Chef responsable *</div>
+        <select id="new-chef">
+          <option value="">Choisir...</option>
+          <option>Benjamin</option>
+          <option>Arnaud</option>
+          <option>Chloé</option>
+        </select>
+      </div>
+      <div>
+        <div class="config-label">Journaliste attribué *</div>
+        <select id="new-journaliste">
+          <option value="">Choisir...</option>
+          <option>Julien</option>
+          <option>Augustin</option>
+          <option>Nico</option>
+          <option>Mickael</option>
+          <option>Juliette</option>
+          <option>Mathilde</option>
+          <option>Léa</option>
+        </select>
+      </div>
+      <div>
+        <div class="config-label">Plateforme</div>
+        <select id="new-plateforme">
+          <option value="">Choisir...</option>
+          <option>YouTube</option>
+          <option>Instagram</option>
+        </select>
+      </div>
+      <div>
+        <div class="config-label">Brief (notes chef)</div>
+        <textarea id="new-brief" placeholder="Instructions pour le journaliste..."></textarea>
+      </div>
+      <div>
+        <div class="config-label">Date de diffusion</div>
+        <input type="date" id="new-date">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="nav-btn" onclick="closeModal('modal-new')">Annuler</button>
+      <button class="nav-btn primary" onclick="createSujet()">Créer le sujet →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETAIL -->
+<div class="modal-overlay" id="modal-detail">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <div>
+        <div id="detail-code" class="detail-code"></div>
+        <div id="detail-title" class="detail-title"></div>
+        <div id="detail-meta" class="detail-meta"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-detail')">×</button>
+    </div>
+    <div id="detail-steps" class="steps"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==========================================
+// CONFIG & STATE
+// ==========================================
+const PROXY = 'https://api.notion.com/v1';
+let CONFIG = {};
+let sujets = [];
+let compteurs = {};
+let currentFilter = { type: null, value: null };
+let selectedFormat = null;
+let currentPageId = null;
+
+const STATUS_ORDER = [
+  'Brief / Idée', 'Séquencier en cours', 'Séquencier validé',
+  'En tournage', 'Post-prod', 'Montage V1', 'Retours', 'Validation chef', 'PAD'
+];
+
+const FORMAT_COLORS = {
+  'MAG': '#378ADD', 'Brand': '#EF9F27', 'Face Cam': '#e63946',
+  'YouTube': '#1D9E75', 'Desk': '#888780', 'Prodige': '#D4537E',
+  'Déclinaison': '#7F77DD', 'Interview / Podcast': '#5DCAA5'
+};
+
+const NEEDS_TOURNAGE = ['MAG', 'Brand', 'Face Cam', 'YouTube', 'Prodige'];
+
+// ==========================================
+// INIT
+// ==========================================
+window.onload = function() {
+  const saved = localStorage.getItem('reel-media-config');
+  if (saved) {
+    CONFIG = JSON.parse(saved);
+    showApp();
+    loadSujets();
+  }
+};
+
+function saveConfig() {
+  const token = document.getElementById('notion-token-input').value.trim();
+  const dbProd = document.getElementById('db-production-input').value.trim();
+  const dbComp = document.getElementById('db-compteurs-input').value.trim();
+
+  if (!token || !dbProd || !dbComp) {
+    showToast('Tous les champs sont requis', 'error');
+    return;
+  }
+
+  CONFIG = { token, dbProduction: dbProd, dbCompteurs: dbComp };
+  localStorage.setItem('reel-media-config', JSON.stringify(CONFIG));
+  showApp();
+  loadSujets();
+}
+
+function logout() {
+  localStorage.removeItem('reel-media-config');
+  location.reload();
+}
+
+function showApp() {
+  document.getElementById('config-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const initials = CONFIG.token ? CONFIG.token.substring(7, 9).toUpperCase() : '??';
+  document.getElementById('user-badge').textContent = initials;
+}
+
+// ==========================================
+// NOTION API
+// ==========================================
+async function notionRequest(endpoint, method = 'GET', body = null) {
+  const headers = {
+    'Authorization': `Bearer ${CONFIG.token}`,
+    'Notion-Version': '2022-06-28',
+    'Content-Type': 'application/json'
+  };
+
+  const options = { method, headers };
+  if (body) options.body = JSON.stringify(body);
+
+  const res = await fetch(`https://api.notion.com/v1${endpoint}`, options);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Erreur Notion API');
+  }
+  return res.json();
+}
+
+// ==========================================
+// LOAD SUJETS
+// ==========================================
+async function loadSujets() {
+  document.getElementById('cards-container').innerHTML =
+    '<div class="loading"><div class="spinner"></div><span style="color:var(--text3)">Chargement...</span></div>';
+
+  try {
+    const data = await notionRequest(`/databases/${CONFIG.dbProduction}/query`, 'POST', {
+      sorts: [{ property: 'Statut', direction: 'ascending' }, { timestamp: 'created_time', direction: 'descending' }]
+    });
+
+    sujets = data.results.map(page => parsePage(page));
+    await loadCompteurs();
+    renderCards();
+    updateSidebarCounts();
+  } catch(e) {
+    document.getElementById('cards-container').innerHTML =
+      `<div class="empty"><h3>Erreur de connexion</h3><p>${e.message}</p></div>`;
+  }
+}
+
+function parsePage(page) {
+  const p = page.properties;
+  return {
+    id: page.id,
+    url: page.url,
+    titre: p['Titre']?.title?.[0]?.plain_text || 'Sans titre',
+    statut: p['Statut']?.select?.name || '',
+    format: p['Format']?.select?.name || '',
+    chef: p['Chef responsable']?.select?.name || '',
+    journaliste: p['Journaliste']?.select?.name || '',
+    plateforme: p['Plateforme']?.select?.name || '',
+    notes: p['Notes chef']?.rich_text?.[0]?.plain_text || '',
+    datesDiffusion: p['Date de diffusion']?.date?.start || '',
+    dateTournageJ1: p['Date tournage J1']?.date?.start || '',
+    dateTournageJ2: p['Date tournage J2']?.date?.start || '',
+    equipement: p['Équipement tournage']?.select?.name || '',
+    stockage: p['Stockage']?.select?.name || '',
+    responsableMontage: p['Responsable montage']?.select?.name || '',
+    dateMontageJ1: p['Date montage J1']?.date?.start || '',
+    dateMontageJ2: p['Date montage J2']?.date?.start || '',
+    dateMontageJ3: p['Date montage J3']?.date?.start || '',
+    lienV1: p['Lien V1']?.url || '',
+    lienV2: p['Lien V2']?.url || '',
+    lienV3: p['Lien V3']?.url || '',
+    lienRendu: p['Lien de rendu']?.url || '',
+    nomFichier: p['Nom fichier officiel']?.rich_text?.[0]?.plain_text || '',
+    sequencierValide: p['Séquencier validé']?.checkbox || false,
+    codePreview: p['Code suggéré']?.formula?.string || '',
+    created: page.created_time
+  };
+}
+
+async function loadCompteurs() {
+  try {
+    const data = await notionRequest(`/databases/${CONFIG.dbCompteurs}/query`, 'POST', {});
+    compteurs = {};
+    for (const page of data.results) {
+      const p = page.properties;
+      const format = p['Format']?.title?.[0]?.plain_text || '';
+      compteurs[format] = {
+        id: page.id,
+        prefixe: p['Préfixe']?.rich_text?.[0]?.plain_text || '',
+        dernierNumero: p['Dernier numéro']?.number || 0,
+        prochainCode: p['Prochain code']?.formula?.string || ''
+      };
+    }
+  } catch(e) {
+    console.warn('Erreur chargement compteurs:', e);
+  }
+}
+
+// ==========================================
+// RENDER CARDS
+// ==========================================
+function renderCards() {
+  let filtered = sujets;
+
+  if (currentFilter.type === 'statut' && currentFilter.value) {
+    filtered = filtered.filter(s => s.statut === currentFilter.value);
+  }
+  if (currentFilter.type === 'format' && currentFilter.value) {
+    filtered = filtered.filter(s => s.format === currentFilter.value);
+  }
+
+  if (!filtered.length) {
+    document.getElementById('cards-container').innerHTML =
+      '<div class="empty"><h3>Aucun sujet trouvé</h3><p>Créez votre premier sujet avec le bouton "+ Nouveau sujet"</p></div>';
+    return;
+  }
+
+  const grid = `<div class="cards-grid">${filtered.map(s => cardHTML(s)).join('')}</div>`;
+  document.getElementById('cards-container').innerHTML = grid;
+}
+
+function cardHTML(s) {
+  const color = FORMAT_COLORS[s.format] || '#888';
+  const progress = getProgress(s.statut);
+  const dotColor = getStatusColor(s.statut);
+  const initials = s.journaliste ? s.journaliste.substring(0,2).toUpperCase() : '?';
+
+  return `
+  <div class="card" onclick="openDetail('${s.id}')">
+    <div class="card-header">
+      <span class="card-code">${s.codePreview || '—'}</span>
+      <span class="card-format" style="color:${color}">${s.format || '—'}</span>
+    </div>
+    <div class="card-title">${s.titre}</div>
+    <div class="card-meta">
+      <div class="avatar" style="background:${color}">${initials}</div>
+      <span class="card-journalist">${s.journaliste || 'Non attribué'}</span>
+      ${s.chef ? `<span style="font-size:11px;color:var(--text3)">· ${s.chef}</span>` : ''}
+    </div>
+    <div class="card-status">
+      <div class="status-dot" style="background:${dotColor}"></div>
+      <span class="status-text">${s.statut || 'Nouveau'}${s.dateTournageJ1 ? ' · ' + formatDate(s.dateTournageJ1) : ''}</span>
+    </div>
+    <div class="progress">
+      <div class="progress-bar" style="width:${progress}%;background:${dotColor}"></div>
+    </div>
+  </div>`;
+}
+
+function getProgress(statut) {
+  const idx = STATUS_ORDER.indexOf(statut);
+  if (idx === -1) return 5;
+  return Math.round(((idx + 1) / STATUS_ORDER.length) * 100);
+}
+
+function getStatusColor(statut) {
+  const colors = {
+    'Brief / Idée': '#555', 'Séquencier en cours': '#378ADD', 'Séquencier validé': '#7F77DD',
+    'En tournage': '#EF9F27', 'Post-prod': '#EF9F27', 'Montage V1': '#1D9E75',
+    'Retours': '#e63946', 'Validation chef': '#7F77DD', 'PAD': '#1D9E75'
+  };
+  return colors[statut] || '#555';
+}
+
+// ==========================================
+// DETAIL MODAL
+// ==========================================
+function openDetail(id) {
+  const s = sujets.find(x => x.id === id);
+  if (!s) return;
+  currentPageId = id;
+
+  document.getElementById('detail-code').textContent = `${s.codePreview || '—'} · ${s.format} · ${s.plateforme || '—'}`;
+  document.getElementById('detail-title').textContent = s.titre;
+  document.getElementById('detail-meta').textContent = `Chef : ${s.chef || '—'} · Journaliste : ${s.journaliste || '—'}${s.datesDiffusion ? ' · Diffusion : ' + formatDate(s.datesDiffusion) : ''}`;
+
+  const hasTournage = NEEDS_TOURNAGE.includes(s.format);
+
+  // Status stepper
+  const stepperHTML = `<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:11px;color:var(--text3);margin-right:4px">Statut :</span>
+    ${STATUS_ORDER.filter(st => hasTournage || !['En tournage'].includes(st) || s.statut === st)
+      .map(st => {
+        const idx = STATUS_ORDER.indexOf(st);
+        const curIdx = STATUS_ORDER.indexOf(s.statut);
+        const cls = st === s.statut ? 'current' : idx < curIdx ? 'done' : '';
+        return `<button class="step-btn ${cls}" onclick="updateStatut('${id}','${st}')">${st}</button>`;
+      }).join('')}
+  </div>`;
+
+  // Steps content
+  let stepsHTML = stepperHTML;
+
+  // Brief
+  stepsHTML += `<div class="step">
+    <div class="step-header">
+      <span class="step-title">Brief</span>
+      ${s.notes ? '<span class="pill pill-green">Renseigné</span>' : '<span class="pill pill-gray">Vide</span>'}
+    </div>
+    <div class="step-body">
+      <textarea placeholder="Notes du chef..." onblur="updateField('${id}','Notes chef','rich_text',this.value)">${s.notes}</textarea>
+    </div>
+  </div>`;
+
+  // Séquencier
+  stepsHTML += `<div class="step">
+    <div class="step-header">
+      <span class="step-title">Séquencier</span>
+      ${s.sequencierValide ? '<span class="pill pill-green">Validé</span>' : '<span class="pill pill-amber">En attente</span>'}
+    </div>
+    <div class="step-body">
+      <label class="check-row">
+        <input type="checkbox" ${s.sequencierValide ? 'checked' : ''} onchange="updateField('${id}','Séquencier validé','checkbox',this.checked)">
+        <span class="check-label">Séquencier validé par le chef</span>
+      </label>
+    </div>
+  </div>`;
+
+  // Tournage (conditionnel)
+  if (hasTournage) {
+    stepsHTML += `<div class="step">
+      <div class="step-header">
+        <span class="step-title">Tournage</span>
+        ${s.dateTournageJ1 ? '<span class="pill pill-amber">Planifié</span>' : '<span class="pill pill-gray">Non planifié</span>'}
+      </div>
+      <div class="step-body">
+        <div class="field-group">
+          <div class="field">
+            <div class="field-label">Date J1</div>
+            <input type="date" value="${s.dateTournageJ1}" onchange="updateField('${id}','Date tournage J1','date',this.value)">
+          </div>
+          <div class="field">
+            <div class="field-label">Date J2 (optionnel)</div>
+            <input type="date" value="${s.dateTournageJ2}" onchange="updateField('${id}','Date tournage J2','date',this.value)">
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Équipement</div>
+          <select onchange="updateField('${id}','Équipement tournage','select',this.value)">
+            <option value="">Choisir...</option>
+            ${['Caméra rédaction','iPhone 17','Matériel perso'].map(o => `<option ${s.equipement===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Post-prod
+  stepsHTML += `<div class="step">
+    <div class="step-header">
+      <span class="step-title">Post-prod · Stockage</span>
+      ${s.stockage ? '<span class="pill pill-blue">'+s.stockage+'</span>' : '<span class="pill pill-gray">Non défini</span>'}
+    </div>
+    <div class="step-body">
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Stockage</div>
+          <select onchange="updateField('${id}','Stockage','select',this.value)">
+            <option value="">Choisir...</option>
+            ${['Machine 1','Machine 2','Machine 3','Machine 4','Machine 5','Machine 6','Machine 7','Machine 8','Machine 9','Machine 10','DD rédaction','NexisAvid'].map(o => `<option ${s.stockage===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">Responsable montage</div>
+          <select onchange="updateField('${id}','Responsable montage','select',this.value)">
+            <option value="">Choisir...</option>
+            ${['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Thierry','David'].map(o => `<option ${s.responsableMontage===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  // Montage
+  stepsHTML += `<div class="step">
+    <div class="step-header">
+      <span class="step-title">Montage</span>
+      ${s.lienV1 ? '<span class="pill pill-green">V1 disponible</span>' : '<span class="pill pill-gray">En attente</span>'}
+    </div>
+    <div class="step-body">
+      ${[1,2,3].map(v => {
+        const lien = s[`lienV${v}`];
+        const date = s[`dateMontageJ${v}`];
+        return `<div class="field">
+          <div class="field-label" style="display:flex;align-items:center;justify-content:space-between">
+            <span>V${v}</span>
+            <input type="date" value="${date}" style="width:auto;font-size:11px;padding:2px 6px" onchange="updateField('${id}','Date montage J${v}','date',this.value)">
+          </div>
+          <input type="url" value="${lien}" placeholder="Coller le lien V${v}..." onblur="updateField('${id}','Lien V${v}','url',this.value)">
+        </div>`;
+      }).join('')}
+      <div class="field">
+        <div class="field-label">Nom fichier officiel</div>
+        <input type="text" value="${s.nomFichier}" placeholder="ID_Titre-court_Journaliste" onblur="updateField('${id}','Nom fichier officiel','rich_text',this.value)">
+      </div>
+    </div>
+  </div>`;
+
+  // Validation & PAD
+  stepsHTML += `<div class="step">
+    <div class="step-header">
+      <span class="step-title">Validation · PAD</span>
+      ${s.statut === 'PAD' ? '<span class="pill pill-green">PAD</span>' : '<span class="pill pill-gray">En attente</span>'}
+    </div>
+    <div class="step-body">
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Plateforme</div>
+          <select onchange="updateField('${id}','Plateforme','select',this.value)">
+            <option value="">Choisir...</option>
+            <option ${s.plateforme==='YouTube'?'selected':''}>YouTube</option>
+            <option ${s.plateforme==='Instagram'?'selected':''}>Instagram</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">Date de diffusion</div>
+          <input type="date" value="${s.datesDiffusion}" onchange="updateField('${id}','Date de diffusion','date',this.value)">
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Lien de rendu final</div>
+        <input type="url" value="${s.lienRendu}" placeholder="Lien de la vidéo publiée..." onblur="updateField('${id}','Lien de rendu','url',this.value)">
+      </div>
+    </div>
+  </div>`;
+
+  document.getElementById('detail-steps').innerHTML = stepsHTML;
+  document.getElementById('modal-detail').classList.add('open');
+}
+
+// ==========================================
+// UPDATE FIELDS
+// ==========================================
+async function updateField(pageId, field, type, value) {
+  try {
+    let properties = {};
+
+    if (type === 'rich_text') {
+      properties[field] = { rich_text: value ? [{ text: { content: value } }] : [] };
+    } else if (type === 'select') {
+      properties[field] = value ? { select: { name: value } } : { select: null };
+    } else if (type === 'date') {
+      properties[field] = value ? { date: { start: value } } : { date: null };
+    } else if (type === 'url') {
+      properties[field] = { url: value || null };
+    } else if (type === 'checkbox') {
+      properties[field] = { checkbox: value };
+    }
+
+    await notionRequest(`/pages/${pageId}`, 'PATCH', { properties });
+
+    // Update local state
+    const s = sujets.find(x => x.id === pageId);
+    if (s) {
+      const keyMap = {
+        'Notes chef': 'notes', 'Séquencier validé': 'sequencierValide',
+        'Date tournage J1': 'dateTournageJ1', 'Date tournage J2': 'dateTournageJ2',
+        'Équipement tournage': 'equipement', 'Stockage': 'stockage',
+        'Responsable montage': 'responsableMontage', 'Lien V1': 'lienV1',
+        'Lien V2': 'lienV2', 'Lien V3': 'lienV3', 'Date montage J1': 'dateMontageJ1',
+        'Date montage J2': 'dateMontageJ2', 'Date montage J3': 'dateMontageJ3',
+        'Lien de rendu': 'lienRendu', 'Nom fichier officiel': 'nomFichier',
+        'Plateforme': 'plateforme', 'Date de diffusion': 'datesDiffusion'
+      };
+      if (keyMap[field]) s[keyMap[field]] = value;
+    }
+
+    showToast('Sauvegardé', 'success');
+  } catch(e) {
+    showToast('Erreur : ' + e.message, 'error');
+  }
+}
+
+async function updateStatut(pageId, statut) {
+  await updateField(pageId, 'Statut', 'select', statut);
+  const s = sujets.find(x => x.id === pageId);
+  if (s) s.statut = statut;
+  renderCards();
+  updateSidebarCounts();
+  openDetail(pageId);
+}
+
+// ==========================================
+// CREATE SUJET
+// ==========================================
+function selectFormat(format) {
+  selectedFormat = format;
+  document.querySelectorAll('.format-option').forEach(el => el.classList.remove('selected'));
+  event.target.classList.add('selected');
+
+  const compteur = compteurs[format];
+  const preview = document.getElementById('code-preview');
+  const previewVal = document.getElementById('code-preview-val');
+
+  if (compteur) {
+    previewVal.textContent = compteur.prochainCode || `${compteur.prefixe}${compteur.dernierNumero + 1}`;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+async function createSujet() {
+  const titre = document.getElementById('new-titre').value.trim();
+  const chef = document.getElementById('new-chef').value;
+  const journaliste = document.getElementById('new-journaliste').value;
+  const plateforme = document.getElementById('new-plateforme').value;
+  const brief = document.getElementById('new-brief').value.trim();
+  const date = document.getElementById('new-date').value;
+
+  if (!titre || !selectedFormat || !chef || !journaliste) {
+    showToast('Titre, format, chef et journaliste sont requis', 'error');
+    return;
+  }
+
+  try {
+    // 1. Trouver le compteur pour ce format
+    const compteur = compteurs[selectedFormat];
+    if (!compteur) {
+      showToast('Compteur introuvable pour ce format', 'error');
+      return;
+    }
+
+    // 2. Créer la fiche dans Notion
+    const properties = {
+      'Titre': { title: [{ text: { content: titre } }] },
+      'Format': { select: { name: selectedFormat } },
+      'Chef responsable': { select: { name: chef } },
+      'Journaliste': { select: { name: journaliste } },
+      'Statut': { select: { name: 'Brief / Idée' } },
+    };
+    if (plateforme) properties['Plateforme'] = { select: { name: plateforme } };
+    if (brief) properties['Notes chef'] = { rich_text: [{ text: { content: brief } }] };
+    if (date) properties['Date de diffusion'] = { date: { start: date } };
+
+    await notionRequest('/pages', 'POST', {
+      parent: { database_id: CONFIG.dbProduction },
+      properties
+    });
+
+    // 3. Incrémenter le compteur automatiquement
+    const nouveauNumero = compteur.dernierNumero + 1;
+    await notionRequest(`/pages/${compteur.id}`, 'PATCH', {
+      properties: { 'Dernier numéro': { number: nouveauNumero } }
+    });
+
+    // Update local compteur
+    compteur.dernierNumero = nouveauNumero;
+    compteur.prochainCode = `${compteur.prefixe}${nouveauNumero + 1}`;
+
+    closeModal('modal-new');
+    showToast(`Sujet créé avec le code ${compteur.prefixe}${nouveauNumero}`, 'success');
+
+    // Reset form
+    document.getElementById('new-titre').value = '';
+    document.getElementById('new-chef').value = '';
+    document.getElementById('new-journaliste').value = '';
+    document.getElementById('new-plateforme').value = '';
+    document.getElementById('new-brief').value = '';
+    document.getElementById('new-date').value = '';
+    document.querySelectorAll('.format-option').forEach(el => el.classList.remove('selected'));
+    document.getElementById('code-preview').style.display = 'none';
+    selectedFormat = null;
+
+    await loadSujets();
+  } catch(e) {
+    showToast('Erreur création : ' + e.message, 'error');
+  }
+}
+
+// ==========================================
+// EXPORT EXCEL
+// ==========================================
+function exportExcel() {
+  if (!sujets.length) { showToast('Aucun sujet à exporter', 'error'); return; }
+
+  const data = sujets.map(s => ({
+    'Code': s.codePreview,
+    'Titre': s.titre,
+    'Statut': s.statut,
+    'Format': s.format,
+    'Chef': s.chef,
+    'Journaliste': s.journaliste,
+    'Plateforme': s.plateforme,
+    'Date diffusion': s.datesDiffusion,
+    'Date tournage J1': s.dateTournageJ1,
+    'Date tournage J2': s.dateTournageJ2,
+    'Équipement': s.equipement,
+    'Stockage': s.stockage,
+    'Responsable montage': s.responsableMontage,
+    'Date montage J1': s.dateMontageJ1,
+    'Date montage J2': s.dateMontageJ2,
+    'Date montage J3': s.dateMontageJ3,
+    'Lien V1': s.lienV1,
+    'Lien V2': s.lienV2,
+    'Lien V3': s.lienV3,
+    'Lien rendu final': s.lienRendu,
+    'Nom fichier': s.nomFichier,
+    'Séquencier validé': s.sequencierValide ? 'Oui' : 'Non',
+    'Brief': s.notes
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Production');
+
+  // Style headers
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  ws['!cols'] = Array(range.e.c + 1).fill({ wch: 20 });
+
+  const date = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `reel-media-production-${date}.xlsx`);
+  showToast('Export Excel téléchargé', 'success');
+}
+
+// ==========================================
+// FILTERS & UI
+// ==========================================
+function filterBy(type, value, el) {
+  currentFilter = { type, value };
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  renderCards();
+}
+
+function setFilter(type, el) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  // For now just re-render
+  renderCards();
+}
+
+function updateSidebarCounts() {
+  document.getElementById('count-all').textContent = sujets.length;
+}
+
+function openNewModal() {
+  loadCompteurs();
+  document.getElementById('modal-new').classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ==========================================
+// UTILS
+// ==========================================
+function formatDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast ${type} show`;
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
