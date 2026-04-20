@@ -1,5 +1,3 @@
-const fetch = require('node-fetch');
-
 exports.handler = async function(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -17,14 +15,11 @@ exports.handler = async function(event) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'NOTION_TOKEN manquant dans les variables Netlify' })
+      body: JSON.stringify({ error: 'NOTION_TOKEN manquant' })
     };
   }
 
-  const path = event.queryStringParameters && event.queryStringParameters.path
-    ? event.queryStringParameters.path
-    : '';
-
+  const path = event.queryStringParameters?.path || '';
   const url = `https://api.notion.com/v1${path}`;
 
   try {
@@ -41,10 +36,6 @@ exports.handler = async function(event) {
     const data = await response.json();
     return { statusCode: response.status, headers, body: JSON.stringify(data) };
   } catch(e) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: e.message })
-    };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
   }
 };
