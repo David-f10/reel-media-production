@@ -10,22 +10,6 @@
 :root{--bg:#0a0a0a;--bg2:#111;--bg3:#181818;--bg4:#202020;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--text:#f0f0f0;--text2:#888;--text3:#555;--red:#e63946;--red-dim:rgba(230,57,70,0.15);--green:#1D9E75;--green-dim:rgba(29,158,117,0.15);--amber:#EF9F27;--amber-dim:rgba(239,159,39,0.15);--purple:#7F77DD;--purple-dim:rgba(127,119,221,0.15);--blue:#378ADD;--blue-dim:rgba(55,138,221,0.15);--r:8px;--rl:12px;--font:'DM Sans',sans-serif;--mono:'DM Mono',monospace}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
-/* AUTH SCREEN */
-.auth-screen{display:none;align-items:center;justify-content:center;min-height:100vh;padding:24px}
-.auth-card{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:40px;width:100%;max-width:420px}
-.auth-logo{font-family:var(--mono);font-size:18px;font-weight:500;margin-bottom:4px}
-.auth-logo span{color:var(--red)}
-.auth-sub{font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.6}
-.auth-label{font-size:11px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
-.auth-input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:var(--r);font-size:13px;font-family:var(--font);margin-bottom:14px;transition:border-color 0.15s}
-.auth-input:focus{outline:none;border-color:var(--red)}
-.auth-btn{width:100%;background:var(--red);border:none;color:#fff;padding:12px;border-radius:var(--r);font-size:13px;font-family:var(--font);font-weight:500;cursor:pointer;margin-top:8px;transition:background 0.15s}
-.auth-btn:hover{background:#c0313d}
-.auth-btn:disabled{opacity:0.6;cursor:not-allowed}
-.auth-link{font-size:12px;color:var(--text3);cursor:pointer;text-decoration:underline}
-.auth-error{background:var(--red-dim);border:1px solid var(--red);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:14px;display:none}
-.auth-success{background:var(--green-dim);border:1px solid var(--green);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--green);margin-bottom:14px}
-/* NAV */
 nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .logo{font-family:var(--mono);font-size:15px;font-weight:500;letter-spacing:-0.03em}
 .logo span{color:var(--red)}
@@ -34,8 +18,6 @@ nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;h
 .nav-btn:hover{background:var(--bg3);color:var(--text)}
 .nav-btn.primary{background:var(--red);border-color:var(--red);color:#fff;font-weight:500}
 .nav-btn.primary:hover{background:#c0313d}
-.ubadge{width:32px;height:32px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;font-family:var(--mono);cursor:pointer}
-/* LAYOUT */
 .app-layout{display:flex;height:calc(100vh - 56px)}
 .sidebar{width:210px;background:var(--bg2);border-right:1px solid var(--border);padding:16px 10px;overflow-y:auto;flex-shrink:0}
 .sb-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin:16px 0 6px 8px}
@@ -44,12 +26,10 @@ nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;h
 .sb-item:hover{background:var(--bg3);color:var(--text)}
 .sb-item.active{background:var(--bg4);color:var(--text)}
 .sb-count{font-size:10px;font-family:var(--mono);background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3)}
-/* MAIN */
 .main{flex:1;overflow-y:auto;padding:24px;background:var(--bg)}
 .main-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
 .main-title{font-size:20px;font-weight:600;letter-spacing:-0.03em}
-/* CARDS */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:14px;cursor:pointer;transition:all 0.15s}
 .card:hover{border-color:var(--border2)}
 .card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
@@ -64,7 +44,6 @@ nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;h
 .stxt{font-size:11px;color:var(--text2)}
 .prog{height:2px;background:var(--bg4);border-radius:1px}
 .prog-bar{height:100%;border-radius:1px;transition:width 0.3s}
-/* MODAL */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center;padding:20px}
 .overlay.open{display:flex}
 .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);width:100%;max-width:640px;max-height:92vh;overflow-y:auto}
@@ -73,7 +52,6 @@ nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;h
 .modal-code{font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:3px}
 .modal-title{font-size:16px;font-weight:600;letter-spacing:-0.02em}
 .modal-meta{font-size:12px;color:var(--text2);margin-top:3px}
-/* STEPS */
 .step{border-bottom:1px solid var(--border);padding:18px 22px}
 .step:last-child{border-bottom:none}
 .step-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -85,29 +63,25 @@ nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;h
 .p-gray{background:var(--bg4);color:var(--text3)}
 .p-purple{background:var(--purple-dim);color:var(--purple)}
 .p-blue{background:var(--blue-dim);color:var(--blue)}
-/* FIELDS */
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
 .field-label{font-size:10px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:0.06em}
-select,input[type=text],input[type=url],input[type=date],input[type=email],input[type=password],textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--r);font-size:12px;font-family:var(--font);width:100%;transition:border-color 0.15s;-webkit-appearance:none}
+select,input[type=text],input[type=url],input[type=date],textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--r);font-size:12px;font-family:var(--font);width:100%;transition:border-color 0.15s;-webkit-appearance:none}
 select:focus,input:focus,textarea:focus{outline:none;border-color:var(--red)}
 select option{background:var(--bg3)}
 textarea{resize:vertical;min-height:70px;line-height:1.5}
 .cb-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .cb-row input[type=checkbox]{width:14px;height:14px;accent-color:var(--green);cursor:pointer;flex-shrink:0}
 .cb-label{font-size:12px;color:var(--text2)}
-/* STEPPER */
 .stepper{display:flex;gap:3px;flex-wrap:wrap;padding:12px 22px;border-bottom:1px solid var(--border);align-items:center}
 .st-btn{padding:3px 8px;border-radius:4px;font-size:10px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--font);transition:all 0.1s}
 .st-btn:hover{border-color:var(--border2);color:var(--text2)}
 .st-btn.cur{border-color:var(--red);color:var(--red);background:var(--red-dim)}
 .st-btn.done{border-color:var(--green);color:var(--green)}
-/* FORMAT GRID */
 .fmt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 .fmt-opt{padding:9px;border:1px solid var(--border);border-radius:var(--r);text-align:center;font-size:11px;font-weight:500;cursor:pointer;transition:all 0.15s;color:var(--text2);background:var(--bg3)}
 .fmt-opt:hover{border-color:var(--border2);color:var(--text)}
 .fmt-opt.sel{border-color:var(--red);color:var(--red);background:var(--red-dim)}
-/* MISC */
 .loading{display:flex;align-items:center;justify-content:center;padding:60px;flex-direction:column;gap:14px}
 .spin{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -122,90 +96,40 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 </head>
 <body>
 
-<!-- AUTH: LOGIN -->
-<div class="auth-screen" id="scr-login">
-  <div class="auth-card">
-    <div class="auth-logo">réel<span>.</span>media</div>
-    <p class="auth-sub">Tableau de suivi de production</p>
-    <div class="auth-error" id="login-err"></div>
-    <div class="auth-label">Email</div>
-    <input class="auth-input" type="email" id="login-email" placeholder="prenom@reelmedia.fr" onkeydown="if(event.key==='Enter')doLogin()">
-    <div class="auth-label">Mot de passe</div>
-    <input class="auth-input" type="password" id="login-pwd" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="auth-btn" id="login-btn" onclick="doLogin()">Se connecter →</button>
-    <div style="text-align:center;margin-top:14px">
-      <span class="auth-link" onclick="show('scr-forgot')">Mot de passe oublié ?</span>
-    </div>
+<nav>
+  <div class="logo">réel<span>.</span>media <span style="color:var(--text3);font-size:11px;margin-left:8px;font-family:var(--mono)">production</span></div>
+  <div class="nav-r">
+    <button class="nav-btn" onclick="exportExcel()">Export Excel</button>
+    <button class="nav-btn primary" onclick="openOv('ov-new')">+ Nouveau sujet</button>
+    <button class="nav-btn" onclick="loadSujets()" style="padding:6px 10px">↻</button>
   </div>
-</div>
+</nav>
 
-<!-- AUTH: SET PASSWORD (invitation) -->
-<div class="auth-screen" id="scr-setpwd">
-  <div class="auth-card">
-    <div class="auth-logo">réel<span>.</span>media</div>
-    <div class="auth-success">Bienvenue ! Créez votre mot de passe pour accéder à l'espace.</div>
-    <div class="auth-error" id="setpwd-err"></div>
-    <div class="auth-label">Nouveau mot de passe</div>
-    <input class="auth-input" type="password" id="setpwd-1" placeholder="Minimum 8 caractères">
-    <div class="auth-label">Confirmer le mot de passe</div>
-    <input class="auth-input" type="password" id="setpwd-2" placeholder="Répétez le mot de passe" onkeydown="if(event.key==='Enter')doSetPwd()">
-    <button class="auth-btn" id="setpwd-btn" onclick="doSetPwd()">Créer mon mot de passe →</button>
+<div class="app-layout">
+  <div class="sidebar">
+    <div class="sb-label">Statut</div>
+    <div class="sb-item active" onclick="flt(null,null,this)">Tous <span class="sb-count" id="cnt-all">0</span></div>
+    <div class="sb-item" onclick="flt('s','Brief / Idée',this)">Brief</div>
+    <div class="sb-item" onclick="flt('s','Séquencier en cours',this)">Séquencier</div>
+    <div class="sb-item" onclick="flt('s','En tournage',this)">En tournage</div>
+    <div class="sb-item" onclick="flt('s','Post-prod',this)">Post-prod</div>
+    <div class="sb-item" onclick="flt('s','Montage V1',this)">Montage</div>
+    <div class="sb-item" onclick="flt('s','Retours',this)">Retours</div>
+    <div class="sb-item" onclick="flt('s','Validation chef',this)">Validation</div>
+    <div class="sb-item" onclick="flt('s','PAD',this)">PAD</div>
+    <div class="sb-label">Format</div>
+    <div class="sb-item" onclick="flt('f','MAG',this)">MAG</div>
+    <div class="sb-item" onclick="flt('f','Brand',this)">Brand</div>
+    <div class="sb-item" onclick="flt('f','Face Cam',this)">Face Cam</div>
+    <div class="sb-item" onclick="flt('f','Desk',this)">Desk</div>
+    <div class="sb-item" onclick="flt('f','YouTube',this)">YouTube</div>
+    <div class="sb-item" onclick="flt('f','Prodige',this)">Prodige</div>
   </div>
-</div>
-
-<!-- AUTH: FORGOT -->
-<div class="auth-screen" id="scr-forgot">
-  <div class="auth-card">
-    <div class="auth-logo">réel<span>.</span>media</div>
-    <p class="auth-sub">Réinitialisation du mot de passe</p>
-    <div id="forgot-ok" style="display:none" class="auth-success"></div>
-    <div class="auth-label">Email</div>
-    <input class="auth-input" type="email" id="forgot-email" placeholder="prenom@reelmedia.fr">
-    <button class="auth-btn" onclick="doForgot()">Envoyer le lien →</button>
-    <div style="text-align:center;margin-top:14px">
-      <span class="auth-link" onclick="show('scr-login')">← Retour à la connexion</span>
+  <div class="main">
+    <div class="main-hdr">
+      <div class="main-title">Suivi de production</div>
     </div>
-  </div>
-</div>
-
-<!-- APP -->
-<div id="app" style="display:none">
-  <nav>
-    <div class="logo">réel<span>.</span>media <span style="color:var(--text3);font-size:11px;margin-left:8px;font-family:var(--mono)">production</span></div>
-    <div class="nav-r">
-      <button class="nav-btn" onclick="exportExcel()">Export Excel</button>
-      <button class="nav-btn primary" onclick="openNew()">+ Nouveau sujet</button>
-      <div class="ubadge" id="ubadge" title="">?</div>
-      <button class="nav-btn" onclick="doLogout()" style="font-size:11px;padding:4px 8px;color:var(--text3)">Déco</button>
-    </div>
-  </nav>
-  <div class="app-layout">
-    <div class="sidebar">
-      <div class="sb-label">Statut</div>
-      <div class="sb-item active" onclick="flt(null,null,this)">Tous <span class="sb-count" id="cnt-all">0</span></div>
-      <div class="sb-item" onclick="flt('s','Brief / Idée',this)">Brief</div>
-      <div class="sb-item" onclick="flt('s','Séquencier en cours',this)">Séquencier</div>
-      <div class="sb-item" onclick="flt('s','En tournage',this)">En tournage</div>
-      <div class="sb-item" onclick="flt('s','Post-prod',this)">Post-prod</div>
-      <div class="sb-item" onclick="flt('s','Montage V1',this)">Montage</div>
-      <div class="sb-item" onclick="flt('s','Retours',this)">Retours</div>
-      <div class="sb-item" onclick="flt('s','Validation chef',this)">Validation</div>
-      <div class="sb-item" onclick="flt('s','PAD',this)">PAD</div>
-      <div class="sb-label">Format</div>
-      <div class="sb-item" onclick="flt('f','MAG',this)">MAG</div>
-      <div class="sb-item" onclick="flt('f','Brand',this)">Brand</div>
-      <div class="sb-item" onclick="flt('f','Face Cam',this)">Face Cam</div>
-      <div class="sb-item" onclick="flt('f','Desk',this)">Desk</div>
-      <div class="sb-item" onclick="flt('f','YouTube',this)">YouTube</div>
-      <div class="sb-item" onclick="flt('f','Prodige',this)">Prodige</div>
-    </div>
-    <div class="main">
-      <div class="main-hdr">
-        <div class="main-title">Suivi de production</div>
-        <button class="nav-btn" onclick="loadSujets()">↻</button>
-      </div>
-      <div id="cards-wrap"><div class="loading"><div class="spin"></div></div></div>
-    </div>
+    <div id="cards-wrap"><div class="loading"><div class="spin"></div></div></div>
   </div>
 </div>
 
@@ -216,7 +140,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
       <div class="modal-title">Nouveau sujet</div>
       <button class="modal-close" onclick="closeOv('ov-new')">×</button>
     </div>
-    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+    <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
       <div class="field"><div class="field-label">Titre *</div><input type="text" id="n-titre" placeholder="Ex: Reportage sur l'IA en rédaction"></div>
       <div class="field">
         <div class="field-label">Format *</div>
@@ -228,7 +152,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
           <div class="fmt-opt" onclick="selFmt('YouTube',this)">YouTube</div>
           <div class="fmt-opt" onclick="selFmt('Prodige',this)">Prodige</div>
         </div>
-        <div id="code-prev" style="display:none;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--red)">Code : <span id="code-prev-val"></span></div>
+        <div id="code-prev" style="display:none;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--red)">Code attribué : <strong id="code-prev-val"></strong></div>
       </div>
       <div class="fg">
         <div class="field"><div class="field-label">Chef *</div>
@@ -241,7 +165,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
           <select id="n-plat"><option value="">Choisir...</option><option>YouTube</option><option>Instagram</option></select></div>
         <div class="field"><div class="field-label">Date de diffusion</div><input type="date" id="n-date"></div>
       </div>
-      <div class="field"><div class="field-label">Brief (notes chef)</div><textarea id="n-brief" placeholder="Instructions pour le journaliste..."></textarea></div>
+      <div class="field"><div class="field-label">Brief</div><textarea id="n-brief" placeholder="Instructions pour le journaliste..."></textarea></div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="closeOv('ov-new')">Annuler</button>
@@ -268,170 +192,25 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <div class="toast" id="toast"></div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────────
-const DB_PROD = '88894794-bcfd-41a5-baf3-b061fb75a1a9';
-const DB_COMP = '551f8474-f20e-42a0-a928-9afb662f6b6e';
-const SITE    = window.location.origin;
+const DB_PROD='88894794-bcfd-41a5-baf3-b061fb75a1a9';
+const DB_COMP='551f8474-f20e-42a0-a928-9afb662f6b6e';
+const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
+const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E'};
+const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
+let sujets=[],compteurs={},activeFmt=null,curFilter={t:null,v:null};
 
-const STATUS_ORDER = ['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
-const FMT_COLORS   = {MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E'};
-const NEEDS_TOUR   = ['MAG','Brand','Face Cam','YouTube','Prodige'];
-
-let session = null, sujets = [], compteurs = {}, activeFmt = null, curFilter = {t:null,v:null};
-
-// ── AUTH ─────────────────────────────────────────────────
-function show(id){
-  ['scr-login','scr-setpwd','scr-forgot'].forEach(s=>{
-    const el=document.getElementById(s);
-    el.style.display=el.id===id?'flex':'none';
-  });
-  document.getElementById('app').style.display='none';
-}
-
-function showApp(){
-  ['scr-login','scr-setpwd','scr-forgot'].forEach(s=>document.getElementById(s).style.display='none');
-  document.getElementById('app').style.display='block';
-  const name=session?.user?.user_metadata?.full_name||session?.user?.email?.split('@')[0]||'?';
-  const el=document.getElementById('ubadge');
-  el.textContent=name.substring(0,2).toUpperCase();
-  el.title=session?.user?.email||'';
-}
-
-window.onload=function(){
-  // Détecter token d'invitation dans le hash
-  const hash=window.location.hash||'';
-  const params=new URLSearchParams(hash.startsWith('#')?hash.slice(1):hash);
-  const inviteToken=params.get('invite_token')||params.get('confirmation_token');
-  const recoveryToken=params.get('recovery_token');
-
-  if(inviteToken){
-    window._token=inviteToken; window._ttype='invite';
-    history.replaceState(null,'',window.location.pathname);
-    show('scr-setpwd'); return;
-  }
-  if(recoveryToken){
-    window._token=recoveryToken; window._ttype='recovery';
-    history.replaceState(null,'',window.location.pathname);
-    show('scr-setpwd'); return;
-  }
-
-  // Session existante ?
-  const saved=localStorage.getItem('rm-session');
-  if(saved){
-    try{
-      session=JSON.parse(saved);
-      const exp=new Date(session.expires_at||0);
-      if(exp>new Date()){showApp();loadSujets();return;}
-      refreshSession();
-    }catch(e){localStorage.removeItem('rm-session');}
-  } else {show('scr-login');}
-};
-
-async function doLogin(){
-  const email=document.getElementById('login-email').value.trim();
-  const pwd=document.getElementById('login-pwd').value;
-  const errEl=document.getElementById('login-err');
-  const btn=document.getElementById('login-btn');
-  errEl.style.display='none';
-  if(!email||!pwd){errEl.textContent='Email et mot de passe requis';errEl.style.display='block';return;}
-  btn.disabled=true;btn.textContent='Connexion...';
-  try{
-    const res=await fetch(`${SITE}/.netlify/identity/token`,{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:`grant_type=password&username=${encodeURIComponent(email)}&password=${encodeURIComponent(pwd)}`
-    });
-    if(!res.ok){const e=await res.json();throw new Error(e.error_description||'Identifiants incorrects');}
-    const tok=await res.json();
-    const uRes=await fetch(`${SITE}/.netlify/identity/user`,{headers:{Authorization:`Bearer ${tok.access_token}`}});
-    const user=await uRes.json();
-    session={...tok,user,expires_at:new Date(Date.now()+tok.expires_in*1000).toISOString()};
-    localStorage.setItem('rm-session',JSON.stringify(session));
-    showApp();loadSujets();
-  }catch(e){errEl.textContent=e.message||'Erreur de connexion';errEl.style.display='block';}
-  finally{btn.disabled=false;btn.textContent='Se connecter →';}
-}
-
-async function doSetPwd(){
-  const pwd=document.getElementById('setpwd-1').value;
-  const pwd2=document.getElementById('setpwd-2').value;
-  const errEl=document.getElementById('setpwd-err');
-  const btn=document.getElementById('setpwd-btn');
-  errEl.style.display='none';
-  if(pwd.length<8){errEl.textContent='Minimum 8 caractères';errEl.style.display='block';return;}
-  if(pwd!==pwd2){errEl.textContent='Les mots de passe ne correspondent pas';errEl.style.display='block';return;}
-  btn.disabled=true;btn.textContent='Création...';
-  try{
-    // Utiliser le token d'invitation pour définir le mot de passe via PATCH /user
-    const res=await fetch(`${SITE}/.netlify/identity/user`,{
-      method:'PUT',
-      headers:{Authorization:`Bearer ${window._token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({password:pwd})
-    });
-    if(!res.ok){
-      const e=await res.json().catch(()=>({}));
-      throw new Error(e.msg||e.error_description||'Token invalide ou expiré — demandez une nouvelle invitation');
-    }
-    const user=await res.json();
-    // Se connecter automatiquement avec le nouveau mot de passe
-    const email=user.email;
-    const tokRes=await fetch(`${SITE}/.netlify/identity/token`,{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:`grant_type=password&username=${encodeURIComponent(email)}&password=${encodeURIComponent(pwd)}`
-    });
-    if(!tokRes.ok)throw new Error('Mot de passe créé — connectez-vous maintenant');
-    const tok=await tokRes.json();
-    session={...tok,user,expires_at:new Date(Date.now()+tok.expires_in*1000).toISOString()};
-    localStorage.setItem('rm-session',JSON.stringify(session));
-    showApp();loadSujets();
-  }catch(e){errEl.textContent=e.message;errEl.style.display='block';}
-  finally{btn.disabled=false;btn.textContent='Créer mon mot de passe →';}
-}
-
-async function doForgot(){
-  const email=document.getElementById('forgot-email').value.trim();
-  if(!email)return;
-  const ok=document.getElementById('forgot-ok');
-  await fetch(`${SITE}/.netlify/identity/recover`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-  ok.textContent=`Email envoyé à ${email}`;ok.style.display='block';
-}
-
-async function refreshSession(){
-  try{
-    const res=await fetch(`${SITE}/.netlify/identity/token`,{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:`grant_type=refresh_token&refresh_token=${session.refresh_token}`
-    });
-    if(!res.ok)throw new Error();
-    const tok=await res.json();
-    const uRes=await fetch(`${SITE}/.netlify/identity/user`,{headers:{Authorization:`Bearer ${tok.access_token}`}});
-    const user=await uRes.json();
-    session={...tok,user,expires_at:new Date(Date.now()+tok.expires_in*1000).toISOString()};
-    localStorage.setItem('rm-session',JSON.stringify(session));
-    showApp();loadSujets();
-  }catch(e){localStorage.removeItem('rm-session');show('scr-login');}
-}
-
-function doLogout(){localStorage.removeItem('rm-session');session=null;show('scr-login');}
-
-// ── NOTION API via proxy ─────────────────────────────────
 async function api(endpoint,method='GET',body=null){
-  const jwt=session?.access_token||'';
-  const opts={method,headers:{Authorization:`Bearer ${jwt}`,'Content-Type':'application/json'}};
+  const opts={method,headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
   const res=await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`,opts);
-  if(res.status===401){await refreshSession();return api(endpoint,method,body);}
   if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||'Erreur API');}
   return res.json();
 }
 
-// ── LOAD ─────────────────────────────────────────────────
 async function loadSujets(){
   document.getElementById('cards-wrap').innerHTML='<div class="loading"><div class="spin"></div></div>';
   try{
-    const [prod,comp]=await Promise.all([
+    const[prod,comp]=await Promise.all([
       api(`/databases/${DB_PROD}/query`,'POST',{sorts:[{timestamp:'created_time',direction:'descending'}]}),
       api(`/databases/${DB_COMP}/query`,'POST',{})
     ]);
@@ -444,13 +223,12 @@ async function loadSujets(){
     });
     document.getElementById('cnt-all').textContent=sujets.length;
     renderCards();
-  }catch(e){document.getElementById('cards-wrap').innerHTML=`<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`;}
+  }catch(e){document.getElementById('cards-wrap').innerHTML=`<div class="empty"><h3>Erreur de chargement</h3><p>${e.message}</p></div>`;}
 }
 
 function parsePage(p){
   const pr=p.properties;
-  return{
-    id:p.id,
+  return{id:p.id,
     titre:pr.Titre?.title?.[0]?.plain_text||'Sans titre',
     statut:pr.Statut?.select?.name||'',
     format:pr.Format?.select?.name||'',
@@ -473,11 +251,9 @@ function parsePage(p){
     lienRendu:pr['Lien de rendu']?.url||'',
     nomFichier:pr['Nom fichier officiel']?.rich_text?.[0]?.plain_text||'',
     seqValide:pr['Séquencier validé']?.checkbox||false,
-    code:pr['Code suggéré']?.formula?.string||''
-  };
+    code:pr['Code suggéré']?.formula?.string||''};
 }
 
-// ── RENDER CARDS ─────────────────────────────────────────
 function renderCards(){
   let list=sujets;
   if(curFilter.t==='s'&&curFilter.v)list=list.filter(s=>s.statut===curFilter.v);
@@ -500,28 +276,13 @@ function cardHTML(s){
   </div>`;
 }
 
-function stColor(s){
-  return{
-    'Brief / Idée':'#555','Séquencier en cours':'#378ADD','Séquencier validé':'#7F77DD',
-    'En tournage':'#EF9F27','Post-prod':'#EF9F27','Montage V1':'#1D9E75',
-    'Retours':'#e63946','Validation chef':'#7F77DD','PAD':'#1D9E75'
-  }[s]||'#555';
-}
-
+function stColor(s){return{'Brief / Idée':'#555','Séquencier en cours':'#378ADD','Séquencier validé':'#7F77DD','En tournage':'#EF9F27','Post-prod':'#EF9F27','Montage V1':'#1D9E75','Retours':'#e63946','Validation chef':'#7F77DD','PAD':'#1D9E75'}[s]||'#555';}
 function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});}
+function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');renderCards();}
 
-// ── FILTER ───────────────────────────────────────────────
-function flt(t,v,el){
-  curFilter={t,v};
-  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
-  el.classList.add('active');
-  renderCards();
-}
-
-// ── DETAIL ───────────────────────────────────────────────
 function openDetail(id){
   const s=sujets.find(x=>x.id===id);if(!s)return;
-  document.getElementById('d-code').textContent=`${s.code||'—'} · ${s.format} · ${s.plateforme||'—'}`;
+  document.getElementById('d-code').textContent=`${s.code||'—'} · ${s.format}${s.plateforme?' · '+s.plateforme:''}`;
   document.getElementById('d-title').textContent=s.titre;
   document.getElementById('d-meta').textContent=`Chef : ${s.chef||'—'} · Journaliste : ${s.journaliste||'—'}${s.diffusion?' · Diffusion : '+fmtDate(s.diffusion):''}`;
   const hasTour=NEEDS_TOUR.includes(s.format);
@@ -530,24 +291,20 @@ function openDetail(id){
     const cl=st===s.statut?'cur':i<stIdx?'done':'';
     return`<button class="st-btn ${cl}" onclick="updStatut('${id}','${st}')">${st}</button>`;
   }).join('')}</div>`;
-  // Brief
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
     `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)">${s.notes}</textarea>`);
-  // Séquencier
   html+=step('Séquencier',s.seqValide?'p-green Validé':'p-amber En attente',
     `<label class="cb-row"><input type="checkbox" ${s.seqValide?'checked':''} onchange="upd('${id}','Séquencier validé','cb',this.checked)"><span class="cb-label">Séquencier validé par le chef</span></label>`);
-  // Tournage
   if(hasTour){html+=step('Tournage',s.tourJ1?'p-amber Planifié':'p-gray Non planifié',
     `<div class="fg">
       <div class="field"><div class="field-label">Date J1</div><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"></div>
-      <div class="field"><div class="field-label">Date J2</div><input type="date" value="${s.tourJ2}" onchange="upd('${id}','Date tournage J2','date',this.value)"></div>
+      <div class="field"><div class="field-label">Date J2 (optionnel)</div><input type="date" value="${s.tourJ2}" onchange="upd('${id}','Date tournage J2','date',this.value)"></div>
     </div>
     <div class="field"><div class="field-label">Équipement</div>
     <select onchange="upd('${id}','Équipement tournage','sel',this.value)">
       <option value="">Choisir...</option>
       ${['Caméra rédaction','iPhone 17','Matériel perso'].map(o=>`<option ${s.equip===o?'selected':''}>${o}</option>`).join('')}
     </select></div>`);}
-  // Post-prod
   html+=step('Post-prod · Stockage',s.stockage?`p-blue ${s.stockage}`:'p-gray Non défini',
     `<div class="fg">
       <div class="field"><div class="field-label">Stockage</div>
@@ -559,7 +316,6 @@ function openDetail(id){
       ${['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Thierry','David'].map(o=>`<option ${s.monteur===o?'selected':''}>${o}</option>`).join('')}
       </select></div>
     </div>`);
-  // Montage
   html+=step('Montage',s.lien1?'p-green V1 disponible':'p-gray En attente',
     [1,2,3].map(v=>`<div class="field" style="margin-bottom:8px">
       <div class="field-label" style="display:flex;justify-content:space-between">
@@ -569,7 +325,6 @@ function openDetail(id){
       <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="upd('${id}','Lien V${v}','url',this.value)">
     </div>`).join('')+
     `<div class="field"><div class="field-label">Nom fichier officiel</div><input type="text" value="${s.nomFichier}" placeholder="ID_Titre-court_Journaliste" onblur="upd('${id}','Nom fichier officiel','rt',this.value)"></div>`);
-  // PAD
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="fg">
       <div class="field"><div class="field-label">Plateforme</div>
@@ -584,11 +339,10 @@ function openDetail(id){
 }
 
 function step(titre,pillCls,body){
-  const[cls,...rest]=pillCls.split(' ');
-  return`<div class="step"><div class="step-hdr"><span class="step-ttl">${titre}</span><span class="pill ${cls}">${rest.join(' ')}</span></div>${body}</div>`;
+  const parts=pillCls.split(' ');const cls=parts[0];const label=parts.slice(1).join(' ');
+  return`<div class="step"><div class="step-hdr"><span class="step-ttl">${titre}</span><span class="pill ${cls}">${label}</span></div>${body}</div>`;
 }
 
-// ── UPDATE ───────────────────────────────────────────────
 async function upd(id,field,type,value){
   try{
     let props={};
@@ -610,7 +364,6 @@ async function updStatut(id,statut){
   renderCards();openDetail(id);
 }
 
-// ── CREATE ───────────────────────────────────────────────
 function selFmt(fmt,el){
   activeFmt=fmt;
   document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
@@ -637,13 +390,11 @@ async function createSujet(){
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
     if(date)props['Date de diffusion']={date:{start:date}};
     await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
-    // Incrémenter le compteur
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
     c.dernierNumero=nv;c.prochainCode=`${c.prefixe}${nv+1}`;
     closeOv('ov-new');
     toast(`Sujet créé — code ${c.prefixe}${nv}`,'ok');
-    // Reset
     document.getElementById('n-titre').value='';
     document.getElementById('n-chef').value='';
     document.getElementById('n-journ').value='';
@@ -657,7 +408,6 @@ async function createSujet(){
   }catch(e){toast('Erreur : '+e.message,'err');}
 }
 
-// ── EXCEL ────────────────────────────────────────────────
 function exportExcel(){
   if(!sujets.length){toast('Aucun sujet','err');return;}
   const data=sujets.map(s=>({'Code':s.code,'Titre':s.titre,'Statut':s.statut,'Format':s.format,'Chef':s.chef,'Journaliste':s.journaliste,'Plateforme':s.plateforme,'Date diffusion':s.diffusion,'Date tournage J1':s.tourJ1,'Date tournage J2':s.tourJ2,'Équipement':s.equip,'Stockage':s.stockage,'Monteur':s.monteur,'Date montage J1':s.montJ1,'Lien V1':s.lien1,'Lien V2':s.lien2,'Lien V3':s.lien3,'Lien rendu':s.lienRendu,'Nom fichier':s.nomFichier,'Séquencier validé':s.seqValide?'Oui':'Non','Brief':s.notes}));
@@ -668,20 +418,12 @@ function exportExcel(){
   toast('Excel téléchargé','ok');
 }
 
-// ── UI UTILS ─────────────────────────────────────────────
 function openOv(id){document.getElementById(id).classList.add('open');}
 function closeOv(id){document.getElementById(id).classList.remove('open');}
-function openNew(){document.getElementById('ov-new').classList.add('open');}
+document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
+function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
 
-document.querySelectorAll('.overlay').forEach(o=>{
-  o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});
-});
-
-function toast(msg,type){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.className=`toast ${type} show`;
-  setTimeout(()=>t.classList.remove('show'),3000);
-}
+window.onload=loadSujets;
 </script>
 </body>
 </html>
