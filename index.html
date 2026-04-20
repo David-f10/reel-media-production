@@ -706,13 +706,6 @@ function openDetail(id){
         ${['Sony FX30','iPhone 17','Matériel perso'].map(o=>`<option ${(s.lieuTour==='Studio'?'Sony FX30':s.equip)===o?'selected':''}>${o}</option>`).join('')}
       </select>
       ${s.lieuTour==='Studio'?'<div style="font-size:10px;color:var(--text3);margin-top:3px">Sony FX30 assignée automatiquement en Studio</div>':''}</div>
-    </div>
-    <div class="field" style="margin-top:8px">
-      <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
-        <span>Nom fichier officiel</span>
-        <button onclick="copyNom('nom-${id}')" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;color:var(--text3);cursor:pointer">📋 Copier</button>
-      </div>
-      <input type="text" id="nom-${id}" value="${s.nomFichier}" placeholder="Généré au choix du stockage" onblur="upd('${id}','Nom fichier officiel','rt',this.value)" style="font-family:var(--mono);font-size:12px">
     </div>`);}
   html+=step('Post-prod · Stockage',s.stockage?`p-blue ${s.stockage}`:'p-gray Non défini',
     `<div class="fg">
@@ -720,7 +713,13 @@ function openDetail(id){
       <select onchange="upd('${id}','Stockage','sel',this.value);autoNomFichier('${id}',this.value)"><option value="">Choisir...</option>
       ${['Machine 1','Machine 2','Machine 3','Machine 4','Machine 5','Machine 6','Machine 7','Machine 8','Machine 9','Machine 10','DD rédaction','NexisAvid'].map(o=>`<option ${s.stockage===o?'selected':''}>${o}</option>`).join('')}
       </select></div>
-
+    </div>
+    <div class="field" style="margin-top:8px">
+      <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Nom fichier officiel</span>
+        <button onclick="copyNom('nom-${id}')" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;color:var(--text3);cursor:pointer">📋 Copier</button>
+      </div>
+      <input type="text" id="nom-${id}" value="${s.nomFichier}" placeholder="Généré au choix du stockage" onblur="upd('${id}','Nom fichier officiel','rt',this.value)" style="font-family:var(--mono);font-size:12px">
     </div>`);
   const tousLesNoms=['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
   const monteurKeys=['monteur1','monteur2','monteur3'];
