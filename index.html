@@ -206,6 +206,15 @@ function getPrefixe(p){
   return'';
 }
 
+// Lit le champ Code (texte simple) stocké directement sur la fiche
+function getCode(pr){
+  const prop=pr['Code'];
+  if(!prop)return'';
+  if(prop.rich_text&&prop.rich_text.length)return prop.rich_text[0].plain_text||'';
+  if(prop.text&&prop.text.length)return prop.text[0].plain_text||'';
+  return'';
+}
+
 async function api(endpoint,method='GET',body=null){
   const opts={method,headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
@@ -259,7 +268,7 @@ function parsePage(p){
     lienRendu:pr['Lien de rendu']?.url||'',
     nomFichier:pr['Nom fichier officiel']?.rich_text?.[0]?.plain_text||'',
     seqValide:pr['Séquencier validé']?.checkbox||false,
-    code:pr['Code suggéré']?.formula?.string||''};
+    code:getCode(pr)};  // ← LIT LE CHAMP CODE DIRECTEMENT
 }
 
 function renderCards(){
@@ -393,7 +402,15 @@ async function createSujet(){
   const c=compteurs[activeFmt];
   if(!c){toast('Compteur introuvable pour ce format','err');return;}
   try{
-    const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}}};
+    const codeVal=`${c.prefixe}${c.dernierNumero+1}`;  // ← CALCULE LE CODE
+    const props={
+      'Titre':{title:[{text:{content:titre}}]},
+      'Format':{select:{name:activeFmt}},
+      'Chef responsable':{select:{name:chef}},
+      'Journaliste':{select:{name:journ}},
+      'Statut':{select:{name:'Brief / Idée'}},
+      'Code':{rich_text:[{text:{content:codeVal}}]}  // ← ÉCRIT LE CODE
+    };
     if(plat)props.Plateforme={select:{name:plat}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
     if(date)props['Date de diffusion']={date:{start:date}};
@@ -402,7 +419,7 @@ async function createSujet(){
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
     c.dernierNumero=nv;c.prochainCode=`${c.prefixe}${nv+1}`;
     closeOv('ov-new');
-    toast(`Sujet créé — code ${c.prefixe}${nv}`,'ok');
+    toast(`Sujet créé — code ${codeVal}`,'ok');
     document.getElementById('n-titre').value='';
     document.getElementById('n-chef').value='';
     document.getElementById('n-journ').value='';
