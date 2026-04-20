@@ -1338,9 +1338,10 @@ function renderDashboard(){
 function calPrev(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendrier();}
 function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendrier();}
 
-window.onload=loadSujets;
+// window.onload géré par la nouvelle navigation
 
 
+// (window.onload géré par la nouvelle navigation ci-dessous)
 // ─── NOUVELLE NAVIGATION ───
 let currentPage = 'dashboard';
 
@@ -1413,19 +1414,20 @@ function setVue(vue) {
 // Override renderDashboard pour afficher dans main-content
 const _origRenderDash = renderDashboard;
 function renderDashboard() {
-  // Recalcul inline (appel la fonction originale mais dans main-content)
   const container = document.getElementById('main-content');
   if(!container) return;
-  // Appel la logique du dashboard original en remplaçant vue-wrap par main-content
-  const origVueWrap = document.getElementById('vue-wrap');
-  if(!origVueWrap) {
-    container.innerHTML = '<div id="vue-wrap"></div>';
+  // Créer un vue-wrap temporaire si absent
+  if(!document.getElementById('vue-wrap')) {
+    const tmp = document.createElement('div');
+    tmp.id = 'vue-wrap';
+    tmp.style.display = 'none';
+    document.body.appendChild(tmp);
   }
   _origRenderDash();
-  // Déplacer le contenu de vue-wrap vers main-content si besoin
   const vw = document.getElementById('vue-wrap');
   if(vw && vw.innerHTML) {
-    container.innerHTML = vw.innerHTML;
+    container.innerHTML = '<div style="padding:0">' + vw.innerHTML + '</div>';
+    vw.innerHTML = '';
   }
 }
 
@@ -1439,29 +1441,84 @@ function flt(t, v, el) {
   renderCards();
 }
 
-// Re-render après loadSujets
-const _origLoad = loadSujets;
+// Re-render après loadSujets (bouton ↻)
 async function loadSujets() {
-  // Show spinner
   const mc = document.getElementById('main-content');
-  if(currentPage === 'production' && mc) {
-    if(!document.getElementById('cards-wrap')) {
-      mc.innerHTML = '<div id="cards-wrap"><div class="loading"><div class="spin"></div></div></div><div id="vue-wrap" style="display:none"></div>';
-    }
+  if(currentPage === 'production' && mc && !document.getElementById('cards-wrap')) {
+    mc.innerHTML = '<div id="cards-wrap"><div class="loading"><div class="spin"></div></div></div><div id="vue-wrap" style="display:none"></div>';
   }
-  await _origLoad();
-  document.getElementById('cnt-all').textContent = sujets.length;
-  if(currentPage === 'dashboard') renderDashboard();
-  else if(currentPage === 'production') setVue(vueActive);
+  try {
+    const[prod,comp,cli] = await Promise.all([
+      api('/databases/' + DB_PROD + '/query','POST',{sorts:[{timestamp:'created_time',direction:'descending'}]}),
+      api('/databases/' + DB_COMP + '/query','POST',{}),
+      api('/databases/' + DB_CLIENTS + '/query','POST',{sorts:[{property:'Numéro',direction:'ascending'}]})
+    ]);
+    sujets = prod.results.map(parsePage);
+    compteurs = {};
+    comp.results.forEach(p => {
+      const pr = p.properties;
+      const fmt = pr.Format?.title?.[0]?.plain_text || '';
+      const prefixe = getPrefixe(pr);
+      const dernierNumero = pr['Dernier numéro']?.number ?? 0;
+      compteurs[fmt] = {id:p.id, prefixe, dernierNumero, prochainCode:`${prefixe}${dernierNumero+1}`};
+    });
+    clients = cli.results.map(p => {
+      const pr = p.properties;
+      return {
+        id: p.id,
+        nom: pr.Client?.title?.[0]?.plain_text || '',
+        code: pr.Code?.rich_text?.[0]?.plain_text || pr.Code?.text?.[0]?.plain_text || '',
+        numero: pr['Numéro']?.number ?? 0,
+        derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || ''
+      };
+    });
+    document.getElementById('cnt-all').textContent = sujets.length;
+    if(currentPage === 'dashboard') renderDashboard();
+    else if(currentPage === 'production') setVue(vueActive);
+  } catch(e) {
+    if(mc) mc.innerHTML = `<div class="empty"><h3>Erreur de connexion</h3><p>${e.message}</p></div>`;
+  }
 }
 
 // Init
 window.onload = async function() {
-  // Show dashboard first, then load data
-  navTo('dashboard');
+  // Activer dashboard visuellement
+  document.getElementById('nav-dashboard').classList.add('active');
   document.getElementById('main-content').innerHTML = '<div class="loading"><div class="spin"></div></div>';
-  // Remove old window.onload from original JS (already called here)
-  await _origLoad();
+  
+  // Charger les données depuis Notion
+  try {
+    const[prod,comp,cli] = await Promise.all([
+      api('/databases/' + DB_PROD + '/query','POST',{sorts:[{timestamp:'created_time',direction:'descending'}]}),
+      api('/databases/' + DB_COMP + '/query','POST',{}),
+      api('/databases/' + DB_CLIENTS + '/query','POST',{sorts:[{property:'Numéro',direction:'ascending'}]})
+    ]);
+    sujets = prod.results.map(parsePage);
+    compteurs = {};
+    comp.results.forEach(p => {
+      const pr = p.properties;
+      const fmt = pr.Format?.title?.[0]?.plain_text || '';
+      const prefixe = getPrefixe(pr);
+      const dernierNumero = pr['Dernier numéro']?.number ?? 0;
+      compteurs[fmt] = {id:p.id, prefixe, dernierNumero, prochainCode:`${prefixe}${dernierNumero+1}`};
+    });
+    clients = cli.results.map(p => {
+      const pr = p.properties;
+      return {
+        id: p.id,
+        nom: pr.Client?.title?.[0]?.plain_text || '',
+        code: pr.Code?.rich_text?.[0]?.plain_text || pr.Code?.text?.[0]?.plain_text || '',
+        numero: pr['Numéro']?.number ?? 0,
+        derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || ''
+      };
+    });
+    document.getElementById('cnt-all').textContent = sujets.length;
+  } catch(e) {
+    document.getElementById('main-content').innerHTML = `<div class="empty"><h3>Erreur de connexion</h3><p>${e.message}</p></div>`;
+    return;
+  }
+  
+  // Afficher le dashboard
   navTo('dashboard');
 };
 
