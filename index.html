@@ -687,7 +687,7 @@ function saveConfig() {
     return;
   }
 
-  CONFIG = { token, dbProduction: dbProd, dbCompteurs: dbComp };
+  CONFIG = { token, dbProduction: '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20', dbCompteurs: 'f9b8d090-6c9e-4513-a67c-db2d82941a29' };
   localStorage.setItem('reel-media-config', JSON.stringify(CONFIG));
   showApp();
   loadSujets();
@@ -789,7 +789,7 @@ async function loadCompteurs() {
       const format = p['Format']?.title?.[0]?.plain_text || '';
       compteurs[format] = {
         id: page.id,
-        prefixe: p['Préfixe']?.rich_text?.[0]?.plain_text || '',
+        prefixe: p['Préfixe']?.rich_text?.[0]?.plain_text || p['Préfixe']?.text?.[0]?.plain_text || '',
         dernierNumero: p['Dernier numéro']?.number || 0,
         prochainCode: p['Prochain code']?.formula?.string || ''
       };
