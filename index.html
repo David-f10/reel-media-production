@@ -320,6 +320,7 @@ function parsePage(p){
     monteur3:pr['Monteur V3']?.select?.name||'',
     nomFichier:pr['Nom fichier officiel']?.rich_text?.[0]?.plain_text||'',
     seqValide:pr['Séquencier validé']?.checkbox||false,
+    versionValidee:pr['Version validee']?.select?.name||'',
     lienSeq:pr['Lien sequencier']?.url||'',
     code:getCode(pr)};
 }
@@ -423,7 +424,7 @@ function openDetail(id){
   html+=step('Post-prod · Stockage',s.stockage?`p-blue ${s.stockage}`:'p-gray Non défini',
     `<div class="fg">
       <div class="field"><div class="field-label">Stockage</div>
-      <select onchange="upd('${id}','Stockage','sel',this.value)"><option value="">Choisir...</option>
+      <select onchange="upd('${id}','Stockage','sel',this.value);autoNomFichier('${id}',this.value)"><option value="">Choisir...</option>
       ${['Machine 1','Machine 2','Machine 3','Machine 4','Machine 5','Machine 6','Machine 7','Machine 8','Machine 9','Machine 10','DD rédaction','NexisAvid'].map(o=>`<option ${s.stockage===o?'selected':''}>${o}</option>`).join('')}
       </select></div>
 
@@ -443,16 +444,23 @@ function openDetail(id){
           <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
           <span id="ts-${id}-${v}" style="font-size:11px;color:var(--text2);font-family:var(--mono)">${s['montJ'+v]?new Date(s['montJ'+v]).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
-          <select onchange="upd('${id}','Monteur V${v}','sel',this.value)" style="font-size:11px;padding:3px 8px;flex:1">
-            <option value="">Choisir...</option>
-            ${tousLesNoms.map(m=>`<option ${monteurVal===m?'selected':''}>${m}</option>`).join('')}
-          </select>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
+            <select onchange="upd('${id}','Monteur V${v}','sel',this.value)" style="font-size:11px;padding:3px 8px">
+              <option value="">Choisir...</option>
+              ${tousLesNoms.map(m=>`<option ${monteurVal===m?'selected':''}>${m}</option>`).join('')}
+            </select>
+          </div>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;${s.versionValidee===`V${v}`?'color:var(--green)':'color:var(--text3)'}">
+            <input type="checkbox" ${s.versionValidee===`V${v}`?'checked':''} style="accent-color:var(--green);width:14px;height:14px"
+              onchange="upd('${id}','Version validee','sel',this.checked?'V${v}':'')">
+            <span style="font-size:11px;font-weight:500">✓ Version validée</span>
+          </label>
         </div>
       </div>`;
     }).join('')+
-    `<div class="field"><div class="field-label">Nom fichier officiel</div><input type="text" value="${s.nomFichier}" placeholder="ID_Titre-court_Journaliste" onblur="upd('${id}','Nom fichier officiel','rt',this.value)"></div>`);
+    `<div class="field"><div class="field-label" style="display:flex;justify-content:space-between;align-items:center"><span>Nom fichier officiel</span><button onclick="copyNom('nom-${id}')" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;color:var(--text3);cursor:pointer">📋 Copier</button></div><input type="text" id="nom-${id}" value="${s.nomFichier}" placeholder="Généré automatiquement au choix du stockage" onblur="upd('${id}','Nom fichier officiel','rt',this.value)"></div>`);
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="fg">
       <div class="field"><div class="field-label">Plateforme</div>
@@ -501,9 +509,49 @@ async function upd(id,field,type,value){
     else if(type==='cb')props[field]={checkbox:value};
     await api(`/pages/${id}`,'PATCH',{properties:props});
     const s=sujets.find(x=>x.id===id);
-    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien sequencier':'lienSeq','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion'}[field];if(k)s[k]=value;}
+    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien sequencier':'lienSeq','Version validee':'versionValidee','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion'}[field];if(k)s[k]=value;}
+    // Mise à jour locale
     toast('Sauvegardé','ok');
+    // Transition automatique de statut
+    await autoStatut(id, field, value);
   }catch(e){toast('Erreur : '+e.message,'err');}
+}
+
+// ─── TRANSITIONS AUTOMATIQUES DE STATUT ───
+const STATUT_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
+
+function statutIndex(s){return STATUT_ORDER.indexOf(s);}
+
+async function autoStatut(id, field, value){
+  if(!value) return;
+  const s=sujets.find(x=>x.id===id);
+  if(!s) return;
+  const cur=statutIndex(s.statut);
+  let newStatut=null;
+
+  if(field==='Lien sequencier' && cur < statutIndex('Séquencier en cours'))
+    newStatut='Séquencier en cours';
+  else if(field==='Séquencier validé' && value===true && cur < statutIndex('Séquencier validé'))
+    newStatut='Séquencier validé';
+  else if(field==='Date tournage J1' && cur < statutIndex('En tournage'))
+    newStatut='En tournage';
+  else if(field==='Stockage' && cur < statutIndex('Post-prod'))
+    newStatut='Post-prod';
+  else if((field==='Lien V1'||field==='Lien V2'||field==='Lien V3') && cur < statutIndex('Montage V1'))
+    newStatut='Montage V1';
+  else if(field==='Version validee' && cur < statutIndex('Validation chef'))
+    newStatut='Validation chef';
+  else if(field==='Date de diffusion' && cur < statutIndex('PAD'))
+    newStatut='PAD';
+
+  if(newStatut){
+    await api(`/pages/${id}`,'PATCH',{properties:{Statut:{select:{name:newStatut}}}});
+    s.statut=newStatut;
+    renderCards();
+    // Rafraîchir le stepper dans la modal si ouverte
+    const stepper=document.querySelector('.stepper');
+    if(stepper) openDetail(id);
+  }
 }
 
 async function updStatut(id,statut){
@@ -535,6 +583,36 @@ function selFmt(fmt,el){
     if(c){document.getElementById('code-prev-val').textContent=c.prochainCode;prev.style.display='block';}
     else prev.style.display='none';
   }
+}
+
+// Génère automatiquement le nom fichier officiel
+async function autoNomFichier(id, stockage){
+  if(!stockage) return;
+  const s=sujets.find(x=>x.id===id);
+  if(!s) return;
+  // Format : CODE_Prenom_JJMMAAAA
+  const prenom=s.journaliste?s.journaliste.split(' ')[0]:'';
+  let dateStr='';
+  if(s.tourJ1){
+    const d=new Date(s.tourJ1);
+    dateStr=String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0')+d.getFullYear();
+  }else{
+    const d=new Date();
+    dateStr=String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0')+d.getFullYear();
+  }
+  const nom=`${s.code||'XXX'}_${prenom}_${dateStr}`;
+  // Mettre à jour l'input et sauvegarder dans Notion
+  const input=document.getElementById(`nom-${id}`);
+  if(input) input.value=nom;
+  await upd(id,'Nom fichier officiel','rt',nom);
+}
+
+function copyNom(inputId){
+  const input=document.getElementById(inputId);
+  if(!input||!input.value) return;
+  navigator.clipboard.writeText(input.value).then(()=>toast('Nom copié !','ok')).catch(()=>{
+    input.select();document.execCommand('copy');toast('Nom copié !','ok');
+  });
 }
 
 function handleJournalisteChange(sel){
