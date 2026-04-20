@@ -315,6 +315,9 @@ function parsePage(p){
     lien2:pr['Lien V2']?.url||'',
     lien3:pr['Lien V3']?.url||'',
     lienRendu:pr['Lien de rendu']?.url||'',
+    monteur1:pr['Monteur V1']?.select?.name||'',
+    monteur2:pr['Monteur V2']?.select?.name||'',
+    monteur3:pr['Monteur V3']?.select?.name||'',
     nomFichier:pr['Nom fichier officiel']?.rich_text?.[0]?.plain_text||'',
     seqValide:pr['Séquencier validé']?.checkbox||false,
     lienSeq:pr['Lien séquencier']?.url||'',
@@ -423,19 +426,29 @@ function openDetail(id){
       <select onchange="upd('${id}','Stockage','sel',this.value)"><option value="">Choisir...</option>
       ${['Machine 1','Machine 2','Machine 3','Machine 4','Machine 5','Machine 6','Machine 7','Machine 8','Machine 9','Machine 10','DD rédaction','NexisAvid'].map(o=>`<option ${s.stockage===o?'selected':''}>${o}</option>`).join('')}
       </select></div>
-      <div class="field"><div class="field-label">Responsable montage</div>
-      <select onchange="upd('${id}','Responsable montage','sel',this.value)"><option value="">Choisir...</option>
-      ${['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Thierry','David'].map(o=>`<option ${s.monteur===o?'selected':''}>${o}</option>`).join('')}
-      </select></div>
+
     </div>`);
+  const tousLesNoms=['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
+  const monteurKeys=['monteur1','monteur2','monteur3'];
   html+=step('Montage',s.lien1?'p-green V1 disponible':'p-gray En attente',
-    [1,2,3].map(v=>`<div class="field" style="margin-bottom:8px">
-      <div class="field-label" style="display:flex;justify-content:space-between">
-        <span>V${v}</span>
-        <input type="date" value="${s['montJ'+v]}" style="width:auto;padding:2px 6px;font-size:11px" onchange="upd('${id}','Date montage J${v}','date',this.value)">
-      </div>
-      <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="upd('${id}','Lien V${v}','url',this.value)">
-    </div>`).join('')+
+    [1,2,3].map(v=>{
+      // Par défaut = monteur stocké, sinon journaliste du sujet
+      const monteurVal=s[monteurKeys[v-1]]||s.journaliste||'';
+      return`<div class="field" style="margin-bottom:10px">
+        <div class="field-label" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span>V${v}</span>
+          <input type="datetime-local" value="${s['montJ'+v]?s['montJ'+v].slice(0,16):''}" style="width:auto;padding:2px 6px;font-size:11px" onchange="upd('${id}','Date montage J${v}','datetime',this.value)">
+        </div>
+        <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="upd('${id}','Lien V${v}','url',this.value)" style="margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
+          <select onchange="upd('${id}','Monteur V${v}','sel',this.value)" style="font-size:11px;padding:3px 8px;flex:1">
+            <option value="">Choisir...</option>
+            ${tousLesNoms.map(m=>`<option ${monteurVal===m?'selected':''}>${m}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+    }).join('')+
     `<div class="field"><div class="field-label">Nom fichier officiel</div><input type="text" value="${s.nomFichier}" placeholder="ID_Titre-court_Journaliste" onblur="upd('${id}','Nom fichier officiel','rt',this.value)"></div>`);
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="fg">
@@ -462,11 +475,12 @@ async function upd(id,field,type,value){
     else if(type==='rt')props[field]={rich_text:value?[{text:{content:value}}]:[]};
     else if(type==='sel')props[field]=value?{select:{name:value}}:{select:null};
     else if(type==='date')props[field]=value?{date:{start:value}}:{date:null};
+    else if(type==='datetime')props[field]=value?{date:{start:value,is_datetime:true}}:{date:null};
     else if(type==='url')props[field]={url:value||null};
     else if(type==='cb')props[field]={checkbox:value};
     await api(`/pages/${id}`,'PATCH',{properties:props});
     const s=sujets.find(x=>x.id===id);
-    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien séquencier':'lienSeq','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion'}[field];if(k)s[k]=value;}
+    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien séquencier':'lienSeq','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion'}[field];if(k)s[k]=value;}
     toast('Sauvegardé','ok');
   }catch(e){toast('Erreur : '+e.message,'err');}
 }
