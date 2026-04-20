@@ -153,6 +153,25 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         </div>
         <div id="code-prev" style="display:none;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--red)">Code : <strong id="code-prev-val"></strong></div>
       </div>
+      <!-- PANNEAU BRAND (affiché seulement si Brand sélectionné) -->
+      <div id="brand-panel" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;display:none;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:6px">
+          <button id="brand-btn-nouveau" class="nav-btn primary" style="flex:1;font-size:11px" onclick="setBrandMode('nouveau')">+ Nouveau client</button>
+          <button id="brand-btn-decli" class="nav-btn" style="flex:1;font-size:11px" onclick="setBrandMode('decli')">Déclinaison client existant</button>
+        </div>
+        <div id="brand-nouveau" style="display:none">
+          <div class="field-label" style="margin-bottom:4px">Nom du nouveau client</div>
+          <input type="text" id="brand-nom-client" placeholder="Ex: Nike" oninput="updateBrandCode()">
+          <div id="brand-code-preview" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--red);display:none">Code attribué : <strong id="brand-code-val"></strong></div>
+        </div>
+        <div id="brand-decli" style="display:none">
+          <div class="field-label" style="margin-bottom:4px">Client</div>
+          <select id="brand-client-select" onchange="updateBrandDecliCode()">
+            <option value="">Choisir un client...</option>
+          </select>
+          <div id="brand-decli-preview" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--red);display:none">Code attribué : <strong id="brand-decli-val"></strong></div>
+        </div>
+      </div>
       <div class="fg">
         <div class="field"><div class="field-label">Chef *</div>
           <select id="n-chef"><option value="">Choisir...</option><option>Benjamin</option><option>Arnaud</option><option>Chloé</option></select></div>
@@ -192,10 +211,11 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <script>
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
+const DB_CLIENTS='046a7ebc-b08e-4188-8bec-a50ae0ef8bf1';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
-let sujets=[],compteurs={},activeFmt=null,curFilter={t:null,v:null};
+let sujets=[],compteurs={},clients=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
 
 function getPrefixe(p){
   const prop=p['Préfixe'];
@@ -225,12 +245,12 @@ async function api(endpoint,method='GET',body=null){
 async function loadSujets(){
   document.getElementById('cards-wrap').innerHTML='<div class="loading"><div class="spin"></div></div>';
   try{
-    const[prod,comp]=await Promise.all([
+    const[prod,comp,cli]=await Promise.all([
       api(`/databases/${DB_PROD}/query`,'POST',{sorts:[{timestamp:'created_time',direction:'descending'}]}),
-      api(`/databases/${DB_COMP}/query`,'POST',{})
+      api(`/databases/${DB_COMP}/query`,'POST',{}),
+      api(`/databases/${DB_CLIENTS}/query`,'POST',{sorts:[{property:'Numéro',direction:'ascending'}]})
     ]);
     sujets=prod.results.map(parsePage);
-    // Recharger les compteurs depuis Notion à chaque fois
     compteurs={};
     comp.results.forEach(p=>{
       const pr=p.properties;
@@ -238,6 +258,15 @@ async function loadSujets(){
       const prefixe=getPrefixe(pr);
       const dernierNumero=pr['Dernier numéro']?.number??0;
       compteurs[fmt]={id:p.id,prefixe,dernierNumero,prochainCode:`${prefixe}${dernierNumero+1}`};
+    });
+    clients=cli.results.map(p=>{
+      const pr=p.properties;
+      return{id:p.id,
+        nom:pr.Client?.title?.[0]?.plain_text||'',
+        code:pr.Code?.rich_text?.[0]?.plain_text||pr.Code?.text?.[0]?.plain_text||'',
+        numero:pr['Numéro']?.number??0,
+        derniereLettre:pr['Dernière lettre']?.rich_text?.[0]?.plain_text||pr['Dernière lettre']?.text?.[0]?.plain_text||''
+      };
     });
     document.getElementById('cnt-all').textContent=sujets.length;
     renderCards();
@@ -320,7 +349,11 @@ async function openNouveau(){
   document.getElementById('n-date').value='';
   document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
   document.getElementById('code-prev').style.display='none';
-  activeFmt=null;
+  document.getElementById('brand-panel').style.display='none';
+  document.getElementById('brand-nouveau').style.display='none';
+  document.getElementById('brand-decli').style.display='none';
+  document.getElementById('brand-nom-client').value='';
+  activeFmt=null;brandMode=null;
   openOv('ov-new');
 }
 
@@ -409,13 +442,71 @@ async function updStatut(id,statut){
 }
 
 function selFmt(fmt,el){
-  activeFmt=fmt;
+  activeFmt=fmt;brandMode=null;
   document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
   el.classList.add('sel');
-  const c=compteurs[fmt];
   const prev=document.getElementById('code-prev');
-  if(c){document.getElementById('code-prev-val').textContent=c.prochainCode;prev.style.display='block';}
-  else prev.style.display='none';
+  const brandPanel=document.getElementById('brand-panel');
+  if(fmt==='Brand'){
+    prev.style.display='none';
+    brandPanel.style.display='flex';
+    // Peupler le select clients
+    const sel=document.getElementById('brand-client-select');
+    sel.innerHTML='<option value="">Choisir un client...</option>';
+    clients.forEach(c=>{sel.innerHTML+=`<option value="${c.id}">${c.code} — ${c.nom}</option>`;});
+    document.getElementById('brand-nouveau').style.display='none';
+    document.getElementById('brand-decli').style.display='none';
+    document.getElementById('brand-code-preview').style.display='none';
+    document.getElementById('brand-decli-preview').style.display='none';
+  }else{
+    brandPanel.style.display='none';
+    const c=compteurs[fmt];
+    if(c){document.getElementById('code-prev-val').textContent=c.prochainCode;prev.style.display='block';}
+    else prev.style.display='none';
+  }
+}
+
+function setBrandMode(mode){
+  brandMode=mode;
+  document.getElementById('brand-nouveau').style.display=mode==='nouveau'?'block':'none';
+  document.getElementById('brand-decli').style.display=mode==='decli'?'block':'none';
+  document.getElementById('brand-btn-nouveau').className='nav-btn'+(mode==='nouveau'?' primary':'');
+  document.getElementById('brand-btn-decli').className='nav-btn'+(mode==='decli'?' primary':'');
+  if(mode==='nouveau') updateBrandCode();
+}
+
+function updateBrandCode(){
+  const c=compteurs['Brand'];
+  if(!c) return;
+  const nextNum=c.dernierNumero+1;
+  const code=`B${String(nextNum).padStart(2,'0')}`;
+  document.getElementById('brand-code-val').textContent=code;
+  document.getElementById('brand-code-preview').style.display='block';
+}
+
+function nextLetter(last){
+  if(!last) return 'A';
+  if(last==='Z') return 'AA';
+  if(last.length===1) return String.fromCharCode(last.charCodeAt(0)+1);
+  // AA, AB... 
+  const chars=last.split('');
+  let i=chars.length-1;
+  while(i>=0){
+    if(chars[i]<'Z'){chars[i]=String.fromCharCode(chars[i].charCodeAt(0)+1);return chars.join('');}
+    chars[i]='A';i--;
+  }
+  return 'A'+chars.join('');
+}
+
+function updateBrandDecliCode(){
+  const sel=document.getElementById('brand-client-select');
+  const clientId=sel.value;
+  if(!clientId){document.getElementById('brand-decli-preview').style.display='none';return;}
+  const client=clients.find(c=>c.id===clientId);
+  if(!client) return;
+  const prochainLettre=nextLetter(client.derniereLettre);
+  document.getElementById('brand-decli-val').textContent=`${client.code}${prochainLettre}`;
+  document.getElementById('brand-decli-preview').style.display='block';
 }
 
 async function createSujet(){
@@ -426,28 +517,62 @@ async function createSujet(){
   const brief=document.getElementById('n-brief').value.trim();
   const date=document.getElementById('n-date').value;
   if(!titre||!activeFmt||!chef||!journ){toast('Titre, format, chef et journaliste requis','err');return;}
-  const c=compteurs[activeFmt];
-  if(!c){toast('Compteur introuvable pour ce format','err');return;}
-  try{
-    const codeVal=`${c.prefixe}${c.dernierNumero+1}`;
-    const props={
-      'Titre':{title:[{text:{content:titre}}]},
-      'Format':{select:{name:activeFmt}},
-      'Chef responsable':{select:{name:chef}},
-      'Journaliste':{select:{name:journ}},
-      'Statut':{select:{name:'Brief / Idée'}},
-      'Code':{rich_text:[{text:{content:codeVal}}]}
-    };
+
+  let codeVal='';
+
+  if(activeFmt==='Brand'){
+    if(!brandMode){toast('Choisissez nouveau client ou déclinaison','err');return;}
+    const c=compteurs['Brand'];
+    if(brandMode==='nouveau'){
+      const nv=c.dernierNumero+1;
+      codeVal=`B${String(nv).padStart(2,'0')}`;
+      // Créer le sujet
+      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
+      if(plat)props.Plateforme={select:{name:plat}};
+      if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
+      if(date)props['Date de diffusion']={date:{start:date}};
+      await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+      // Incrémenter compteur Brand
+      await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
+      // Ajouter nouveau client dans DB_CLIENTS
+      const nomClient=document.getElementById('brand-nom-client').value.trim()||titre;
+      await api('/pages','POST',{parent:{database_id:DB_CLIENTS},properties:{
+        'Client':{title:[{text:{content:nomClient}}]},
+        'Code':{rich_text:[{text:{content:codeVal}}]},
+        'Numéro':{number:nv},
+        'Dernière lettre':{rich_text:[]}
+      }});
+    }else{
+      // Déclinaison
+      const clientId=document.getElementById('brand-client-select').value;
+      if(!clientId){toast('Choisissez un client','err');return;}
+      const client=clients.find(c=>c.id===clientId);
+      const prochainLettre=nextLetter(client.derniereLettre);
+      codeVal=`${client.code}${prochainLettre}`;
+      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
+      if(plat)props.Plateforme={select:{name:plat}};
+      if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
+      if(date)props['Date de diffusion']={date:{start:date}};
+      await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+      // Mettre à jour dernière lettre du client
+      await api(`/pages/${client.id}`,'PATCH',{properties:{'Dernière lettre':{rich_text:[{text:{content:prochainLettre}}]}}});
+    }
+  }else{
+    const c=compteurs[activeFmt];
+    if(!c){toast('Compteur introuvable pour ce format','err');return;}
+    codeVal=`${c.prefixe}${c.dernierNumero+1}`;
+    const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
     if(plat)props.Plateforme={select:{name:plat}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
     if(date)props['Date de diffusion']={date:{start:date}};
     await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
-    closeOv('ov-new');
-    toast(`Sujet créé — code ${codeVal}`,'ok');
-    await loadSujets();
-  }catch(e){toast('Erreur : '+e.message,'err');}
+  }
+
+  closeOv('ov-new');
+  toast(`Sujet créé — code ${codeVal}`,'ok');
+  await loadSujets();
 }
 
 function exportExcel(){
