@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Réel Média · Production</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
 
@@ -460,36 +461,39 @@
 </head>
 <body>
 
-<!-- CONFIG SCREEN -->
-<div id="config-screen" class="config-screen">
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="config-screen">
   <div class="config-card">
     <div class="config-logo">réel<span>.</span>media</div>
-    <p class="config-subtitle">Tableau de suivi de production.<br>Connectez votre espace Notion pour commencer.</p>
+    <p class="config-subtitle" style="margin-bottom:24px">Tableau de suivi de production.<br>Connectez-vous pour accéder à l'espace.</p>
 
-    <div class="config-warning">
-      Ne partagez jamais votre token Notion publiquement. Il est stocké uniquement dans votre navigateur (localStorage).
-    </div>
-
-    <div style="margin-bottom:16px">
-      <div class="config-label">Token Notion (secret_...)</div>
-      <input type="password" id="notion-token-input" placeholder="secret_xxxxxxxxxxxx" style="width:100%">
-      <div class="config-help">
-        Créez une intégration sur notion.so/profile/integrations → copiez le "Internal Integration Secret".<br>
-        Ensuite connectez vos bases Notion à cette intégration via "..." → Connections.
+    <div id="login-form">
+      <div style="margin-bottom:14px">
+        <div class="config-label">Email</div>
+        <input type="email" id="login-email" placeholder="prenom@reelmedia.fr" style="width:100%">
+      </div>
+      <div style="margin-bottom:20px">
+        <div class="config-label">Mot de passe</div>
+        <input type="password" id="login-password" placeholder="••••••••" style="width:100%">
+      </div>
+      <div id="login-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:14px"></div>
+      <button class="config-btn" onclick="doLogin()">Se connecter →</button>
+      <div style="text-align:center;margin-top:14px">
+        <span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="showForgot()">Mot de passe oublié ?</span>
       </div>
     </div>
 
-    <div style="margin-bottom:16px">
-      <div class="config-label">ID base "Suivi de Production"</div>
-      <input type="text" id="db-production-input" placeholder="88894794-bcfd-41a5-baf3-b061fb75a1a9" style="width:100%">
+    <div id="forgot-form" style="display:none">
+      <div style="margin-bottom:14px">
+        <div class="config-label">Email</div>
+        <input type="email" id="forgot-email" placeholder="prenom@reelmedia.fr" style="width:100%">
+      </div>
+      <div id="forgot-msg" style="display:none;background:var(--green-dim);border:1px solid var(--green);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--green);margin-bottom:14px"></div>
+      <button class="config-btn" onclick="doForgot()">Envoyer le lien →</button>
+      <div style="text-align:center;margin-top:14px">
+        <span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="showLogin()">← Retour à la connexion</span>
+      </div>
     </div>
-
-    <div>
-      <div class="config-label">ID base "Compteurs de codes"</div>
-      <input type="text" id="db-compteurs-input" placeholder="551f8474-f20e-42a0-a928-9afb662f6b6e" style="width:100%">
-    </div>
-
-    <button class="config-btn" onclick="saveConfig()">Connexion →</button>
   </div>
 </div>
 
@@ -642,10 +646,119 @@
 
 <script>
 // ==========================================
-// CONFIG & STATE
+// NETLIFY IDENTITY
 // ==========================================
-const PROXY = 'https://api.notion.com/v1';
-let CONFIG = {};
+let netlifyUser = null;
+
+window.onload = function() {
+  // Charger le widget Netlify Identity
+  if (window.netlifyIdentity) {
+    netlifyIdentity.on('init', user => {
+      if (user) {
+        netlifyUser = user;
+        showApp();
+        loadSujets();
+      } else {
+        document.getElementById('login-screen').style.display = 'flex';
+      }
+    });
+
+    netlifyIdentity.on('login', user => {
+      netlifyUser = user;
+      netlifyIdentity.close();
+      showApp();
+      loadSujets();
+    });
+
+    netlifyIdentity.on('logout', () => {
+      netlifyUser = null;
+      location.reload();
+    });
+
+    netlifyIdentity.init();
+  } else {
+    // Mode développement local — bypass auth
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+};
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  if (!email || !password) {
+    showLoginError('Email et mot de passe requis');
+    return;
+  }
+
+  try {
+    const user = await netlifyIdentity.login(email, password);
+    netlifyUser = user;
+    showApp();
+    loadSujets();
+  } catch(e) {
+    showLoginError('Email ou mot de passe incorrect');
+  }
+}
+
+async function doForgot() {
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!email) return;
+  try {
+    await netlifyIdentity.requestPasswordRecovery(email);
+    document.getElementById('forgot-msg').style.display = 'block';
+    document.getElementById('forgot-msg').textContent = 'Email de réinitialisation envoyé à ' + email;
+  } catch(e) {
+    showLoginError('Erreur lors de l\'envoi');
+  }
+}
+
+function showForgot() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('forgot-form').style.display = 'block';
+}
+
+function showLogin() {
+  document.getElementById('forgot-form').style.display = 'none';
+  document.getElementById('login-form').style.display = 'block';
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function logout() {
+  if (window.netlifyIdentity) {
+    netlifyIdentity.logout();
+  } else {
+    location.reload();
+  }
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+
+  const name = netlifyUser?.user_metadata?.full_name ||
+               netlifyUser?.email?.split('@')[0] || '?';
+  const initials = name.substring(0, 2).toUpperCase();
+  document.getElementById('user-badge').textContent = initials;
+  document.getElementById('user-badge').title = netlifyUser?.email || '';
+}
+
+// Config hardcodée — token géré par Netlify env vars côté serveur
+CONFIG = {
+  dbProduction: '88894794-bcfd-41a5-baf3-b061fb75a1a9',
+  dbCompteurs: '551f8474-f20e-42a0-a928-9afb662f6b6e'
+};
+
+function saveConfig() {} // Plus nécessaire
+
+// ==========================================
+// STATE
+// ==========================================
 let sujets = [];
 let compteurs = {};
 let currentFilter = { type: null, value: null };
@@ -666,51 +779,14 @@ const FORMAT_COLORS = {
 const NEEDS_TOURNAGE = ['MAG', 'Brand', 'Face Cam', 'YouTube', 'Prodige'];
 
 // ==========================================
-// INIT
-// ==========================================
-window.onload = function() {
-  const saved = localStorage.getItem('reel-media-config');
-  if (saved) {
-    CONFIG = JSON.parse(saved);
-    showApp();
-    loadSujets();
-  }
-};
-
-function saveConfig() {
-  const token = document.getElementById('notion-token-input').value.trim();
-  const dbProd = document.getElementById('db-production-input').value.trim();
-  const dbComp = document.getElementById('db-compteurs-input').value.trim();
-
-  if (!token || !dbProd || !dbComp) {
-    showToast('Tous les champs sont requis', 'error');
-    return;
-  }
-
-  CONFIG = { token, dbProduction: dbProd, dbCompteurs: dbComp };
-  localStorage.setItem('reel-media-config', JSON.stringify(CONFIG));
-  showApp();
-  loadSujets();
-}
-
-function logout() {
-  localStorage.removeItem('reel-media-config');
-  location.reload();
-}
-
-function showApp() {
-  document.getElementById('config-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  const initials = CONFIG.token ? CONFIG.token.substring(7, 9).toUpperCase() : '??';
-  document.getElementById('user-badge').textContent = initials;
-}
-
-// ==========================================
 // NOTION API
 // ==========================================
 async function notionRequest(endpoint, method = 'GET', body = null) {
+  // Récupérer le token JWT de l'utilisateur connecté
+  const jwt = netlifyUser?.token?.access_token || '';
+
   const headers = {
-    'x-notion-token': CONFIG.token,
+    'Authorization': `Bearer ${jwt}`,
     'Content-Type': 'application/json'
   };
 
