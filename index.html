@@ -320,7 +320,7 @@ function parsePage(p){
     monteur3:pr['Monteur V3']?.select?.name||'',
     nomFichier:pr['Nom fichier officiel']?.rich_text?.[0]?.plain_text||'',
     seqValide:pr['Séquencier validé']?.checkbox||false,
-    lienSeq:pr['Lien séquencier']?.url||'',
+    lienSeq:pr['Lien sequencier']?.url||'',
     code:getCode(pr)};
 }
 
@@ -402,7 +402,7 @@ function openDetail(id){
   html+=step('Séquencier',s.seqValide?'p-green Validé':'p-amber En attente',
     `<label class="cb-row"><input type="checkbox" ${s.seqValide?'checked':''} onchange="upd('${id}','Séquencier validé','cb',this.checked)"><span class="cb-label">Séquencier validé par le chef</span></label>
     <div class="field" style="margin-top:8px"><div class="field-label">Lien Google Doc</div>
-    <input type="url" value="${s.lienSeq||''}" placeholder="https://docs.google.com/..." onblur="upd('${id}','Lien séquencier','url',this.value)"></div>`);
+    <input type="url" value="${s.lienSeq||''}" placeholder="https://docs.google.com/..." onblur="upd('${id}','Lien sequencier','url',this.value)"></div>`);
   if(hasTour){html+=step('Tournage',s.tourJ1?'p-amber Planifié':'p-gray Non planifié',
     `<div class="fg">
       <div class="field"><div class="field-label">Date J1</div><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"></div>
@@ -481,16 +481,27 @@ async function upd(id,field,type,value){
     else if(type==='datetime'){
       if(value){
         const d=new Date(value);
-        props[field]={date:{start:d.toISOString()}};
+        // Format Notion : "2026-04-20T14:30:00" sans timezone ni millisecondes
+        const iso=d.getFullYear()+'-'+
+          String(d.getMonth()+1).padStart(2,'0')+'-'+
+          String(d.getDate()).padStart(2,'0')+'T'+
+          String(d.getHours()).padStart(2,'0')+':'+
+          String(d.getMinutes()).padStart(2,'0')+':00';
+        props[field]={date:{start:iso}};
       }else{
         props[field]={date:null};
       }
     }
-    else if(type==='url')props[field]={url:value||null};
+    else if(type==='url'){
+      // Nettoyer et valider l'URL avant envoi à Notion
+      let urlVal=value?value.trim():null;
+      if(urlVal&&!urlVal.startsWith('http'))urlVal='https://'+urlVal;
+      props[field]={url:urlVal||null};
+    }
     else if(type==='cb')props[field]={checkbox:value};
     await api(`/pages/${id}`,'PATCH',{properties:props});
     const s=sujets.find(x=>x.id===id);
-    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien séquencier':'lienSeq','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion'}[field];if(k)s[k]=value;}
+    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien sequencier':'lienSeq','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion'}[field];if(k)s[k]=value;}
     toast('Sauvegardé','ok');
   }catch(e){toast('Erreur : '+e.message,'err');}
 }
