@@ -877,8 +877,13 @@ function applySearch(list) {
 
 function highlightText(text, query) {
   if(!query || !text) return text || '';
-  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\]/g,'\$&')})`, 'gi');
-  return text.replace(re, '<span class="search-highlight">$1</span>');
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    const re = new RegExp('(' + escaped + ')', 'gi');
+    return text.replace(re, '<span class="search-highlight">$1</span>');
+  } catch(e) {
+    return text;
+  }
 }
 
 // ─── TRANSITIONS AUTOMATIQUES DE STATUT ───
