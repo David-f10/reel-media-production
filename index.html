@@ -100,7 +100,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   <div class="logo">réel<span>.</span>media <span style="color:var(--text3);font-size:11px;margin-left:8px;font-family:var(--mono)">production</span></div>
   <div class="nav-r">
     <button class="nav-btn" onclick="exportExcel()">Export Excel</button>
-    <button class="nav-btn primary" onclick="openOv('ov-new')">+ Nouveau sujet</button>
+    <button class="nav-btn primary" onclick="openNouveau()">+ Nouveau sujet</button>
     <button class="nav-btn" onclick="loadSujets()" style="padding:6px 10px">↻</button>
   </div>
 </nav>
@@ -206,7 +206,6 @@ function getPrefixe(p){
   return'';
 }
 
-// Lit le champ Code (texte simple) stocké directement sur la fiche
 function getCode(pr){
   const prop=pr['Code'];
   if(!prop)return'';
@@ -231,12 +230,14 @@ async function loadSujets(){
       api(`/databases/${DB_COMP}/query`,'POST',{})
     ]);
     sujets=prod.results.map(parsePage);
+    // Recharger les compteurs depuis Notion à chaque fois
     compteurs={};
     comp.results.forEach(p=>{
       const pr=p.properties;
       const fmt=pr.Format?.title?.[0]?.plain_text||'';
       const prefixe=getPrefixe(pr);
-      compteurs[fmt]={id:p.id,prefixe,dernierNumero:pr['Dernier numéro']?.number||0,prochainCode:pr['Prochain code']?.formula?.string||''};
+      const dernierNumero=pr['Dernier numéro']?.number??0;
+      compteurs[fmt]={id:p.id,prefixe,dernierNumero,prochainCode:`${prefixe}${dernierNumero+1}`};
     });
     document.getElementById('cnt-all').textContent=sujets.length;
     renderCards();
@@ -268,7 +269,7 @@ function parsePage(p){
     lienRendu:pr['Lien de rendu']?.url||'',
     nomFichier:pr['Nom fichier officiel']?.rich_text?.[0]?.plain_text||'',
     seqValide:pr['Séquencier validé']?.checkbox||false,
-    code:getCode(pr)};  // ← LIT LE CHAMP CODE DIRECTEMENT
+    code:getCode(pr)};
 }
 
 function renderCards(){
@@ -296,6 +297,32 @@ function cardHTML(s){
 function stColor(s){return{'Brief / Idée':'#555','Séquencier en cours':'#378ADD','Séquencier validé':'#7F77DD','En tournage':'#EF9F27','Post-prod':'#EF9F27','Montage V1':'#1D9E75','Retours':'#e63946','Validation chef':'#7F77DD','PAD':'#1D9E75'}[s]||'#555';}
 function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});}
 function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');renderCards();}
+
+// Ouvre le modal APRÈS avoir rechargé les compteurs depuis Notion
+async function openNouveau(){
+  try{
+    const comp=await api(`/databases/${DB_COMP}/query`,'POST',{});
+    compteurs={};
+    comp.results.forEach(p=>{
+      const pr=p.properties;
+      const fmt=pr.Format?.title?.[0]?.plain_text||'';
+      const prefixe=getPrefixe(pr);
+      const dernierNumero=pr['Dernier numéro']?.number??0;
+      compteurs[fmt]={id:p.id,prefixe,dernierNumero,prochainCode:`${prefixe}${dernierNumero+1}`};
+    });
+  }catch(e){console.warn('Erreur reload compteurs',e);}
+  // Reset form
+  document.getElementById('n-titre').value='';
+  document.getElementById('n-chef').value='';
+  document.getElementById('n-journ').value='';
+  document.getElementById('n-plat').value='';
+  document.getElementById('n-brief').value='';
+  document.getElementById('n-date').value='';
+  document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
+  document.getElementById('code-prev').style.display='none';
+  activeFmt=null;
+  openOv('ov-new');
+}
 
 function openDetail(id){
   const s=sujets.find(x=>x.id===id);if(!s)return;
@@ -387,7 +414,7 @@ function selFmt(fmt,el){
   el.classList.add('sel');
   const c=compteurs[fmt];
   const prev=document.getElementById('code-prev');
-  if(c){document.getElementById('code-prev-val').textContent=c.prochainCode||`${c.prefixe}${c.dernierNumero+1}`;prev.style.display='block';}
+  if(c){document.getElementById('code-prev-val').textContent=c.prochainCode;prev.style.display='block';}
   else prev.style.display='none';
 }
 
@@ -402,14 +429,14 @@ async function createSujet(){
   const c=compteurs[activeFmt];
   if(!c){toast('Compteur introuvable pour ce format','err');return;}
   try{
-    const codeVal=`${c.prefixe}${c.dernierNumero+1}`;  // ← CALCULE LE CODE
+    const codeVal=`${c.prefixe}${c.dernierNumero+1}`;
     const props={
       'Titre':{title:[{text:{content:titre}}]},
       'Format':{select:{name:activeFmt}},
       'Chef responsable':{select:{name:chef}},
       'Journaliste':{select:{name:journ}},
       'Statut':{select:{name:'Brief / Idée'}},
-      'Code':{rich_text:[{text:{content:codeVal}}]}  // ← ÉCRIT LE CODE
+      'Code':{rich_text:[{text:{content:codeVal}}]}
     };
     if(plat)props.Plateforme={select:{name:plat}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
@@ -417,18 +444,8 @@ async function createSujet(){
     await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
-    c.dernierNumero=nv;c.prochainCode=`${c.prefixe}${nv+1}`;
     closeOv('ov-new');
     toast(`Sujet créé — code ${codeVal}`,'ok');
-    document.getElementById('n-titre').value='';
-    document.getElementById('n-chef').value='';
-    document.getElementById('n-journ').value='';
-    document.getElementById('n-plat').value='';
-    document.getElementById('n-brief').value='';
-    document.getElementById('n-date').value='';
-    document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
-    document.getElementById('code-prev').style.display='none';
-    activeFmt=null;
     await loadSujets();
   }catch(e){toast('Erreur : '+e.message,'err');}
 }
