@@ -805,27 +805,38 @@ async function doSetPassword() {
   btn.disabled = true;
 
   try {
-    // Échanger le token d'invitation contre un vrai token d'accès
-    const type = window._tokenType === 'invite' ? 'invite' : 'recovery';
-    const res = await fetch(`${SITE_URL}/.netlify/identity/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: window._pendingToken, type, password })
+    // La bonne route Netlify Identity pour confirmer une invitation
+    // est PUT /.netlify/identity/user avec le token dans l'Authorization header
+    const confirmRes = await fetch(`${SITE_URL}/.netlify/identity/user`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window._pendingToken}`
+      },
+      body: JSON.stringify({ password })
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.msg || 'Token invalide ou expiré');
+    if (!confirmRes.ok) {
+      const err = await confirmRes.json().catch(() => ({}));
+      throw new Error(err.msg || err.error_description || 'Token invalide ou expiré');
     }
 
-    const tokenData = await res.json();
+    const userData = await confirmRes.json();
 
-    // Récupérer les infos utilisateur
-    const userRes = await fetch(`${SITE_URL}/.netlify/identity/user`, {
-      headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+    // Maintenant se connecter avec email + password pour obtenir un vrai token
+    // userData contient l'email de l'utilisateur
+    const email = userData.email;
+    if (!email) throw new Error('Email introuvable');
+
+    const tokenRes = await fetch(`${SITE_URL}/.netlify/identity/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=password&username=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
     });
-    const userData = await userRes.json();
 
+    if (!tokenRes.ok) throw new Error('Connexion automatique échouée — connectez-vous manuellement');
+
+    const tokenData = await tokenRes.json();
     netlifyUser = { ...userData, token: tokenData };
     localStorage.setItem('reel-media-user', JSON.stringify(netlifyUser));
 
