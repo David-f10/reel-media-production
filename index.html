@@ -656,6 +656,7 @@ function cardHTML(s){
       <span class="card-code">${s.code||'—'}</span>
       <div style="display:flex;align-items:center;gap:6px">
         <span class="card-fmt" style="color:${col}">${s.format||'—'}</span>
+        ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
         <button onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Supprimer">🗑</button>
       </div>
     </div>
@@ -1693,6 +1694,7 @@ function cardHTMLHighlight(s, q) {
       <span class="card-code">${highlightText(s.code||'—',q)}</span>
       <div style="display:flex;align-items:center;gap:6px">
         <span class="card-fmt" style="color:${col}">${s.format||'—'}</span>
+        ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
         <button onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Supprimer">🗑</button>
       </div>
     </div>
