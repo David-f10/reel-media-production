@@ -494,6 +494,23 @@
         <span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="showLogin()">← Retour à la connexion</span>
       </div>
     </div>
+
+    <!-- CRÉATION MOT DE PASSE (invitation) -->
+    <div id="set-password-form" style="display:none">
+      <div style="background:var(--green-dim);border:1px solid var(--green);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--green);margin-bottom:20px">
+        Bienvenue ! Créez votre mot de passe pour accéder à l'espace Réel Média.
+      </div>
+      <div style="margin-bottom:14px">
+        <div class="config-label">Nouveau mot de passe</div>
+        <input type="password" id="new-password" placeholder="Minimum 8 caractères" style="width:100%">
+      </div>
+      <div style="margin-bottom:20px">
+        <div class="config-label">Confirmer le mot de passe</div>
+        <input type="password" id="confirm-password" placeholder="Répétez le mot de passe" style="width:100%" onkeydown="if(event.key==='Enter') doSetPassword()">
+      </div>
+      <div id="set-password-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:14px"></div>
+      <button class="config-btn" onclick="doSetPassword()">Créer mon mot de passe →</button>
+    </div>
   </div>
 </div>
 
@@ -651,6 +668,24 @@
 let netlifyUser = null;
 
 window.onload = function() {
+  // Vérifier si c'est un lien d'invitation ou de reset (token dans l'URL)
+  const params = new URLSearchParams(window.location.hash.replace('#', '?'));
+  const inviteToken = params.get('invite_token') || params.get('confirmation_token');
+  const recoveryToken = params.get('recovery_token');
+
+  if (inviteToken || recoveryToken) {
+    // Afficher le formulaire de création de mot de passe
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('forgot-form').style.display = 'none';
+    document.getElementById('set-password-form').style.display = 'block';
+
+    // Stocker le token pour l'utiliser lors de la création du mot de passe
+    window._pendingToken = inviteToken || recoveryToken;
+    window._tokenType = inviteToken ? 'invite' : 'recovery';
+    return;
+  }
+
   // Charger le widget Netlify Identity
   if (window.netlifyIdentity) {
     netlifyIdentity.on('init', user => {
@@ -698,6 +733,36 @@ async function doLogin() {
     loadSujets();
   } catch(e) {
     showLoginError('Email ou mot de passe incorrect');
+  }
+}
+
+async function doSetPassword() {
+  const password = document.getElementById('new-password').value;
+  const confirm = document.getElementById('confirm-password').value;
+  const errEl = document.getElementById('set-password-error');
+
+  if (!password || password.length < 8) {
+    errEl.textContent = 'Le mot de passe doit contenir au moins 8 caractères';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (password !== confirm) {
+    errEl.textContent = 'Les mots de passe ne correspondent pas';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    // Utiliser netlifyIdentity pour confirmer l'invitation avec le nouveau mot de passe
+    const user = await netlifyIdentity.acceptInvite(window._pendingToken, password);
+    netlifyUser = user;
+    // Nettoyer l'URL
+    history.replaceState(null, '', window.location.pathname);
+    showApp();
+    loadSujets();
+  } catch(e) {
+    errEl.textContent = 'Erreur : ' + (e.message || 'Token invalide ou expiré');
+    errEl.style.display = 'block';
   }
 }
 
