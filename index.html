@@ -182,7 +182,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
       <div class="fg">
         <div class="field"><div class="field-label">Plateforme</div>
           <select id="n-plat"><option value="">Choisir...</option><option>YouTube</option><option>Instagram</option></select></div>
-        <div class="field"><div class="field-label">Date de diffusion</div><input type="date" id="n-date"></div>
+        <div class="field"><div class="field-label">Date de tournage</div><input type="date" id="n-date"></div>
       </div>
       <div class="field"><div class="field-label">Brief</div><textarea id="n-brief" placeholder="Instructions pour le journaliste..."></textarea></div>
     </div>
@@ -316,7 +316,13 @@ function cardHTML(s){
   const dotCol=stColor(s.statut);
   const init=s.journaliste?s.journaliste.substring(0,2).toUpperCase():'?';
   return`<div class="card" onclick="openDetail('${s.id}')">
-    <div class="card-hdr"><span class="card-code">${s.code||'—'}</span><span class="card-fmt" style="color:${col}">${s.format||'—'}</span></div>
+    <div class="card-hdr">
+      <span class="card-code">${s.code||'—'}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="card-fmt" style="color:${col}">${s.format||'—'}</span>
+        <button onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Supprimer">🗑</button>
+      </div>
+    </div>
     <div class="card-title">${s.titre}</div>
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${s.journaliste||'Non attribué'}${s.chef?` · ${s.chef}`:''}</span></div>
     <div class="card-st"><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
@@ -538,7 +544,7 @@ async function createSujet(){
       const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
       if(plat)props.Plateforme={select:{name:plat}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
-      if(date)props['Date de diffusion']={date:{start:date}};
+      if(date)props['Date tournage J1']={date:{start:date}};
       await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
       // Incrémenter compteur Brand
       await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
@@ -560,7 +566,7 @@ async function createSujet(){
       const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
       if(plat)props.Plateforme={select:{name:plat}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
-      if(date)props['Date de diffusion']={date:{start:date}};
+      if(date)props['Date tournage J1']={date:{start:date}};
       await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
       // Mettre à jour dernière lettre du client
       await api(`/pages/${client.id}`,'PATCH',{properties:{'Dernière lettre':{rich_text:[{text:{content:prochainLettre}}]}}});
@@ -572,7 +578,7 @@ async function createSujet(){
     const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
     if(plat)props.Plateforme={select:{name:plat}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
-    if(date)props['Date de diffusion']={date:{start:date}};
+    if(date)props['Date tournage J1']={date:{start:date}};
     await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
@@ -591,6 +597,15 @@ function exportExcel(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Production');
   XLSX.writeFile(wb,`reel-media-${new Date().toISOString().split('T')[0]}.xlsx`);
   toast('Excel téléchargé','ok');
+}
+
+async function deleteSujet(id, titre){
+  if(!confirm(`Supprimer "${titre}" ? Cette action est irréversible.`)) return;
+  try{
+    await api(`/pages/${id}`,'PATCH',{archived:true});
+    toast('Sujet supprimé','ok');
+    await loadSujets();
+  }catch(e){toast('Erreur : '+e.message,'err');}
 }
 
 function openOv(id){document.getElementById(id).classList.add('open');}
