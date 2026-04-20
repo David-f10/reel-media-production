@@ -113,6 +113,37 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .cal-title{font-size:16px;font-weight:600;letter-spacing:-0.02em}
 @media(max-width:700px){.sidebar{display:none}.cards{grid-template-columns:1fr}.fg{grid-template-columns:1fr}}
+/* DASHBOARD */
+.dash{display:flex;flex-direction:column;gap:24px;max-width:1100px}
+.dash-section-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.kpi-val{font-size:28px;font-weight:700;font-family:var(--mono);letter-spacing:-0.04em;line-height:1}
+.kpi-label{font-size:11px;color:var(--text3);font-weight:500}
+.kpi-sub{font-size:11px;color:var(--text2)}
+.bar-chart{display:flex;flex-direction:column;gap:8px}
+.bar-row{display:flex;align-items:center;gap:10px}
+.bar-name{font-size:12px;color:var(--text2);width:100px;flex-shrink:0;text-align:right}
+.bar-track{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
+.bar-count{font-size:11px;font-family:var(--mono);color:var(--text3);width:30px;text-align:right}
+.month-chart{display:flex;align-items:flex-end;gap:6px;height:100px}
+.month-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.month-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height 0.5s ease}
+.month-label{font-size:9px;color:var(--text3);font-family:var(--mono)}
+.month-val{font-size:10px;color:var(--text2);font-family:var(--mono)}
+.alert-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--r);margin-bottom:6px}
+.alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.alert-content{flex:1}
+.alert-title{font-size:12px;font-weight:500;color:var(--text)}
+.alert-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dash-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:18px}
+.delai-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.delai-row:last-child{border-bottom:none}
+.delai-label{font-size:12px;color:var(--text2)}
+.delai-val{font-family:var(--mono);font-size:14px;font-weight:600}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -128,6 +159,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
       <button id="vue-statut" class="nav-btn" onclick="setVue('statut')" style="padding:4px 10px;font-size:11px">📊 Statut</button>
       <button id="vue-journaliste" class="nav-btn" onclick="setVue('journaliste')" style="padding:4px 10px;font-size:11px">👤 Journaliste</button>
       <button id="vue-calendrier" class="nav-btn" onclick="setVue('calendrier')" style="padding:4px 10px;font-size:11px">📅 Calendrier</button>
+      <button id="vue-dashboard" class="nav-btn" onclick="setVue('dashboard')" style="padding:4px 10px;font-size:11px">📈 Dashboard</button>
     </div>
   </div>
 </nav>
@@ -827,6 +859,7 @@ function setVue(vue){
   if(vue==='statut') renderStatut();
   else if(vue==='journaliste') renderJournaliste();
   else if(vue==='calendrier') renderCalendrier();
+  else if(vue==='dashboard') renderDashboard();
 }
 
 // ─── VUE KANBAN PAR STATUT ───
@@ -941,6 +974,184 @@ function renderCalendrier(){
     html+=`<div class="cal-day other-month"><div class="cal-day-num">${i}</div></div>`;
   }
   html+='</div></div>';
+  document.getElementById('vue-wrap').innerHTML=html;
+}
+
+// ─── DASHBOARD ───
+function renderDashboard(){
+  const now=new Date();
+  const MOIS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+
+  // ── KPIs globaux ──
+  const total=sujets.length;
+  const pad=sujets.filter(s=>s.statut==='PAD').length;
+  const enCours=sujets.filter(s=>s.statut&&s.statut!=='PAD'&&s.statut!=='Brief / Idée').length;
+  const briefs=sujets.filter(s=>s.statut==='Brief / Idée'||!s.statut).length;
+  const avecV1=sujets.filter(s=>s.lien1).length;
+
+  // ── Répartition par format ──
+  const fmtCount={};
+  sujets.forEach(s=>{if(s.format)fmtCount[s.format]=(fmtCount[s.format]||0)+1;});
+  const maxFmt=Math.max(...Object.values(fmtCount),1);
+
+  // ── Par mois (6 derniers mois) — tournages ──
+  const moisData=[];
+  for(let i=5;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const m=d.getMonth(); const y=d.getFullYear();
+    const tournes=sujets.filter(s=>{
+      if(!s.tourJ1)return false;
+      const dt=new Date(s.tourJ1);
+      return dt.getMonth()===m&&dt.getFullYear()===y;
+    }).length;
+    const montes=sujets.filter(s=>{
+      if(!s.montJ1)return false;
+      const dt=new Date(s.montJ1);
+      return dt.getMonth()===m&&dt.getFullYear()===y;
+    }).length;
+    const pads=sujets.filter(s=>{
+      if(!s.diffusion)return false;
+      const dt=new Date(s.diffusion);
+      return dt.getMonth()===m&&dt.getFullYear()===y;
+    }).length;
+    moisData.push({label:MOIS[m],tournes,montes,pads});
+  }
+  const maxMois=Math.max(...moisData.map(m=>Math.max(m.tournes,m.montes,m.pads)),1);
+
+  // ── Délais moyens ──
+  function moyJours(fn){
+    const vals=sujets.map(fn).filter(v=>v!==null&&v>0&&v<365);
+    if(!vals.length)return null;
+    return Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+  }
+  function diffJ(a,b){if(!a||!b)return null;return Math.round((new Date(b)-new Date(a))/86400000);}
+
+  const delaiTournV1=moyJours(s=>diffJ(s.tourJ1,s.montJ1));
+  const delaiV1Valid=moyJours(s=>{
+    // Date V1 → date statut Validation chef (pas dispo directement, approx avec montJ2)
+    return diffJ(s.montJ1,s.montJ2);
+  });
+  const delaiBriefPad=moyJours(s=>diffJ(s.created,s.diffusion));
+
+  // ── Par journaliste ──
+  const jCount={};const jPad={};
+  sujets.forEach(s=>{
+    const j=s.journaliste||'Non attribué';
+    jCount[j]=(jCount[j]||0)+1;
+    if(s.statut==='PAD')jPad[j]=(jPad[j]||0)+1;
+  });
+  const jSorted=Object.entries(jCount).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxJ=Math.max(...jSorted.map(j=>j[1]),1);
+
+  // ── Alertes ──
+  const alertes=[];
+  const DELAI_BRIEF=7;const DELAI_MONTAGE=5;const DELAI_VALID=3;
+  sujets.forEach(s=>{
+    const age=diffJ(s.created,new Date().toISOString());
+    if((s.statut==='Brief / Idée'||!s.statut)&&age>DELAI_BRIEF)
+      alertes.push({type:'amber',title:s.titre,msg:`Brief depuis ${age} jours — pas encore en séquencier`,code:s.code,id:s.id});
+    if(s.statut==='Montage V1'&&s.lien1){
+      const age1=diffJ(s.montJ1,new Date().toISOString());
+      if(age1&&age1>DELAI_MONTAGE)
+        alertes.push({type:'red',title:s.titre,msg:`V1 déposée il y a ${age1} jours — pas de retours`,code:s.code,id:s.id});
+    }
+    if(s.statut==='Validation chef'){
+      const age2=diffJ(s.montJ2||s.montJ1,new Date().toISOString());
+      if(age2&&age2>DELAI_VALID)
+        alertes.push({type:'purple',title:s.titre,msg:`En validation depuis ${age2} jours`,code:s.code,id:s.id});
+    }
+  });
+
+  // ── Render HTML ──
+  const pct=(v,max)=>Math.round((v/max)*100);
+
+  let html=`<div class="dash">`;
+
+  // KPIs
+  html+=`<div>
+    <div class="dash-section-title">Vue globale</div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-val" style="color:var(--text)">${total}</div><div class="kpi-label">Projets total</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--green)">${pad}</div><div class="kpi-label">PAD · Publiés</div><div class="kpi-sub">${total?Math.round(pad/total*100):0}% du total</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--amber)">${enCours}</div><div class="kpi-label">En production</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--text3)">${briefs}</div><div class="kpi-label">Brief / Idée</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--blue)">${avecV1}</div><div class="kpi-label">V1 disponible</div><div class="kpi-sub">${total?Math.round(avecV1/total*100):0}% du total</div></div>
+    </div>
+  </div>`;
+
+  // Graphique mensuel
+  html+=`<div>
+    <div class="dash-section-title">Activité mensuelle · 6 derniers mois</div>
+    <div class="dash-card">
+      <div style="display:flex;gap:16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--amber)"></div><span style="font-size:11px;color:var(--text2)">Tournés</span></div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--blue)"></div><span style="font-size:11px;color:var(--text2)">Montés (V1)</span></div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--green)"></div><span style="font-size:11px;color:var(--text2)">PAD</span></div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding-bottom:20px;position:relative">
+        ${moisData.map(m=>`
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0;height:100%;justify-content:flex-end;position:relative">
+            <div style="width:100%;display:flex;gap:2px;align-items:flex-end;height:90px">
+              <div style="flex:1;background:var(--amber);border-radius:3px 3px 0 0;height:${pct(m.tournes,maxMois)*0.9}%;min-height:${m.tournes?2:0}px;transition:height 0.5s" title="${m.tournes} tournés"></div>
+              <div style="flex:1;background:var(--blue);border-radius:3px 3px 0 0;height:${pct(m.montes,maxMois)*0.9}%;min-height:${m.montes?2:0}px;transition:height 0.5s" title="${m.montes} montés"></div>
+              <div style="flex:1;background:var(--green);border-radius:3px 3px 0 0;height:${pct(m.pads,maxMois)*0.9}%;min-height:${m.pads?2:0}px;transition:height 0.5s" title="${m.pads} PAD"></div>
+            </div>
+            <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:4px;position:absolute;bottom:-16px">${m.label}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // Deux colonnes : formats + journalistes
+  html+=`<div class="two-col">
+    <div class="dash-card">
+      <div class="dash-section-title">Par format</div>
+      <div class="bar-chart">
+        ${Object.entries(fmtCount).sort((a,b)=>b[1]-a[1]).map(([fmt,cnt])=>`
+          <div class="bar-row">
+            <div class="bar-name" style="color:${FMT_COLORS[fmt]||'var(--text2)'}">${fmt}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxFmt)}%;background:${FMT_COLORS[fmt]||'var(--text2)'}"></div></div>
+            <div class="bar-count">${cnt}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-section-title">Par journaliste</div>
+      <div class="bar-chart">
+        ${jSorted.map(([j,cnt])=>`
+          <div class="bar-row">
+            <div class="bar-name">${j.split(' ')[0]}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxJ)}%;background:var(--blue)"></div></div>
+            <div class="bar-count" title="${jPad[j]||0} PAD">${cnt}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // Délais
+  html+=`<div class="two-col">
+    <div class="dash-card">
+      <div class="dash-section-title">⏱ Délais moyens</div>
+      <div class="delai-row"><span class="delai-label">Tournage → V1</span><span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</span></div>
+      <div class="delai-row"><span class="delai-label">V1 → V2</span><span class="delai-val" style="color:var(--blue)">${delaiV1Valid!==null?delaiV1Valid+'j':'—'}</span></div>
+      <div class="delai-row"><span class="delai-label">Brief → PAD</span><span class="delai-val" style="color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'j':'—'}</span></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-section-title">🚦 Alertes (${alertes.length})</div>
+      ${alertes.length===0?`<div style="font-size:12px;color:var(--text3);padding:8px 0">✅ Aucune alerte — tout est à jour</div>`:''}
+      ${alertes.slice(0,5).map(a=>`
+        <div class="alert-row" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'}-dim);cursor:pointer" onclick="openDetail('${a.id}')">
+          <div class="alert-dot" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'})"></div>
+          <div class="alert-content">
+            <div class="alert-title">${a.code||''} ${a.title}</div>
+            <div class="alert-sub">${a.msg}</div>
+          </div>
+        </div>`).join('')}
+      ${alertes.length>5?`<div style="font-size:11px;color:var(--text3);margin-top:6px">+${alertes.length-5} autres alertes</div>`:''}
+    </div>
+  </div>`;
+
+  html+=`</div>`;
   document.getElementById('vue-wrap').innerHTML=html;
 }
 
