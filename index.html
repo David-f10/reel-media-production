@@ -115,6 +115,34 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .cal-title{font-size:16px;font-weight:600;letter-spacing:-0.02em}
 @media(max-width:700px){.sidebar{display:none}.cards{grid-template-columns:1fr}.fg{grid-template-columns:1fr}}
+/* SEARCH */
+.search-bar{
+  padding:10px 24px;border-bottom:1px solid var(--border);
+  background:var(--bg);flex-shrink:0;
+}
+.search-input-wrap{
+  position:relative;display:flex;align-items:center;
+}
+.search-icon{
+  position:absolute;left:10px;color:var(--text3);font-size:14px;pointer-events:none;
+}
+.search-input{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);padding:7px 12px 7px 32px;
+  border-radius:var(--r);font-size:12px;font-family:var(--font);
+  transition:border-color 0.15s;
+}
+.search-input:focus{outline:none;border-color:var(--red)}
+.search-clear{
+  position:absolute;right:8px;background:none;border:none;
+  color:var(--text3);cursor:pointer;font-size:16px;padding:0;line-height:1;
+  display:none;
+}
+.search-results-count{
+  font-size:11px;color:var(--text3);margin-top:6px;
+  font-family:var(--mono);
+}
+.search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
 .dash{display:flex;flex-direction:column;gap:24px;max-width:1100px}
 .dash-section-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px}
@@ -405,6 +433,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <button class="vtab" id="tab-statut" onclick="appSetVue('statut')">📊 Par statut</button>
       <button class="vtab" id="tab-journaliste" onclick="appSetVue('journaliste')">👤 Par journaliste</button>
       <button class="vtab" id="tab-calendrier" onclick="appSetVue('calendrier')">📅 Calendrier</button>
+    </div>
+    <!-- Barre de recherche (Production) -->
+    <div class="search-bar" id="search-bar" style="display:none">
+      <div class="search-input-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="search-input" type="text" placeholder="Rechercher par titre, code, journaliste, format..." oninput="onSearch(this.value)">
+        <button class="search-clear" id="search-clear" onclick="clearSearch()">×</button>
+      </div>
+      <div class="search-results-count" id="search-count" style="display:none"></div>
     </div>
     <!-- Contenu -->
     <div class="main-content" id="main-content">
@@ -802,6 +839,46 @@ async function upd(id,field,type,value){
     // Transition automatique de statut
     await autoStatut(id, field, value);
   }catch(e){toast('Erreur : '+e.message,'err');}
+}
+
+// ─── RECHERCHE ───
+let searchQuery = '';
+
+function onSearch(val) {
+  searchQuery = val.trim().toLowerCase();
+  const clearBtn = document.getElementById('search-clear');
+  if(clearBtn) clearBtn.style.display = searchQuery ? 'block' : 'none';
+  appSetVue(currentVue);
+}
+
+function clearSearch() {
+  searchQuery = '';
+  const input = document.getElementById('search-input');
+  if(input) input.value = '';
+  const clearBtn = document.getElementById('search-clear');
+  if(clearBtn) clearBtn.style.display = 'none';
+  const count = document.getElementById('search-count');
+  if(count) count.style.display = 'none';
+  appSetVue(currentVue);
+}
+
+function applySearch(list) {
+  if(!searchQuery) return list;
+  return list.filter(s =>
+    (s.titre||'').toLowerCase().includes(searchQuery) ||
+    (s.code||'').toLowerCase().includes(searchQuery) ||
+    (s.journaliste||'').toLowerCase().includes(searchQuery) ||
+    (s.format||'').toLowerCase().includes(searchQuery) ||
+    (s.chef||'').toLowerCase().includes(searchQuery) ||
+    (s.statut||'').toLowerCase().includes(searchQuery) ||
+    (s.sousFormat||'').toLowerCase().includes(searchQuery)
+  );
+}
+
+function highlightText(text, query) {
+  if(!query || !text) return text || '';
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\]/g,'\$&')})`, 'gi');
+  return text.replace(re, '<span class="search-highlight">$1</span>');
 }
 
 // ─── TRANSITIONS AUTOMATIQUES DE STATUT ───
@@ -1476,12 +1553,13 @@ function navTo(page) {
   // Filtres + onglets
   document.getElementById('sb-filters').style.display = isProd ? 'block' : 'none';
   document.getElementById('view-tabs').style.display = isProd ? 'flex' : 'none';
+  document.getElementById('search-bar').style.display = isProd ? 'block' : 'none';
+  if(!isProd) clearSearch();
 
   // Breadcrumb + actions
   document.getElementById('breadcrumb').textContent = isProd ? 'Production' : 'Dashboard';
   document.getElementById('main-actions').innerHTML = isProd
-    ? `<button class="nav-btn" onclick="exportExcel()" style="font-size:11px">Export Excel</button>
-       <button class="nav-btn primary" onclick="openNouveau()" style="font-size:11px">+ Nouveau sujet</button>`
+    ? `<button class="nav-btn primary" onclick="openNouveau()" style="font-size:11px">+ Nouveau sujet</button>`
     : '';
 
   appRender();
@@ -1572,13 +1650,51 @@ function renderCards() {
   let list = sujets;
   if(curFilter && curFilter.t === 's' && curFilter.v) list = list.filter(s => s.statut === curFilter.v);
   if(curFilter && curFilter.t === 'f' && curFilter.v) list = list.filter(s => s.format === curFilter.v);
+  list = applySearch(list);
+  // Afficher le compteur de résultats
+  const count = document.getElementById('search-count');
+  if(count) {
+    if(searchQuery) {
+      count.textContent = `${list.length} résultat${list.length!==1?'s':''} pour "${searchQuery}"`;
+      count.style.display = 'block';
+    } else {
+      count.style.display = 'none';
+    }
+  }
   const cw = document.getElementById('cards-wrap');
   if(!cw) return;
   if(!list.length) {
-    cw.innerHTML = '<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';
+    cw.innerHTML = searchQuery
+      ? `<div class="empty"><h3>Aucun résultat</h3><p>Aucun sujet ne correspond à "<strong>${searchQuery}</strong>"</p></div>`
+      : '<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';
     return;
   }
-  cw.innerHTML = '<div class="cards">' + list.map(cardHTML).join('') + '</div>';
+  // Highlight dans les cartes si recherche active
+  if(searchQuery) {
+    cw.innerHTML = '<div class="cards">' + list.map(s => cardHTMLHighlight(s, searchQuery)).join('') + '</div>';
+  } else {
+    cw.innerHTML = '<div class="cards">' + list.map(cardHTML).join('') + '</div>';
+  }
+}
+
+function cardHTMLHighlight(s, q) {
+  const col=FMT_COLORS[s.format]||'#888';
+  const prog=Math.round(((STATUS_ORDER.indexOf(s.statut)+1)/STATUS_ORDER.length)*100);
+  const dotCol=stColor(s.statut);
+  const init=s.journaliste?s.journaliste.substring(0,2).toUpperCase():'?';
+  return`<div class="card" onclick="openDetail('${s.id}')">
+    <div class="card-hdr">
+      <span class="card-code">${highlightText(s.code||'—',q)}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="card-fmt" style="color:${col}">${s.format||'—'}</span>
+        <button onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Supprimer">🗑</button>
+      </div>
+    </div>
+    <div class="card-title">${highlightText(s.titre,q)}</div>
+    <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${highlightText(s.journaliste||'Non attribué',q)}${s.chef?' · '+s.chef:''}</span></div>
+    <div class="card-st"><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
+    <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
+  </div>`;
 }
 
 // ── Init ──
