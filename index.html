@@ -430,14 +430,16 @@ function openDetail(id){
     </div>`);
   const tousLesNoms=['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
   const monteurKeys=['monteur1','monteur2','monteur3'];
-  html+=step('Montage',s.lien1?'p-green V1 disponible':'p-gray En attente',
+  const nbLiens=[s.lien1,s.lien2,s.lien3].filter(Boolean).length;
+  const montPill=nbLiens===3?'p-green V1 V2 V3':nbLiens===2?'p-green V1 V2':nbLiens===1?'p-amber V1':' p-gray En attente';
+  html+=step('Montage',montPill,
     [1,2,3].map(v=>{
       // Par défaut = monteur stocké, sinon journaliste du sujet
       const monteurVal=s[monteurKeys[v-1]]||s.journaliste||'';
       return`<div class="field" style="margin-bottom:10px">
         <div class="field-label" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
           <span>V${v}</span>
-          <input type="datetime-local" value="${s['montJ'+v]?s['montJ'+v].slice(0,16):''}" style="width:auto;padding:2px 6px;font-size:11px" onchange="upd('${id}','Date montage J${v}','datetime',this.value)">
+          <input type="datetime-local" value="${s['montJ'+v]?new Date(s['montJ'+v]).toLocaleString('sv-SE',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(' ','T'):''}" style="width:auto;padding:2px 6px;font-size:11px;color:var(--text2)" onchange="upd('${id}','Date montage J${v}','datetime',this.value)">
         </div>
         <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="upd('${id}','Lien V${v}','url',this.value)" style="margin-bottom:4px">
         <div style="display:flex;align-items:center;gap:6px">
@@ -475,7 +477,17 @@ async function upd(id,field,type,value){
     else if(type==='rt')props[field]={rich_text:value?[{text:{content:value}}]:[]};
     else if(type==='sel')props[field]=value?{select:{name:value}}:{select:null};
     else if(type==='date')props[field]=value?{date:{start:value}}:{date:null};
-    else if(type==='datetime')props[field]=value?{date:{start:value,is_datetime:true}}:{date:null};
+    else if(type==='datetime'){
+      if(value){
+        // Convertir datetime-local en ISO avec timezone locale
+        const d=new Date(value);
+        const iso=d.toISOString(); // UTC
+        // Notion accepte le format ISO UTC directement
+        props[field]={date:{start:iso,is_datetime:true}};
+      }else{
+        props[field]={date:null};
+      }
+    }
     else if(type==='url')props[field]={url:value||null};
     else if(type==='cb')props[field]={checkbox:value};
     await api(`/pages/${id}`,'PATCH',{properties:props});
