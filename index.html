@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Réel Média · Production</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
 
@@ -462,19 +461,20 @@
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen" class="config-screen">
+<div id="login-screen" class="config-screen" style="display:none">
   <div class="config-card">
     <div class="config-logo">réel<span>.</span>media</div>
     <p class="config-subtitle" style="margin-bottom:24px">Tableau de suivi de production.<br>Connectez-vous pour accéder à l'espace.</p>
 
+    <!-- Connexion -->
     <div id="login-form">
       <div style="margin-bottom:14px">
         <div class="config-label">Email</div>
-        <input type="email" id="login-email" placeholder="prenom@reelmedia.fr" style="width:100%">
+        <input type="email" id="login-email" placeholder="prenom@reelmedia.fr" style="width:100%" onkeydown="if(event.key==='Enter') doLogin()">
       </div>
       <div style="margin-bottom:20px">
         <div class="config-label">Mot de passe</div>
-        <input type="password" id="login-password" placeholder="••••••••" style="width:100%">
+        <input type="password" id="login-password" placeholder="••••••••" style="width:100%" onkeydown="if(event.key==='Enter') doLogin()">
       </div>
       <div id="login-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:14px"></div>
       <button class="config-btn" onclick="doLogin()">Se connecter →</button>
@@ -483,6 +483,7 @@
       </div>
     </div>
 
+    <!-- Mot de passe oublié -->
     <div id="forgot-form" style="display:none">
       <div style="margin-bottom:14px">
         <div class="config-label">Email</div>
@@ -495,7 +496,7 @@
       </div>
     </div>
 
-    <!-- CRÉATION MOT DE PASSE (invitation) -->
+    <!-- Création mot de passe (invitation) -->
     <div id="set-password-form" style="display:none">
       <div style="background:var(--green-dim);border:1px solid var(--green);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--green);margin-bottom:20px">
         Bienvenue ! Créez votre mot de passe pour accéder à l'espace Réel Média.
@@ -663,76 +664,122 @@
 
 <script>
 // ==========================================
-// NETLIFY IDENTITY
+// AUTH — Netlify Identity API directe
 // ==========================================
 let netlifyUser = null;
+let SITE_URL = window.location.origin;
+
+// Config — IDs des bases Notion (token géré côté serveur)
+const CONFIG = {
+  dbProduction: '88894794-bcfd-41a5-baf3-b061fb75a1a9',
+  dbCompteurs: '551f8474-f20e-42a0-a928-9afb662f6b6e'
+};
+
+// State
+let sujets = [];
+let compteurs = {};
+let currentFilter = { type: null, value: null };
+let selectedFormat = null;
+let currentPageId = null;
 
 window.onload = function() {
-  // Vérifier si c'est un lien d'invitation ou de reset (token dans l'URL)
-  const params = new URLSearchParams(window.location.hash.replace('#', '?'));
+  // Vérifier si token d'invitation dans l'URL (#invite_token=... ou #confirmation_token=...)
+  const hash = window.location.hash;
+  const params = new URLSearchParams(hash.replace('#', ''));
   const inviteToken = params.get('invite_token') || params.get('confirmation_token');
   const recoveryToken = params.get('recovery_token');
 
-  if (inviteToken || recoveryToken) {
-    // Afficher le formulaire de création de mot de passe
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('forgot-form').style.display = 'none';
-    document.getElementById('set-password-form').style.display = 'block';
-
-    // Stocker le token pour l'utiliser lors de la création du mot de passe
-    window._pendingToken = inviteToken || recoveryToken;
-    window._tokenType = inviteToken ? 'invite' : 'recovery';
+  if (inviteToken) {
+    showScreen('set-password');
+    window._pendingToken = inviteToken;
+    window._tokenType = 'invite';
+    history.replaceState(null, '', window.location.pathname);
     return;
   }
 
-  // Charger le widget Netlify Identity
-  if (window.netlifyIdentity) {
-    netlifyIdentity.on('init', user => {
-      if (user) {
-        netlifyUser = user;
+  if (recoveryToken) {
+    showScreen('set-password');
+    window._pendingToken = recoveryToken;
+    window._tokenType = 'recovery';
+    history.replaceState(null, '', window.location.pathname);
+    return;
+  }
+
+  // Vérifier session existante dans localStorage
+  const saved = localStorage.getItem('reel-media-user');
+  if (saved) {
+    try {
+      netlifyUser = JSON.parse(saved);
+      // Vérifier que le token n'est pas expiré
+      const expires = new Date(netlifyUser.token?.expires_at);
+      if (expires > new Date()) {
         showApp();
         loadSujets();
-      } else {
-        document.getElementById('login-screen').style.display = 'flex';
+        return;
       }
-    });
-
-    netlifyIdentity.on('login', user => {
-      netlifyUser = user;
-      netlifyIdentity.close();
-      showApp();
-      loadSujets();
-    });
-
-    netlifyIdentity.on('logout', () => {
-      netlifyUser = null;
-      location.reload();
-    });
-
-    netlifyIdentity.init();
-  } else {
-    // Mode développement local — bypass auth
-    document.getElementById('login-screen').style.display = 'flex';
+      // Token expiré — essayer de le rafraîchir
+      refreshToken();
+      return;
+    } catch(e) {
+      localStorage.removeItem('reel-media-user');
+    }
   }
+
+  showScreen('login');
 };
+
+function showScreen(name) {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-form').style.display = name === 'login' ? 'block' : 'none';
+  document.getElementById('forgot-form').style.display = name === 'forgot' ? 'block' : 'none';
+  document.getElementById('set-password-form').style.display = name === 'set-password' ? 'block' : 'none';
+}
 
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
 
   if (!email || !password) {
-    showLoginError('Email et mot de passe requis');
+    errEl.textContent = 'Email et mot de passe requis';
+    errEl.style.display = 'block';
     return;
   }
 
+  const btn = event.target;
+  btn.textContent = 'Connexion...';
+  btn.disabled = true;
+
   try {
-    const user = await netlifyIdentity.login(email, password);
-    netlifyUser = user;
+    const res = await fetch(`${SITE_URL}/.netlify/identity/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=password&username=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
+    });
+
+    if (!res.ok) throw new Error('Identifiants incorrects');
+
+    const tokenData = await res.json();
+
+    // Récupérer les infos utilisateur
+    const userRes = await fetch(`${SITE_URL}/.netlify/identity/user`, {
+      headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+    });
+    const userData = await userRes.json();
+
+    netlifyUser = { ...userData, token: tokenData };
+    localStorage.setItem('reel-media-user', JSON.stringify(netlifyUser));
+
     showApp();
     loadSujets();
   } catch(e) {
-    showLoginError('Email ou mot de passe incorrect');
+    errEl.textContent = 'Email ou mot de passe incorrect';
+    errEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Se connecter →';
+    btn.disabled = false;
   }
 }
 
@@ -740,6 +787,7 @@ async function doSetPassword() {
   const password = document.getElementById('new-password').value;
   const confirm = document.getElementById('confirm-password').value;
   const errEl = document.getElementById('set-password-error');
+  errEl.style.display = 'none';
 
   if (!password || password.length < 8) {
     errEl.textContent = 'Le mot de passe doit contenir au moins 8 caractères';
@@ -752,83 +800,101 @@ async function doSetPassword() {
     return;
   }
 
+  const btn = event.target;
+  btn.textContent = 'Création...';
+  btn.disabled = true;
+
   try {
-    // Utiliser netlifyIdentity pour confirmer l'invitation avec le nouveau mot de passe
-    const user = await netlifyIdentity.acceptInvite(window._pendingToken, password);
-    netlifyUser = user;
-    // Nettoyer l'URL
-    history.replaceState(null, '', window.location.pathname);
+    // Échanger le token d'invitation contre un vrai token d'accès
+    const type = window._tokenType === 'invite' ? 'invite' : 'recovery';
+    const res = await fetch(`${SITE_URL}/.netlify/identity/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: window._pendingToken, type, password })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.msg || 'Token invalide ou expiré');
+    }
+
+    const tokenData = await res.json();
+
+    // Récupérer les infos utilisateur
+    const userRes = await fetch(`${SITE_URL}/.netlify/identity/user`, {
+      headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+    });
+    const userData = await userRes.json();
+
+    netlifyUser = { ...userData, token: tokenData };
+    localStorage.setItem('reel-media-user', JSON.stringify(netlifyUser));
+
     showApp();
     loadSujets();
   } catch(e) {
-    errEl.textContent = 'Erreur : ' + (e.message || 'Token invalide ou expiré');
+    errEl.textContent = e.message || 'Erreur lors de la création du mot de passe';
     errEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Créer mon mot de passe →';
+    btn.disabled = false;
   }
 }
 
 async function doForgot() {
   const email = document.getElementById('forgot-email').value.trim();
+  const msgEl = document.getElementById('forgot-msg');
   if (!email) return;
+
   try {
-    await netlifyIdentity.requestPasswordRecovery(email);
-    document.getElementById('forgot-msg').style.display = 'block';
-    document.getElementById('forgot-msg').textContent = 'Email de réinitialisation envoyé à ' + email;
+    await fetch(`${SITE_URL}/.netlify/identity/recover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    msgEl.textContent = `Email de réinitialisation envoyé à ${email}`;
+    msgEl.style.display = 'block';
   } catch(e) {
-    showLoginError('Erreur lors de l\'envoi');
+    msgEl.textContent = 'Erreur lors de l\'envoi';
+    msgEl.style.display = 'block';
   }
 }
 
-function showForgot() {
-  document.getElementById('login-form').style.display = 'none';
-  document.getElementById('forgot-form').style.display = 'block';
-}
-
-function showLogin() {
-  document.getElementById('forgot-form').style.display = 'none';
-  document.getElementById('login-form').style.display = 'block';
-}
-
-function showLoginError(msg) {
-  const el = document.getElementById('login-error');
-  el.textContent = msg;
-  el.style.display = 'block';
+async function refreshToken() {
+  try {
+    const res = await fetch(`${SITE_URL}/.netlify/identity/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=refresh_token&refresh_token=${netlifyUser.token.refresh_token}`
+    });
+    if (!res.ok) throw new Error();
+    const tokenData = await res.json();
+    netlifyUser.token = tokenData;
+    localStorage.setItem('reel-media-user', JSON.stringify(netlifyUser));
+    showApp();
+    loadSujets();
+  } catch(e) {
+    localStorage.removeItem('reel-media-user');
+    showScreen('login');
+  }
 }
 
 function logout() {
-  if (window.netlifyIdentity) {
-    netlifyIdentity.logout();
-  } else {
-    location.reload();
-  }
+  localStorage.removeItem('reel-media-user');
+  netlifyUser = null;
+  location.reload();
 }
 
 function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-
-  const name = netlifyUser?.user_metadata?.full_name ||
-               netlifyUser?.email?.split('@')[0] || '?';
+  const name = netlifyUser?.user_metadata?.full_name || netlifyUser?.email?.split('@')[0] || '?';
   const initials = name.substring(0, 2).toUpperCase();
   document.getElementById('user-badge').textContent = initials;
   document.getElementById('user-badge').title = netlifyUser?.email || '';
 }
 
-// Config hardcodée — token géré par Netlify env vars côté serveur
-CONFIG = {
-  dbProduction: '88894794-bcfd-41a5-baf3-b061fb75a1a9',
-  dbCompteurs: '551f8474-f20e-42a0-a928-9afb662f6b6e'
-};
-
-function saveConfig() {} // Plus nécessaire
-
-// ==========================================
-// STATE
-// ==========================================
-let sujets = [];
-let compteurs = {};
-let currentFilter = { type: null, value: null };
-let selectedFormat = null;
-let currentPageId = null;
+function showForgot() { showScreen('forgot'); }
+function showLogin() { showScreen('login'); }
 
 const STATUS_ORDER = [
   'Brief / Idée', 'Séquencier en cours', 'Séquencier validé',
@@ -847,20 +913,21 @@ const NEEDS_TOURNAGE = ['MAG', 'Brand', 'Face Cam', 'YouTube', 'Prodige'];
 // NOTION API
 // ==========================================
 async function notionRequest(endpoint, method = 'GET', body = null) {
-  // Récupérer le token JWT de l'utilisateur connecté
   const jwt = netlifyUser?.token?.access_token || '';
-
   const headers = {
     'Authorization': `Bearer ${jwt}`,
     'Content-Type': 'application/json'
   };
-
   const options = { method, headers };
   if (body) options.body = JSON.stringify(body);
-
   const res = await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`, options);
   if (!res.ok) {
     const err = await res.json();
+    // Si token expiré, tenter un refresh
+    if (res.status === 401) {
+      await refreshToken();
+      return notionRequest(endpoint, method, body);
+    }
     throw new Error(err.message || 'Erreur Notion API');
   }
   return res.json();
