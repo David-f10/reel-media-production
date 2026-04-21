@@ -1975,9 +1975,24 @@ async function autoStatut(id, field, value){
     await api(`/pages/${id}`,'PATCH',{properties:{Statut:{select:{name:newStatut}}}});
     s.statut=newStatut;
     renderCards();
-    // Rafraîchir le stepper dans la modal si ouverte
     const stepper=document.querySelector('.stepper');
     if(stepper) openDetail(id);
+
+    // ─── Notifications automatiques selon le nouveau statut ───
+    const auteur = currentUser?.nom || '';
+    if(newStatut==='Séquencier validé' && s.journaliste && s.journaliste!==auteur) {
+      await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
+        `${auteur} a validé le séquencier de ${s.code} — ${s.titre}`);
+    }
+    else if(newStatut==='Validation chef' && s.journaliste && s.journaliste!==auteur) {
+      await createNotif('version_validee', id, s.code, s.titre, s.journaliste, auteur,
+        `${auteur} a validé une version de ${s.code} — ${s.titre}`);
+    }
+    else if(newStatut==='PAD' && s.journaliste && s.journaliste!==auteur) {
+      await createNotif('version_validee', id, s.code, s.titre, s.journaliste, auteur,
+        `${s.code} est PAD 🎉 — ${s.titre}`);
+    }
+    loadNotifs();
   }
 }
 
