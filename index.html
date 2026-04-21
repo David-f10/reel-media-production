@@ -850,7 +850,7 @@ function openDetail(id){
     `<div class="fg">
       <div class="field"><div class="field-label">Stockage</div>
       <select onchange="upd('${id}','Stockage','sel',this.value);autoNomFichier('${id}',this.value)"><option value="">Choisir...</option>
-      ${['Machine 1','Machine 2','Machine 3','Machine 4','Machine 5','Machine 6','Machine 7','Machine 8','Machine 9','Machine 10','DD rédaction','NexisAvid'].map(o=>`<option ${s.stockage===o?'selected':''}>${o}</option>`).join('')}
+      ${['RM-VISUALS-01','RM-VISUALS-02','RM-VISUALS-03','RM-VISUALS-04','RM-VISUALS-05','RM-VISUALS-06','RM-VISUALS-07','RM-VISUALS-08','RM-VISUALS-09','RM-VISUALS-10','DD rédaction','NexisAvid'].map(o=>`<option ${s.stockage===o?'selected':''}>${o}</option>`).join('')}
       </select></div>
     </div>
     <div class="field" style="margin-top:8px">
@@ -1033,7 +1033,12 @@ function applySearch(list) {
     (s.format||'').toLowerCase().includes(searchQuery) ||
     (s.chef||'').toLowerCase().includes(searchQuery) ||
     (s.statut||'').toLowerCase().includes(searchQuery) ||
-    (s.sousFormat||'').toLowerCase().includes(searchQuery)
+    (s.sousFormat||'').toLowerCase().includes(searchQuery) ||
+    (s.monteur1||'').toLowerCase().includes(searchQuery) ||
+    (s.monteur2||'').toLowerCase().includes(searchQuery) ||
+    (s.monteur3||'').toLowerCase().includes(searchQuery) ||
+    (s.stockage||'').toLowerCase().includes(searchQuery) ||
+    (s.notes||'').toLowerCase().includes(searchQuery)
   );
 }
 
