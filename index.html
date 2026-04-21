@@ -115,6 +115,15 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .cal-title{font-size:16px;font-weight:600;letter-spacing:-0.02em}
 
+/* ─── NOTIFICATIONS ─── */
+.notif-item{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s}
+.notif-item:hover{background:var(--bg3)}
+.notif-item.unread{background:var(--bg3)}
+.notif-item.unread::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--red);flex-shrink:0;margin-top:4px}
+.notif-icon{font-size:16px;flex-shrink:0;width:24px;text-align:center}
+.notif-content{flex:1;min-width:0}
+.notif-msg{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:2px}
+.notif-sub{font-size:10px;color:var(--text3);font-family:var(--mono)}
 /* ─── RETOURS ─── */
 .retour-row{display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:var(--r);margin-bottom:6px;background:var(--bg3);border:1px solid var(--border);transition:all 0.15s}
 .retour-row.corrige{opacity:0.5}
@@ -511,8 +520,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <!-- TOP NAV -->
 <nav class="topnav">
   <div class="logo">Suivi de <span style="color:var(--text)">production</span></div>
-  <div class="topnav-r">
+  <div class="topnav-r" style="display:flex;align-items:center;gap:8px">
+    <div style="position:relative">
+      <button id="notif-btn" onclick="toggleNotifs()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:var(--r);cursor:pointer;font-size:16px;line-height:1;transition:all 0.15s" title="Notifications">🔔</button>
+      <div id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-family:var(--mono);font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none">0</div>
+    </div>
     <button class="nav-btn" onclick="appLoadData()" style="padding:5px 10px" title="Actualiser">↻</button>
+  </div>
+  <!-- Panneau notifications -->
+  <div id="notif-panel" style="display:none;position:fixed;top:56px;right:16px;width:340px;max-height:480px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:500;overflow:hidden;flex-direction:column">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;font-weight:600">Notifications</span>
+      <button onclick="markAllRead()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">Tout marquer lu</button>
+    </div>
+    <div id="notif-list" style="overflow-y:auto;max-height:400px;padding:6px 0">
+      <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Chargement...</div>
+    </div>
   </div>
 </nav>
 
@@ -788,6 +811,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
+const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
 const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
@@ -1170,6 +1194,129 @@ async function upd(id,field,type,value){
   }catch(e){toast('Erreur : '+e.message,'err');}
 }
 
+// ─── NOTIFICATIONS ───
+let notifsOuvertes = false;
+
+const NOTIF_ICONS = {
+  nouveau_sujet: '🆕',
+  v1_deposee: '🎬',
+  v2_deposee: '🎬',
+  v3_deposee: '🎬',
+  retour: '📋',
+  retour_corrige: '✅',
+  commentaire: '💬',
+  version_validee: '✔️'
+};
+
+async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message) {
+  if(!destinataire || destinataire === auteur) return; // Pas de notif à soi-même
+  try {
+    await api('/pages', 'POST', {
+      parent: {database_id: DB_NOTIFS},
+      properties: {
+        'Message': {title: [{text:{content: message}}]},
+        'Type': {select:{name: type}},
+        'Destinataire': {rich_text:[{text:{content: destinataire}}]},
+        'Auteur': {rich_text:[{text:{content: auteur || ''}}]},
+        'Sujet ID': {rich_text:[{text:{content: sujetId}}]},
+        'Sujet code': {rich_text:[{text:{content: sujetCode || ''}}]},
+        'Sujet titre': {rich_text:[{text:{content: sujetTitre || ''}}]},
+        'Lu': {checkbox: false}
+      }
+    });
+  } catch(e) { console.warn('Notif non envoyée:', e.message); }
+}
+
+async function loadNotifs() {
+  if(!currentUser) return;
+  try {
+    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
+      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
+      sorts: [{timestamp:'created_time', direction:'descending'}],
+      page_size: 20
+    });
+    const notifs = data.results;
+    const nonLues = notifs.filter(n => !n.properties.Lu?.checkbox).length;
+    
+    // Badge
+    const badge = document.getElementById('notif-badge');
+    if(badge) {
+      badge.textContent = nonLues > 9 ? '9+' : nonLues;
+      badge.style.display = nonLues > 0 ? 'flex' : 'none';
+    }
+    
+    // Liste
+    const list = document.getElementById('notif-list');
+    if(!list) return;
+    if(!notifs.length) {
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Aucune notification</div>';
+      return;
+    }
+    list.innerHTML = notifs.map(n => {
+      const pr = n.properties;
+      const msg = pr.Message?.title?.[0]?.plain_text || '';
+      const type = pr.Type?.select?.name || '';
+      const code = pr['Sujet code']?.rich_text?.[0]?.plain_text || '';
+      const titre = pr['Sujet titre']?.rich_text?.[0]?.plain_text || '';
+      const sujetId = pr['Sujet ID']?.rich_text?.[0]?.plain_text || '';
+      const lu = pr.Lu?.checkbox || false;
+      const date = new Date(n.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+      const icon = NOTIF_ICONS[type] || '🔔';
+      return `<div class="notif-item ${lu?'':'unread'}" onclick="clickNotif('${n.id}','${sujetId}')">
+        <div class="notif-icon">${icon}</div>
+        <div class="notif-content">
+          <div class="notif-msg">${msg}</div>
+          <div class="notif-sub">${code}${titre?' · '+titre.substring(0,30)+(titre.length>30?'...':''):''} · ${date}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.warn('Erreur notifs:', e.message); }
+}
+
+async function clickNotif(notifId, sujetId) {
+  // Marquer comme lu
+  try {
+    await api('/pages/' + notifId, 'PATCH', {properties:{'Lu':{checkbox:true}}});
+  } catch(e) {}
+  // Fermer panneau et ouvrir la fiche
+  toggleNotifs(false);
+  if(sujetId) {
+    navTo('production');
+    setTimeout(() => openDetail(sujetId), 300);
+  }
+  loadNotifs();
+}
+
+async function markAllRead() {
+  if(!currentUser) return;
+  try {
+    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
+      filter: {and:[
+        {property:'Destinataire', rich_text:{equals: currentUser.nom}},
+        {property:'Lu', checkbox:{equals: false}}
+      ]}
+    });
+    await Promise.all(data.results.map(n =>
+      api('/pages/' + n.id, 'PATCH', {properties:{'Lu':{checkbox:true}}})
+    ));
+    loadNotifs();
+  } catch(e) {}
+}
+
+function toggleNotifs(force) {
+  notifsOuvertes = force !== undefined ? force : !notifsOuvertes;
+  const panel = document.getElementById('notif-panel');
+  if(panel) panel.style.display = notifsOuvertes ? 'flex' : 'none';
+  if(notifsOuvertes) loadNotifs();
+}
+
+// Fermer en cliquant ailleurs
+document.addEventListener('click', e => {
+  if(notifsOuvertes && !e.target.closest('#notif-panel') && !e.target.closest('#notif-btn')) {
+    toggleNotifs(false);
+  }
+});
+
 // ─── RETOURS ───
 let retourSujetId = null;
 
@@ -1376,7 +1523,12 @@ function showApp() {
   document.getElementById('user-avatar').textContent = initials;
   document.getElementById('user-name').textContent = currentUser.nom;
   // Charger les données
-  appLoadData().then(() => navTo('dashboard'));
+  appLoadData().then(() => {
+    navTo('dashboard');
+    loadNotifs();
+    // Rafraîchir les notifs toutes les 60 secondes
+    setInterval(loadNotifs, 60000);
+  });
 }
 
 function doLogout() {
@@ -1445,6 +1597,16 @@ async function postComment(sujetId) {
     input.value = '';
     toast('Commentaire posté','ok');
     loadComments(sujetId);
+    // Notifs
+    const s = sujets.find(s=>s.id===sujetId);
+    if(s && currentUser) {
+      const msg = `${currentUser.nom} a commenté ${s.code} — ${s.titre}`;
+      if(s.chef && s.chef !== currentUser.nom)
+        await createNotif('commentaire', sujetId, s.code, s.titre, s.chef, currentUser.nom, msg);
+      if(s.journaliste && s.journaliste !== currentUser.nom && s.journaliste !== s.chef)
+        await createNotif('commentaire', sujetId, s.code, s.titre, s.journaliste, currentUser.nom, msg);
+      loadNotifs();
+    }
   } catch(e) {
     toast('Erreur : ' + e.message,'err');
   }
@@ -1590,7 +1752,7 @@ function openPlayer(url, label, sujetId, version) {
         <span style="font-size:11px;color:#666;white-space:nowrap">📋 Retour rapide</span>
         <input id="player-tc" type="text" placeholder="Timecode ex: 1:24" 
           style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;font-family:monospace;width:110px"
-          oninput="formatTimecode(this)">
+          onblur="formatTimecode(this)" placeholder="ex: 125">
         <select id="player-cat" style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;flex:1;min-width:120px">
           <option value="🔊 Audio">🔊 Audio</option>
           <option value="🖼 Image">🖼 Image</option>
@@ -1620,8 +1782,44 @@ function openPlayer(url, label, sujetId, version) {
 }
 
 function formatTimecode(input) {
-  // Permettre uniquement chiffres et ":"
-  input.value = input.value.replace(/[^0-9:]/g, '');
+  // Garder uniquement les chiffres
+  let digits = input.value.replace(/[^0-9]/g, '');
+  if(digits.length === 0) { input.value = ''; return; }
+  // Formater selon le nombre de chiffres
+  // 1-2 chiffres → secondes : "5" → "0:05", "45" → "0:45"
+  // 3 chiffres → "125" → "1:25"
+  // 4 chiffres → "0125" → "1:25" ou "1234" → "12:34"
+  // 5-6 chiffres → "12345" → "1:23:45", "123456" → "12:34:56"
+  let h, m, s;
+  if(digits.length <= 2) {
+    s = digits.padStart(2, '0');
+    input.value = `0:${s}`;
+  } else if(digits.length === 3) {
+    m = digits[0];
+    s = digits.slice(1);
+    input.value = `${m}:${s}`;
+  } else if(digits.length === 4) {
+    m = parseInt(digits.slice(0,2));
+    s = digits.slice(2);
+    if(m >= 60) { // ex: 6789 → 67min → interpréter comme 1:07:89 → h:mm:ss
+      h = digits[0];
+      m = digits.slice(1,3);
+      s = digits.slice(3);
+      input.value = `${h}:${m}:${s}`;
+    } else {
+      input.value = `${m}:${s}`;
+    }
+  } else if(digits.length === 5) {
+    h = digits[0];
+    m = digits.slice(1,3);
+    s = digits.slice(3);
+    input.value = `${h}:${m}:${s}`;
+  } else {
+    h = digits.slice(0,2);
+    m = digits.slice(2,4);
+    s = digits.slice(4,6);
+    input.value = `${parseInt(h)}:${m}:${s}`;
+  }
 }
 
 async function submitPlayerRetour(sujetId, version) {
@@ -1810,6 +2008,13 @@ async function onLienBlur(input, id, v){
     await upd(id,`Date montage J${v}`,'datetime',iso);
     const tsEl=document.getElementById(`ts-${id}-${v}`);
     if(tsEl) tsEl.textContent=new Date().toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    // Notif au chef
+    const s = sujets.find(s=>s.id===id);
+    if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
+      await createNotif(`v${v}_deposee`, id, s.code, s.titre, s.chef, currentUser.nom,
+        `${currentUser.nom} a déposé la V${v} de ${s.code} — ${s.titre}`);
+      loadNotifs();
+    }
   }
 }
 
