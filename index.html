@@ -1212,7 +1212,7 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
   if(!destinataire || destinataire === auteur) return; // Pas de notif à soi-même
   try {
     await api('/pages', 'POST', {
-      parent: {database_id: DB_NOTIFS},
+      parent: {database_id: 'ec3b265a-cfa8-43e8-a6a8-c43331bc6413'},
       properties: {
         'Message': {title: [{text:{content: message}}]},
         'Type': {select:{name: type}},
@@ -1340,7 +1340,7 @@ async function submitRetour() {
   const sujet = sujets.find(s => s.id === retourSujetId);
   try {
     await api('/pages', 'POST', {
-      parent: {database_id: DB_RETOURS},
+      parent: {database_id: '7817050d-ad51-45a3-bea2-6e6f7e2e0238'},
       properties: {
         'Description': {title: [{text:{content:desc}}]},
         'Version': {select:{name: document.getElementById('ret-version').value}},
@@ -1586,7 +1586,7 @@ async function postComment(sujetId) {
   const sujet = sujets.find(s => s.id === sujetId);
   try {
     await api('/pages', 'POST', {
-      parent: {database_id: DB_COMMENTS},
+      parent: {database_id: 'cd4c4bc9-f948-4887-8712-0e083c957bcc'},
       properties: {
         'Commentaire': {title: [{text:{content:texte}}]},
         'Auteur': {rich_text:[{text:{content:currentUser.nom}}]},
@@ -1833,7 +1833,7 @@ async function submitPlayerRetour(sujetId, version) {
   const sujet = sujets.find(s => s.id === sujetId);
   try {
     await api('/pages', 'POST', {
-      parent: {database_id: DB_RETOURS},
+      parent: {database_id: '7817050d-ad51-45a3-bea2-6e6f7e2e0238'},
       properties: {
         'Description': {title: [{text:{content:desc}}]},
         'Version': {select:{name: version}},
@@ -2181,14 +2181,22 @@ async function createSujet(){
     if(plat)props.Plateforme={select:{name:plat}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
     if(date)props['Date tournage J1']={date:{start:date}};
-    await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+    const sfVal2=document.getElementById('sous-format-select')?.value||'';
+    if(sfVal2)props['Sous-format']={select:{name:sfVal2}};
+    const newPage=await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+    const pageId=newPage.id;
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
+    // Notif au journaliste
+    if(journ && currentUser && journ !== currentUser.nom) {
+      await createNotif('nouveau_sujet', pageId, codeVal, titre, journ, currentUser.nom,
+        `${currentUser.nom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
+    }
   }
-
   closeOv('ov-new');
   toast(`Sujet créé — code ${codeVal}`,'ok');
-  await loadSujets();
+  await appLoadData();
+  loadNotifs();
 }
 
 function exportExcel(){
