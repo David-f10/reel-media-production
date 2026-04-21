@@ -622,10 +622,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div class="fmt-grid">
           <div class="fmt-opt" onclick="selFmt('MAG',this)">MAG</div>
           <div class="fmt-opt" onclick="selFmt('Brand',this)">Brand</div>
-          <div class="fmt-opt" onclick="selFmt('Face Cam',this)">Face Cam</div>
-          <div class="fmt-opt" onclick="selFmt('Desk',this)">Desk</div>
+          <div class="fmt-opt" onclick="selFmt('Face Cam',this)">Face Cam <span style="font-size:9px;opacity:0.6">▾</span></div>
+          <div class="fmt-opt" onclick="selFmt('Desk',this)">Desk <span style="font-size:9px;opacity:0.6">▾</span></div>
           <div class="fmt-opt" onclick="selFmt('YouTube',this)">YouTube</div>
-          <div class="fmt-opt" onclick="selFmt('Prodige',this)">Prodige</div>
         </div>
         <div id="code-prev" style="display:none;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--red)">Code : <strong id="code-prev-val"></strong></div>
         <div id="sous-format-panel" style="display:none;margin-top:8px">
@@ -820,7 +819,9 @@ function parsePage(p){
     versionValidee:pr['Version validee']?.select?.name||'',
     sousFormat:pr['Sous-format']?.select?.name||'',
     lienSeq:pr['Lien sequencier']?.url||'',
-    code:getCode(pr)};
+    code:getCode(pr),
+    created:p.created_time||'',
+    lastEdited:p.last_edited_time||''};
 }
 
 function renderCards(){
@@ -899,6 +900,52 @@ function openDetail(id){
     const cl=st===s.statut?'cur':i<stIdx?'done':'';
     return`<button class="st-btn ${cl}" onclick="updStatut('${id}','${st}')">${st}</button>`;
   }).join('')}</div>`;
+  // Step Informations création
+  const createdFmt = s.created ? new Date(s.created).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+  const lastEditedFmt = s.lastEdited ? new Date(s.lastEdited).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+  const tousNoms=['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David',...journalistes.filter(j=>!['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'].includes(j))];
+  const sfOptions = s.format==='Face Cam' ? ['Classic','Vrai ou Faux'] : s.format==='Desk' ? ['Standard','Prodige'] : [];
+  html+=step('Informations','p-gray Fiche',
+    `<div style="display:flex;flex-direction:column;gap:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Code</span>
+        <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--red)">${s.code||'—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Format</span>
+        <select onchange="upd('${id}','Format','sel',this.value);location.reload()" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
+          ${['MAG','Brand','Face Cam','Desk','YouTube'].map(f=>`<option ${s.format===f?'selected':''}>${f}</option>`).join('')}
+        </select>
+      </div>
+      ${sfOptions.length ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Sous-format</span>
+        <select onchange="upd('${id}','Sous-format','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
+          <option value="">—</option>
+          ${sfOptions.map(sf=>`<option ${s.sousFormat===sf?'selected':''}>${sf}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Chef responsable</span>
+        <select onchange="upd('${id}','Chef responsable','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
+          ${['Benjamin','Arnaud','Chloé'].map(c=>`<option ${s.chef===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Journaliste</span>
+        <select onchange="upd('${id}','Journaliste','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
+          ${tousNoms.map(j=>`<option ${s.journaliste===j?'selected':''}>${j}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Créé le</span>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${createdFmt}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+        <span style="font-size:12px;color:var(--text2)">Dernière modification</span>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${lastEditedFmt}</span>
+      </div>
+    </div>`);
+
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
     `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)">${s.notes}</textarea>`);
   html+=step('Séquencier',s.seqValide?'p-green Validé':'p-amber En attente',
@@ -947,7 +994,12 @@ function openDetail(id){
       const monteurVal=s[monteurKeys[v-1]]||s.journaliste||'';
       return`<div class="field" style="margin-bottom:10px">
         <div class="field-label" style="margin-bottom:4px"><span>V${v}</span></div>
-        <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="onLienBlur(this,'${id}',${v})" style="margin-bottom:4px">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+          <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="onLienBlur(this,'${id}',${v})" style="flex:1">
+          ${s['lien'+v] ? `<button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}')" 
+            style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;flex-shrink:0" 
+            title="Visionner">▶</button>` : ''}
+        </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
           <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
           <span id="ts-${id}-${v}" style="font-size:11px;color:var(--text2);font-family:var(--mono)">${s['montJ'+v]?new Date(s['montJ'+v]).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</span>
@@ -1251,6 +1303,87 @@ function refreshJournalistesSelects() {
       journalistes.map(j => `<option value="${j}"${currentVal===j?' selected':''}>${j}</option>`).join('') +
       '<option value="__nouveau__">+ Nouvelle personne...</option>';
   });
+}
+
+// ─── PLAYER VIDÉO ───
+function detectVideoType(url) {
+  if(!url) return null;
+  if(url.includes('drive.google.com')) return 'drive';
+  if(url.includes('frame.io') || url.includes('app.frame.io')) return 'frameio';
+  if(url.includes('vimeo.com')) return 'vimeo';
+  return null;
+}
+
+function toEmbedUrl(url, type) {
+  if(!url) return null;
+  if(type === 'drive') {
+    // Convertir /file/d/ID/view ou /file/d/ID?usp=sharing → /file/d/ID/preview
+    const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if(match) return `https://drive.google.com/file/d/${match[1]}/preview`;
+    return null;
+  }
+  if(type === 'frameio') {
+    // Frame.io embed — extraire l'ID de review
+    const match = url.match(/review\/([a-zA-Z0-9_-]+)/);
+    if(match) return `https://app.frame.io/reviews/${match[1]}`;
+    // Sinon utiliser l'URL telle quelle dans l'iframe
+    return url;
+  }
+  if(type === 'vimeo') {
+    const match = url.match(/vimeo\.com\/(\d+)/);
+    if(match) return `https://player.vimeo.com/video/${match[1]}`;
+    return null;
+  }
+  return null;
+}
+
+let activePlayer = null;
+
+function openPlayer(url, label) {
+  const type = detectVideoType(url);
+  const embedUrl = toEmbedUrl(url, type);
+  
+  // Fermer le player précédent
+  const existing = document.getElementById('video-player-modal');
+  if(existing) existing.remove();
+  
+  if(!embedUrl) {
+    // Pas compatible — ouvrir dans un nouvel onglet
+    window.open(url, '_blank');
+    return;
+  }
+
+  // Créer le modal player
+  const modal = document.createElement('div');
+  modal.id = 'video-player-modal';
+  modal.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:20px;
+  `;
+  modal.innerHTML = `
+    <div style="width:100%;max-width:960px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:13px;color:#fff;font-weight:500;opacity:0.8">${label}</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <a href="${url}" target="_blank" style="font-size:11px;color:#888;text-decoration:none;border:1px solid #333;padding:4px 10px;border-radius:6px">
+            ↗ Ouvrir
+          </a>
+          <button onclick="document.getElementById('video-player-modal').remove()" 
+            style="background:none;border:1px solid #333;color:#888;cursor:pointer;font-size:18px;padding:2px 10px;border-radius:6px;line-height:1.4">×</button>
+        </div>
+      </div>
+      <div style="position:relative;width:100%;padding-bottom:56.25%;background:#000;border-radius:8px;overflow:hidden">
+        <iframe src="${embedUrl}" 
+          style="position:absolute;inset:0;width:100%;height:100%;border:none"
+          allowfullscreen allow="autoplay; fullscreen">
+        </iframe>
+      </div>
+    </div>
+  `;
+  // Fermer en cliquant hors du player
+  modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
 }
 
 // ─── RECHERCHE ───
