@@ -931,9 +931,8 @@ function cardHTML(s){
   return`<div class="card" onclick="openDetail('${s.id}')">
     <div class="card-hdr">
       <span class="card-code">${s.code||'—'}</span>
-      <div style="display:flex;align-items:center;gap:6px">
-        <span class="card-fmt" style="color:${col}">${s.format||'—'}</span>
-        ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="card-fmt" style="color:${col}">${s.format||'—'}${s.sousFormat?' · '+s.sousFormat:''}</span>
         <button onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Supprimer">🗑</button>
       </div>
     </div>
@@ -982,7 +981,9 @@ async function openNouveau(){
 
 function openDetail(id){
   const s=sujets.find(x=>x.id===id);if(!s)return;
-  document.getElementById('d-code').innerHTML=`${s.code||'—'} · ${s.format}${s.sousFormat?' <span style="color:var(--amber);font-size:10px">${s.sousFormat}</span>':''}${s.plateforme?' · '+s.plateforme:''}`;
+  const sfSpan = s.sousFormat ? ` <span style="color:var(--amber);font-size:10px">${s.sousFormat}</span>` : '';
+  const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
+  document.getElementById('d-code').innerHTML = `${s.code||'—'} · ${s.format}${sfSpan}${platSpan}`;
   document.getElementById('d-title').innerHTML=`<input type="text" id="d-titre-input" value="${s.titre}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;font-family:var(--font);letter-spacing:-0.02em;width:100%;padding:2px 0" onblur="upd('${s.id}','Titre','titre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">` ;
   document.getElementById('d-meta').textContent=`Chef : ${s.chef||'—'} · Journaliste : ${s.journaliste||'—'}${s.diffusion?' · Diffusion : '+fmtDate(s.diffusion):''}`;
   const hasTour=NEEDS_TOUR.includes(s.format)||(s.format==='Desk'&&s.sousFormat==='Prodige');
