@@ -1929,19 +1929,12 @@ function highlightText(text, query) {
   }
 }
 
-// Sauvegarde du lien séquencier + notif au chef
+// Sauvegarde du lien séquencier
 async function saveSeq(id, val) {
   const s = sujets.find(s => s.id === id);
   if(!s) return;
   if(val === (s.lienSeq||'')) return; // Pas de changement
   await upd(id, 'Lien sequencier', 'url', val);
-  // Notif au chef si lien rempli
-  if(val && s.chef && currentUser && s.chef !== currentUser.nom) {
-    await createNotif('nouveau_sujet', id, s.code, s.titre, s.chef, currentUser.nom,
-      `${currentUser.nom} a déposé le séquencier de ${s.code} — ${s.titre}`);
-    loadNotifs();
-    toast('Lien séquencier enregistré ✓', 'ok');
-  }
 }
 
 // ─── TRANSITIONS AUTOMATIQUES DE STATUT ───
@@ -1958,6 +1951,12 @@ async function autoStatut(id, field, value){
 
   if(field==='Lien sequencier' && cur < statutIndex('Séquencier en cours'))
     newStatut='Séquencier en cours';
+  // Notif directe au chef quand séquencier déposé
+  if(field==='Lien sequencier' && value && s.chef && currentUser && s.chef !== currentUser?.nom) {
+    await createNotif('nouveau_sujet', id, s.code, s.titre, s.chef, currentUser.nom,
+      `${currentUser.nom} a déposé le séquencier de ${s.code} — ${s.titre}`);
+    loadNotifs();
+  }
   else if(field==='Séquencier validé' && value===true && cur < statutIndex('Séquencier validé'))
     newStatut='Séquencier validé';
   else if(field==='Date tournage J1' && cur < statutIndex('En tournage'))
@@ -2059,10 +2058,11 @@ async function onLienBlur(input, id, v){
     const tsEl=document.getElementById(`ts-${id}-${v}`);
     if(tsEl) tsEl.textContent=new Date().toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
     // Notif au chef
-    const s = sujets.find(s=>s.id===id);
-    if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
-      await createNotif(`v${v}_deposee`, id, s.code, s.titre, s.chef, currentUser.nom,
-        `${currentUser.nom} a déposé la V${v} de ${s.code} — ${s.titre}`);
+    const s = sujets.find(sx=>sx.id===id);
+    if(s && s.chef) {
+      const auteur = currentUser?.nom || 'Équipe';
+      await createNotif(`v${v}_deposee`, id, s.code, s.titre, s.chef, auteur,
+        `${auteur} a déposé la V${v} de ${s.code} — ${s.titre}`);
       loadNotifs();
     }
   }
