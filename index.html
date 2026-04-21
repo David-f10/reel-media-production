@@ -1060,7 +1060,7 @@ function doLogin() {
   const code = document.getElementById('login-code').value.trim();
   const errEl = document.getElementById('login-error');
   if(!selId) { errEl.textContent='Choisissez votre nom'; errEl.style.display='block'; return; }
-  if(!code) { errEl.textContent='Entrez votre code d'accès'; errEl.style.display='block'; return; }
+  if(!code) { errEl.textContent="Entrez votre code d'accès"; errEl.style.display='block'; return; }
   const membre = equipe.find(m => m.id === selId);
   if(!membre) { errEl.textContent='Membre introuvable'; errEl.style.display='block'; return; }
   if(membre.code !== code) { errEl.textContent='Code incorrect'; errEl.style.display='block'; return; }
