@@ -1217,7 +1217,7 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
   toast(`Notif → ${destinataire}`, 'ok');
   try {
     const result = await api('/pages', 'POST', {
-      parent: {database_id: 'ec3b265a-cfa8-43e8-a6a8-c43331bc6413'},
+      parent: {database_id: '4398775b-c11f-4d73-99c4-9fc31c33ce8b'},
       properties: {
         'Message': {title: [{text:{content: message}}]},
         'Type': {select:{name: type}},
