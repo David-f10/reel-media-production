@@ -169,24 +169,30 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   .main-area{order:1}
   .sidebar{
     display:flex!important;order:2;
-    width:100%;height:56px;flex-direction:row;
+    width:100%;height:60px;flex-direction:row;
     border-right:none;border-top:1px solid var(--border);
     overflow:hidden;flex-shrink:0;
+    background:var(--bg2);
   }
   .sb-workspace,.sb-sep,.sb-filters,.sb-bottom,.sb-section-label{display:none!important}
   .sb-nav{
-    display:flex;flex-direction:row;padding:0;
-    width:100%;align-items:center;justify-content:space-around;
+    display:flex;flex-direction:row;padding:4px 8px;
+    width:100%;align-items:center;justify-content:space-around;gap:8px;
   }
   .sb-item{
-    flex-direction:column;gap:2px;padding:6px 8px;
-    font-size:9px;border-radius:0;width:auto;flex:1;
-    justify-content:center;align-items:center;
+    flex-direction:column;gap:3px;padding:6px 12px;
+    font-size:10px;font-weight:500;border-radius:10px;width:auto;flex:1;
+    justify-content:center;align-items:center;color:var(--text3);
+    transition:all 0.15s;
   }
-  .sb-icon{font-size:18px;width:auto}
+  .sb-item.active{
+    background:var(--red-dim);color:var(--red);
+  }
+  .sb-item:hover{background:var(--bg3);color:var(--text2)}
+  .sb-icon{font-size:20px;width:auto}
   .sb-badge{display:none}
   .app-shell{height:100dvh}
-  .app-body{height:calc(100dvh - 52px - 56px)}
+  .app-body{height:calc(100dvh - 52px - 60px)}
   .main-area{height:100%;overflow:hidden}
   .main-content{overflow-y:auto;height:calc(100% - 48px - 36px)}
 }
@@ -457,10 +463,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
     <div class="sb-nav">
       <button class="sb-item" id="nav-dashboard" onclick="navTo('dashboard')">
-        <span class="sb-icon">📈</span>Dashboard
+        <span class="sb-icon">📈</span>
+        <span style="flex:1;text-align:left">Dashboard</span>
       </button>
       <button class="sb-item" id="nav-production" onclick="navTo('production')">
-        <span class="sb-icon">🎬</span>Production
+        <span class="sb-icon">🎬</span>
+        <span style="flex:1;text-align:left">Production</span>
         <span class="sb-badge" id="cnt-all">—</span>
       </button>
     </div>
@@ -491,7 +499,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
     <div class="sb-bottom">
       <button class="sb-item" style="color:var(--red)" onclick="navTo('production');openNouveau()">
-        <span class="sb-icon">＋</span>Nouveau sujet
+        <span class="sb-icon">＋</span>
+        <span style="flex:1;text-align:left">Nouveau sujet</span>
+      </button>
+      <button class="sb-item" onclick="openGererJournalistes()" style="color:var(--text3)">
+        <span class="sb-icon">👥</span>
+        <span style="flex:1;text-align:left">Gérer l'équipe</span>
       </button>
     </div>
   </div>
@@ -613,6 +626,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 </div>
 <div class="toast" id="toast"></div>
+
+<!-- MODAL GÉRER L'ÉQUIPE -->
+<div class="overlay" id="ov-equipe">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <div class="modal-title">👥 Gérer l'équipe</div>
+      <button class="modal-close" onclick="closeOv('ov-equipe')">×</button>
+    </div>
+    <div style="padding:20px">
+      <div class="field-label" style="margin-bottom:8px">Journalistes & monteurs</div>
+      <div id="equipe-list" style="margin-bottom:16px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="equipe-new-nom" placeholder="Nom complet..." style="flex:1">
+        <button class="nav-btn primary" onclick="equippeAjouter()" style="white-space:nowrap">+ Ajouter</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
@@ -910,6 +941,66 @@ async function upd(id,field,type,value){
     // Transition automatique de statut
     await autoStatut(id, field, value);
   }catch(e){toast('Erreur : '+e.message,'err');}
+}
+
+// ─── GESTION ÉQUIPE ───
+function openGererJournalistes() {
+  renderEquipeList();
+  openOv('ov-equipe');
+}
+
+function renderEquipeList() {
+  const container = document.getElementById('equipe-list');
+  if(!container) return;
+  container.innerHTML = journalistes.map(j => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:4px">
+      <span style="font-size:13px">${j}</span>
+      <button onclick="equipeSupprimerJournaliste('${j}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0" title="Supprimer">×</button>
+    </div>`).join('');
+}
+
+function equippeAjouter() {
+  const input = document.getElementById('equipe-new-nom');
+  const nom = input?.value.trim();
+  if(!nom) { toast('Entrez un nom','err'); return; }
+  if(journalistes.includes(nom)) { toast('Déjà dans la liste','err'); return; }
+  addJournalisteToSelects(nom);
+  input.value = '';
+  renderEquipeList();
+  toast(`${nom} ajouté·e à l'équipe`,'ok');
+}
+
+function equipeSupprimerJournaliste(nom) {
+  if(!confirm(`Retirer ${nom} de la liste ? Les fiches existantes ne seront pas affectées.`)) return;
+  removeJournaliste(nom);
+  renderEquipeList();
+  toast(`${nom} retiré·e de la liste`,'ok');
+}
+
+// ─── GESTION JOURNALISTES DYNAMIQUES ───
+// Liste maître des journalistes (mise à jour dynamiquement)
+let journalistes = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise'];
+
+function addJournalisteToSelects(nom) {
+  if(!nom || journalistes.includes(nom)) return;
+  journalistes.push(nom);
+  refreshJournalistesSelects();
+}
+
+function removeJournaliste(nom) {
+  journalistes = journalistes.filter(j => j !== nom);
+  refreshJournalistesSelects();
+}
+
+function refreshJournalistesSelects() {
+  // Met à jour tous les selects journaliste dans la page
+  const selects = document.querySelectorAll('#n-journ, select[data-type="journaliste"]');
+  selects.forEach(sel => {
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">Choisir...</option>' +
+      journalistes.map(j => `<option value="${j}"${currentVal===j?' selected':''}>${j}</option>`).join('') +
+      '<option value="__nouveau__">+ Nouvelle personne...</option>';
+  });
 }
 
 // ─── RECHERCHE ───
