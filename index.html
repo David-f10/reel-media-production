@@ -1209,9 +1209,13 @@ const NOTIF_ICONS = {
 };
 
 async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message) {
-  if(!destinataire || destinataire === auteur) return; // Pas de notif à soi-même
+  if(!destinataire || destinataire === auteur) {
+    console.log('Notif annulée — destinataire manquant ou même personne:', {destinataire, auteur});
+    return;
+  }
+  console.log('Envoi notif:', {type, destinataire, auteur, message});
   try {
-    await api('/pages', 'POST', {
+    const result = await api('/pages', 'POST', {
       parent: {database_id: 'ec3b265a-cfa8-43e8-a6a8-c43331bc6413'},
       properties: {
         'Message': {title: [{text:{content: message}}]},
@@ -1224,7 +1228,10 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
         'Lu': {checkbox: false}
       }
     });
-  } catch(e) { console.warn('Notif non envoyée:', e.message); }
+    console.log('Notif créée avec succès:', result?.id);
+  } catch(e) { 
+    console.error('Notif échouée:', e.message, {type, destinataire, message});
+  }
 }
 
 async function loadNotifs() {
