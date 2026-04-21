@@ -1063,7 +1063,7 @@ function openDetail(id){
         <div class="field-label" style="margin-bottom:4px"><span>V${v}</span></div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
           <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="onLienBlur(this,'${id}',${v})" style="flex:1">
-          ${s['lien'+v] ? `<button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}')" 
+          ${s['lien'+v] ? `<button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}','${id}','V${v}')" 
             style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;flex-shrink:0" 
             title="Visionner">▶</button>` : ''}
         </div>
@@ -1544,51 +1544,121 @@ function toEmbedUrl(url, type) {
 
 let activePlayer = null;
 
-function openPlayer(url, label) {
+// Timecode manuel affiché dans le player
+let playerStartTime = null;
+
+function openPlayer(url, label, sujetId, version) {
   const type = detectVideoType(url);
   const embedUrl = toEmbedUrl(url, type);
   
-  // Fermer le player précédent
   const existing = document.getElementById('video-player-modal');
   if(existing) existing.remove();
   
   if(!embedUrl) {
-    // Pas compatible — ouvrir dans un nouvel onglet
     window.open(url, '_blank');
     return;
   }
 
-  // Créer le modal player
+  playerStartTime = Date.now();
   const modal = document.createElement('div');
   modal.id = 'video-player-modal';
   modal.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;
+    position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:20px;
   `;
   modal.innerHTML = `
     <div style="width:100%;max-width:960px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div style="font-size:13px;color:#fff;font-weight:500;opacity:0.8">${label}</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <a href="${url}" target="_blank" style="font-size:11px;color:#888;text-decoration:none;border:1px solid #333;padding:4px 10px;border-radius:6px">
-            ↗ Ouvrir
-          </a>
+          <a href="${url}" target="_blank" style="font-size:11px;color:#888;text-decoration:none;border:1px solid #333;padding:4px 10px;border-radius:6px">↗ Ouvrir</a>
           <button onclick="document.getElementById('video-player-modal').remove()" 
             style="background:none;border:1px solid #333;color:#888;cursor:pointer;font-size:18px;padding:2px 10px;border-radius:6px;line-height:1.4">×</button>
         </div>
       </div>
-      <div style="position:relative;width:100%;padding-bottom:56.25%;background:#000;border-radius:8px;overflow:hidden">
-        <iframe src="${embedUrl}" 
+      <!-- Player -->
+      <div style="position:relative;width:100%;padding-bottom:56.25%;background:#000;border-radius:8px;overflow:hidden;margin-bottom:10px">
+        <iframe id="player-iframe" src="${embedUrl}" 
           style="position:absolute;inset:0;width:100%;height:100%;border:none"
           allowfullscreen allow="autoplay; fullscreen">
         </iframe>
       </div>
+      <!-- Barre de retour -->
+      ${sujetId ? `<div style="background:#111;border:1px solid #222;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:11px;color:#666;white-space:nowrap">📋 Retour rapide</span>
+        <input id="player-tc" type="text" placeholder="Timecode ex: 1:24" 
+          style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;font-family:monospace;width:110px"
+          oninput="formatTimecode(this)">
+        <select id="player-cat" style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;flex:1;min-width:120px">
+          <option value="🔊 Audio">🔊 Audio</option>
+          <option value="🖼 Image">🖼 Image</option>
+          <option value="🎬 Rush">🎬 Rush</option>
+          <option value="🎨 Graphisme">🎨 Graphisme</option>
+          <option value="📺 Accroche">📺 Accroche</option>
+          <option value="💬 Sous-titres">💬 Sous-titres</option>
+        </select>
+        <select id="player-niveau" style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px">
+          <option value="🔴 Bloquant">🔴 Bloquant</option>
+          <option value="🟠 Important">🟠 Important</option>
+          <option value="🟡 Suggestion">🟡 Suggestion</option>
+        </select>
+        <input id="player-desc" type="text" placeholder="Description du retour..." 
+          style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;flex:2;min-width:160px"
+          onkeydown="if(event.key==='Enter')submitPlayerRetour('${sujetId}','${version}')">
+        <button onclick="submitPlayerRetour('${sujetId}','${version}')"
+          style="background:var(--red);border:none;color:#fff;padding:6px 14px;border-radius:5px;font-size:12px;cursor:pointer;white-space:nowrap;font-weight:500">
+          + Ajouter
+        </button>
+        <div id="player-confirm" style="display:none;font-size:11px;color:#1D9E75;width:100%;margin-top:2px">✅ Retour ajouté !</div>
+      </div>` : ''}
     </div>
   `;
-  // Fermer en cliquant hors du player
   modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
   document.body.appendChild(modal);
+}
+
+function formatTimecode(input) {
+  // Permettre uniquement chiffres et ":"
+  input.value = input.value.replace(/[^0-9:]/g, '');
+}
+
+async function submitPlayerRetour(sujetId, version) {
+  if(!currentUser) { alert("Connectez-vous pour laisser un retour"); return; }
+  const tc = document.getElementById('player-tc')?.value.trim() || '';
+  const cat = document.getElementById('player-cat')?.value || '';
+  const niveau = document.getElementById('player-niveau')?.value || '';
+  const desc = document.getElementById('player-desc')?.value.trim() || '';
+  if(!desc) { document.getElementById('player-desc').style.borderColor='var(--red)'; return; }
+  
+  const sujet = sujets.find(s => s.id === sujetId);
+  try {
+    await api('/pages', 'POST', {
+      parent: {database_id: DB_RETOURS},
+      properties: {
+        'Description': {title: [{text:{content:desc}}]},
+        'Version': {select:{name: version}},
+        'Catégorie': {select:{name: cat}},
+        'Niveau': {select:{name: niveau}},
+        'Timecode': {rich_text:[{text:{content:tc}}]},
+        'Statut': {select:{name: 'Ouvert'}},
+        'Auteur': {rich_text:[{text:{content:currentUser.nom}}]},
+        'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
+        'Sujet titre': {rich_text:[{text:{content:sujet?.titre||''}}]}
+      }
+    });
+    // Feedback visuel
+    document.getElementById('player-desc').value = '';
+    document.getElementById('player-tc').value = '';
+    document.getElementById('player-desc').style.borderColor = '#333';
+    const confirm = document.getElementById('player-confirm');
+    if(confirm) { confirm.style.display='block'; setTimeout(()=>confirm.style.display='none',2000); }
+    // Recharger les retours dans la fiche
+    loadRetours(sujetId);
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  }
 }
 
 // ─── RECHERCHE ───
