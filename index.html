@@ -115,6 +115,17 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .cal-title{font-size:16px;font-weight:600;letter-spacing:-0.02em}
 
+/* ─── RETOURS ─── */
+.retour-row{display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:var(--r);margin-bottom:6px;background:var(--bg3);border:1px solid var(--border);transition:all 0.15s}
+.retour-row.corrige{opacity:0.5}
+.retour-niveau{font-size:14px;flex-shrink:0;margin-top:1px}
+.retour-cat{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--bg4);color:var(--text2);white-space:nowrap;flex-shrink:0}
+.retour-tc{font-family:var(--mono);font-size:11px;color:var(--red);background:var(--red-dim);padding:1px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0}
+.retour-desc{font-size:12px;color:var(--text);flex:1;line-height:1.4}
+.retour-meta{font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0}
+.retour-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s}
+.retour-check:hover{border-color:var(--green);background:var(--green-dim)}
+.retour-check.done{background:var(--green);border-color:var(--green);color:#fff}
 /* ─── VUE LISTE ─── */
 .list-table{width:100%;border-collapse:collapse}
 .list-table th{
@@ -700,6 +711,61 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- MODAL AJOUT RETOUR -->
+<div class="overlay" id="ov-retour">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <div class="modal-title">📋 Nouveau retour</div>
+      <button class="modal-close" onclick="closeOv('ov-retour')">×</button>
+    </div>
+    <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <div class="fg">
+        <div class="field">
+          <div class="field-label">Version</div>
+          <select id="ret-version">
+            <option value="V1">V1</option>
+            <option value="V2">V2</option>
+            <option value="V3">V3</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">Timecode</div>
+          <input type="text" id="ret-timecode" placeholder="ex: 1:24" style="font-family:var(--mono)">
+        </div>
+      </div>
+      <div class="fg">
+        <div class="field">
+          <div class="field-label">Catégorie</div>
+          <select id="ret-categorie">
+            <option value="🔊 Audio">🔊 Audio</option>
+            <option value="🖼 Image">🖼 Image</option>
+            <option value="🎬 Rush">🎬 Rush</option>
+            <option value="🎨 Graphisme">🎨 Graphisme</option>
+            <option value="📺 Accroche">📺 Accroche</option>
+            <option value="💬 Sous-titres">💬 Sous-titres</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">Niveau</div>
+          <select id="ret-niveau">
+            <option value="🔴 Bloquant">🔴 Bloquant</option>
+            <option value="🟠 Important">🟠 Important</option>
+            <option value="🟡 Suggestion">🟡 Suggestion</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Description *</div>
+        <textarea id="ret-desc" placeholder="Décrivez le retour..." style="min-height:70px"></textarea>
+      </div>
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button class="nav-btn" onclick="closeOv('ov-retour')">Annuler</button>
+      <button class="nav-btn primary" onclick="submitRetour()">Envoyer →</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL GÉRER L'ÉQUIPE -->
 <div class="overlay" id="ov-equipe">
   <div class="modal" style="max-width:400px">
@@ -721,6 +787,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <script>
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
+const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
 const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
@@ -1030,6 +1097,20 @@ function openDetail(id){
       <div class="field"><div class="field-label">Date diffusion</div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     </div>
     <div class="field"><div class="field-label">Lien rendu final</div><input type="url" value="${s.lienRendu}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)"></div>`);
+  // Retours
+  html+=`<div class="step" id="retours-section-${id}">
+    <div class="step-hdr" style="cursor:default">
+      <span class="step-ttl">📋 Retours</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="pill p-gray" id="retours-count-${id}">...</span>
+        <button onclick="openAjoutRetour('${id}')" class="nav-btn primary" style="font-size:10px;padding:3px 10px">+ Ajouter</button>
+      </div>
+    </div>
+    <div id="retours-list-${id}">
+      <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+    </div>
+  </div>`;
+
   // Commentaires
   html+=`<div class="step" id="comments-section-${id}">
     <div class="step-hdr">
@@ -1046,7 +1127,8 @@ function openDetail(id){
   </div>`;
   document.getElementById('d-steps').innerHTML=html;
   openOv('ov-detail');
-  // Charger les commentaires
+  // Charger les retours et commentaires
+  loadRetours(id);
   loadComments(id);
 }
 
@@ -1086,6 +1168,129 @@ async function upd(id,field,type,value){
     // Transition automatique de statut
     await autoStatut(id, field, value);
   }catch(e){toast('Erreur : '+e.message,'err');}
+}
+
+// ─── RETOURS ───
+let retourSujetId = null;
+
+function openAjoutRetour(sujetId) {
+  retourSujetId = sujetId;
+  // Pré-sélectionner la version selon les liens existants
+  const s = sujets.find(s => s.id === sujetId);
+  if(s) {
+    const v = s.lien3 ? 'V3' : s.lien2 ? 'V2' : 'V1';
+    document.getElementById('ret-version').value = v;
+  }
+  document.getElementById('ret-desc').value = '';
+  document.getElementById('ret-timecode').value = '';
+  openOv('ov-retour');
+}
+
+async function submitRetour() {
+  if(!currentUser) { toast("Connectez-vous pour laisser un retour", 'err'); return; }
+  const desc = document.getElementById('ret-desc').value.trim();
+  if(!desc) { toast('Ajoutez une description', 'err'); return; }
+  const sujet = sujets.find(s => s.id === retourSujetId);
+  try {
+    await api('/pages', 'POST', {
+      parent: {database_id: DB_RETOURS},
+      properties: {
+        'Description': {title: [{text:{content:desc}}]},
+        'Version': {select:{name: document.getElementById('ret-version').value}},
+        'Catégorie': {select:{name: document.getElementById('ret-categorie').value}},
+        'Niveau': {select:{name: document.getElementById('ret-niveau').value}},
+        'Timecode': {rich_text:[{text:{content: document.getElementById('ret-timecode').value.trim()}}]},
+        'Statut': {select:{name: 'Ouvert'}},
+        'Auteur': {rich_text:[{text:{content: currentUser.nom}}]},
+        'Sujet ID': {rich_text:[{text:{content: retourSujetId}}]},
+        'Sujet titre': {rich_text:[{text:{content: sujet?.titre||''}}]}
+      }
+    });
+    closeOv('ov-retour');
+    toast('Retour ajouté', 'ok');
+    loadRetours(retourSujetId);
+  } catch(e) {
+    toast('Erreur : ' + e.message, 'err');
+  }
+}
+
+async function loadRetours(sujetId) {
+  try {
+    const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
+      filter: {property:'Sujet ID', rich_text:{equals:sujetId}},
+      sorts: [
+        {property:'Version', direction:'ascending'},
+        {timestamp:'created_time', direction:'descending'}
+      ]
+    });
+    const listEl = document.getElementById('retours-list-' + sujetId);
+    const countEl = document.getElementById('retours-count-' + sujetId);
+    if(!listEl) return;
+    const retours = data.results;
+    const ouverts = retours.filter(r => r.properties.Statut?.select?.name === 'Ouvert').length;
+    const corriges = retours.filter(r => r.properties.Statut?.select?.name === 'Corrigé').length;
+    if(countEl) {
+      countEl.textContent = ouverts > 0 ? `${ouverts} ouvert${ouverts>1?'s':''}` : corriges > 0 ? 'Tout corrigé ✅' : '0 retour';
+      countEl.className = 'pill ' + (ouverts > 0 ? 'p-red' : 'p-green');
+    }
+    if(!retours.length) {
+      listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">Aucun retour pour ce sujet</div>';
+      return;
+    }
+    // Grouper par version
+    const byVersion = {};
+    retours.forEach(r => {
+      const v = r.properties.Version?.select?.name || '—';
+      if(!byVersion[v]) byVersion[v] = [];
+      byVersion[v].push(r);
+    });
+    let html = '';
+    Object.entries(byVersion).forEach(([version, items]) => {
+      html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:8px 0 4px">${version}</div>`;
+      items.forEach(r => {
+        const pr = r.properties;
+        const desc = pr.Description?.title?.[0]?.plain_text || '';
+        const cat = pr['Catégorie']?.select?.name || '';
+        const niveau = pr.Niveau?.select?.name || '';
+        const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+        const statut = pr.Statut?.select?.name || 'Ouvert';
+        const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
+        const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
+        const corrige = statut === 'Corrigé';
+        const niveauIcon = niveau.startsWith('🔴') ? '🔴' : niveau.startsWith('🟠') ? '🟠' : '🟡';
+        html += `<div class="retour-row ${corrige?'corrige':''}">
+          <div class="retour-niveau">${niveauIcon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+              <span class="retour-cat">${cat}</span>
+              ${tc ? `<span class="retour-tc">${tc}</span>` : ''}
+            </div>
+            <div class="retour-desc">${corrige?'<s>'+desc+'</s>':desc}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">${auteur} · ${date}</div>
+          </div>
+          <div class="retour-check ${corrige?'done':''}" onclick="toggleRetour('${r.id}','${sujetId}','${corrige?'Ouvert':'Corrigé'}')" title="${corrige?'Réouvrir':'Marquer corrigé'}">
+            ${corrige?'✓':''}
+          </div>
+        </div>`;
+      });
+    });
+    listEl.innerHTML = html;
+  } catch(e) {
+    const listEl = document.getElementById('retours-list-' + sujetId);
+    if(listEl) listEl.innerHTML = `<div style="font-size:11px;color:var(--red)">Erreur chargement retours</div>`;
+  }
+}
+
+async function toggleRetour(retourId, sujetId, newStatut) {
+  try {
+    await api('/pages/' + retourId, 'PATCH', {
+      properties: {'Statut': {select:{name: newStatut}}}
+    });
+    toast(newStatut === 'Corrigé' ? '✅ Marqué corrigé' : 'Retour réouvert', 'ok');
+    loadRetours(sujetId);
+  } catch(e) {
+    toast('Erreur : ' + e.message, 'err');
+  }
 }
 
 // ─── AUTHENTIFICATION ───
