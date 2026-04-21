@@ -1374,6 +1374,14 @@ async function submitRetour() {
     closeOv('ov-retour');
     toast('Retour ajouté', 'ok');
     loadRetours(retourSujetId);
+    // Notif au journaliste
+    if(sujet && sujet.journaliste && sujet.journaliste !== currentUser.nom) {
+      const cat = document.getElementById('ret-categorie').value;
+      const tc = document.getElementById('ret-timecode').value.trim();
+      await createNotif('retour', retourSujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom,
+        `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`);
+      loadNotifs();
+    }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
@@ -1872,6 +1880,12 @@ async function submitPlayerRetour(sujetId, version) {
     if(confirm) { confirm.style.display='block'; setTimeout(()=>confirm.style.display='none',2000); }
     // Recharger les retours dans la fiche
     loadRetours(sujetId);
+    // Notif au journaliste
+    if(sujet && sujet.journaliste && currentUser && sujet.journaliste !== currentUser.nom) {
+      await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom,
+        `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`);
+      loadNotifs();
+    }
   } catch(e) {
     alert('Erreur : ' + e.message);
   }
