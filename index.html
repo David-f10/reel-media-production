@@ -2202,9 +2202,11 @@ async function createSujet(){
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
     // Notif au journaliste
-    if(journ && currentUser && journ !== currentUser.nom) {
-      await createNotif('nouveau_sujet', pageId, codeVal, titre, journ, currentUser.nom,
-        `${currentUser.nom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
+    const auteurNom = currentUser?.nom || 'Inconnu';
+    toast(`Debug: journ=${journ} auteur=${auteurNom}`, 'ok');
+    if(journ) {
+      await createNotif('nouveau_sujet', pageId, codeVal, titre, journ, auteurNom,
+        `${auteurNom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
     }
   }
   closeOv('ov-new');
