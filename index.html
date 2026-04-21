@@ -1358,7 +1358,7 @@ async function submitRetour() {
   const sujet = sujets.find(s => s.id === retourSujetId);
   try {
     await api('/pages', 'POST', {
-      parent: {database_id: '7817050d-ad51-45a3-bea2-6e6f7e2e0238'},
+      parent: {database_id: '02880609-ee82-4acc-b239-d8aac9cae439'},
       properties: {
         'Description': {title: [{text:{content:desc}}]},
         'Version': {select:{name: document.getElementById('ret-version').value}},
@@ -1851,7 +1851,7 @@ async function submitPlayerRetour(sujetId, version) {
   const sujet = sujets.find(s => s.id === sujetId);
   try {
     await api('/pages', 'POST', {
-      parent: {database_id: '7817050d-ad51-45a3-bea2-6e6f7e2e0238'},
+      parent: {database_id: '02880609-ee82-4acc-b239-d8aac9cae439'},
       properties: {
         'Description': {title: [{text:{content:desc}}]},
         'Version': {select:{name: version}},
