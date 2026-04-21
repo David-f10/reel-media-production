@@ -1044,7 +1044,6 @@ function openDetail(id){
     <div class="field" style="margin-top:8px"><div class="field-label">Lien Google Doc</div>
     <div style="display:flex;gap:6px;align-items:center">
       <input type="url" id="seq-${id}" value="${s.lienSeq||''}" placeholder="https://docs.google.com/..." style="flex:1"
-        onchange="saveSeq('${id}',this.value)"
         onblur="saveSeq('${id}',this.value)"
         onkeydown="if(event.key==='Enter'){saveSeq('${id}',this.value);this.blur()}">
       ${s.lienSeq?`<a href="${s.lienSeq}" target="_blank" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;text-decoration:none;white-space:nowrap">↗ Ouvrir</a>`:''}
@@ -1220,7 +1219,6 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
     return;
   }
   console.log('Envoi notif:', {type, destinataire, auteur, message});
-  toast(`Notif → ${destinataire}`, 'ok');
   try {
     const result = await api('/pages', 'POST', {
       parent: {database_id: '4398775b-c11f-4d73-99c4-9fc31c33ce8b'},
@@ -2239,7 +2237,6 @@ async function createSujet(){
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
     // Notif au journaliste
     const auteurNom = currentUser?.nom || 'Inconnu';
-    toast(`Debug: journ=${journ} auteur=${auteurNom}`, 'ok');
     if(journ) {
       await createNotif('nouveau_sujet', pageId, codeVal, titre, journ, auteurNom,
         `${auteurNom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
