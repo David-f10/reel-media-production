@@ -1210,10 +1210,11 @@ const NOTIF_ICONS = {
 
 async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message) {
   if(!destinataire || destinataire === auteur) {
-    console.log('Notif annulée — destinataire manquant ou même personne:', {destinataire, auteur});
+    console.log('Notif annulée:', {destinataire, auteur});
     return;
   }
   console.log('Envoi notif:', {type, destinataire, auteur, message});
+  toast(`Notif → ${destinataire}`, 'ok');
   try {
     const result = await api('/pages', 'POST', {
       parent: {database_id: 'ec3b265a-cfa8-43e8-a6a8-c43331bc6413'},
