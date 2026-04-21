@@ -444,7 +444,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </head>
 <body>
 <!-- ÉCRAN DE CONNEXION -->
-<div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">
+<div id="login-screen" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:36px;width:100%;max-width:360px">
     <div style="margin-bottom:24px">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 388.61 232.57" style="height:48px;width:auto;margin-bottom:16px">
@@ -470,6 +470,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div class="field-label" style="margin-bottom:6px">Qui êtes-vous ?</div>
         <select id="login-nom" style="width:100%" onchange="document.getElementById('login-code').value=''">
           <option value="">Choisir...</option>
+          <option value="ben">Benjamin · Chef</option>
+          <option value="arn">Arnaud · Chef</option>
+          <option value="chl">Chloé · Chef</option>
+          <option value="jul">Julien · Journaliste</option>
+          <option value="aug">Augustin · Journaliste</option>
+          <option value="nic">Nico · Journaliste</option>
+          <option value="mic">Mickael · Journaliste</option>
+          <option value="jlt">Juliette · Journaliste</option>
+          <option value="mat">Mathilde · Journaliste</option>
+          <option value="lea">Léa · Journaliste</option>
+          <option value="elo">Éloise · Journaliste</option>
+          <option value="thi">Thierry · Monteur</option>
+          <option value="dav">David · Monteur</option>
         </select>
       </div>
       <div>
@@ -1024,22 +1037,50 @@ async function upd(id,field,type,value){
 }
 
 // ─── AUTHENTIFICATION ───
+// Liste de secours si l'API est indisponible
+const EQUIPE_FALLBACK = [
+  {id:'ben',nom:'Benjamin',code:'ben26',role:'Chef'},
+  {id:'arn',nom:'Arnaud',code:'arn26',role:'Chef'},
+  {id:'chl',nom:'Chloé',code:'chl26',role:'Chef'},
+  {id:'jul',nom:'Julien',code:'jul26',role:'Journaliste'},
+  {id:'aug',nom:'Augustin',code:'aug26',role:'Journaliste'},
+  {id:'nic',nom:'Nico',code:'nic26',role:'Journaliste'},
+  {id:'mic',nom:'Mickael',code:'mic26',role:'Journaliste'},
+  {id:'jlt',nom:'Juliette',code:'jlt26',role:'Journaliste'},
+  {id:'mat',nom:'Mathilde',code:'mat26',role:'Journaliste'},
+  {id:'lea',nom:'Léa',code:'lea26',role:'Journaliste'},
+  {id:'elo',nom:'Éloise',code:'elo26',role:'Journaliste'},
+  {id:'thi',nom:'Thierry',code:'thi26',role:'Monteur'},
+  {id:'dav',nom:'David',code:'dav26',role:'Monteur'},
+];
+
+function peuplerSelect(liste) {
+  const sel = document.getElementById('login-nom');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">Choisir...</option>' +
+    liste.map(m => `<option value="${m.id}">${m.nom}${m.role?' · '+m.role:''}</option>`).join('');
+}
+
 async function initLogin() {
-  // Charger l'équipe depuis Notion
+  // Charger depuis la liste de secours d'abord (instantané)
+  equipe = EQUIPE_FALLBACK;
+  peuplerSelect(equipe);
+
+  // Essayer de charger depuis Notion en arrière-plan
   try {
     const data = await api('/databases/' + DB_EQUIPE + '/query', 'POST', {sorts:[{property:'Nom',direction:'ascending'}]});
-    equipe = data.results.map(p => ({
+    const notionEquipe = data.results.map(p => ({
       id: p.id,
       nom: p.properties.Nom?.title?.[0]?.plain_text || '',
-      code: p.properties['Code acces']?.rich_text?.[0]?.plain_text || p.properties['Code acces']?.text?.[0]?.plain_text || '',
+      code: p.properties['Code acces']?.rich_text?.[0]?.plain_text || '',
       role: p.properties.Role?.select?.name || ''
-    }));
-    // Peupler le select
-    const sel = document.getElementById('login-nom');
-    sel.innerHTML = '<option value="">Choisir...</option>' +
-      equipe.map(m => `<option value="${m.id}">${m.nom}${m.role?' ('+m.role+')':''}</option>`).join('');
+    })).filter(m => m.nom);
+    if(notionEquipe.length > 0) {
+      equipe = notionEquipe;
+      peuplerSelect(equipe);
+    }
   } catch(e) {
-    console.warn('Erreur chargement équipe:', e);
+    console.warn('Notion indisponible, liste locale utilisée:', e.message);
   }
   // Vérifier session existante
   const saved = localStorage.getItem('rm-user');
@@ -1102,7 +1143,7 @@ async function loadComments(sujetId) {
     const comments = data.results;
     if(countEl) countEl.textContent = comments.length + ' commentaire' + (comments.length!==1?'s':'');
     if(!comments.length) {
-      listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucun commentaire pour l'instant</div>';
+      listEl.innerHTML = "<div style=\"font-size:11px;color:var(--text3);font-style:italic\">Aucun commentaire pour l'instant</div>";
       return;
     }
     listEl.innerHTML = comments.map(c => {
