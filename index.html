@@ -912,7 +912,8 @@ function parsePage(p){
     lienSeq:pr['Lien sequencier']?.url||'',
     code:getCode(pr),
     created:p.created_time||'',
-    lastEdited:p.last_edited_time||''};
+    lastEdited:p.last_edited_time||'',
+    retoursOuverts:0};  // rempli après chargement
 }
 
 function renderCards(){
@@ -940,6 +941,7 @@ function cardHTML(s){
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${s.journaliste||'Non attribué'}${s.chef?` · ${s.chef}`:''}</span></div>
     <div class="card-st"><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
     <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
+    ${s.retoursOuverts>0?`<div style="display:flex;justify-content:flex-end;margin-top:6px"><span style="font-size:10px;background:var(--red-dim);color:var(--red);padding:1px 7px;border-radius:8px;font-family:var(--mono)">📋 ${s.retoursOuverts} retour${s.retoursOuverts>1?'s':''} ouvert${s.retoursOuverts>1?'s':''}</span></div>`:''}
   </div>`;
 }
 
@@ -1240,6 +1242,36 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
   }
 }
 
+// Demander permission notifications navigateur
+async function requestNotifPermission() {
+  if(!('Notification' in window)) return false;
+  if(Notification.permission === 'granted') return true;
+  if(Notification.permission === 'denied') return false;
+  const perm = await Notification.requestPermission();
+  return perm === 'granted';
+}
+
+// Envoyer une notification navigateur
+function sendBrowserNotif(titre, body, sujetId) {
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  const n = new Notification(titre, {
+    body,
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: sujetId || 'reel-media',
+    renotify: true
+  });
+  n.onclick = () => {
+    window.focus();
+    if(sujetId) { navTo('production'); setTimeout(() => openDetail(sujetId), 300); }
+    n.close();
+  };
+}
+
+// Suivre les notifs déjà vues pour détecter les nouvelles
+let lastNotifCount = 0;
+let lastNotifIds = new Set();
+
 async function loadNotifs() {
   if(!currentUser) return;
   try {
@@ -1263,6 +1295,19 @@ async function loadNotifs() {
         badge.style.display = 'none';
       }
     }
+    // Détecter nouvelles notifs → notification navigateur
+    const newNotifs = notifs.filter(n => {
+      const lu = n.properties.Lu?.checkbox || false;
+      return !lu && !lastNotifIds.has(n.id);
+    });
+    if(lastNotifIds.size > 0 && newNotifs.length > 0) {
+      newNotifs.forEach(n => {
+        const msg = n.properties.Message?.title?.[0]?.plain_text || '';
+        const sid = n.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
+        sendBrowserNotif('Réel Média · Suivi de production', msg, sid);
+      });
+    }
+    notifs.forEach(n => lastNotifIds.add(n.id));
     
     // Liste
     const list = document.getElementById('notif-list');
@@ -1549,6 +1594,8 @@ function showApp() {
   const initials = currentUser.nom.substring(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
   document.getElementById('user-name').textContent = currentUser.nom;
+  // Demander permission notifs navigateur
+  requestNotifPermission();
   // Charger les données
   appLoadData().then(() => {
     navTo('dashboard');
@@ -1637,6 +1684,25 @@ async function postComment(sujetId) {
   } catch(e) {
     toast('Erreur : ' + e.message,'err');
   }
+}
+
+// ─── BADGES RETOURS SUR CARTES ───
+async function loadRetoursBadges() {
+  try {
+    const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
+      filter: {property:'Statut', select:{equals:'Ouvert'}},
+      page_size: 100
+    });
+    // Compter par sujet
+    const counts = {};
+    data.results.forEach(r => {
+      const sid = r.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
+      if(sid) counts[sid] = (counts[sid]||0) + 1;
+    });
+    sujets.forEach(s => s.retoursOuverts = counts[s.id] || 0);
+    // Re-render si on est en vue cartes
+    if(currentPage === 'production' && currentVue === 'cards') renderCards();
+  } catch(e) { console.warn('Badges retours:', e.message); }
 }
 
 // ─── GESTION ÉQUIPE ───
@@ -2604,8 +2670,98 @@ function renderDashboard(){
     </div>
   </div>`;
 
+  // ── Activité récente ──
+  html+=`<div>
+    <div class="dash-section-title">Activité récente</div>
+    <div class="dash-card" id="dash-activite">
+      <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+    </div>
+  </div>`;
+
   html+=`</div>`;
   document.getElementById('vue-wrap').innerHTML=html;
+  // Charger l'activité après le render
+  loadActiviteDashboard();
+}
+
+async function loadActiviteDashboard() {
+  const container = document.getElementById('dash-activite');
+  if(!container) return;
+  try {
+    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
+      sorts: [{timestamp:'created_time', direction:'descending'}],
+      page_size: 30,
+      filter: {
+        or: [
+          {property:'Type', select:{equals:'nouveau_sujet'}},
+          {property:'Type', select:{equals:'v1_deposee'}},
+          {property:'Type', select:{equals:'v2_deposee'}},
+          {property:'Type', select:{equals:'v3_deposee'}},
+          {property:'Type', select:{equals:'version_validee'}},
+        ]
+      }
+    });
+
+    // Dédupliquer par message (garder un seul par événement)
+    const seen = new Set();
+    const events = [];
+    data.results.forEach(n => {
+      const msg = n.properties.Message?.title?.[0]?.plain_text || '';
+      if(!seen.has(msg)) { seen.add(msg); events.push(n); }
+    });
+
+    if(!events.length) {
+      container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic">Aucune activité récente</div>';
+      return;
+    }
+
+    // Grouper par jour
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+    const fmt = d => {
+      const dd = new Date(d);
+      if(dd.toDateString() === today.toDateString()) return "Aujourd'hui";
+      if(dd.toDateString() === yesterday.toDateString()) return 'Hier';
+      return dd.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+    };
+
+    const ICONS = {
+      nouveau_sujet:'🆕', v1_deposee:'🎬', v2_deposee:'🎬', v3_deposee:'🎬',
+      version_validee:'✔️', retour:'📋', retour_corrige:'✅', commentaire:'💬'
+    };
+
+    let html = '';
+    let lastDay = '';
+    events.forEach(n => {
+      const pr = n.properties;
+      const msg = pr.Message?.title?.[0]?.plain_text || '';
+      const type = pr.Type?.select?.name || '';
+      const code = pr['Sujet code']?.rich_text?.[0]?.plain_text || '';
+      const sujetId = pr['Sujet ID']?.rich_text?.[0]?.plain_text || '';
+      const date = new Date(n.created_time);
+      const day = fmt(n.created_time);
+      const heure = date.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+      const icon = ICONS[type] || '🔔';
+
+      if(day !== lastDay) {
+        if(lastDay) html += '</div>';
+        html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:${lastDay?'14px':'0px'} 0 6px">${day}</div><div style="display:flex;flex-direction:column;gap:4px">`;
+        lastDay = day;
+      }
+      html += `<div onclick="navTo('production');setTimeout(()=>openDetail('${sujetId}'),300)" 
+        style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r);cursor:pointer;transition:background 0.1s"
+        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+        <span style="font-size:14px;flex-shrink:0">${icon}</span>
+        <span style="flex:1;font-size:12px;color:var(--text2);line-height:1.4">${msg}</span>
+        <span style="font-size:10px;color:var(--text3);font-family:var(--mono);flex-shrink:0">${heure}</span>
+      </div>`;
+    });
+    if(lastDay) html += '</div>';
+    container.innerHTML = html;
+  } catch(e) {
+    const c = document.getElementById('dash-activite');
+    if(c) c.innerHTML = '<div style="font-size:11px;color:var(--text3)">Activité non disponible</div>';
+  }
 }
 
 // ─── VUE LISTE ───
@@ -2734,6 +2890,8 @@ async function appLoadData() {
       };
     });
     document.getElementById('cnt-all').textContent = sujets.length;
+    // Charger le nb de retours ouverts pour les badges
+    loadRetoursBadges();
     appRender();
   } catch(e) {
     document.getElementById('main-content').innerHTML = `<div class="empty"><h3>Erreur de connexion</h3><p>${e.message}</p></div>`;
