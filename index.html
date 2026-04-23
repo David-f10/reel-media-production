@@ -2686,8 +2686,6 @@ function renderDashboard(){
 
   html+=`</div>`;
   document.getElementById('vue-wrap').innerHTML=html;
-  // Charger l'activité après le render
-  loadActiviteDashboard();
 }
 
 async function loadActiviteDashboard() {
@@ -2999,7 +2997,6 @@ function appFilter(t, v, el) {
 // ── Dashboard ──
 function appRenderDashboard() {
   const mc = document.getElementById('main-content');
-  // Créer un vue-wrap temporaire hors écran pour renderDashboard()
   let tmp = document.getElementById('__dash-tmp');
   if(!tmp) {
     tmp = document.createElement('div');
@@ -3012,6 +3009,8 @@ function appRenderDashboard() {
   const vw = document.getElementById('vue-wrap');
   mc.innerHTML = vw ? vw.innerHTML : '<div class="empty"><h3>Données insuffisantes</h3><p>Créez des sujets pour voir le dashboard.</p></div>';
   tmp.innerHTML = '';
+  // Charger l'activité APRÈS que le HTML est dans main-content
+  loadActiviteDashboard();
 }
 
 // ── Override flt pour compatibilité ──
