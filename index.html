@@ -1257,7 +1257,6 @@ function sendBrowserNotif(titre, body, sujetId) {
   try {
     const n = new Notification(titre, {
       body,
-      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23e63946"/><text y=".9em" font-size="80" x="10">🎬</text></svg>',
       tag: sujetId || 'reel-media-' + Date.now(),
       requireInteraction: false,
       silent: false
@@ -2699,6 +2698,7 @@ async function loadActiviteDashboard() {
       sorts: [{timestamp:'created_time', direction:'descending'}],
       page_size: 50
     });
+    console.log('Activité: total notifs récupérées:', data.results?.length);
 
     // Filtrer les types importants + dédupliquer
     const TYPES_IMPORTANTS = ['nouveau_sujet','v1_deposee','v2_deposee','v3_deposee','version_validee'];
@@ -2707,11 +2707,13 @@ async function loadActiviteDashboard() {
     data.results.forEach(n => {
       const type = n.properties.Type?.select?.name || '';
       const msg = n.properties.Message?.title?.[0]?.plain_text || '';
+      console.log('Notif type:', type, '| msg:', msg);
       if(TYPES_IMPORTANTS.includes(type) && !seen.has(msg)) {
         seen.add(msg);
         events.push(n);
       }
     });
+    console.log('Événements importants filtrés:', events.length);
 
     if(!events.length) {
       container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic">Aucune activité récente</div>';
