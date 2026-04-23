@@ -941,7 +941,7 @@ function cardHTML(s){
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${s.journaliste||'Non attribué'}${s.chef?` · ${s.chef}`:''}</span></div>
     <div class="card-st"><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
     <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
-    ${s.retoursOuverts>0?`<div style="display:flex;justify-content:flex-end;margin-top:6px"><span style="font-size:10px;background:var(--red-dim);color:var(--red);padding:1px 7px;border-radius:8px;font-family:var(--mono)">📋 ${s.retoursOuverts} retour${s.retoursOuverts>1?'s':''} ouvert${s.retoursOuverts>1?'s':''}</span></div>`:''}
+    ${s.retoursOuverts>0?`<div style="display:flex;justify-content:flex-end;margin-top:6px"><span style="font-size:10px;background:var(--red);color:#fff;padding:2px 8px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span></div>`:''}
   </div>`;
 }
 
@@ -1251,21 +1251,24 @@ async function requestNotifPermission() {
   return perm === 'granted';
 }
 
-// Envoyer une notification navigateur
+// Envoyer une notification navigateur (fonctionne même onglet inactif)
 function sendBrowserNotif(titre, body, sujetId) {
   if(!('Notification' in window) || Notification.permission !== 'granted') return;
-  const n = new Notification(titre, {
-    body,
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    tag: sujetId || 'reel-media',
-    renotify: true
-  });
-  n.onclick = () => {
-    window.focus();
-    if(sujetId) { navTo('production'); setTimeout(() => openDetail(sujetId), 300); }
-    n.close();
-  };
+  try {
+    const n = new Notification(titre, {
+      body,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23e63946"/><text y=".9em" font-size="80" x="10">🎬</text></svg>',
+      tag: sujetId || 'reel-media-' + Date.now(),
+      requireInteraction: false,
+      silent: false
+    });
+    n.onclick = () => {
+      window.focus();
+      if(sujetId) { navTo('production'); setTimeout(() => openDetail(sujetId), 300); }
+      n.close();
+    };
+    setTimeout(() => n.close(), 6000);
+  } catch(e) { console.warn('Notif navigateur:', e); }
 }
 
 // Suivre les notifs déjà vues pour détecter les nouvelles
@@ -1308,6 +1311,8 @@ async function loadNotifs() {
       });
     }
     notifs.forEach(n => lastNotifIds.add(n.id));
+    // Mettre à jour les badges sur les cartes
+    loadRetoursBadges();
     
     // Liste
     const list = document.getElementById('notif-list');
@@ -1686,23 +1691,25 @@ async function postComment(sujetId) {
   }
 }
 
-// ─── BADGES RETOURS SUR CARTES ───
+// ─── BADGES NOTIFS SUR CARTES ───
 async function loadRetoursBadges() {
+  if(!currentUser) return;
   try {
-    const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
-      filter: {property:'Statut', select:{equals:'Ouvert'}},
+    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
+      filter: {and:[
+        {property:'Destinataire', rich_text:{equals: currentUser.nom}},
+        {property:'Lu', checkbox:{equals: false}}
+      ]},
       page_size: 100
     });
-    // Compter par sujet
     const counts = {};
-    data.results.forEach(r => {
-      const sid = r.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
+    data.results.forEach(n => {
+      const sid = n.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
       if(sid) counts[sid] = (counts[sid]||0) + 1;
     });
     sujets.forEach(s => s.retoursOuverts = counts[s.id] || 0);
-    // Re-render si on est en vue cartes
     if(currentPage === 'production' && currentVue === 'cards') renderCards();
-  } catch(e) { console.warn('Badges retours:', e.message); }
+  } catch(e) { console.warn('Badges notifs cartes:', e.message); }
 }
 
 // ─── GESTION ÉQUIPE ───
@@ -2690,24 +2697,20 @@ async function loadActiviteDashboard() {
   try {
     const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
       sorts: [{timestamp:'created_time', direction:'descending'}],
-      page_size: 30,
-      filter: {
-        or: [
-          {property:'Type', select:{equals:'nouveau_sujet'}},
-          {property:'Type', select:{equals:'v1_deposee'}},
-          {property:'Type', select:{equals:'v2_deposee'}},
-          {property:'Type', select:{equals:'v3_deposee'}},
-          {property:'Type', select:{equals:'version_validee'}},
-        ]
-      }
+      page_size: 50
     });
 
-    // Dédupliquer par message (garder un seul par événement)
+    // Filtrer les types importants + dédupliquer
+    const TYPES_IMPORTANTS = ['nouveau_sujet','v1_deposee','v2_deposee','v3_deposee','version_validee'];
     const seen = new Set();
     const events = [];
     data.results.forEach(n => {
+      const type = n.properties.Type?.select?.name || '';
       const msg = n.properties.Message?.title?.[0]?.plain_text || '';
-      if(!seen.has(msg)) { seen.add(msg); events.push(n); }
+      if(TYPES_IMPORTANTS.includes(type) && !seen.has(msg)) {
+        seen.add(msg);
+        events.push(n);
+      }
     });
 
     if(!events.length) {
