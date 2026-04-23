@@ -1270,9 +1270,9 @@ function sendBrowserNotif(titre, body, sujetId) {
         new Notification(titre, {body});
       });
     } else {
-      const n = new Notification(titre, {body, tag: sujetId||'rm-'+Date.now()});
+      const n = new Notification(titre, {body, tag: sujetId||'rm-'+Date.now(), requireInteraction: true});
       n.onclick = () => { window.focus(); n.close(); };
-      setTimeout(() => n.close(), 8000);
+      setTimeout(() => n.close(), 15000);
     }
   } catch(e) { console.warn('Notif navigateur:', e.message); }
 }
