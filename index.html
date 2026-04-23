@@ -1280,7 +1280,7 @@ async function loadNotifs() {
     const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
       filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
       sorts: [{timestamp:'created_time', direction:'descending'}],
-      page_size: 20
+      page_size: 30
     });
     const notifs = data.results;
     const nonLues = notifs.filter(n => !n.properties.Lu?.checkbox).length;
@@ -1359,12 +1359,12 @@ async function markAllRead() {
   if(!currentUser) return;
   try {
     const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
-      filter: {and:[
-        {property:'Destinataire', rich_text:{equals: currentUser.nom}},
-        {property:'Lu', checkbox:{equals: false}}
-      ]}
+      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
+      page_size: 100
     });
-    await Promise.all(data.results.map(n =>
+    // Filtrer les non lus côté JS
+    const nonLus = data.results.filter(n => !n.properties.Lu?.checkbox);
+    await Promise.all(nonLus.map(n =>
       api('/pages/' + n.id, 'PATCH', {properties:{'Lu':{checkbox:true}}})
     ));
     loadNotifs();
@@ -1695,14 +1695,13 @@ async function loadRetoursBadges() {
   if(!currentUser) return;
   try {
     const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
-      filter: {and:[
-        {property:'Destinataire', rich_text:{equals: currentUser.nom}},
-        {property:'Lu', checkbox:{equals: false}}
-      ]},
+      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
       page_size: 100
     });
     const counts = {};
     data.results.forEach(n => {
+      const lu = n.properties.Lu?.checkbox || false;
+      if(lu) return; // Ignorer les notifs déjà lues
       const sid = n.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
       if(sid) counts[sid] = (counts[sid]||0) + 1;
     });
@@ -2679,8 +2678,8 @@ function renderDashboard(){
   // ── Activité récente ──
   html+=`<div>
     <div class="dash-section-title">Activité récente</div>
-    <div class="dash-card" id="dash-activite">
-      <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+    <div class="dash-card" id="dash-activite" style="padding:4px 18px">
+      <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
     </div>
   </div>`;
 
@@ -2696,70 +2695,70 @@ async function loadActiviteDashboard() {
       sorts: [{timestamp:'created_time', direction:'descending'}],
       page_size: 50
     });
-    console.log('Activité: total notifs récupérées:', data.results?.length);
 
-    // Filtrer les types importants + dédupliquer
     const TYPES_IMPORTANTS = ['nouveau_sujet','v1_deposee','v2_deposee','v3_deposee','version_validee'];
+    const LABELS = {
+      nouveau_sujet: {icon:'🆕', color:'var(--blue)'},
+      v1_deposee: {icon:'🎬', color:'var(--amber)'},
+      v2_deposee: {icon:'🎬', color:'var(--amber)'},
+      v3_deposee: {icon:'🎬', color:'var(--amber)'},
+      version_validee: {icon:'✔️', color:'var(--green)'},
+    };
+
+    // Filtrer + dédupliquer + limiter à 8
     const seen = new Set();
     const events = [];
-    data.results.forEach(n => {
+    for(const n of data.results) {
       const type = n.properties.Type?.select?.name || '';
       const msg = n.properties.Message?.title?.[0]?.plain_text || '';
-      console.log('Notif type:', type, '| msg:', msg);
       if(TYPES_IMPORTANTS.includes(type) && !seen.has(msg)) {
         seen.add(msg);
         events.push(n);
+        if(events.length >= 8) break;
       }
-    });
-    console.log('Événements importants filtrés:', events.length);
+    }
 
     if(!events.length) {
-      container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic">Aucune activité récente</div>';
+      container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 0">Aucune activité récente</div>';
       return;
     }
 
-    // Grouper par jour
-    const today = new Date();
-    const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
-    const fmt = d => {
-      const dd = new Date(d);
-      if(dd.toDateString() === today.toDateString()) return "Aujourd'hui";
-      if(dd.toDateString() === yesterday.toDateString()) return 'Hier';
-      return dd.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
-    };
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const yesterdayStr = new Date(now - 86400000).toDateString();
 
-    const ICONS = {
-      nouveau_sujet:'🆕', v1_deposee:'🎬', v2_deposee:'🎬', v3_deposee:'🎬',
-      version_validee:'✔️', retour:'📋', retour_corrige:'✅', commentaire:'💬'
+    const fmtAge = d => {
+      const diff = Math.floor((now - new Date(d)) / 60000);
+      if(diff < 1) return "à l'instant";
+      if(diff < 60) return `il y a ${diff}min`;
+      if(diff < 1440) return `il y a ${Math.floor(diff/60)}h`;
+      if(new Date(d).toDateString() === yesterdayStr) return 'hier';
+      return new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
     };
 
     let html = '';
-    let lastDay = '';
     events.forEach(n => {
       const pr = n.properties;
-      const msg = pr.Message?.title?.[0]?.plain_text || '';
       const type = pr.Type?.select?.name || '';
+      const msg = pr.Message?.title?.[0]?.plain_text || '';
       const code = pr['Sujet code']?.rich_text?.[0]?.plain_text || '';
       const sujetId = pr['Sujet ID']?.rich_text?.[0]?.plain_text || '';
-      const date = new Date(n.created_time);
-      const day = fmt(n.created_time);
-      const heure = date.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-      const icon = ICONS[type] || '🔔';
+      const {icon, color} = LABELS[type] || {icon:'🔔', color:'var(--text3)'};
+      const age = fmtAge(n.created_time);
 
-      if(day !== lastDay) {
-        if(lastDay) html += '</div>';
-        html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:${lastDay?'14px':'0px'} 0 6px">${day}</div><div style="display:flex;flex-direction:column;gap:4px">`;
-        lastDay = day;
-      }
-      html += `<div onclick="navTo('production');setTimeout(()=>openDetail('${sujetId}'),300)" 
-        style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r);cursor:pointer;transition:background 0.1s"
-        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
-        <span style="font-size:14px;flex-shrink:0">${icon}</span>
-        <span style="flex:1;font-size:12px;color:var(--text2);line-height:1.4">${msg}</span>
-        <span style="font-size:10px;color:var(--text3);font-family:var(--mono);flex-shrink:0">${heure}</span>
+      html += `<div onclick="navTo('production');setTimeout(()=>openDetail('${sujetId}'),300)"
+        style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:opacity 0.1s"
+        onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${msg}</div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);flex-shrink:0;white-space:nowrap">${age}</div>
       </div>`;
     });
-    if(lastDay) html += '</div>';
+
+    // Supprimer le dernier border-bottom
+    html = html.replace(/border-bottom:1px solid var\(--border\)([^}]*)\}([^<]*)<\/div>\s*$/, 'border-bottom:none$1}$2</div>');
     container.innerHTML = html;
   } catch(e) {
     const c = document.getElementById('dash-activite');
