@@ -2780,10 +2780,18 @@ async function loadActiviteDashboard() {
         html += `<div class="activite-day">${day}</div>`;
         lastDay = day;
       }
+      // Trouver le sujet correspondant pour la barre de progression
+      const sujetRef = sujets.find(s => s.id === sujetId);
+      const progPct = sujetRef ? Math.round(((STATUS_ORDER.indexOf(sujetRef.statut)+1)/STATUS_ORDER.length)*100) : 0;
+      const progCol = sujetRef ? stColor(sujetRef.statut) : 'var(--text3)';
+
       html += `<div class="activite-item" onclick="navTo('production');setTimeout(()=>openDetail('${sujetId}'),300)">
         <span class="activite-icon">${icon}</span>
-        <div class="activite-msg">
-          <strong>${auteur}</strong>${auteur?' ':''}<span style="color:var(--text2)">${action}</span>
+        <div class="activite-msg" style="min-width:0">
+          <div><strong>${auteur}</strong>${auteur?' ':''}<span style="color:var(--text2)">${action}</span></div>
+          ${sujetRef ? `<div style="margin-top:5px;height:2px;background:var(--bg4);border-radius:1px;overflow:hidden">
+            <div style="height:100%;width:${progPct}%;background:${progCol};border-radius:1px;transition:width 0.4s"></div>
+          </div>` : ''}
         </div>
         <span class="activite-heure">${heure}</span>
       </div>`;
