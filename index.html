@@ -246,36 +246,54 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 }
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
-.dash{display:flex;flex-direction:column;gap:24px;max-width:1100px}
-.dash-section-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px}
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
-.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
-.kpi-val{font-size:28px;font-weight:700;font-family:var(--mono);letter-spacing:-0.04em;line-height:1}
-.kpi-label{font-size:11px;color:var(--text3);font-weight:500}
-.kpi-sub{font-size:11px;color:var(--text2)}
-.bar-chart{display:flex;flex-direction:column;gap:8px}
+.dash{display:flex;flex-direction:column;gap:20px;max-width:1200px}
+.dash-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* KPI CARDS */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.kpi{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
+  padding:16px;display:flex;flex-direction:column;gap:4px;
+  position:relative;overflow:hidden;transition:border-color 0.2s;
+}
+.kpi:hover{border-color:var(--border2)}
+.kpi-accent{position:absolute;top:0;left:0;right:0;height:2px}
+.kpi-val{font-size:32px;font-weight:700;font-family:var(--mono);letter-spacing:-0.05em;line-height:1.1}
+.kpi-label{font-size:11px;color:var(--text3);font-weight:500;margin-top:2px}
+.kpi-sub{font-size:10px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:4px}
+.kpi-trend{font-size:10px;padding:1px 5px;border-radius:3px}
+
+/* GRAPHIQUE BARRES */
+.bar-chart{display:flex;flex-direction:column;gap:10px}
 .bar-row{display:flex;align-items:center;gap:10px}
-.bar-name{font-size:12px;color:var(--text2);width:100px;flex-shrink:0;text-align:right}
-.bar-track{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}
-.bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
-.bar-count{font-size:11px;font-family:var(--mono);color:var(--text3);width:30px;text-align:right}
-.month-chart{display:flex;align-items:flex-end;gap:6px;height:100px}
-.month-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
-.month-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height 0.5s ease}
-.month-label{font-size:9px;color:var(--text3);font-family:var(--mono)}
-.month-val{font-size:10px;color:var(--text2);font-family:var(--mono)}
-.alert-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--r);margin-bottom:6px}
-.alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
-.alert-content{flex:1}
-.alert-title{font-size:12px;font-weight:500;color:var(--text)}
-.alert-sub{font-size:11px;color:var(--text3);margin-top:2px}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.dash-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:18px}
-.delai-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.bar-name{font-size:11px;color:var(--text2);width:90px;flex-shrink:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+.bar-count{font-size:11px;font-family:var(--mono);color:var(--text3);width:24px;text-align:right;font-weight:600}
+
+/* GRILLE */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.three-col{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+.dash-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;transition:border-color 0.2s}
+.dash-card:hover{border-color:var(--border2)}
+
+/* DÉLAIS */
+.delai-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
 .delai-row:last-child{border-bottom:none}
 .delai-label{font-size:12px;color:var(--text2)}
-.delai-val{font-family:var(--mono);font-size:14px;font-weight:600}
-@media(max-width:700px){.two-col{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
+.delai-val{font-family:var(--mono);font-size:16px;font-weight:700}
+.delai-bar{height:3px;background:var(--bg4);border-radius:2px;margin-top:4px;overflow:hidden}
+.delai-bar-fill{height:100%;border-radius:2px}
+
+/* ALERTES */
+.alert-row{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:var(--r);margin-bottom:4px;cursor:pointer;transition:all 0.15s;border:1px solid transparent}
+.alert-row:hover{border-color:var(--border2)}
+.alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.alert-title{font-size:12px;font-weight:500;color:var(--text);line-height:1.3}
+.alert-sub{font-size:10px;color:var(--text3);margin-top:2px}
+
+@media(max-width:700px){.two-col,.three-col{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
 
 
 /* ─── NOUVELLE ARCHITECTURE ─── */
@@ -1302,13 +1320,15 @@ async function loadNotifs() {
       const lu = n.properties.Lu?.checkbox || false;
       return !lu && !lastNotifIds.has(n.id);
     });
-    if(lastNotifIds.size > 0 && newNotifs.length > 0) {
+    // N'envoyer une notif navigateur que si l'onglet est inactif ET qu'on a déjà chargé une fois
+    if(lastNotifIds.size > 0 && newNotifs.length > 0 && document.hidden) {
       newNotifs.forEach(n => {
         const msg = n.properties.Message?.title?.[0]?.plain_text || '';
         const sid = n.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
-        sendBrowserNotif('Réel Média · Suivi de production', msg, sid);
+        sendBrowserNotif('🎬 Réel Média Production', msg, sid);
       });
     }
+    // Initialiser lastNotifIds si premier chargement
     notifs.forEach(n => lastNotifIds.add(n.id));
     // Mettre à jour les badges sur les cartes
     loadRetoursBadges();
@@ -2385,8 +2405,9 @@ function setVue(vue){
 function renderStatut(){
   const cols=STATUS_ORDER;
   let html='<div class="vue-kanban">';
+  const allFiltered=applySearch(sujets.filter(s=>!curFilter?.v||(curFilter.t==='s'?s.statut===curFilter.v:s.format===curFilter.v)));
   cols.forEach(st=>{
-    const items=sujets.filter(s=>s.statut===st);
+    const items=allFiltered.filter(s=>s.statut===st);
     const col=stColor(st);
     html+=`<div class="kanban-col">
       <div class="kanban-col-header" style="color:${col}">
@@ -2408,10 +2429,11 @@ function renderStatut(){
 
 // ─── VUE KANBAN PAR JOURNALISTE ───
 function renderJournaliste(){
-  const journalistes=[...new Set(sujets.map(s=>s.journaliste||'Non attribué'))].sort();
+  const filtered=applySearch(sujets.filter(s=>!curFilter?.v||(curFilter.t==='s'?s.statut===curFilter.v:s.format===curFilter.v)));
+  const journalistes=[...new Set(filtered.map(s=>s.journaliste||'Non attribué'))].sort();
   let html='<div class="vue-kanban">';
   journalistes.forEach(j=>{
-    const items=sujets.filter(s=>(s.journaliste||'Non attribué')===j);
+    const items=filtered.filter(s=>(s.journaliste||'Non attribué')===j);
     const initials=j.substring(0,2).toUpperCase();
     html+=`<div class="kanban-col">
       <div class="kanban-col-header">
@@ -2452,7 +2474,8 @@ function renderCalendrier(){
   
   // Événements du mois
   const evts={};
-  sujets.forEach(s=>{
+  const calSujets=applySearch(sujets);
+  calSujets.forEach(s=>{
     if(s.tourJ1){
       const d=new Date(s.tourJ1);
       if(d.getMonth()===calMonth&&d.getFullYear()===calYear){
@@ -2592,35 +2615,62 @@ function renderDashboard(){
   </div>`;
 
   // KPIs
+  const padPct = total ? Math.round(pad/total*100) : 0;
+  const v1Pct = total ? Math.round(avecV1/total*100) : 0;
   html+=`<div>
     <div class="dash-section-title">Vue globale</div>
     <div class="kpi-row">
-      <div class="kpi"><div class="kpi-val" style="color:var(--text)">${total}</div><div class="kpi-label">Projets total</div></div>
-      <div class="kpi"><div class="kpi-val" style="color:var(--green)">${pad}</div><div class="kpi-label">PAD · Publiés</div><div class="kpi-sub">${total?Math.round(pad/total*100):0}% du total</div></div>
-      <div class="kpi"><div class="kpi-val" style="color:var(--amber)">${enCours}</div><div class="kpi-label">En production</div></div>
-      <div class="kpi"><div class="kpi-val" style="color:var(--text3)">${briefs}</div><div class="kpi-label">Brief / Idée</div></div>
-      <div class="kpi"><div class="kpi-val" style="color:var(--blue)">${avecV1}</div><div class="kpi-label">V1 disponible</div><div class="kpi-sub">${total?Math.round(avecV1/total*100):0}% du total</div></div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--text3)"></div>
+        <div class="kpi-val" style="color:var(--text)">${total}</div>
+        <div class="kpi-label">Projets total</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--green)"></div>
+        <div class="kpi-val" style="color:var(--green)">${pad}</div>
+        <div class="kpi-label">PAD · Publiés</div>
+        <div class="kpi-sub"><span style="background:var(--green-dim);color:var(--green);padding:1px 5px;border-radius:3px">${padPct}%</span> du total</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--amber)"></div>
+        <div class="kpi-val" style="color:var(--amber)">${enCours}</div>
+        <div class="kpi-label">En production</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--text3)"></div>
+        <div class="kpi-val" style="color:var(--text3)">${briefs}</div>
+        <div class="kpi-label">Brief / Idée</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-accent" style="background:var(--blue)"></div>
+        <div class="kpi-val" style="color:var(--blue)">${avecV1}</div>
+        <div class="kpi-label">V1 disponible</div>
+        <div class="kpi-sub"><span style="background:var(--blue-dim);color:var(--blue);padding:1px 5px;border-radius:3px">${v1Pct}%</span> du total</div>
+      </div>
     </div>
   </div>`;
 
   // Graphique mensuel
   html+=`<div>
-    <div class="dash-section-title">Activité mensuelle · 6 derniers mois</div>
-    <div class="dash-card">
-      <div style="display:flex;gap:16px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--amber)"></div><span style="font-size:11px;color:var(--text2)">Tournés</span></div>
-        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--blue)"></div><span style="font-size:11px;color:var(--text2)">Montés (V1)</span></div>
-        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--green)"></div><span style="font-size:11px;color:var(--text2)">PAD</span></div>
+    <div class="dash-section-title">Activité · 6 derniers mois</div>
+    <div class="dash-card" style="padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="display:flex;gap:16px">
+          <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:var(--amber)"></div><span style="font-size:11px;color:var(--text3)">Tournés</span></div>
+          <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:var(--blue)"></div><span style="font-size:11px;color:var(--text3)">Montés</span></div>
+          <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:var(--green)"></div><span style="font-size:11px;color:var(--text3)">PAD</span></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--text)">${moisData.reduce((a,m)=>a+m.tournes,0)} <span style="font-size:11px;color:var(--text3);font-weight:400">tournages</span></div>
       </div>
-      <div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding-bottom:20px;position:relative">
+      <div style="display:flex;align-items:flex-end;gap:6px;height:130px;padding-bottom:24px;position:relative;border-bottom:1px solid var(--border)">
         ${moisData.map(m=>`
-          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0;height:100%;justify-content:flex-end;position:relative">
-            <div style="width:100%;display:flex;gap:2px;align-items:flex-end;height:90px">
-              <div style="flex:1;background:var(--amber);border-radius:3px 3px 0 0;height:${pct(m.tournes,maxMois)*0.9}%;min-height:${m.tournes?2:0}px;transition:height 0.5s" title="${m.tournes} tournés"></div>
-              <div style="flex:1;background:var(--blue);border-radius:3px 3px 0 0;height:${pct(m.montes,maxMois)*0.9}%;min-height:${m.montes?2:0}px;transition:height 0.5s" title="${m.montes} montés"></div>
-              <div style="flex:1;background:var(--green);border-radius:3px 3px 0 0;height:${pct(m.pads,maxMois)*0.9}%;min-height:${m.pads?2:0}px;transition:height 0.5s" title="${m.pads} PAD"></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;position:relative">
+            <div style="width:100%;display:flex;gap:2px;align-items:flex-end;height:110px">
+              <div style="flex:1;background:var(--amber);border-radius:2px 2px 0 0;height:${pct(m.tournes,maxMois)*0.95}%;min-height:${m.tournes?2:0}px;opacity:0.9;transition:height 0.6s cubic-bezier(0.4,0,0.2,1)" title="${m.tournes}"></div>
+              <div style="flex:1;background:var(--blue);border-radius:2px 2px 0 0;height:${pct(m.montes,maxMois)*0.95}%;min-height:${m.montes?2:0}px;opacity:0.9;transition:height 0.6s cubic-bezier(0.4,0,0.2,1)" title="${m.montes}"></div>
+              <div style="flex:1;background:var(--green);border-radius:2px 2px 0 0;height:${pct(m.pads,maxMois)*0.95}%;min-height:${m.pads?2:0}px;opacity:0.9;transition:height 0.6s cubic-bezier(0.4,0,0.2,1)" title="${m.pads}"></div>
             </div>
-            <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:4px;position:absolute;bottom:-16px">${m.label}</div>
+            <div style="font-size:9px;color:var(--text3);font-family:var(--mono);position:absolute;bottom:-18px;text-transform:uppercase;letter-spacing:0.05em">${m.label}</div>
           </div>`).join('')}
       </div>
     </div>
@@ -2652,13 +2702,23 @@ function renderDashboard(){
     </div>
   </div>`;
 
+  const maxDelai = Math.max(delaiTournV1||0, delaiV1Valid||0, delaiBriefPad||0, 1);
   // Délais
   html+=`<div class="two-col">
     <div class="dash-card">
       <div class="dash-section-title">⏱ Délais moyens</div>
-      <div class="delai-row"><span class="delai-label">Tournage → V1</span><span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</span></div>
-      <div class="delai-row"><span class="delai-label">V1 → V2</span><span class="delai-val" style="color:var(--blue)">${delaiV1Valid!==null?delaiV1Valid+'j':'—'}</span></div>
-      <div class="delai-row"><span class="delai-label">Brief → PAD</span><span class="delai-val" style="color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'j':'—'}</span></div>
+      <div class="delai-row">
+        <div><div class="delai-label">Tournage → V1</div><div class="delai-bar"><div class="delai-bar-fill" style="width:${delaiTournV1?pct(delaiTournV1,maxDelai):0}%;background:var(--amber)"></div></div></div>
+        <span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'<small style="font-size:11px;color:var(--text3)">j</small>':'—'}</span>
+      </div>
+      <div class="delai-row">
+        <div><div class="delai-label">V1 → V2</div><div class="delai-bar"><div class="delai-bar-fill" style="width:${delaiV1Valid?pct(delaiV1Valid,maxDelai):0}%;background:var(--blue)"></div></div></div>
+        <span class="delai-val" style="color:var(--blue)">${delaiV1Valid!==null?delaiV1Valid+'<small style="font-size:11px;color:var(--text3)">j</small>':'—'}</span>
+      </div>
+      <div class="delai-row">
+        <div><div class="delai-label">Brief → PAD</div><div class="delai-bar"><div class="delai-bar-fill" style="width:${delaiBriefPad?pct(delaiBriefPad,maxDelai):0}%;background:var(--green)"></div></div></div>
+        <span class="delai-val" style="color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'<small style="font-size:11px;color:var(--text3)">j</small>':'—'}</span>
+      </div>
     </div>
     <div class="dash-card">
       <div class="dash-section-title">🚦 Alertes (${alertes.length})</div>
