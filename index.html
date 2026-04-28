@@ -1560,27 +1560,34 @@ async function loadRetours(sujetId) {
         const pr = r.properties;
         const desc = pr.Description?.title?.[0]?.plain_text || '';
         const cat = pr['Catégorie']?.select?.name || '';
-        const niveau = pr.Niveau?.select?.name || '';
         const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
         const statut = pr.Statut?.select?.name || 'Ouvert';
         const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
+        const source = pr.Source?.select?.name || 'Équipe';
         const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
         const corrige = statut === 'Corrigé';
-        const niveauIcon = niveau.startsWith('🔴') ? '🔴' : niveau.startsWith('🟠') ? '🟠' : '🟡';
-        html += `<div class="retour-row ${corrige?'corrige':''}">
-          <div class="retour-niveau">${niveauIcon}</div>
+        const impossible = statut === '⛔ Impossible';
+        html += `<div class="retour-row ${corrige||impossible?'corrige':''}" style="${impossible?'border-left:2px solid #ff6b35':''}">
           <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
-              <span class="retour-cat">${cat}</span>
-              ${tc ? `<span class="retour-tc">${tc}</span>` : ''}
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
+              ${tc?`<span class="retour-tc">${tc}</span>`:''}
+              ${cat?`<span class="retour-cat">${cat}</span>`:''}
+              ${source==='Client'?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(239,159,39,0.15);color:#EF9F27;border:1px solid rgba(239,159,39,0.3)">Client</span>`:''}
+              ${corrige?`<span class="retour-status-ok">✓ Corrigé</span>`:''}
+              ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
             </div>
-            <div class="retour-desc">${corrige?'<s>'+desc+'</s>':desc}</div>
-            ${statut==='⛔ Impossible'?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">⛔ ${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
-            <div style="font-size:10px;color:var(--text3);margin-top:4px">${auteur} · ${date}</div>
+            <div class="retour-desc">${corrige||impossible?'<s>'+desc+'</s>':desc}</div>
+            ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
+            <div class="retour-meta">${auteur} · ${date}</div>
           </div>
-          <div class="retour-check ${corrige?'done':''}" onclick="toggleRetour('${r.id}','${sujetId}','${corrige?'Ouvert':'Corrigé'}')" title="${corrige?'Réouvrir':'Marquer corrigé'}">
-            ${corrige?'✓':''}
-          </div>
+          ${!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+            <div class="retour-check" onclick="toggleRetour('${r.id}','${sujetId}','Corrigé')" title="Marquer corrigé"
+              onmouseover="this.style.borderColor='var(--green)';this.style.background='var(--green-dim)'"
+              onmouseout="this.style.borderColor='var(--border2)';this.style.background='transparent'"></div>
+            <div onclick="ouvrirImpossible('${r.id}','${sujetId}')" title="Impossible à réaliser"
+              style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s"
+              onmouseover="this.style.borderColor='#ff6b35'" onmouseout="this.style.borderColor='var(--border2)'">⛔</div>
+          </div>`:`${corrige?`<div class="retour-check done" onclick="toggleRetour('${r.id}','${sujetId}','Ouvert')" title="Réouvrir">✓</div>`:''}`}
         </div>`;
       });
     });
