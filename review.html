@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Réel Média · Visionnage</title>
+<title>Réel Média · Review</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -21,64 +21,82 @@
   /* HEADER */
   .header {
     background: var(--bg2); border-bottom: 1px solid var(--border);
-    padding: 0 24px; height: 52px;
+    padding: 0 20px; height: 52px;
     display: flex; align-items: center; justify-content: space-between;
   }
   .header-logo { display: flex; align-items: center; gap: 10px; }
-  .header-tag { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .header-tag { font-size: 11px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.05em; }
+  .header-user { font-size: 11px; color: var(--text3); display: none; }
 
   /* LAYOUT */
   .layout { display: flex; height: calc(100vh - 52px); }
-  .player-side { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .player-side { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
   .retours-side {
-    width: 340px; flex-shrink: 0;
+    width: 360px; flex-shrink: 0;
     background: var(--bg2); border-left: 1px solid var(--border);
     display: flex; flex-direction: column; overflow: hidden;
   }
 
   /* PLAYER */
-  .player-wrap { flex: 1; background: #000; position: relative; }
+  .player-wrap { flex: 1; background: #000; position: relative; overflow: hidden; }
   .player-iframe { width: 100%; height: 100%; border: none; }
   .player-placeholder {
     display: flex; align-items: center; justify-content: center;
-    height: 100%; font-size: 14px; color: var(--text3);
-    flex-direction: column; gap: 12px;
+    height: 100%; flex-direction: column; gap: 12px; color: var(--text3);
   }
 
   /* INFO VIDÉO */
   .video-info {
-    padding: 14px 20px; border-top: 1px solid var(--border);
-    background: var(--bg2); display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-top: 1px solid var(--border);
+    background: var(--bg2); display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
   }
-  .video-code { font-family: var(--mono); font-size: 12px; color: var(--red); }
-  .video-titre { font-size: 13px; font-weight: 500; flex: 1; }
-  .video-version { font-size: 11px; color: var(--text3); background: var(--bg4); padding: 2px 8px; border-radius: 4px; font-family: var(--mono); }
+  .video-code { font-family: var(--mono); font-size: 11px; color: var(--red); background: var(--red-dim); padding: 2px 7px; border-radius: 4px; }
+  .video-titre { font-size: 12px; color: var(--text2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* RETOURS PANEL */
+  /* VERSION TABS */
+  .version-tabs {
+    display: flex; gap: 0; padding: 0 14px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+    background: var(--bg2);
+  }
+  .vtab {
+    padding: 8px 12px; font-size: 11px; color: var(--text3);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.15s; background: none; border-top: none;
+    border-left: none; border-right: none; font-family: var(--font);
+    font-family: var(--mono);
+  }
+  .vtab:hover { color: var(--text2); }
+  .vtab.active { color: var(--text); border-bottom-color: var(--red); }
+  .vtab.disabled { opacity: 0.3; cursor: default; }
+
+  /* PANEL HEADER */
   .panel-header {
-    padding: 14px 16px; border-bottom: 1px solid var(--border);
-    font-size: 13px; font-weight: 600;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
   }
-  .panel-count { font-size: 11px; color: var(--text3); font-family: var(--mono); background: var(--bg4); padding: 2px 8px; border-radius: 8px; }
-  .retours-list { flex: 1; overflow-y: auto; padding: 8px 0; }
-  .retour-item {
-    padding: 10px 16px; border-bottom: 1px solid var(--border);
-    cursor: default;
-  }
-  .retour-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
-  .retour-tc { font-family: var(--mono); font-size: 11px; color: var(--red); background: var(--red-dim); padding: 1px 6px; border-radius: 4px; }
-  .retour-cat { font-size: 11px; color: var(--text3); background: var(--bg4); padding: 1px 6px; border-radius: 4px; }
-  .retour-desc-text { font-size: 12px; color: var(--text2); line-height: 1.4; }
-  .retour-meta { font-size: 10px; color: var(--text3); margin-top: 4px; font-family: var(--mono); }
-  .empty-retours { padding: 32px 16px; text-align: center; color: var(--text3); font-size: 13px; }
+  .panel-title { font-size: 12px; font-weight: 600; color: var(--text); }
+  .panel-count { font-size: 10px; color: var(--text3); background: var(--bg4); padding: 2px 8px; border-radius: 8px; font-family: var(--mono); }
+
+  /* RETOURS LIST */
+  .retours-list { flex: 1; overflow-y: auto; }
+  .retour-item { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .retour-item.other-version { opacity: 0.4; }
+  .retour-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
+  .r-tc { font-family: var(--mono); font-size: 10px; color: var(--red); background: var(--red-dim); padding: 1px 6px; border-radius: 4px; }
+  .r-cat { font-size: 10px; color: var(--text3); background: var(--bg4); padding: 1px 6px; border-radius: 4px; }
+  .r-version-badge { font-size: 9px; font-family: var(--mono); color: var(--text3); border: 1px solid var(--border2); padding: 1px 5px; border-radius: 3px; }
+  .r-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .r-desc.corrige { text-decoration: line-through; opacity: 0.5; }
+  .r-meta { font-size: 10px; color: var(--text3); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+  .r-status-ok { color: var(--green); font-size: 10px; }
+  .empty-retours { padding: 32px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.6; }
 
   /* FORMULAIRE */
-  .form-section {
-    border-top: 1px solid var(--border); padding: 14px 16px;
-    background: var(--bg3); flex-shrink: 0;
-  }
-  .form-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 10px; }
+  .form-section { border-top: 1px solid var(--border); padding: 14px 16px; background: var(--bg3); flex-shrink: 0; }
+  .form-title { font-size: 11px; font-weight: 600; color: var(--text2); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
   .form-row { display: flex; gap: 8px; margin-bottom: 8px; }
   .form-input {
     background: var(--bg4); border: 1px solid var(--border2);
@@ -89,13 +107,29 @@
   .form-input:focus { outline: none; border-color: var(--red); }
   .form-input::placeholder { color: var(--text3); }
   select.form-input { cursor: pointer; }
-  .btn-submit {
+  .btn-envoyer {
     background: var(--red); border: none; color: #fff;
     padding: 8px 16px; border-radius: var(--r); font-size: 12px;
     font-family: var(--font); cursor: pointer; font-weight: 500;
-    width: 100%; transition: opacity 0.15s;
+    width: 100%; transition: opacity 0.15s; margin-bottom: 8px;
   }
-  .btn-submit:hover { opacity: 0.85; }
+  .btn-envoyer:hover { opacity: 0.85; }
+  .btn-actions { display: flex; gap: 8px; }
+  .btn-valider {
+    flex: 1; background: var(--green-dim); border: 1px solid var(--green);
+    color: var(--green); padding: 7px; border-radius: var(--r);
+    font-size: 11px; font-family: var(--font); cursor: pointer;
+    font-weight: 500; transition: all 0.15s;
+  }
+  .btn-valider:hover { background: var(--green); color: #fff; }
+  .btn-dl {
+    background: var(--bg4); border: 1px solid var(--border2);
+    color: var(--text2); padding: 7px 12px; border-radius: var(--r);
+    font-size: 11px; font-family: var(--font); cursor: pointer;
+    text-decoration: none; display: flex; align-items: center; gap: 4px;
+    transition: all 0.15s;
+  }
+  .btn-dl:hover { border-color: var(--text2); color: var(--text); }
 
   /* ÉCRAN IDENTIFICATION */
   .id-screen {
@@ -104,21 +138,36 @@
   }
   .id-card {
     background: var(--bg2); border: 1px solid var(--border2);
-    border-radius: var(--rl); padding: 32px; width: 100%; max-width: 380px;
+    border-radius: 14px; padding: 32px; width: 100%; max-width: 380px;
   }
-  .id-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
-  .id-sub { font-size: 13px; color: var(--text3); margin-bottom: 24px; }
-  .id-field { margin-bottom: 12px; }
-  .id-label { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .id-logo-wrap { margin-bottom: 20px; }
+  .id-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .id-sub { font-size: 13px; color: var(--text3); margin-bottom: 24px; line-height: 1.5; }
+  .id-label { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; margin-top: 12px; }
   .id-error { font-size: 12px; color: var(--red); margin-top: 8px; display: none; }
   .btn-id {
     background: var(--red); border: none; color: #fff;
-    padding: 10px; border-radius: var(--r); font-size: 13px;
+    padding: 11px; border-radius: var(--r); font-size: 13px;
     font-family: var(--font); cursor: pointer; font-weight: 500;
-    width: 100%; margin-top: 4px;
+    width: 100%; margin-top: 16px; transition: opacity 0.15s;
   }
+  .btn-id:hover { opacity: 0.85; }
 
-  /* TOAST */
+  /* POPUPS */
+  .popup-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999;
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .popup-card {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: 14px; padding: 28px; max-width: 360px;
+    width: 100%; text-align: center;
+  }
+  .popup-icon { font-size: 40px; margin-bottom: 12px; }
+  .popup-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+  .popup-sub { font-size: 13px; color: var(--text3); line-height: 1.6; margin-bottom: 20px; }
+  .popup-btn { background: var(--bg4); border: 1px solid var(--border2); color: var(--text2); padding: 9px 20px; border-radius: var(--r); font-size: 12px; font-family: var(--font); cursor: pointer; }
+
   .toast {
     position: fixed; bottom: 20px; right: 20px; padding: 10px 16px;
     background: var(--bg4); border: 1px solid var(--border2);
@@ -129,8 +178,8 @@
 
   @media(max-width: 700px) {
     .layout { flex-direction: column; }
-    .retours-side { width: 100%; height: 45vh; border-left: none; border-top: 1px solid var(--border); }
-    .player-side { height: 55vh; }
+    .retours-side { width: 100%; height: 50vh; border-left: none; border-top: 1px solid var(--border); }
+    .player-side { height: 50vh; }
   }
 </style>
 </head>
@@ -139,41 +188,41 @@
 <!-- HEADER -->
 <div class="header">
   <div class="header-logo">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 388.61 232.57" style="height:28px;width:auto">
-      <path fill="#ff451a" d="M219.74,182.03c-1.77-16.84-16.86-29.06-33.7-27.29l-158.58,16.67c-16.84,1.77-29.06,16.86-27.29,33.7H.17c1.77,16.84,16.86,29.06,33.7,27.29l158.58-16.67c16.84-1.77,29.06-16.86,27.29-33.7h0Z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 633.6 641.7" style="height:28px;width:auto;border-radius:4px">
+      <rect fill="#001349" width="633.6" height="641.7"/>
+      <path fill="#ff451a" d="M337.28,382.47c-1.77-16.84-16.86-29.06-33.7-27.29l-158.58,16.67c-16.84,1.77-29.06,16.86-27.29,33.7h0c1.77,16.84,16.86,29.06,33.7,27.29l158.58-16.67c16.84-1.77,29.06-16.86,27.29-33.7h0Z"/>
       <g fill="#fff">
-        <path d="M75.39,81.87c0,4.92.91,5.31,10.1,5.83v3.76h-36.79v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l23.96-3.63,1.42,11.66c7.25-8.03,11.01-11.79,16.32-11.79s8.81,3.24,8.81,8.94c0,4.92-3.24,10.88-9.07,10.88-2.46,0-3.89-1.17-5.44-2.46-2.59-1.94-4.4-3.24-6.22-3.24-2.98,0-3.89,2.98-3.89,8.94v28.63Z"/>
-        <path d="M283.17,175.74v-90.01l-.52-.52-24.78,2.49c-.48.05-.96.07-1.44.06l-2.92-.06c-6.74-.39-7.51-.91-7.51-5.96V.39l-.52-.39-25.78,2.72v3.63l4.4.78c1.68.39,2.72,1.55,2.72,6.35v68.27c0,5.05-.78,5.57-7.51,5.96v3.76h34.2s.69,0,1.62.02c1.53.04,3.06.19,4.57.46.8.14,1.59.28,1.59.28,1.81.26,2.85,1.55,2.85,6.35v26.92c-2.59-1.04-6.35-1.43-10.23-1.43-8.55,0-16.45,2.46-22.02,7.64-5.83,5.31-9.33,13.86-9.33,24.87,0,19.43,8.68,30.31,23.45,30.31,4.27,0,11.53-2.59,18.14-7.77v6.22h26.94v-3.76c-6.87-.39-7.9-.91-7.9-5.83Z"/>
-        <path d="M298.32,138.3c0-4.92-.91-6.09-2.72-6.22l-4.02-.65v-3.76l25.13-3.5.78.52v51.04c0,4.92.78,5.44,7.51,5.83v3.76h-34.07v-3.76c6.48-.39,7.38-.91,7.38-5.83v-37.44ZM317.62,108.38c0,5.57-3.89,10.23-10.23,10.23s-9.97-4.66-9.97-10.23,3.5-9.97,10.1-9.97,10.1,4.66,10.1,9.97Z"/>
+        <path d="M293.79,313.65l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+        <path d="M192.93,282.31c0,4.92.91,5.31,10.1,5.83v3.76h-36.79v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l23.96-3.63,1.42,11.66c7.25-8.03,11.01-11.79,16.32-11.79s8.81,3.24,8.81,8.94c0,4.92-3.24,10.88-9.07,10.88-2.46,0-3.89-1.17-5.44-2.46-2.59-1.94-4.4-3.24-6.22-3.24-2.98,0-3.89,2.98-3.89,8.94v28.63Z"/>
+        <path d="M400.71,376.18v-90.01l-.52-.52-24.78,2.49c-.48.05-.96.07-1.44.06l-2.92-.06c-6.74-.39-7.51-.91-7.51-5.96v-81.35l-.52-.39-25.78,2.72v3.63l4.4.78c1.68.39,2.72,1.55,2.72,6.35v68.27c0,5.05-.78,5.57-7.51,5.96v3.76h34.2s.69,0,1.62.02c1.53.04,3.06.19,4.57.46.8.14,1.59.28,1.59.28,1.81.26,2.85,1.55,2.85,6.35v26.92c-2.59-1.04-6.35-1.43-10.23-1.43-8.55,0-16.45,2.46-22.02,7.64-5.83,5.31-9.33,13.86-9.33,24.87,0,19.43,8.68,30.31,23.45,30.31,4.27,0,11.53-2.59,18.14-7.77v6.22h26.94v-3.76c-6.87-.39-7.9-.91-7.9-5.83Z"/>
+        <path d="M415.86,338.74c0-4.92-.91-6.09-2.72-6.22l-4.02-.65v-3.76l25.13-3.5.78.52v51.04c0,4.92.78,5.44,7.51,5.83v3.76h-34.07v-3.76c6.48-.39,7.38-.91,7.38-5.83v-37.44ZM435.17,308.81c0,5.57-3.89,10.23-10.23,10.23s-9.97-4.66-9.97-10.23,3.5-9.97,10.1-9.97,10.1,4.66,10.1,9.97Z"/>
       </g>
     </svg>
-    <span class="header-tag">visionnage</span>
+    <span class="header-tag">review</span>
   </div>
-  <div id="user-badge" style="display:none;font-size:12px;color:var(--text3)"></div>
+  <div class="header-user" id="header-user"></div>
 </div>
 
 <!-- LAYOUT -->
 <div class="layout" id="app-layout" style="display:none">
-
   <!-- PLAYER -->
   <div class="player-side">
     <div class="player-wrap" id="player-wrap">
-      <div class="player-placeholder">
-        <span style="font-size:32px">🎬</span>
-        <span>Chargement...</span>
-      </div>
+      <div class="player-placeholder"><span style="font-size:32px">🎬</span><span>Chargement...</span></div>
     </div>
     <div class="video-info" id="video-info" style="display:none">
       <span class="video-code" id="vi-code"></span>
       <span class="video-titre" id="vi-titre"></span>
-      <span class="video-version" id="vi-version"></span>
     </div>
   </div>
 
-  <!-- RETOURS -->
+  <!-- RETOURS PANEL -->
   <div class="retours-side">
+    <!-- Version tabs -->
+    <div class="version-tabs" id="version-tabs"></div>
+
     <div class="panel-header">
-      <span>💬 Mes retours</span>
+      <span class="panel-title">💬 Mes retours</span>
       <span class="panel-count" id="retours-count">0</span>
     </div>
     <div class="retours-list" id="retours-list">
@@ -194,12 +243,13 @@
           <option value="💬 Sous-titres">💬 Sous-titres</option>
         </select>
       </div>
-      <textarea class="form-input" id="r-desc" placeholder="Décrivez votre retour..." style="min-height:70px;resize:vertical;margin-bottom:8px"
+      <textarea class="form-input" id="r-desc" placeholder="Décrivez votre retour..." style="min-height:64px;resize:none;margin-bottom:8px"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();soumettre()}"></textarea>
-      <button class="btn-submit" onclick="soumettre()">Envoyer le retour →</button>
-      <button onclick="confirmerFinaliser()" style="background:none;border:1px solid var(--border2);color:var(--text3);padding:8px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;width:100%;margin-top:6px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'">
-        ✅ J'ai terminé mes retours
-      </button>
+      <button class="btn-envoyer" onclick="soumettre()">Envoyer →</button>
+      <div class="btn-actions">
+        <button class="btn-valider" onclick="ouvrirValidation()">✅ Valider cette version</button>
+        <a class="btn-dl" id="btn-dl" href="#" target="_blank">⬇ Télécharger</a>
+      </div>
     </div>
   </div>
 </div>
@@ -207,41 +257,52 @@
 <!-- ÉCRAN IDENTIFICATION -->
 <div class="id-screen" id="id-screen">
   <div class="id-card">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 388.61 232.57" style="height:36px;width:auto;margin-bottom:16px">
-      <path fill="#ff451a" d="M219.74,182.03c-1.77-16.84-16.86-29.06-33.7-27.29l-158.58,16.67c-16.84,1.77-29.06,16.86-27.29,33.7H.17c1.77,16.84,16.86,29.06,33.7,27.29l158.58-16.67c16.84-1.77,29.06-16.86,27.29-33.7h0Z"/>
-      <g fill="#fff">
-        <path d="M75.39,81.87c0,4.92.91,5.31,10.1,5.83v3.76h-36.79v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l23.96-3.63,1.42,11.66c7.25-8.03,11.01-11.79,16.32-11.79s8.81,3.24,8.81,8.94c0,4.92-3.24,10.88-9.07,10.88-2.46,0-3.89-1.17-5.44-2.46-2.59-1.94-4.4-3.24-6.22-3.24-2.98,0-3.89,2.98-3.89,8.94v28.63Z"/>
-        <path d="M283.17,175.74v-90.01l-.52-.52-24.78,2.49-.96-.06v-.06c-6.74-.39-7.51-.91-7.51-5.96V.39l-.52-.39-25.78,2.72v3.63l4.4.78c1.68.39,2.72,1.55,2.72,6.35v68.27c0,5.05-.78,5.57-7.51,5.96v3.76h34.2s.69,0,1.62.02c1.53.04,3.06.19,4.57.46.8.14,1.59.28,1.59.28,1.81.26,2.85,1.55,2.85,6.35v26.92c-2.59-1.04-6.35-1.43-10.23-1.43-8.55,0-16.45,2.46-22.02,7.64-5.83,5.31-9.33,13.86-9.33,24.87,0,19.43,8.68,30.31,23.45,30.31,4.27,0,11.53-2.59,18.14-7.77v6.22h26.94v-3.76c-6.87-.39-7.9-.91-7.9-5.83Z"/>
-      </g>
-    </svg>
-    <div class="id-title">Visionnage</div>
+    <div class="id-logo-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 633.6 641.7" style="height:44px;width:auto;border-radius:6px">
+        <rect fill="#001349" width="633.6" height="641.7"/>
+        <path fill="#ff451a" d="M337.28,382.47c-1.77-16.84-16.86-29.06-33.7-27.29l-158.58,16.67c-16.84,1.77-29.06,16.86-27.29,33.7h0c1.77,16.84,16.86,29.06,33.7,27.29l158.58-16.67c16.84-1.77,29.06-16.86,27.29-33.7h0Z"/>
+        <g fill="#fff">
+          <path d="M293.79,313.65l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+          <path d="M192.93,282.31c0,4.92.91,5.31,10.1,5.83v3.76h-36.79v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l23.96-3.63,1.42,11.66c7.25-8.03,11.01-11.79,16.32-11.79s8.81,3.24,8.81,8.94c0,4.92-3.24,10.88-9.07,10.88-2.46,0-3.89-1.17-5.44-2.46-2.59-1.94-4.4-3.24-6.22-3.24-2.98,0-3.89,2.98-3.89,8.94v28.63Z"/>
+          <path d="M400.71,376.18v-90.01l-.52-.52-24.78,2.49-.96-.06v-.06c-6.74-.39-7.51-.91-7.51-5.96v-81.35l-.52-.39-25.78,2.72v3.63l4.4.78c1.68.39,2.72,1.55,2.72,6.35v68.27c0,5.05-.78,5.57-7.51,5.96v3.76h34.2s.69,0,1.62.02c1.53.04,3.06.19,4.57.46.8.14,1.59.28,1.59.28,1.81.26,2.85,1.55,2.85,6.35v26.92c-2.59-1.04-6.35-1.43-10.23-1.43-8.55,0-16.45,2.46-22.02,7.64-5.83,5.31-9.33,13.86-9.33,24.87,0,19.43,8.68,30.31,23.45,30.31,4.27,0,11.53-2.59,18.14-7.77v6.22h26.94v-3.76c-6.87-.39-7.9-.91-7.9-5.83Z"/>
+        </g>
+      </svg>
+    </div>
+    <div class="id-title">Réel Média · Review</div>
     <div class="id-sub">Identifiez-vous pour accéder à la vidéo et laisser vos retours.</div>
-    <div class="id-field">
-      <div class="id-label">Prénom *</div>
-      <input type="text" class="form-input" id="id-prenom" placeholder="Votre prénom" onkeydown="if(event.key==='Enter')identifier()">
-    </div>
-    <div class="id-field">
-      <div class="id-label">Entreprise <span style="color:var(--text3);font-weight:400">(optionnel)</span></div>
-      <input type="text" class="form-input" id="id-entreprise" placeholder="Votre entreprise" onkeydown="if(event.key==='Enter')identifier()">
-    </div>
+    <div class="id-label">Prénom *</div>
+    <input type="text" class="form-input" id="id-prenom" placeholder="Votre prénom" onkeydown="if(event.key==='Enter')identifier()">
+    <div class="id-label">Entreprise <span style="font-weight:400;text-transform:none;letter-spacing:0">(optionnel)</span></div>
+    <input type="text" class="form-input" id="id-entreprise" placeholder="Votre entreprise" onkeydown="if(event.key==='Enter')identifier()">
     <div class="id-error" id="id-error">Veuillez entrer votre prénom</div>
     <button class="btn-id" onclick="identifier()">Accéder à la vidéo →</button>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
-<!-- POPUP FINALISER -->
-<div id="popup-final" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#0F0F1A;border:1px solid #2A2A3A;border-radius:12px;padding:28px;max-width:360px;width:100%;text-align:center">
-    <div style="font-size:36px;margin-bottom:12px">✅</div>
-    <div style="font-size:16px;font-weight:600;color:#F0F0F5;margin-bottom:8px">Retours envoyés !</div>
-    <div style="font-size:13px;color:#9898B0;line-height:1.5;margin-bottom:20px">Merci pour vos retours. L'équipe Réel Média va les prendre en compte pour la prochaine version.</div>
-    <button onclick="fermerFinaliser()" style="background:#E63946;border:none;color:#fff;padding:10px 24px;border-radius:8px;font-size:13px;font-family:-apple-system,sans-serif;cursor:pointer;font-weight:500;width:100%">
-      Fermer
-    </button>
+<!-- POPUP TERMINÉ -->
+<div class="popup-overlay" id="popup-final">
+  <div class="popup-card">
+    <div class="popup-icon">✅</div>
+    <div class="popup-title">Retours envoyés !</div>
+    <div class="popup-sub">Merci pour vos retours.<br>L'équipe Réel Média va les prendre en compte pour la prochaine version.<br><br><span style="font-size:11px;color:var(--text3)">Vous pouvez fermer cet onglet.</span></div>
+    <button class="popup-btn" onclick="fermerPopup('popup-final')">Fermer</button>
   </div>
 </div>
+
+<!-- POPUP VALIDATION -->
+<div class="popup-overlay" id="popup-valider">
+  <div class="popup-card">
+    <div class="popup-icon">🎉</div>
+    <div class="popup-title">Valider cette version ?</div>
+    <div class="popup-sub" id="popup-valider-sub">Vous confirmez que cette version est approuvée. L'équipe Réel Média sera notifiée.</div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="popup-btn" onclick="fermerPopup('popup-valider')" style="flex:1">Annuler</button>
+      <button onclick="confirmerValidation()" style="flex:1;background:var(--green);border:none;color:#fff;padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500">✅ Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
@@ -249,12 +310,14 @@ const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS = '4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 
 let clientNom = '';
+let sujetCode = '';
 let sujetId = '';
-let version = '';
+let versionActive = 'V1';
 let videoUrl = '';
 let sujetData = null;
+let tousRetours = [];
+let versionsDisponibles = [];
 
-// Proxy Netlify
 async function api(endpoint, method='GET', body=null) {
   const res = await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`, {
     method, headers:{'Content-Type':'application/json'},
@@ -264,15 +327,13 @@ async function api(endpoint, method='GET', body=null) {
   return res.json();
 }
 
-// Récupérer les params URL
 function getParams() {
   const p = new URLSearchParams(window.location.search);
-  sujetId = p.get('id') || '';
-  version = p.get('v') || 'V1';
+  sujetCode = p.get('code') || '';
+  versionActive = p.get('v') || 'V1';
   videoUrl = decodeURIComponent(p.get('url') || '');
 }
 
-// Convertir lien Drive en embed
 function toEmbedUrl(url) {
   if(!url) return null;
   if(url.includes('drive.google.com')) {
@@ -287,197 +348,300 @@ function toEmbedUrl(url) {
   return url;
 }
 
-// Identification
-function identifier() {
+function toDlUrl(url) {
+  if(url.includes('drive.google.com')) {
+    const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if(m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
+  }
+  return url;
+}
+
+async function identifier() {
   const prenom = document.getElementById('id-prenom').value.trim();
   const entreprise = document.getElementById('id-entreprise').value.trim();
-  if(!prenom) {
-    document.getElementById('id-error').style.display = 'block';
-    return;
-  }
+  if(!prenom) { document.getElementById('id-error').style.display='block'; return; }
   clientNom = prenom + (entreprise ? ` (${entreprise})` : '');
   sessionStorage.setItem('review-nom', clientNom);
   document.getElementById('id-screen').style.display = 'none';
   document.getElementById('app-layout').style.display = 'flex';
-  document.getElementById('user-badge').style.display = 'block';
-  document.getElementById('user-badge').textContent = `Connecté en tant que ${clientNom}`;
-  initPlayer();
-  chargerRetours();
+  document.getElementById('header-user').style.display = 'block';
+  document.getElementById('header-user').textContent = clientNom;
+  await init();
 }
 
-// Init player
-async function initPlayer() {
-  // Charger les infos du sujet
+async function init() {
+  // Trouver le sujet par code
   try {
-    const page = await api('/pages/' + sujetId);
-    const pr = page.properties;
-    const titre = pr.Titre?.title?.[0]?.plain_text || pr.Name?.title?.[0]?.plain_text || '—';
-    const code = pr.Code?.rich_text?.[0]?.plain_text || '—';
-    sujetData = {titre, code};
-    document.getElementById('vi-code').textContent = code;
-    document.getElementById('vi-titre').textContent = titre;
-    document.getElementById('vi-version').textContent = version;
-    document.getElementById('video-info').style.display = 'flex';
-    document.title = `${code} · ${titre} · Réel Média`;
-  } catch(e) { console.warn('Infos sujet:', e); }
+    const data = await api('/databases/' + DB_PROD + '/query', 'POST', {
+      filter: {property:'Code', rich_text:{equals: sujetCode}}
+    });
+    if(data.results.length) {
+      const page = data.results[0];
+      sujetId = page.id;
+      const pr = page.properties;
+      const titre = pr.Titre?.title?.[0]?.plain_text || '—';
+      sujetData = {titre, code: sujetCode};
+      document.getElementById('vi-code').textContent = sujetCode;
+      document.getElementById('vi-titre').textContent = titre;
+      document.getElementById('video-info').style.display = 'flex';
+      document.title = `${sujetCode} · Réel Média Review`;
 
-  // Player
-  const embedUrl = toEmbedUrl(videoUrl);
+      // Versions disponibles depuis les liens
+      versionsDisponibles = [];
+      if(pr['Lien V1']?.url) versionsDisponibles.push({v:'V1', url:pr['Lien V1'].url});
+      if(pr['Lien V2']?.url) versionsDisponibles.push({v:'V2', url:pr['Lien V2'].url});
+      if(pr['Lien V3']?.url) versionsDisponibles.push({v:'V3', url:pr['Lien V3'].url});
+      // Assurer que la version active est dans la liste
+      if(!versionsDisponibles.find(v=>v.v===versionActive)) {
+        versionsDisponibles.unshift({v:versionActive, url:videoUrl});
+      }
+    }
+  } catch(e) { console.warn('Sujet:', e); sujetData = {titre:'', code:sujetCode}; }
+
+  // Construire les onglets de version
+  buildVersionTabs();
+  // Charger le player avec la version active
+  chargerPlayer(versionActive);
+  // Charger tous les retours du client
+  await chargerTousRetours();
+}
+
+function buildVersionTabs() {
+  const tabs = document.getElementById('version-tabs');
+  if(versionsDisponibles.length <= 1) { tabs.style.display='none'; return; }
+  tabs.innerHTML = versionsDisponibles.map(({v}) =>
+    `<button class="vtab ${v===versionActive?'active':''}" onclick="changerVersion('${v}')">${v}</button>`
+  ).join('');
+}
+
+function chargerPlayer(version) {
+  const vData = versionsDisponibles.find(v=>v.v===version);
+  const url = vData?.url || videoUrl;
+  const embedUrl = toEmbedUrl(url);
   const wrap = document.getElementById('player-wrap');
   if(embedUrl) {
     wrap.innerHTML = `<iframe class="player-iframe" src="${embedUrl}" allowfullscreen allow="autoplay; fullscreen"></iframe>`;
   } else {
-    wrap.innerHTML = `<div class="player-placeholder">
-      <span style="font-size:32px">🔗</span>
-      <span>Lien vidéo non compatible avec le player intégré</span>
-      <a href="${videoUrl}" target="_blank" style="color:var(--red);font-size:13px">Ouvrir dans un nouvel onglet →</a>
-    </div>`;
+    wrap.innerHTML = `<div class="player-placeholder"><span style="font-size:32px">🔗</span><a href="${url}" target="_blank" style="color:var(--red)">Ouvrir dans un nouvel onglet →</a></div>`;
   }
+  // Bouton téléchargement
+  const dlBtn = document.getElementById('btn-dl');
+  dlBtn.href = toDlUrl(url);
+  dlBtn.style.display = url.includes('drive.google.com') ? 'flex' : 'none';
 }
 
-// Charger les retours du client
-async function chargerRetours() {
+function changerVersion(v) {
+  versionActive = v;
+  // Update onglets
+  document.querySelectorAll('.vtab').forEach(t => {
+    t.classList.toggle('active', t.textContent === v);
+  });
+  chargerPlayer(v);
+  afficherRetours();
+}
+
+async function chargerTousRetours() {
+  if(!sujetId) return;
   try {
     const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
-      filter: {property:'Sujet ID', rich_text:{equals: sujetId}},
+      filter: {and:[
+        {property:'Sujet ID', rich_text:{equals: sujetId}},
+        {property:'Auteur', rich_text:{equals: clientNom}}
+      ]},
       sorts: [{timestamp:'created_time', direction:'ascending'}]
     });
-    // Filtrer uniquement les retours de ce client
-    const mesRetours = data.results.filter(r => {
-      const auteur = r.properties.Auteur?.rich_text?.[0]?.plain_text || '';
-      return auteur === clientNom;
-    });
-    afficherRetours(mesRetours);
-  } catch(e) { console.warn('Retours:', e); }
+    tousRetours = data.results;
+    afficherRetours();
+  } catch(e) {
+    // Fallback sans filtre and
+    try {
+      const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
+        filter: {property:'Sujet ID', rich_text:{equals: sujetId}},
+        sorts: [{timestamp:'created_time', direction:'ascending'}]
+      });
+      tousRetours = data.results.filter(r =>
+        (r.properties.Auteur?.rich_text?.[0]?.plain_text || '') === clientNom
+      );
+      afficherRetours();
+    } catch(e2) { console.warn('Retours:', e2); }
+  }
 }
 
-function afficherRetours(retours) {
+function afficherRetours() {
   const list = document.getElementById('retours-list');
-  const count = document.getElementById('retours-count');
-  count.textContent = retours.length;
-  if(!retours.length) {
-    list.innerHTML = '<div class="empty-retours">Aucun retour pour le moment<br><span style="font-size:11px;color:var(--text3)">Vos retours apparaîtront ici</span></div>';
+  const countEl = document.getElementById('retours-count');
+
+  // Retours version active
+  const retoursCourants = tousRetours.filter(r =>
+    (r.properties.Version?.select?.name || '') === versionActive
+  );
+  // Retours autres versions (corrigés ou pas)
+  const retourAutres = tousRetours.filter(r =>
+    (r.properties.Version?.select?.name || '') !== versionActive
+  );
+
+  countEl.textContent = retoursCourants.length;
+
+  if(!tousRetours.length) {
+    list.innerHTML = '<div class="empty-retours">Aucun retour pour le moment<br><span style="font-size:11px">Vos retours apparaîtront ici</span></div>';
     return;
   }
-  list.innerHTML = retours.map(r => {
+
+  let html = '';
+
+  // Retours de la version active
+  retoursCourants.forEach(r => {
     const pr = r.properties;
     const desc = pr.Description?.title?.[0]?.plain_text || '';
     const cat = pr['Catégorie']?.select?.name || '';
     const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
-    const date = new Date(r.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-    return `<div class="retour-item">
-      <div class="retour-item-header">
-        ${tc ? `<span class="retour-tc">${tc}</span>` : ''}
-        ${cat ? `<span class="retour-cat">${cat}</span>` : ''}
+    const statut = pr.Statut?.select?.name || 'Ouvert';
+    const corrige = statut === 'Corrigé';
+    const date = new Date(r.created_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    html += `<div class="retour-item">
+      <div class="retour-item-top">
+        ${tc?`<span class="r-tc">${tc}</span>`:''}
+        ${cat?`<span class="r-cat">${cat}</span>`:''}
+        ${corrige?`<span class="r-status-ok">✓ Pris en compte</span>`:''}
       </div>
-      <div class="retour-desc-text">${desc}</div>
-      <div class="retour-meta">${date}</div>
+      <div class="r-desc ${corrige?'corrige':''}">${desc}</div>
+      <div class="r-meta">${date}</div>
     </div>`;
-  }).join('');
+  });
+
+  // Séparateur + retours autres versions (en gris)
+  if(retourAutres.length) {
+    html += `<div style="padding:8px 16px;font-size:10px;color:var(--text3);background:var(--bg3);text-transform:uppercase;letter-spacing:0.06em;border-top:1px solid var(--border)">Retours des autres versions</div>`;
+    retourAutres.forEach(r => {
+      const pr = r.properties;
+      const desc = pr.Description?.title?.[0]?.plain_text || '';
+      const cat = pr['Catégorie']?.select?.name || '';
+      const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+      const version = pr.Version?.select?.name || '';
+      const statut = pr.Statut?.select?.name || '';
+      html += `<div class="retour-item other-version">
+        <div class="retour-item-top">
+          <span class="r-version-badge">${version}</span>
+          ${tc?`<span class="r-tc">${tc}</span>`:''}
+          ${cat?`<span class="r-cat">${cat}</span>`:''}
+          ${statut==='Corrigé'?`<span class="r-status-ok">✓</span>`:''}
+        </div>
+        <div class="r-desc">${desc}</div>
+      </div>`;
+    });
+  }
+
+  list.innerHTML = html;
 }
 
-// Formater le timecode
 function formatTc(input) {
   let d = input.value.replace(/[^0-9]/g,'');
-  if(!d) { input.value=''; return; }
+  if(!d){input.value='';return;}
   if(d.length<=2) input.value=`0:${d.padStart(2,'0')}`;
   else if(d.length===3) input.value=`${d[0]}:${d.slice(1)}`;
   else if(d.length===4) input.value=`${parseInt(d.slice(0,2))}:${d.slice(2)}`;
   else input.value=`${d[0]}:${d.slice(1,3)}:${d.slice(3,5)}`;
 }
 
-// Soumettre un retour
 async function soumettre() {
   const tc = document.getElementById('r-tc').value.trim();
   const cat = document.getElementById('r-cat').value;
   const desc = document.getElementById('r-desc').value.trim();
-  if(!desc) { document.getElementById('r-desc').style.borderColor='var(--red)'; return; }
-  document.getElementById('r-desc').style.borderColor='';
+  const descEl = document.getElementById('r-desc');
+  if(!desc){descEl.style.borderColor='var(--red)';return;}
+  descEl.style.borderColor='';
 
   try {
-    // Créer le retour
-    await api('/pages', 'POST', {
-      parent: {database_id: DB_RETOURS},
-      properties: {
-        'Description': {title:[{text:{content:desc}}]},
-        'Version': {select:{name: version}},
-        'Catégorie': cat ? {select:{name:cat}} : null,
-        'Timecode': {rich_text:[{text:{content:tc}}]},
-        'Statut': {select:{name:'Ouvert'}},
-        'Auteur': {rich_text:[{text:{content:clientNom}}]},
-        'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
-        'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
-        'Source': {select:{name:'Client'}}
-      }
-    });
+    const props = {
+      'Description': {title:[{text:{content:desc}}]},
+      'Version': {select:{name:versionActive}},
+      'Timecode': {rich_text:[{text:{content:tc}}]},
+      'Statut': {select:{name:'Ouvert'}},
+      'Auteur': {rich_text:[{text:{content:clientNom}}]},
+      'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
+      'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
+      'Source': {select:{name:'Client'}}
+    };
+    if(cat) props['Catégorie'] = {select:{name:cat}};
 
-    // Remettre le sujet en statut "Retours" + notifier le chef
-    await api('/pages/' + sujetId, 'PATCH', {
-      properties: {'Statut': {select:{name:'Retours'}}}
-    });
+    await api('/pages','POST',{parent:{database_id:DB_RETOURS},properties:props});
 
-    // Notif dans la base notifications (destinataire = chef du sujet)
-    // On envoie une notif générique car on n'a pas accès au chef ici
-    await api('/pages', 'POST', {
-      parent: {database_id: DB_NOTIFS},
-      properties: {
-        'Message': {title:[{text:{content:`${clientNom} a laissé un retour sur ${sujetData?.code||sujetId}${tc?' · '+tc:''}${cat?' · '+cat:''}`}}]},
-        'Type': {select:{name:'retour'}},
-        'Destinataire': {rich_text:[{text:{content:'__chef__'}}]},
-        'Auteur': {rich_text:[{text:{content:clientNom}}]},
-        'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
-        'Sujet code': {rich_text:[{text:{content:sujetData?.code||''}}]},
-        'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
-        'Lu': {checkbox:false}
-      }
-    });
+    // Sujet → statut Retours
+    if(sujetId) await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}});
+
+    // Notif équipe
+    await api('/pages','POST',{parent:{database_id:DB_NOTIFS},properties:{
+      'Message': {title:[{text:{content:`${clientNom} a laissé un retour sur ${sujetCode} (${versionActive})${tc?' · '+tc:''}${cat?' · '+cat:''}`}}]},
+      'Type': {select:{name:'retour'}},
+      'Destinataire': {rich_text:[{text:{content:'__chef__'}}]},
+      'Auteur': {rich_text:[{text:{content:clientNom}}]},
+      'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
+      'Sujet code': {rich_text:[{text:{content:sujetCode}}]},
+      'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
+      'Lu': {checkbox:false}
+    }});
 
     document.getElementById('r-desc').value='';
     document.getElementById('r-tc').value='';
     document.getElementById('r-cat').value='';
     toast('Retour envoyé ✓');
-    chargerRetours();
-  } catch(e) { toast('Erreur : ' + e.message); }
+    await chargerTousRetours();
+  } catch(e){toast('Erreur : '+e.message);}
 }
 
-// Finaliser
-function confirmerFinaliser() {
-  const popup = document.getElementById('popup-final');
-  popup.style.display = 'flex';
+function ouvrirValidation() {
+  document.getElementById('popup-valider-sub').textContent =
+    `Vous confirmez que la ${versionActive} de ${sujetCode} est approuvée. L'équipe Réel Média sera notifiée.`;
+  document.getElementById('popup-valider').style.display = 'flex';
 }
 
-function fermerFinaliser() {
-  document.getElementById('popup-final').style.display = 'none';
-  // Optionnel : scroll vers le haut
-  window.scrollTo(0, 0);
+async function confirmerValidation() {
+  fermerPopup('popup-valider');
+  try {
+    if(sujetId) await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Validation chef'}}}});
+    await api('/pages','POST',{parent:{database_id:DB_NOTIFS},properties:{
+      'Message': {title:[{text:{content:`${clientNom} a validé la ${versionActive} de ${sujetCode} — ${sujetData?.titre||''}`}}]},
+      'Type': {select:{name:'version_validee'}},
+      'Destinataire': {rich_text:[{text:{content:'__chef__'}}]},
+      'Auteur': {rich_text:[{text:{content:clientNom}}]},
+      'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
+      'Sujet code': {rich_text:[{text:{content:sujetCode}}]},
+      'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
+      'Lu': {checkbox:false}
+    }});
+    document.getElementById('popup-final').style.display = 'flex';
+    toast('Version validée 🎉');
+  } catch(e){toast('Erreur : '+e.message);}
 }
 
-// Toast
+function fermerPopup(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  setTimeout(()=>t.classList.remove('show'),3000);
 }
 
 // Init
 getParams();
-if(!sujetId || !videoUrl) {
-  document.getElementById('id-screen').innerHTML = `<div class="id-card">
+if(!sujetCode || !videoUrl) {
+  document.getElementById('id-screen').innerHTML = `<div class="id-card" style="text-align:center">
+    <div style="font-size:32px;margin-bottom:12px">❌</div>
     <div class="id-title" style="color:var(--red)">Lien invalide</div>
     <div class="id-sub">Ce lien de visionnage est invalide ou expiré.<br>Contactez l'équipe Réel Média.</div>
   </div>`;
 } else {
-  // Session déjà existante ?
   const saved = sessionStorage.getItem('review-nom');
   if(saved) {
     clientNom = saved;
     document.getElementById('id-screen').style.display = 'none';
     document.getElementById('app-layout').style.display = 'flex';
-    document.getElementById('user-badge').style.display = 'block';
-    document.getElementById('user-badge').textContent = `Connecté en tant que ${clientNom}`;
-    initPlayer();
-    chargerRetours();
+    document.getElementById('header-user').style.display = 'block';
+    document.getElementById('header-user').textContent = clientNom;
+    init();
   }
 }
 </script>

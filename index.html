@@ -1123,7 +1123,7 @@ function openDetail(id){
             title="Visionner">▶</button>
           <button onclick="copierLienClient('${id}','V${v}','${s['lien'+v]}')"
             style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0"
-            title="Copier lien client">🔗 Client</button>` : ''}
+            title="Partager pour retours">🔗 Partager</button>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
           <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
@@ -1500,20 +1500,23 @@ async function confirmerImpossible() {
 
 // ─── LIEN CLIENT ───
 function genererLienClient(sujetId, version, lienVideo) {
+  const s = sujets.find(s => s.id === sujetId);
+  const code = s?.code || sujetId;
   const base = window.location.origin + window.location.pathname.replace('index.html','');
-  return `${base}review.html?id=${sujetId}&v=${encodeURIComponent(version)}&url=${encodeURIComponent(lienVideo)}`;
+  return `${base}review.html?code=${encodeURIComponent(code)}&v=${encodeURIComponent(version)}&url=${encodeURIComponent(lienVideo)}`;
 }
 
 async function copierLienClient(sujetId, version, lienVideo) {
   const lien = genererLienClient(sujetId, version, lienVideo);
   try {
     await navigator.clipboard.writeText(lien);
-    toast('Lien client copié 📋', 'ok');
-    // Sauvegarder le lien dans Notion
-    await api('/pages/' + sujetId, 'PATCH', {
-      properties: {'Lien client': {url: lien}}
-    });
-  } catch(e) { toast(lien, 'ok'); }
+    // Ouvrir dans un nouvel onglet
+    window.open(lien, '_blank');
+    toast('Lien copié et ouvert dans un nouvel onglet 🔗', 'ok');
+  } catch(e) {
+    window.open(lien, '_blank');
+    toast('Lien ouvert dans un nouvel onglet', 'ok');
+  }
 }
 
 async function loadRetours(sujetId) {
