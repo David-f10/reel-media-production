@@ -185,7 +185,8 @@
         <input type="text" class="form-input" id="r-tc" placeholder="Timecode ex: 1:24" style="width:110px;font-family:var(--mono)" onblur="formatTc(this)">
         <select class="form-input" id="r-cat">
           <option value="">— Catégorie —</option>
-          <option value="🔊 Audio">🔊 Audio</option>
+          <option value="🎵 Musique">🎵 Musique</option>
+          <option value="🎤 Voix">🎤 Voix</option>
           <option value="🖼 Image">🖼 Image</option>
           <option value="🎬 Rush">🎬 Rush</option>
           <option value="🎨 Graphisme">🎨 Graphisme</option>
@@ -196,6 +197,9 @@
       <textarea class="form-input" id="r-desc" placeholder="Décrivez votre retour..." style="min-height:70px;resize:vertical;margin-bottom:8px"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();soumettre()}"></textarea>
       <button class="btn-submit" onclick="soumettre()">Envoyer le retour →</button>
+      <button onclick="confirmerFinaliser()" style="background:none;border:1px solid var(--border2);color:var(--text3);padding:8px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;width:100%;margin-top:6px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'">
+        ✅ J'ai terminé mes retours
+      </button>
     </div>
   </div>
 </div>
@@ -226,6 +230,18 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- POPUP FINALISER -->
+<div id="popup-final" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0F0F1A;border:1px solid #2A2A3A;border-radius:12px;padding:28px;max-width:360px;width:100%;text-align:center">
+    <div style="font-size:36px;margin-bottom:12px">✅</div>
+    <div style="font-size:16px;font-weight:600;color:#F0F0F5;margin-bottom:8px">Retours envoyés !</div>
+    <div style="font-size:13px;color:#9898B0;line-height:1.5;margin-bottom:20px">Merci pour vos retours. L'équipe Réel Média va les prendre en compte pour la prochaine version.</div>
+    <button onclick="fermerFinaliser()" style="background:#E63946;border:none;color:#fff;padding:10px 24px;border-radius:8px;font-size:13px;font-family:-apple-system,sans-serif;cursor:pointer;font-weight:500;width:100%">
+      Fermer
+    </button>
+  </div>
+</div>
 
 <script>
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
@@ -422,6 +438,18 @@ async function soumettre() {
     toast('Retour envoyé ✓');
     chargerRetours();
   } catch(e) { toast('Erreur : ' + e.message); }
+}
+
+// Finaliser
+function confirmerFinaliser() {
+  const popup = document.getElementById('popup-final');
+  popup.style.display = 'flex';
+}
+
+function fermerFinaliser() {
+  document.getElementById('popup-final').style.display = 'none';
+  // Optionnel : scroll vers le haut
+  window.scrollTo(0, 0);
 }
 
 // Toast
