@@ -1121,12 +1121,15 @@ function openDetail(id){
         <div class="field-label" style="margin-bottom:4px"><span>V${v}</span></div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
           <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="onLienBlur(this,'${id}',${v})" style="flex:1">
-          ${s['lien'+v] ? `<button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}','${id}','V${v}')" 
-            style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;flex-shrink:0" 
-            title="Visionner">▶</button>
-          <button onclick="copierLienClient('${id}','V${v}','${s['lien'+v]}')"
-            style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0"
-            title="Partager pour retours">🔗 Partager pour retours</button>` : ''}
+          ${s['lien'+v] ? `
+            <button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}','${id}','V${v}')" 
+              style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;flex-shrink:0" 
+              title="Visionner">▶</button>
+            ${s['lien'+v].includes('drive.google.com') ? '<a href="https://drive.google.com/file/d/'+getDriveFileId(s['lien'+v])+'/view" target="_blank" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0;text-decoration:none;display:inline-flex;align-items:center" title="Ouvrir dans Drive">📁</a>' : ''}
+            <button onclick="copierLienClient('${id}','V${v}','${s['lien'+v]}')"
+              style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0"
+              title="Partager pour retours">🔗</button>
+          ` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
           <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
@@ -1853,6 +1856,11 @@ function detectVideoType(url) {
   return null;
 }
 
+function getDriveFileId(url) {
+  const m = url ? url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) : null;
+  return m ? m[1] : '';
+}
+
 function toEmbedUrl(url, type) {
   if(!url) return null;
   if(type === 'drive') {
@@ -1894,6 +1902,7 @@ function openPlayer(url, label, sujetId, version) {
         <span style="font-family:monospace;font-size:11px;color:#E63946;background:rgba(230,57,70,0.12);padding:2px 7px;border-radius:4px">${s?.code||''}</span>
         <span style="font-size:12px;color:#9898B0">${label}</span>
       </div>
+        ${url.includes('drive.google.com') ? '<a href="https://drive.google.com/file/d/'+getDriveFileId(url)+'/view" target="_blank" style="font-size:11px;color:#9898B0;text-decoration:none;border:1px solid #2A2A3A;padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px">📁 Dossier</a>' : ''}
       <button onclick="document.getElementById('video-player-modal').remove()"
         style="background:none;border:1px solid #2A2A3A;color:#5A5A70;cursor:pointer;font-size:16px;padding:3px 10px;border-radius:6px;line-height:1.4;transition:all 0.15s"
         onmouseover="this.style.color='#F0F0F5'" onmouseout="this.style.color='#5A5A70'">×</button>
