@@ -125,13 +125,16 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .notif-msg{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:2px}
 .notif-sub{font-size:10px;color:var(--text3);font-family:var(--mono)}
 /* ─── RETOURS ─── */
-.retour-row{display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:var(--r);margin-bottom:6px;background:var(--bg3);border:1px solid var(--border);transition:all 0.15s}
-.retour-row.corrige{opacity:0.5}
-.retour-niveau{font-size:14px;flex-shrink:0;margin-top:1px}
-.retour-cat{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--bg4);color:var(--text2);white-space:nowrap;flex-shrink:0}
-.retour-tc{font-family:var(--mono);font-size:11px;color:var(--red);background:var(--red-dim);padding:1px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0}
-.retour-desc{font-size:12px;color:var(--text);flex:1;line-height:1.4}
-.retour-meta{font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0}
+.retour-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);transition:background 0.1s}
+.retour-row:last-child{border-bottom:none}
+.retour-row.corrige{opacity:0.45}
+.retour-row:hover{background:var(--bg3)}
+.retour-cat{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--bg4);color:var(--text3);white-space:nowrap;flex-shrink:0}
+.retour-tc{font-family:var(--mono);font-size:10px;color:var(--red);background:var(--red-dim);padding:1px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0}
+.retour-desc{font-size:12px;color:var(--text2);flex:1;line-height:1.5}
+.retour-desc s{color:var(--text3)}
+.retour-meta{font-size:10px;color:var(--text3);margin-top:3px;display:flex;align-items:center;gap:6px}
+.retour-status-ok{color:var(--green);font-size:10px}
 .retour-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s}
 .retour-check:hover{border-color:var(--green);background:var(--green-dim)}
 .retour-check.done{background:var(--green);border-color:var(--green);color:#fff}
@@ -1123,7 +1126,7 @@ function openDetail(id){
             title="Visionner">▶</button>
           <button onclick="copierLienClient('${id}','V${v}','${s['lien'+v]}')"
             style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0"
-            title="Partager pour retours">🔗 Partager</button>` : ''}
+            title="Partager pour retours">🔗 Partager pour retours</button>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
           <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
@@ -1551,7 +1554,7 @@ async function loadRetours(sujetId) {
     });
     let html = '';
     Object.entries(byVersion).forEach(([version, items]) => {
-      html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:8px 0 4px">${version}</div>`;
+      html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:var(--bg3);border-bottom:1px solid var(--border);position:sticky;top:0">${version} <span style="font-weight:400;opacity:0.6">${items.length} retour${items.length>1?'s':''}</span></div>`;
       items.forEach(r => {
         const pr = r.properties;
         const desc = pr.Description?.title?.[0]?.plain_text || '';
