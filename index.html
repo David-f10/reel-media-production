@@ -1380,17 +1380,13 @@ function sendBrowserNotif(titre, body, sujetId) {
   } catch(e) { console.warn('Notif navigateur:', e.message); }
 }
 
-// Suivre les notifs déjà vues pour détecter les nouvelles
-let lastNotifCount = 0;
-let lastNotifIds = new Set();
-
 async function loadNotifs() {
   if(!currentUser) return;
   try {
     const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
       filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
       sorts: [{timestamp:'created_time', direction:'descending'}],
-      page_size: 30
+      page_size: 20
     });
     const notifs = data.results;
     const nonLues = notifs.filter(n => !n.properties.Lu?.checkbox).length;
@@ -1399,29 +1395,9 @@ async function loadNotifs() {
     const badge = document.getElementById('notif-badge');
     if(badge) {
       badge.textContent = nonLues > 9 ? '9+' : nonLues;
-      if(nonLues > 0) {
-        badge.style.display = 'flex';
-        badge.style.alignItems = 'center';
-        badge.style.justifyContent = 'center';
-      } else {
-        badge.style.display = 'none';
-      }
+      badge.style.display = nonLues > 0 ? 'flex' : 'none';
     }
-
-    // Détecter nouvelles notifs → notification navigateur (onglet inactif seulement)
-    const newNotifs = notifs.filter(n => {
-      const lu = n.properties.Lu?.checkbox || false;
-      return !lu && !lastNotifIds.has(n.id);
-    });
-    if(lastNotifIds.size > 0 && newNotifs.length > 0 && document.hidden) {
-      newNotifs.forEach(n => {
-        const msg = n.properties.Message?.title?.[0]?.plain_text || '';
-        const sid = n.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
-        sendBrowserNotif('🎬 Réel Média Production', msg, sid);
-      });
-    }
-    notifs.forEach(n => lastNotifIds.add(n.id));
-
+    
     // Liste
     const list = document.getElementById('notif-list');
     if(!list) return;
@@ -1953,18 +1929,18 @@ function detectVideoType(url) {
 async function openDriveFolder(url) {
   const fileId = getDriveFileId(url);
   if(!fileId) return;
+  // Ouvrir d'abord dans un onglet (avant le fetch pour éviter le blocage popup)
+  const tab = window.open('about:blank', '_blank');
   try {
     const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
     const data = await res.json();
-    if(data.folderUrl) {
-      window.open(data.folderUrl, '_blank');
+    if(data.folderUrl && tab) {
+      tab.location.href = data.folderUrl;
     } else {
-      // Fallback : ouvrir le fichier dans Drive
-      window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+      if(tab) tab.location.href = `https://drive.google.com/file/d/${fileId}/view`;
     }
   } catch(e) {
-    // Fallback : ouvrir le fichier dans Drive
-    window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+    if(tab) tab.location.href = `https://drive.google.com/file/d/${fileId}/view`;
   }
 }
 
