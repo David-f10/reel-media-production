@@ -606,6 +606,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <button class="sb-filter" onclick="appFilter('f','Desk',this)"><span class="sb-dot" style="background:#888780"></span>Desk</button>
       <button class="sb-filter" onclick="appFilter('f','YouTube',this)"><span class="sb-dot" style="background:#1D9E75"></span>YouTube</button>
       <button class="sb-filter" onclick="appFilter('f','Prodige',this)"><span class="sb-dot" style="background:#D4537E"></span>Prodige</button>
+      <button class="sb-filter" onclick="appFilter('f','Interne',this)"><span class="sb-dot" style="background:#5A5A70"></span>⚙️ Interne</button>
     </div>
 
     <div class="sb-bottom">
@@ -669,6 +670,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
           <div class="fmt-opt" onclick="selFmt('Face Cam',this)">Face Cam <span style="font-size:9px;opacity:0.6">▾</span></div>
           <div class="fmt-opt" onclick="selFmt('Desk',this)">Desk <span style="font-size:9px;opacity:0.6">▾</span></div>
           <div class="fmt-opt" onclick="selFmt('YouTube',this)">YouTube</div>
+          <div class="fmt-opt" onclick="selFmt('Interne',this)">⚙️ Interne</div>
         </div>
         <div id="code-prev" style="display:none;margin-top:8px;font-family:var(--mono);font-size:12px;color:var(--red)">Code : <strong id="code-prev-val"></strong></div>
         <div id="sous-format-panel" style="display:none;margin-top:8px">
@@ -838,11 +840,12 @@ const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
+const FORMATS_INTERNES = ['Interne'];
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
 const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
-const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E'};
+const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
 let sujets=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
 let currentUser=null; // {id, nom, role}
@@ -1034,7 +1037,7 @@ function openDetail(id){
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text2)">Format</span>
         <select onchange="upd('${id}','Format','sel',this.value);location.reload()" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
-          ${['MAG','Brand','Face Cam','Desk','YouTube'].map(f=>`<option ${s.format===f?'selected':''}>${f}</option>`).join('')}
+          ${['MAG','Brand','Face Cam','Desk','YouTube','Interne'].map(f=>`<option ${s.format===f?'selected':''}>${f}</option>`).join('')}
         </select>
       </div>
       ${sfOptions.length ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
@@ -1161,6 +1164,27 @@ function openDetail(id){
       <div class="field"><div class="field-label">Date diffusion</div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     </div>
     <div class="field"><div class="field-label">Lien rendu final</div><input type="url" value="${s.lienRendu}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)"></div>`);
+  } // end !isInterne
+
+  // Statut simplifié pour Interne
+  if(isInterne) {
+    html+=`<div class="step">
+      <div class="step-hdr">
+        <span class="step-ttl">📌 Statut</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="upd('${id}','Statut','select','Brief / Idée').then(()=>{s.statut='Brief / Idée';renderCards();openDetail('${id}')})"
+          class="nav-btn ${s.statut==='Brief / Idée'?'primary':''}" style="flex:1;font-size:12px">
+          🔵 En cours
+        </button>
+        <button onclick="upd('${id}','Statut','select','PAD').then(()=>{s.statut='PAD';renderCards();openDetail('${id}')})"
+          class="nav-btn ${s.statut==='PAD'?'primary':''}" style="flex:1;font-size:12px;${s.statut==='PAD'?'background:var(--green);border-color:var(--green)':''}">
+          ✅ Validé
+        </button>
+      </div>
+    </div>`;
+  }
+
   // Retours — même UX que la page review client
   html+=`<div class="step" style="padding:0;overflow:hidden" id="retours-section-${id}">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
