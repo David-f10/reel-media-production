@@ -1170,27 +1170,7 @@ function openDetail(id){
     <div id="retours-list-${id}" style="min-height:40px">
       <div style="padding:14px 16px;font-size:11px;color:var(--text3)">Chargement...</div>
     </div>
-    <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg3)">
-      <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Ajouter un retour rapide</div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input type="text" id="quick-tc-${id}" placeholder="Timecode" style="width:90px;font-family:var(--mono);font-size:12px" onblur="formatTcInline(this)">
-        <select id="quick-cat-${id}" style="flex:1;font-size:12px">
-          <option value="">— Catégorie —</option>
-          <option value="🎵 Musique">🎵 Musique</option>
-          <option value="🎤 Voix">🎤 Voix</option>
-          <option value="🖼 Image">🖼 Image</option>
-          <option value="🎬 Rush">🎬 Rush</option>
-          <option value="🎨 Graphisme">🎨 Graphisme</option>
-          <option value="📺 Accroche">📺 Accroche</option>
-          <option value="💬 Sous-titres">💬 Sous-titres</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:8px;align-items:flex-end">
-        <textarea id="quick-desc-${id}" placeholder="Description du retour..." style="flex:1;min-height:56px;resize:none;font-size:12px"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitQuickRetour('${id}')}"></textarea>
-        <button onclick="submitQuickRetour('${id}')" class="nav-btn primary" style="font-size:11px;padding:7px 12px;white-space:nowrap;height:fit-content">→</button>
-      </div>
-    </div>
+
   </div>`;
 
   // Commentaires
@@ -1878,6 +1858,8 @@ function refreshJournalistesSelects() {
 }
 
 // ─── PLAYER VIDÉO ───
+let activePlayer = null;
+
 function detectVideoType(url) {
   if(!url) return null;
   if(url.includes('drive.google.com')) return 'drive';
@@ -1889,18 +1871,11 @@ function detectVideoType(url) {
 function toEmbedUrl(url, type) {
   if(!url) return null;
   if(type === 'drive') {
-    // Convertir /file/d/ID/view ou /file/d/ID?usp=sharing → /file/d/ID/preview
     const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
     if(match) return `https://drive.google.com/file/d/${match[1]}/preview`;
     return null;
   }
-  if(type === 'frameio') {
-    // Frame.io embed — extraire l'ID de review
-    const match = url.match(/review\/([a-zA-Z0-9_-]+)/);
-    if(match) return `https://app.frame.io/reviews/${match[1]}`;
-    // Sinon utiliser l'URL telle quelle dans l'iframe
-    return url;
-  }
+  if(type === 'frameio') return url;
   if(type === 'vimeo') {
     const match = url.match(/vimeo\.com\/(\d+)/);
     if(match) return `https://player.vimeo.com/video/${match[1]}`;
@@ -1909,162 +1884,205 @@ function toEmbedUrl(url, type) {
   return null;
 }
 
-let activePlayer = null;
-
-// Timecode manuel affiché dans le player
-let playerStartTime = null;
-
 function openPlayer(url, label, sujetId, version) {
-  const type = detectVideoType(url);
-  const embedUrl = toEmbedUrl(url, type);
-  
   const existing = document.getElementById('video-player-modal');
   if(existing) existing.remove();
-  
+
+  const type = detectVideoType(url);
+  const embedUrl = toEmbedUrl(url, type);
+
   if(!embedUrl) {
     window.open(url, '_blank');
     return;
   }
 
-  playerStartTime = Date.now();
+  const s = sujets.find(s => s.id === sujetId);
+
   const modal = document.createElement('div');
   modal.id = 'video-player-modal';
-  modal.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9999;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:20px;
-  `;
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:9999;display:flex;flex-direction:column';
+
   modal.innerHTML = `
-    <div style="width:100%;max-width:960px">
-      <!-- Header -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="font-size:13px;color:#fff;font-weight:500;opacity:0.8">${label}</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <a href="${url}" target="_blank" style="font-size:11px;color:#888;text-decoration:none;border:1px solid #333;padding:4px 10px;border-radius:6px">↗ Ouvrir</a>
-          <button onclick="document.getElementById('video-player-modal').remove()" 
-            style="background:none;border:1px solid #333;color:#888;cursor:pointer;font-size:18px;padding:2px 10px;border-radius:6px;line-height:1.4">×</button>
+    <!-- Header -->
+    <div style="height:48px;background:#0F0F1A;border-bottom:1px solid #1E1E2A;display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:monospace;font-size:11px;color:#E63946;background:rgba(230,57,70,0.12);padding:2px 7px;border-radius:4px">${s?.code||''}</span>
+        <span style="font-size:12px;color:#9898B0">${label}</span>
+      </div>
+      <button onclick="document.getElementById('video-player-modal').remove()"
+        style="background:none;border:1px solid #2A2A3A;color:#5A5A70;cursor:pointer;font-size:16px;padding:3px 10px;border-radius:6px;line-height:1.4;transition:all 0.15s"
+        onmouseover="this.style.color='#F0F0F5'" onmouseout="this.style.color='#5A5A70'">×</button>
+    </div>
+    <!-- Layout -->
+    <div style="flex:1;display:flex;overflow:hidden">
+      <!-- Player -->
+      <div style="flex:1;background:#000;position:relative">
+        <iframe src="${embedUrl}" style="position:absolute;inset:0;width:100%;height:100%;border:none" allowfullscreen allow="autoplay; fullscreen"></iframe>
+      </div>
+      <!-- Panel retours -->
+      <div style="width:340px;flex-shrink:0;background:#0F0F1A;border-left:1px solid #1E1E2A;display:flex;flex-direction:column;overflow:hidden">
+        <!-- Header panel -->
+        <div style="padding:12px 16px;border-bottom:1px solid #1E1E2A;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <span style="font-size:12px;font-weight:600;color:#F0F0F5">📋 Retours équipe</span>
+          <span id="player-retours-count" style="font-size:10px;color:#5A5A70;background:#1E1E2A;padding:2px 8px;border-radius:8px;font-family:monospace">...</span>
+        </div>
+        <!-- Liste retours -->
+        <div id="player-retours-list" style="flex:1;overflow-y:auto">
+          <div style="padding:14px 16px;font-size:11px;color:#5A5A70">Chargement...</div>
+        </div>
+        <!-- Formulaire -->
+        <div style="border-top:1px solid #1E1E2A;padding:12px 16px;background:#16161F;flex-shrink:0">
+          <div style="font-size:10px;font-weight:600;color:#9898B0;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Laisser un retour</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input type="text" id="player-tc" placeholder="1:24" onblur="formatPlayerTc(this)"
+              style="width:70px;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;font-family:monospace;transition:border-color 0.15s"
+              onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A';formatPlayerTc(this)">
+            <select id="player-cat"
+              style="flex:1;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer">
+              <option value="">— Catégorie —</option>
+              <option value="🎵 Musique">🎵 Musique</option>
+              <option value="🎤 Voix">🎤 Voix</option>
+              <option value="🖼 Image">🖼 Image</option>
+              <option value="🎬 Rush">🎬 Rush</option>
+              <option value="🎨 Graphisme">🎨 Graphisme</option>
+              <option value="📺 Accroche">📺 Accroche</option>
+              <option value="💬 Sous-titres">💬 Sous-titres</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <textarea id="player-desc" placeholder="Description du retour..." rows="2"
+              style="flex:1;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:7px 10px;border-radius:6px;font-size:12px;font-family:-apple-system,sans-serif;resize:none;line-height:1.4;transition:border-color 0.15s"
+              onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A'"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitPlayerRetour('${sujetId}','${version}')}"></textarea>
+            <button onclick="submitPlayerRetour('${sujetId}','${version}')"
+              style="background:#E63946;border:none;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500;white-space:nowrap;transition:opacity 0.15s;height:fit-content"
+              onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">→</button>
+          </div>
         </div>
       </div>
-      <!-- Player -->
-      <div style="position:relative;width:100%;padding-bottom:56.25%;background:#000;border-radius:8px;overflow:hidden;margin-bottom:10px">
-        <iframe id="player-iframe" src="${embedUrl}" 
-          style="position:absolute;inset:0;width:100%;height:100%;border:none"
-          allowfullscreen allow="autoplay; fullscreen">
-        </iframe>
-      </div>
-      <!-- Barre de retour -->
-      ${sujetId ? `<div style="background:#111;border:1px solid #222;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:11px;color:#666;white-space:nowrap">📋 Retour rapide</span>
-        <input id="player-tc" type="text" placeholder="Timecode ex: 1:24" 
-          style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;font-family:monospace;width:110px"
-          onblur="formatTimecode(this)" placeholder="ex: 125">
-        <select id="player-cat" style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;flex:1;min-width:120px">
-          <option value="">— Catégorie —</option>
-          <option value="🎵 Musique">🎵 Musique</option>
-            <option value="🎤 Voix">🎤 Voix</option>
-          <option value="🖼 Image">🖼 Image</option>
-          <option value="🎬 Rush">🎬 Rush</option>
-          <option value="🎨 Graphisme">🎨 Graphisme</option>
-          <option value="📺 Accroche">📺 Accroche</option>
-          <option value="💬 Sous-titres">💬 Sous-titres</option>
-        </select>
-
-        <input id="player-desc" type="text" placeholder="Description du retour..." 
-          style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;flex:2;min-width:160px"
-          onkeydown="if(event.key==='Enter')submitPlayerRetour('${sujetId}','${version}')">
-        <button onclick="submitPlayerRetour('${sujetId}','${version}')"
-          style="background:var(--red);border:none;color:#fff;padding:6px 14px;border-radius:5px;font-size:12px;cursor:pointer;white-space:nowrap;font-weight:500">
-          + Ajouter
-        </button>
-        <div id="player-confirm" style="display:none;font-size:11px;color:#1D9E75;width:100%;margin-top:2px">✅ Retour ajouté !</div>
-      </div>` : ''}
     </div>
   `;
+
   modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
   document.body.appendChild(modal);
+
+  // Charger les retours
+  loadPlayerRetours(sujetId, version);
 }
 
-function formatTimecode(input) {
-  // Garder uniquement les chiffres
-  let digits = input.value.replace(/[^0-9]/g, '');
-  if(digits.length === 0) { input.value = ''; return; }
-  // Formater selon le nombre de chiffres
-  // 1-2 chiffres → secondes : "5" → "0:05", "45" → "0:45"
-  // 3 chiffres → "125" → "1:25"
-  // 4 chiffres → "0125" → "1:25" ou "1234" → "12:34"
-  // 5-6 chiffres → "12345" → "1:23:45", "123456" → "12:34:56"
-  let h, m, s;
-  if(digits.length <= 2) {
-    s = digits.padStart(2, '0');
-    input.value = `0:${s}`;
-  } else if(digits.length === 3) {
-    m = digits[0];
-    s = digits.slice(1);
-    input.value = `${m}:${s}`;
-  } else if(digits.length === 4) {
-    m = parseInt(digits.slice(0,2));
-    s = digits.slice(2);
-    if(m >= 60) { // ex: 6789 → 67min → interpréter comme 1:07:89 → h:mm:ss
-      h = digits[0];
-      m = digits.slice(1,3);
-      s = digits.slice(3);
-      input.value = `${h}:${m}:${s}`;
-    } else {
-      input.value = `${m}:${s}`;
+function formatPlayerTc(input) {
+  let d = input.value.replace(/[^0-9]/g,'');
+  if(!d){input.value='';return;}
+  if(d.length<=2) input.value=`0:${d.padStart(2,'0')}`;
+  else if(d.length===3) input.value=`${d[0]}:${d.slice(1)}`;
+  else if(d.length===4) input.value=`${parseInt(d.slice(0,2))}:${d.slice(2)}`;
+  else input.value=`${d[0]}:${d.slice(1,3)}:${d.slice(3,5)}`;
+}
+
+async function loadPlayerRetours(sujetId, version) {
+  const listEl = document.getElementById('player-retours-list');
+  const countEl = document.getElementById('player-retours-count');
+  if(!listEl) return;
+  try {
+    const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
+      filter: {property:'Sujet ID', rich_text:{equals: sujetId}},
+      sorts: [{property:'Version', direction:'ascending'},{timestamp:'created_time', direction:'ascending'}]
+    });
+    const retours = data.results;
+    const ouverts = retours.filter(r => r.properties.Statut?.select?.name === 'Ouvert').length;
+    if(countEl) countEl.textContent = ouverts > 0 ? `${ouverts} ouvert${ouverts>1?'s':''}` : retours.length ? '✅ Tout corrigé' : '0 retour';
+
+    if(!retours.length) {
+      listEl.innerHTML = '<div style="padding:20px 16px;font-size:12px;color:#5A5A70;text-align:center">Aucun retour<br><span style="font-size:11px">Soyez le premier à en laisser un</span></div>';
+      return;
     }
-  } else if(digits.length === 5) {
-    h = digits[0];
-    m = digits.slice(1,3);
-    s = digits.slice(3);
-    input.value = `${h}:${m}:${s}`;
-  } else {
-    h = digits.slice(0,2);
-    m = digits.slice(2,4);
-    s = digits.slice(4,6);
-    input.value = `${parseInt(h)}:${m}:${s}`;
+
+    // Grouper par version
+    const byVersion = {};
+    retours.forEach(r => {
+      const v = r.properties.Version?.select?.name || '—';
+      if(!byVersion[v]) byVersion[v] = [];
+      byVersion[v].push(r);
+    });
+
+    let html = '';
+    Object.entries(byVersion).forEach(([v, items]) => {
+      const ouvertsV = items.filter(r => r.properties.Statut?.select?.name === 'Ouvert').length;
+      const isActive = v === version;
+      html += `<div style="font-size:10px;font-weight:600;color:${isActive?'#E63946':'#5A5A70'};text-transform:uppercase;letter-spacing:0.08em;padding:7px 14px;background:#16161F;border-bottom:1px solid #1E1E2A;position:sticky;top:0">
+        ${v} <span style="font-weight:400;opacity:0.7">${ouvertsV} ouvert${ouvertsV>1?'s':''}</span>
+        ${!isActive?'<span style="font-size:9px;color:#5A5A70;margin-left:4px">(autre version)</span>':''}
+      </div>`;
+      items.forEach(r => {
+        const pr = r.properties;
+        const desc = pr.Description?.title?.[0]?.plain_text || '';
+        const cat = pr['Catégorie']?.select?.name || '';
+        const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+        const statut = pr.Statut?.select?.name || 'Ouvert';
+        const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
+        const source = pr.Source?.select?.name || 'Équipe';
+        const date = new Date(r.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+        const corrige = statut === 'Corrigé';
+        const impossible = statut === '⛔ Impossible';
+        const opacity = (!isActive || corrige || impossible) ? 'opacity:0.45;' : '';
+
+        html += `<div style="${opacity}display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1E1E2A;${impossible?'border-left:2px solid #ff6b35':''};transition:background 0.1s"
+          onmouseover="this.style.background='#16161F'" onmouseout="this.style.background='transparent'">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
+              ${tc?`<span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tc}</span>`:''}
+              ${cat?`<span style="font-size:10px;color:#5A5A70;background:#1E1E2A;padding:1px 6px;border-radius:4px">${cat}</span>`:''}
+              ${source==='Client'?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(239,159,39,0.15);color:#EF9F27;border:1px solid rgba(239,159,39,0.3)">Client</span>`:''}
+              ${corrige?`<span style="font-size:10px;color:#1D9E75">✓ Corrigé</span>`:''}
+              ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
+            </div>
+            <div style="font-size:12px;color:#9898B0;line-height:1.5">${corrige?'<s>'+desc+'</s>':desc}</div>
+            ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||''}</div>`:''}
+            <div style="font-size:10px;color:#5A5A70;margin-top:4px">${auteur} · ${date}</div>
+          </div>
+          ${!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+            <div onclick="toggleRetourPlayer('${r.id}','${sujetId}','${version}')" title="Marquer corrigé"
+              style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s;color:#1D9E75"
+              onmouseover="this.style.borderColor='#1D9E75';this.style.background='rgba(29,158,117,0.1)'"
+              onmouseout="this.style.borderColor='#2A2A3A';this.style.background='transparent'"></div>
+            <div onclick="ouvrirImpossiblePlayer('${r.id}','${sujetId}','${version}')" title="Impossible"
+              style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s"
+              onmouseover="this.style.borderColor='#ff6b35'" onmouseout="this.style.borderColor='#2A2A3A'">⛔</div>
+          </div>`:''}
+        </div>`;
+      });
+    });
+    listEl.innerHTML = html;
+  } catch(e) {
+    if(listEl) listEl.innerHTML = `<div style="padding:14px 16px;font-size:11px;color:#E63946">Erreur chargement</div>`;
   }
 }
 
-async function submitPlayerRetour(sujetId, version) {
-  if(!currentUser) { alert("Connectez-vous pour laisser un retour"); return; }
-  const tc = document.getElementById('player-tc')?.value.trim() || '';
-  const cat = document.getElementById('player-cat')?.value || '';
-  const niveau = document.getElementById('player-niveau')?.value || '';
-  const desc = document.getElementById('player-desc')?.value.trim() || '';
-  if(!desc) { document.getElementById('player-desc').style.borderColor='var(--red)'; return; }
-  
-  const sujet = sujets.find(s => s.id === sujetId);
+async function toggleRetourPlayer(retourId, sujetId, version) {
   try {
-    await api('/pages', 'POST', {
-      parent: {database_id: '02880609-ee82-4acc-b239-d8aac9cae439'},
-      properties: {
-        'Description': {title: [{text:{content:desc}}]},
-        'Version': {select:{name: version}},
-        'Catégorie': {select:{name: cat}},
+    await api('/pages/'+retourId,'PATCH',{properties:{'Statut':{select:{name:'Corrigé'}}}});
+    toast('✓ Marqué corrigé','ok');
+    loadPlayerRetours(sujetId, version);
+    loadRetours(sujetId); // Sync avec la fiche
+  } catch(e) { toast('Erreur','err'); }
+}
 
-        'Timecode': {rich_text:[{text:{content:tc}}]},
-        'Statut': {select:{name: 'Ouvert'}},
-        'Auteur': {rich_text:[{text:{content:currentUser.nom}}]},
-        'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
-        'Sujet titre': {rich_text:[{text:{content:sujet?.titre||''}}]}
-      }
-    });
-    // Feedback visuel
-    document.getElementById('player-desc').value = '';
-    document.getElementById('player-tc').value = '';
-    document.getElementById('player-desc').style.borderColor = '#333';
-    const confirm = document.getElementById('player-confirm');
-    if(confirm) { confirm.style.display='block'; setTimeout(()=>confirm.style.display='none',2000); }
-    // Recharger les retours dans la fiche
-    loadRetours(sujetId);
-    // Notif au journaliste
-    if(sujet && sujet.journaliste && currentUser && sujet.journaliste !== currentUser.nom) {
-      await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom,
-        `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`);
-      loadNotifs();
-    }
-  } catch(e) {
-    alert('Erreur : ' + e.message);
+let playerImpossibleData = null;
+function ouvrirImpossiblePlayer(retourId, sujetId, version) {
+  playerImpossibleData = {retourId, sujetId, version};
+  impossibleRetourId = retourId;
+  impossibleSujetId = sujetId;
+  document.getElementById('impossible-raison').value='';
+  openOv('ov-impossible');
+}
+
+// Override confirmerImpossible pour recharger le player aussi
+const _origConfirmerImpossible = confirmerImpossible;
+async function confirmerImpossible() {
+  await _origConfirmerImpossible();
+  if(playerImpossibleData) {
+    loadPlayerRetours(playerImpossibleData.sujetId, playerImpossibleData.version);
+    playerImpossibleData = null;
   }
 }
 
