@@ -741,6 +741,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- MODAL RETOUR IMPOSSIBLE -->
+<div class="overlay" id="ov-impossible">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-hdr">
+      <div class="modal-title">⛔ Retour impossible</div>
+      <button class="modal-close" onclick="closeOv('ov-impossible')">×</button>
+    </div>
+    <div style="padding:18px 20px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Expliquez pourquoi ce retour ne peut pas être réalisé. Le chef sera notifié.</p>
+      <div class="field">
+        <div class="field-label">Raison</div>
+        <textarea id="impossible-raison" placeholder="Ex: Le rush n'existe pas, la prise n'a pas été faite..." style="min-height:80px"></textarea>
+      </div>
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button class="nav-btn" onclick="closeOv('ov-impossible')">Annuler</button>
+      <button class="nav-btn primary" onclick="confirmerImpossible()" style="background:#ff6b35;border-color:#ff6b35">⛔ Confirmer</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL AJOUT RETOUR -->
 <div class="overlay" id="ov-retour">
   <div class="modal" style="max-width:440px">
@@ -767,6 +788,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div class="field">
           <div class="field-label">Catégorie</div>
           <select id="ret-categorie">
+            <option value="">— Sans catégorie —</option>
             <option value="🔊 Audio">🔊 Audio</option>
             <option value="🖼 Image">🖼 Image</option>
             <option value="🎬 Rush">🎬 Rush</option>
@@ -775,14 +797,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
             <option value="💬 Sous-titres">💬 Sous-titres</option>
           </select>
         </div>
-        <div class="field">
-          <div class="field-label">Niveau</div>
-          <select id="ret-niveau">
-            <option value="🔴 Bloquant">🔴 Bloquant</option>
-            <option value="🟠 Important">🟠 Important</option>
-            <option value="🟡 Suggestion">🟡 Suggestion</option>
-          </select>
-        </div>
+
       </div>
       <div class="field">
         <div class="field-label">Description *</div>
@@ -1104,7 +1119,10 @@ function openDetail(id){
           <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="onLienBlur(this,'${id}',${v})" style="flex:1">
           ${s['lien'+v] ? `<button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}','${id}','V${v}')" 
             style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;flex-shrink:0" 
-            title="Visionner">▶</button>` : ''}
+            title="Visionner">▶</button>
+          <button onclick="copierLienClient('${id}','V${v}','${s['lien'+v]}')"
+            style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0"
+            title="Copier lien client">🔗 Client</button>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
           <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
@@ -1422,7 +1440,7 @@ async function submitRetour() {
         'Description': {title: [{text:{content:desc}}]},
         'Version': {select:{name: document.getElementById('ret-version').value}},
         'Catégorie': {select:{name: document.getElementById('ret-categorie').value}},
-        'Niveau': {select:{name: document.getElementById('ret-niveau').value}},
+
         'Timecode': {rich_text:[{text:{content: document.getElementById('ret-timecode').value.trim()}}]},
         'Statut': {select:{name: 'Ouvert'}},
         'Auteur': {rich_text:[{text:{content: currentUser.nom}}]},
@@ -1444,6 +1462,57 @@ async function submitRetour() {
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
+}
+
+// ─── RETOUR IMPOSSIBLE ───
+let impossibleRetourId = null;
+let impossibleSujetId = null;
+
+function ouvrirImpossible(retourId, sujetId) {
+  impossibleRetourId = retourId;
+  impossibleSujetId = sujetId;
+  document.getElementById('impossible-raison').value = '';
+  openOv('ov-impossible');
+}
+
+async function confirmerImpossible() {
+  const raison = document.getElementById('impossible-raison').value.trim() || 'Impossible à réaliser';
+  try {
+    await api('/pages/' + impossibleRetourId, 'PATCH', {
+      properties: {
+        'Statut': {select:{name:'⛔ Impossible'}},
+        'Raison impossible': {rich_text:[{text:{content:raison}}]}
+      }
+    });
+    // Notif au chef qui avait laissé le retour
+    const s = sujets.find(s => s.id === impossibleSujetId);
+    if(s && currentUser) {
+      await createNotif('retour', impossibleSujetId, s.code, s.titre, s.chef, currentUser.nom,
+        `⛔ Retour impossible sur ${s.code} — ${raison}`);
+      loadNotifs();
+    }
+    closeOv('ov-impossible');
+    toast('Retour marqué impossible', 'ok');
+    loadRetours(impossibleSujetId);
+  } catch(e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
+// ─── LIEN CLIENT ───
+function genererLienClient(sujetId, version, lienVideo) {
+  const base = window.location.origin + window.location.pathname.replace('index.html','');
+  return `${base}review.html?id=${sujetId}&v=${encodeURIComponent(version)}&url=${encodeURIComponent(lienVideo)}`;
+}
+
+async function copierLienClient(sujetId, version, lienVideo) {
+  const lien = genererLienClient(sujetId, version, lienVideo);
+  try {
+    await navigator.clipboard.writeText(lien);
+    toast('Lien client copié 📋', 'ok');
+    // Sauvegarder le lien dans Notion
+    await api('/pages/' + sujetId, 'PATCH', {
+      properties: {'Lien client': {url: lien}}
+    });
+  } catch(e) { toast(lien, 'ok'); }
 }
 
 async function loadRetours(sujetId) {
@@ -1498,6 +1567,7 @@ async function loadRetours(sujetId) {
               ${tc ? `<span class="retour-tc">${tc}</span>` : ''}
             </div>
             <div class="retour-desc">${corrige?'<s>'+desc+'</s>':desc}</div>
+            ${statut==='⛔ Impossible'?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">⛔ ${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
             <div style="font-size:10px;color:var(--text3);margin-top:4px">${auteur} · ${date}</div>
           </div>
           <div class="retour-check ${corrige?'done':''}" onclick="toggleRetour('${r.id}','${sujetId}','${corrige?'Ouvert':'Corrigé'}')" title="${corrige?'Réouvrir':'Marquer corrigé'}">
@@ -1861,6 +1931,7 @@ function openPlayer(url, label, sujetId, version) {
           style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;font-family:monospace;width:110px"
           onblur="formatTimecode(this)" placeholder="ex: 125">
         <select id="player-cat" style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;flex:1;min-width:120px">
+          <option value="">— Catégorie —</option>
           <option value="🔊 Audio">🔊 Audio</option>
           <option value="🖼 Image">🖼 Image</option>
           <option value="🎬 Rush">🎬 Rush</option>
@@ -1868,11 +1939,7 @@ function openPlayer(url, label, sujetId, version) {
           <option value="📺 Accroche">📺 Accroche</option>
           <option value="💬 Sous-titres">💬 Sous-titres</option>
         </select>
-        <select id="player-niveau" style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px">
-          <option value="🔴 Bloquant">🔴 Bloquant</option>
-          <option value="🟠 Important">🟠 Important</option>
-          <option value="🟡 Suggestion">🟡 Suggestion</option>
-        </select>
+
         <input id="player-desc" type="text" placeholder="Description du retour..." 
           style="background:#000;border:1px solid #333;color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;flex:2;min-width:160px"
           onkeydown="if(event.key==='Enter')submitPlayerRetour('${sujetId}','${version}')">
@@ -1945,7 +2012,7 @@ async function submitPlayerRetour(sujetId, version) {
         'Description': {title: [{text:{content:desc}}]},
         'Version': {select:{name: version}},
         'Catégorie': {select:{name: cat}},
-        'Niveau': {select:{name: niveau}},
+
         'Timecode': {rich_text:[{text:{content:tc}}]},
         'Statut': {select:{name: 'Ouvert'}},
         'Auteur': {rich_text:[{text:{content:currentUser.nom}}]},
