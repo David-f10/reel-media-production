@@ -1949,15 +1949,13 @@ function openPlayer(url, label, sujetId, version) {
               <option value="💬 Sous-titres">💬 Sous-titres</option>
             </select>
           </div>
-          <div style="display:flex;gap:8px;align-items:flex-end">
-            <textarea id="player-desc" placeholder="Description du retour..." rows="2"
-              style="flex:1;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:7px 10px;border-radius:6px;font-size:12px;font-family:-apple-system,sans-serif;resize:none;line-height:1.4;transition:border-color 0.15s"
+          <textarea id="player-desc" placeholder="Description du retour..." rows="2"
+              style="width:100%;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:7px 10px;border-radius:6px;font-size:12px;font-family:-apple-system,sans-serif;resize:none;line-height:1.4;transition:border-color 0.15s;margin-bottom:8px;box-sizing:border-box"
               onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A'"
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitPlayerRetour('${sujetId}','${version}')}"></textarea>
-            <button onclick="submitPlayerRetour('${sujetId}','${version}')"
-              style="background:#E63946;border:none;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500;white-space:nowrap;transition:opacity 0.15s;height:fit-content"
-              onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">→</button>
-          </div>
+          <button onclick="submitPlayerRetour('${sujetId}','${version}')"
+            style="width:100%;background:#E63946;border:none;color:#fff;padding:9px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500;transition:opacity 0.15s;font-family:-apple-system,sans-serif"
+            onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer →</button>
         </div>
       </div>
     </div>
