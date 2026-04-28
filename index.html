@@ -1856,6 +1856,25 @@ function detectVideoType(url) {
   return null;
 }
 
+// Ouvrir le dossier parent Drive via l'API
+async function openDriveFolder(url) {
+  const fileId = getDriveFileId(url);
+  if(!fileId) return;
+  try {
+    const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
+    const data = await res.json();
+    if(data.folderUrl) {
+      window.open(data.folderUrl, '_blank');
+    } else {
+      // Fallback : ouvrir le fichier dans Drive
+      window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+    }
+  } catch(e) {
+    // Fallback : ouvrir le fichier dans Drive
+    window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+  }
+}
+
 function getDriveFileId(url) {
   const m = url ? url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) : null;
   return m ? m[1] : '';
