@@ -1407,12 +1407,12 @@ async function loadNotifs() {
         badge.style.display = 'none';
       }
     }
-    // Détecter nouvelles notifs → notification navigateur
+
+    // Détecter nouvelles notifs → notification navigateur (onglet inactif seulement)
     const newNotifs = notifs.filter(n => {
       const lu = n.properties.Lu?.checkbox || false;
       return !lu && !lastNotifIds.has(n.id);
     });
-    // N'envoyer une notif navigateur que si l'onglet est inactif ET qu'on a déjà chargé une fois
     if(lastNotifIds.size > 0 && newNotifs.length > 0 && document.hidden) {
       newNotifs.forEach(n => {
         const msg = n.properties.Message?.title?.[0]?.plain_text || '';
@@ -1420,9 +1420,8 @@ async function loadNotifs() {
         sendBrowserNotif('🎬 Réel Média Production', msg, sid);
       });
     }
-    // Initialiser lastNotifIds si premier chargement
     notifs.forEach(n => lastNotifIds.add(n.id));
-    
+
     // Liste
     const list = document.getElementById('notif-list');
     if(!list) return;
