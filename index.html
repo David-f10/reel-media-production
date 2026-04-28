@@ -1929,18 +1929,24 @@ function detectVideoType(url) {
 async function openDriveFolder(url) {
   const fileId = getDriveFileId(url);
   if(!fileId) return;
-  // Ouvrir d'abord dans un onglet (avant le fetch pour éviter le blocage popup)
-  const tab = window.open('about:blank', '_blank');
   try {
     const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
     const data = await res.json();
-    if(data.folderUrl && tab) {
-      tab.location.href = data.folderUrl;
-    } else {
-      if(tab) tab.location.href = `https://drive.google.com/file/d/${fileId}/view`;
-    }
+    const target = data.folderUrl || `https://drive.google.com/file/d/${fileId}/view`;
+    const a = document.createElement('a');
+    a.href = target;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   } catch(e) {
-    if(tab) tab.location.href = `https://drive.google.com/file/d/${fileId}/view`;
+    const a = document.createElement('a');
+    a.href = `https://drive.google.com/file/d/${fileId}/view`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 }
 
