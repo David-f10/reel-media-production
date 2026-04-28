@@ -1929,18 +1929,20 @@ function detectVideoType(url) {
 async function openDriveFolder(url) {
   const fileId = getDriveFileId(url);
   if(!fileId) return;
-  // Ouvrir d'abord un onglet vide (contexte synchrone du clic)
-  const win = window.open('', '_blank');
+  // Afficher un toast avec le lien cliquable
+  const t = document.getElementById('toast');
+  t.innerHTML = 'Chargement du dossier...';
+  t.className = 'toast ok show';
   try {
     const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
     const data = await res.json();
-    if(data.folderUrl && win) {
-      win.location.href = data.folderUrl;
-    } else if(win) {
-      win.location.href = `https://drive.google.com/file/d/${fileId}/view`;
-    }
+    const folderUrl = data.folderUrl || `https://drive.google.com/file/d/${fileId}/view`;
+    t.innerHTML = `<a href="${folderUrl}" target="_blank" rel="noopener" style="color:var(--green);text-decoration:underline">📁 Ouvrir le dossier →</a>`;
+    t.className = 'toast ok show';
+    setTimeout(() => t.classList.remove('show'), 8000);
   } catch(e) {
-    if(win) win.location.href = `https://drive.google.com/file/d/${fileId}/view`;
+    t.innerHTML = `<a href="https://drive.google.com/file/d/${fileId}/view" target="_blank" style="color:var(--green);text-decoration:underline">📁 Ouvrir dans Drive →</a>`;
+    setTimeout(() => t.classList.remove('show'), 8000);
   }
 }
 
