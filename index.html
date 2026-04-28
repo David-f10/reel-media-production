@@ -1018,6 +1018,7 @@ function openDetail(id){
   document.getElementById('d-title').innerHTML=`<input type="text" id="d-titre-input" value="${s.titre}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;font-family:var(--font);letter-spacing:-0.02em;width:100%;padding:2px 0" onblur="upd('${s.id}','Titre','titre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">` ;
   document.getElementById('d-meta').textContent=`Chef : ${s.chef||'—'} · Journaliste : ${s.journaliste||'—'}${s.diffusion?' · Diffusion : '+fmtDate(s.diffusion):''}`;
   const hasTour=NEEDS_TOUR.includes(s.format)||(s.format==='Desk'&&s.sousFormat==='Prodige');
+  const isInterne = s.format === 'Interne';
   const stIdx=STATUS_ORDER.indexOf(s.statut);
   let html=`<div class="stepper">${STATUS_ORDER.map((st,i)=>{
     const cl=st===s.statut?'cur':i<stIdx?'done':'';
