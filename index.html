@@ -942,6 +942,12 @@ function parsePage(p){
     code:getCode(pr),
     created:p.created_time||'',
     lastEdited:p.last_edited_time||'',
+    livrable1:pr['Livrable L1']?.url||'',
+    livrable2:pr['Livrable L2']?.url||'',
+    livrable3:pr['Livrable L3']?.url||'',
+    typeL1:pr['Type L1']?.select?.name||'',
+    typeL2:pr['Type L2']?.select?.name||'',
+    typeL3:pr['Type L3']?.select?.name||'',
     retoursOuverts:0};  // rempli après chargement
 }
 
@@ -1168,23 +1174,68 @@ function openDetail(id){
     <div class="field"><div class="field-label">Lien rendu final</div><input type="url" value="${s.lienRendu}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)"></div>`);
   } // end !isInterne
 
-  // Statut simplifié pour Interne
+  // Statut + Livrables pour Interne
   if(isInterne) {
     html+=`<div class="step">
-      <div class="step-hdr">
+      <div class="step-hdr" style="cursor:default">
         <span class="step-ttl">📌 Statut</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button onclick="upd('${id}','Statut','select','Brief / Idée').then(()=>{s.statut='Brief / Idée';renderCards();openDetail('${id}')})"
-          class="nav-btn ${s.statut==='Brief / Idée'?'primary':''}" style="flex:1;font-size:12px">
+          class="nav-btn ${s.statut!=='PAD'?'primary':''}" style="flex:1;font-size:12px">
           🔵 En cours
         </button>
         <button onclick="upd('${id}','Statut','select','PAD').then(()=>{s.statut='PAD';renderCards();openDetail('${id}')})"
-          class="nav-btn ${s.statut==='PAD'?'primary':''}" style="flex:1;font-size:12px;${s.statut==='PAD'?'background:var(--green);border-color:var(--green)':''}">
+          class="nav-btn" style="flex:1;font-size:12px;${s.statut==='PAD'?'background:var(--green);border-color:var(--green);color:#fff':''}">
           ✅ Validé
         </button>
       </div>
     </div>`;
+
+    // Step Livrables
+    const livrables = [
+      {n:1, url:s.livrable1, type:s.typeL1},
+      {n:2, url:s.livrable2, type:s.typeL2},
+      {n:3, url:s.livrable3, type:s.typeL3}
+    ];
+    const nbLivrables = livrables.filter(l=>l.url).length;
+    const livPill = nbLivrables===3?'p-green 3 livrables':nbLivrables===2?'p-green 2 livrables':nbLivrables===1?'p-amber 1 livrable':'p-gray Aucun';
+    html+=step('📦 Livrables', livPill,
+      livrables.map(l=>`
+        <div class="field" style="margin-bottom:10px">
+          <div class="field-label" style="margin-bottom:4px">
+            <span>Livrable ${l.n}</span>
+            <div style="display:inline-flex;gap:4px;margin-left:8px">
+              <button onclick="setTypeLivrable('${id}',${l.n},'Vidéo')"
+                style="padding:1px 7px;border-radius:3px;font-size:10px;border:1px solid var(--border);cursor:pointer;${(l.type==='Vidéo'||(!l.type&&l.url))?'background:var(--blue);color:#fff;border-color:var(--blue)':'background:var(--bg3);color:var(--text3)'}">
+                📹 Vidéo
+              </button>
+              <button onclick="setTypeLivrable('${id}',${l.n},'Autre')"
+                style="padding:1px 7px;border-radius:3px;font-size:10px;border:1px solid var(--border);cursor:pointer;${l.type==='Autre'?'background:var(--text3);color:#fff;border-color:var(--text3)':'background:var(--bg3);color:var(--text3)'}">
+                🖼 Autre
+              </button>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="url" value="${l.url||''}" placeholder="Coller le lien..." style="flex:1"
+              onblur="saveLivrable('${id}',${l.n},this.value)"
+              onkeydown="if(event.key==='Enter'){saveLivrable('${id}',${l.n},this.value);this.blur()}">
+            ${l.url && (l.type==='Vidéo' || !l.type) ? `
+              <button onclick="openPlayer('${l.url}','Livrable ${l.n} · ${s.titre}','${id}','L${l.n}')"
+                style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;flex-shrink:0" title="Visionner">▶</button>
+            ` : ''}
+            ${l.url && l.type==='Autre' ? `
+              <a href="${l.url}" target="_blank"
+                style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0;text-decoration:none">
+                ↗ Ouvrir
+              </a>
+            ` : ''}
+            ${l.url && l.url.includes('drive.google.com') ? `
+              <a href="#" onclick="event.preventDefault();openDriveFolder('${l.url}')"
+                style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0;text-decoration:none" title="Dossier Drive">📁</a>
+            ` : ''}
+          </div>
+        </div>`).join(''));
   }
 
   // Retours — même UX que la page review client
@@ -1494,6 +1545,25 @@ async function submitRetour() {
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
+}
+
+// ─── LIVRABLES INTERNE ───
+async function saveLivrable(sujetId, n, val) {
+  const s = sujets.find(s => s.id === sujetId);
+  if(!s) return;
+  const key = `livrable${n}`;
+  if(val === (s[key]||'')) return;
+  s[key] = val;
+  await api('/pages/'+sujetId,'PATCH',{properties:{[`Livrable L${n}`]:{url: val||null}}});
+  openDetail(sujetId);
+}
+
+async function setTypeLivrable(sujetId, n, type) {
+  const s = sujets.find(s => s.id === sujetId);
+  if(!s) return;
+  s[`typeL${n}`] = type;
+  await api('/pages/'+sujetId,'PATCH',{properties:{[`Type L${n}`]:{select:{name:type}}}});
+  openDetail(sujetId);
 }
 
 // ─── RETOUR IMPOSSIBLE ───
