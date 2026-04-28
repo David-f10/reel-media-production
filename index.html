@@ -2085,11 +2085,6 @@ async function confirmerImpossible() {
     }
   } catch(e) { toast('Erreur : ' + e.message, 'err'); }
 }
-  if(playerImpossibleData) {
-    loadPlayerRetours(playerImpossibleData.sujetId, playerImpossibleData.version);
-    playerImpossibleData = null;
-  }
-}
 
 // ─── RECHERCHE ───
 let searchQuery = '';
