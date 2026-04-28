@@ -1098,6 +1098,7 @@ function openDetail(id){
       </select>
       ${s.lieuTour==='Studio'?'<div style="font-size:10px;color:var(--text3);margin-top:3px">Sony FX30 assignée automatiquement en Studio</div>':''}</div>
     </div>`);}
+  if(!isInterne) {
   html+=step('Post-prod · Stockage',s.stockage?`p-blue ${s.stockage}`:'p-gray Non défini',
     `<div class="fg">
       <div class="field"><div class="field-label">Stockage</div>
