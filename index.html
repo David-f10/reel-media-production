@@ -1371,8 +1371,6 @@ async function loadNotifs() {
     }
     // Initialiser lastNotifIds si premier chargement
     notifs.forEach(n => lastNotifIds.add(n.id));
-    // Mettre à jour les badges sur les cartes
-    loadRetoursBadges();
     
     // Liste
     const list = document.getElementById('notif-list');
@@ -3125,7 +3123,7 @@ async function appLoadData() {
       };
     });
     document.getElementById('cnt-all').textContent = sujets.length;
-    // Charger le nb de retours ouverts pour les badges
+    // Charger le nb de notifs non lues pour les badges cartes — une seule fois
     loadRetoursBadges();
     appRender();
   } catch(e) {
