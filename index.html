@@ -1158,17 +1158,38 @@ function openDetail(id){
       <div class="field"><div class="field-label">Date diffusion</div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     </div>
     <div class="field"><div class="field-label">Lien rendu final</div><input type="url" value="${s.lienRendu}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)"></div>`);
-  // Retours
-  html+=`<div class="step" id="retours-section-${id}">
-    <div class="step-hdr" style="cursor:default">
-      <span class="step-ttl">📋 Retours</span>
+  // Retours — même UX que la page review client
+  html+=`<div class="step" style="padding:0;overflow:hidden" id="retours-section-${id}">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <span class="step-ttl">📋 Retours équipe</span>
       <div style="display:flex;align-items:center;gap:8px">
-        <span class="pill p-gray" id="retours-count-${id}">...</span>
+        <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:8px;font-family:var(--mono)" id="retours-count-${id}">...</span>
         <button onclick="openAjoutRetour('${id}')" class="nav-btn primary" style="font-size:10px;padding:3px 10px">+ Ajouter</button>
       </div>
     </div>
-    <div id="retours-list-${id}">
-      <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+    <div id="retours-list-${id}" style="min-height:40px">
+      <div style="padding:14px 16px;font-size:11px;color:var(--text3)">Chargement...</div>
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--bg3)">
+      <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Ajouter un retour rapide</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input type="text" id="quick-tc-${id}" placeholder="Timecode" style="width:90px;font-family:var(--mono);font-size:12px" onblur="formatTcInline(this)">
+        <select id="quick-cat-${id}" style="flex:1;font-size:12px">
+          <option value="">— Catégorie —</option>
+          <option value="🎵 Musique">🎵 Musique</option>
+          <option value="🎤 Voix">🎤 Voix</option>
+          <option value="🖼 Image">🖼 Image</option>
+          <option value="🎬 Rush">🎬 Rush</option>
+          <option value="🎨 Graphisme">🎨 Graphisme</option>
+          <option value="📺 Accroche">📺 Accroche</option>
+          <option value="💬 Sous-titres">💬 Sous-titres</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <textarea id="quick-desc-${id}" placeholder="Description du retour..." style="flex:1;min-height:56px;resize:none;font-size:12px"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitQuickRetour('${id}')}"></textarea>
+        <button onclick="submitQuickRetour('${id}')" class="nav-btn primary" style="font-size:11px;padding:7px 12px;white-space:nowrap;height:fit-content">→</button>
+      </div>
     </div>
   </div>`;
 
