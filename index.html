@@ -1480,28 +1480,6 @@ function ouvrirImpossible(retourId, sujetId) {
   openOv('ov-impossible');
 }
 
-async function confirmerImpossible() {
-  const raison = document.getElementById('impossible-raison').value.trim() || 'Impossible à réaliser';
-  try {
-    await api('/pages/' + impossibleRetourId, 'PATCH', {
-      properties: {
-        'Statut': {select:{name:'⛔ Impossible'}},
-        'Raison impossible': {rich_text:[{text:{content:raison}}]}
-      }
-    });
-    // Notif au chef qui avait laissé le retour
-    const s = sujets.find(s => s.id === impossibleSujetId);
-    if(s && currentUser) {
-      await createNotif('retour', impossibleSujetId, s.code, s.titre, s.chef, currentUser.nom,
-        `⛔ Retour impossible sur ${s.code} — ${raison}`);
-      loadNotifs();
-    }
-    closeOv('ov-impossible');
-    toast('Retour marqué impossible', 'ok');
-    loadRetours(impossibleSujetId);
-  } catch(e) { toast('Erreur : ' + e.message, 'err'); }
-}
-
 // ─── LIEN CLIENT ───
 function genererLienClient(sujetId, version, lienVideo) {
   const s = sujets.find(s => s.id === sujetId);
@@ -2082,9 +2060,31 @@ function ouvrirImpossiblePlayer(retourId, sujetId, version) {
 }
 
 // Override confirmerImpossible pour recharger le player aussi
-const _origConfirmerImpossible = confirmerImpossible;
 async function confirmerImpossible() {
-  await _origConfirmerImpossible();
+  const raison = document.getElementById('impossible-raison').value.trim() || 'Impossible à réaliser';
+  try {
+    await api('/pages/' + impossibleRetourId, 'PATCH', {
+      properties: {
+        'Statut': {select:{name:'⛔ Impossible'}},
+        'Raison impossible': {rich_text:[{text:{content:raison}}]}
+      }
+    });
+    const s = sujets.find(s => s.id === impossibleSujetId);
+    if(s && currentUser) {
+      await createNotif('retour', impossibleSujetId, s.code, s.titre, s.chef, currentUser.nom,
+        `⛔ Retour impossible sur ${s.code} — ${raison}`);
+      loadNotifs();
+    }
+    closeOv('ov-impossible');
+    toast('Retour marqué impossible', 'ok');
+    loadRetours(impossibleSujetId);
+    // Recharger le player si ouvert
+    if(playerImpossibleData) {
+      loadPlayerRetours(playerImpossibleData.sujetId, playerImpossibleData.version);
+      playerImpossibleData = null;
+    }
+  } catch(e) { toast('Erreur : ' + e.message, 'err'); }
+}
   if(playerImpossibleData) {
     loadPlayerRetours(playerImpossibleData.sujetId, playerImpossibleData.version);
     playerImpossibleData = null;
