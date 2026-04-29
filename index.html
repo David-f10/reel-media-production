@@ -1814,7 +1814,7 @@ async function postComment(sujetId) {
   const sujet = sujets.find(s => s.id === sujetId);
   try {
     await api('/pages', 'POST', {
-      parent: {database_id: 'cd4c4bc9-f948-4887-8712-0e083c957bcc'},
+      parent: {database_id: '45fda8a6-dfbc-42c1-a26f-de09c289037b'},
       properties: {
         'Commentaire': {title: [{text:{content:texte}}]},
         'Auteur': {rich_text:[{text:{content:currentUser.nom}}]},
