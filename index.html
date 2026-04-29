@@ -1136,7 +1136,7 @@ function openDetail(id){
             <button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}','${id}','V${v}')" 
               style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;flex-shrink:0" 
               title="Visionner">▶</button>
-            ${s['lien'+v].includes('drive.google.com') ? '<a href="https://drive.google.com/file/d/'+getDriveFileId(s['lien'+v])+'/view" target="_blank" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0;text-decoration:none;display:inline-flex;align-items:center" title="Ouvrir dans Drive">📁</a>' : ''}
+            ${s['lien'+v].includes('drive.google.com') ? '<a href="#" onclick="openDriveFolderSync(\'' + s['lien'+v] + '\');return false;" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0;text-decoration:none;display:inline-flex;align-items:center" title="Ouvrir le dossier Drive">📁</a>' : ''}
             <button onclick="copierLienClient('${id}','V${v}','${s['lien'+v]}')"
               style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0"
               title="Partager pour retours">🔗</button>
@@ -1231,7 +1231,7 @@ function openDetail(id){
               </a>
             ` : ''}
             ${l.url && l.url.includes('drive.google.com') ? `
-              <a href="#" onclick="event.preventDefault();openDriveFolder('${l.url}')"
+              <a href="#" onclick="openDriveFolderSync('${l.url}')"
                 style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0;text-decoration:none" title="Dossier Drive">📁</a>
             ` : ''}
           </div>
@@ -1269,9 +1269,15 @@ function openDetail(id){
   </div>`;
   document.getElementById('d-steps').innerHTML=html;
   openOv('ov-detail');
+  // Pré-charger les dossiers Drive en arrière-plan (pour openDriveFolderSync)
+  [s.lien1,s.lien2,s.lien3,s.livrable1,s.livrable2,s.livrable3]
+    .filter(l=>l&&l.includes('drive.google.com'))
+    .forEach(prefetchDriveFolder);
   // Charger les retours et commentaires
   loadRetours(id);
   loadComments(id);
+  // Pré-charger folderUrls Drive
+  [s.lien1,s.lien2,s.lien3,s.livrable1,s.livrable2,s.livrable3].filter(l=>l&&l.includes('drive.google.com')).forEach(prefetchDriveFolder);
 }
 
 function step(titre,pillCls,body){
@@ -1916,6 +1922,24 @@ function refreshJournalistesSelects() {
 
 // ─── PLAYER VIDÉO ───
 let activePlayer = null;
+const drivefolderCache = {};
+
+async function prefetchDriveFolder(url) {
+  const fileId = getDriveFileId(url);
+  if(!fileId || drivefolderCache[fileId]) return;
+  try {
+    const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
+    const data = await res.json();
+    if(data.folderUrl) drivefolderCache[fileId] = data.folderUrl;
+  } catch(e) {}
+}
+
+function openDriveFolderSync(url) {
+  const fileId = getDriveFileId(url);
+  if(!fileId) return;
+  const folderUrl = drivefolderCache[fileId] || `https://drive.google.com/file/d/${fileId}/view`;
+  window.open(folderUrl, '_blank');
+}
 
 function detectVideoType(url) {
   if(!url) return null;
@@ -1926,26 +1950,6 @@ function detectVideoType(url) {
 }
 
 // Ouvrir le dossier parent Drive via l'API
-async function openDriveFolder(url) {
-  const fileId = getDriveFileId(url);
-  if(!fileId) return;
-  // Afficher un toast avec le lien cliquable
-  const t = document.getElementById('toast');
-  t.innerHTML = 'Chargement du dossier...';
-  t.className = 'toast ok show';
-  try {
-    const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
-    const data = await res.json();
-    const folderUrl = data.folderUrl || `https://drive.google.com/file/d/${fileId}/view`;
-    t.innerHTML = `<a href="${folderUrl}" target="_blank" rel="noopener" style="color:var(--green);text-decoration:underline">📁 Ouvrir le dossier →</a>`;
-    t.className = 'toast ok show';
-    setTimeout(() => t.classList.remove('show'), 8000);
-  } catch(e) {
-    t.innerHTML = `<a href="https://drive.google.com/file/d/${fileId}/view" target="_blank" style="color:var(--green);text-decoration:underline">📁 Ouvrir dans Drive →</a>`;
-    setTimeout(() => t.classList.remove('show'), 8000);
-  }
-}
-
 function getDriveFileId(url) {
   const m = url ? url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) : null;
   return m ? m[1] : '';
