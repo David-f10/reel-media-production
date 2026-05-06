@@ -1177,15 +1177,26 @@ function openDetail(id){
       </button>
     </div>`;
   }
+  // Récupérer automatiquement le dernier lien validé
+  const dernierLien = s.lien3 || s.lien2 || s.lien1 || '';
+  if(dernierLien && !s.lienRendu) {
+    // Sauvegarder automatiquement si pas encore renseigné
+    upd(id,'Lien de rendu','url',dernierLien);
+    s.lienRendu = dernierLien;
+  }
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
-    `<div class="fg">
-      <div class="field"><div class="field-label">Plateforme</div>
-      <select onchange="upd('${id}','Plateforme','sel',this.value)"><option value="">Choisir...</option>
-      <option ${s.plateforme==='YouTube'?'selected':''}>YouTube</option>
-      <option ${s.plateforme==='Instagram'?'selected':''}>Instagram</option></select></div>
-      <div class="field"><div class="field-label">Date diffusion</div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
+    `<div class="field">
+      <div class="field-label">Plateforme</div>
+      <div style="font-size:12px;color:var(--text2);padding:6px 0">${s.plateforme||'Instagram'} <span style="font-size:10px;color:var(--text3)">(automatique selon le format)</span></div>
     </div>
-    <div class="field"><div class="field-label">Lien rendu final</div><input type="url" value="${s.lienRendu}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)"></div>`);
+    <div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
+    <div class="field">
+      <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Lien rendu final</span>
+        ${dernierLien && s.lienRendu===dernierLien ? '<span style="font-size:10px;color:var(--green)">✓ Récupéré automatiquement</span>' : ''}
+      </div>
+      <input type="url" value="${s.lienRendu||''}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)">
+    </div>`);
   } // end !isInterne
 
   // Statut + Livrables pour Interne
