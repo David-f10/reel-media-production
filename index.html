@@ -1540,6 +1540,43 @@ async function submitRetour() {
   }
 }
 
+async function submitPlayerRetour(sujetId, version) {
+  if(!currentUser) { toast('Connectez-vous pour laisser un retour', 'err'); return; }
+  const desc = document.getElementById('player-desc')?.value.trim();
+  if(!desc) { toast('Ajoutez une description', 'err'); return; }
+  const tc = document.getElementById('player-tc')?.value.trim() || '';
+  const cat = document.getElementById('player-cat')?.value || '';
+  const sujet = sujets.find(s => s.id === sujetId);
+  try {
+    await api('/pages', 'POST', {
+      parent: {database_id: DB_RETOURS},
+      properties: {
+        'Description': {title: [{text:{content:desc}}]},
+        'Version': {select:{name: version}},
+        'Catégorie': cat ? {select:{name:cat}} : {select:null},
+        'Timecode': {rich_text:[{text:{content:tc}}]},
+        'Statut': {select:{name:'Ouvert'}},
+        'Auteur': {rich_text:[{text:{content:currentUser.nom}}]},
+        'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
+        'Sujet titre': {rich_text:[{text:{content:sujet?.titre||''}}]}
+      }
+    });
+    if(document.getElementById('player-desc')) document.getElementById('player-desc').value = '';
+    if(document.getElementById('player-tc')) document.getElementById('player-tc').value = '';
+    toast('Retour ajouté ✓', 'ok');
+    loadPlayerRetours(sujetId, version);
+    loadRetours(sujetId);
+    // Notif au journaliste
+    if(sujet && sujet.journaliste && sujet.journaliste !== currentUser.nom) {
+      await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom,
+        `${currentUser.nom} a laissé un retour sur ${sujet.code}${tc?' — '+tc:''}`);
+      loadNotifs();
+    }
+  } catch(e) {
+    toast('Erreur : ' + e.message, 'err');
+  }
+}
+
 // ─── ARCHIVAGE ───
 async function archiverSujet(id) {
   if(!confirm("Confirmer l'archivage ? La carte disparaîtra du tableau principal.")) return;
