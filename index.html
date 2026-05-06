@@ -950,6 +950,8 @@ function parsePage(p){
     typeL2:pr['Type L2']?.select?.name||'',
     typeL3:pr['Type L3']?.select?.name||'',
     archive:pr['Archivé']?.checkbox||false,
+    archivageConfirme:pr['Archivage confirmé']?.checkbox||false,
+    emplacementArchivage:pr['Emplacement archivage']?.select?.name||'',
     retoursOuverts:0};  // rempli après chargement
 }
 
@@ -1164,17 +1166,34 @@ function openDetail(id){
       </div>`;
     }).join('')+
     ``);
-  // Bouton archiver dans fiche PAD
+  // Step archivage dans fiche PAD
   if(s.statut==='PAD') {
-    html+=`<div class="step" style="background:var(--green-dim);border-color:rgba(29,158,117,0.2)">
+    const emplacArchiv = s.emplacementArchivage || s.stockage || '';
+    const archConfirme = s.archivageConfirme;
+    const stockageOptions = ['RM-VISUALS-01','RM-VISUALS-02','RM-VISUALS-03','RM-VISUALS-04','RM-VISUALS-05','RM-VISUALS-06','RM-VISUALS-07','RM-VISUALS-08','RM-VISUALS-09','RM-VISUALS-10','DD rédaction','NexisAvid'];
+    html+=`<div class="step" style="${archConfirme?'background:var(--green-dim);border-color:rgba(29,158,117,0.2)':''}">
       <div class="step-hdr">
-        <span class="step-ttl" style="color:var(--green)">📦 Archivage</span>
-        <span class="pill p-green">Projet terminé</span>
+        <span class="step-ttl">📦 Archivage média</span>
+        <span class="pill ${archConfirme?'p-green':'p-gray'}">${archConfirme?'✅ Archivé':'En attente'}</span>
       </div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">Ce projet est PAD. Une fois l'archivage média confirmé, la carte disparaîtra du tableau principal.</p>
-      <button onclick="archiverSujet('${id}')" class="nav-btn primary" style="background:var(--green);border-color:var(--green);width:100%;font-size:12px">
-        📦 Confirmer l'archivage et retirer du tableau
-      </button>
+      ${archConfirme ? `
+        <div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Archivage confirmé — ${emplacArchiv}</div>
+        <button onclick="archiverSujet('${id}')" class="nav-btn" style="width:100%;font-size:11px;color:var(--text3)">
+          📦 Retirer du tableau principal
+        </button>
+      ` : `
+        <div class="field" style="margin-bottom:12px">
+          <div class="field-label" style="margin-bottom:6px">Emplacement d'archivage <span style="color:var(--text3);font-size:10px">(travail : ${s.stockage||'non défini'})</span></div>
+          <select id="emplacement-select-${id}" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:100%;margin-bottom:10px">
+            <option value="">Choisir l'emplacement d'archivage...</option>
+            ${stockageOptions.map(o=>`<option ${emplacArchiv===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+          <button onclick="confirmerArchivage('${id}')" class="nav-btn primary"
+            style="background:var(--green);border-color:var(--green);width:100%;font-size:12px">
+            📦 Confirmer l'archivage média
+          </button>
+        </div>
+      `}
     </div>`;
   }
   // Récupérer automatiquement le dernier lien validé
@@ -1589,6 +1608,25 @@ async function submitPlayerRetour(sujetId, version) {
 }
 
 // ─── ARCHIVAGE ───
+async function confirmerArchivage(id) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  const sel = document.getElementById('emplacement-select-'+id);
+  const empl = sel ? sel.value : (s.emplacementArchivage || s.stockage);
+  if(!empl) { toast("Choisissez l'emplacement d'archivage", 'err'); return; }
+  if(!confirm(`Confirmer l'archivage sur ${empl} ?`)) return;
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{
+      'Archivage confirmé':{checkbox:true},
+      'Emplacement archivage':{select:{name:empl}}
+    }});
+    s.archivageConfirme = true;
+    s.emplacementArchivage = empl;
+    toast('✅ Archivage confirmé sur '+empl,'ok');
+    openDetail(id);
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
 async function archiverSujet(id) {
   if(!confirm("Confirmer l'archivage ? La carte disparaîtra du tableau principal.")) return;
   try {
