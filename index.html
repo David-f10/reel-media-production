@@ -1291,8 +1291,6 @@ function openDetail(id){
   // Charger les retours et commentaires
   loadRetours(id);
   loadComments(id);
-  // Pré-charger folderUrls Drive
-  [s.lien1,s.lien2,s.lien3,s.livrable1,s.livrable2,s.livrable3].filter(l=>l&&l.includes('drive.google.com')).forEach(prefetchDriveFolder);
 }
 
 function step(titre,pillCls,body){
@@ -1545,7 +1543,7 @@ async function submitRetour() {
 
 // ─── ARCHIVAGE ───
 async function archiverSujet(id) {
-  if(!confirm('Confirmer l'archivage ? La carte disparaîtra du tableau principal.')) return;
+  if(!confirm("Confirmer l'archivage ? La carte disparaîtra du tableau principal.")) return;
   try {
     await api('/pages/'+id,'PATCH',{properties:{'Archivé':{checkbox:true}}});
     toast('📦 Projet archivé','ok');
@@ -1973,6 +1971,8 @@ const drivefolderCache = {};
 async function prefetchDriveFolder(url) {
   const fileId = getDriveFileId(url);
   if(!fileId || drivefolderCache[fileId]) return;
+  // Mettre un fallback immédiatement pour éviter les appels répétés
+  drivefolderCache[fileId] = `https://drive.google.com/file/d/${fileId}/view`;
   try {
     const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
     const data = await res.json();
