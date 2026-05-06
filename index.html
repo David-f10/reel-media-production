@@ -1095,19 +1095,6 @@ function openDetail(id){
     `<div class="fg">
       <div class="field"><div class="field-label">Date J1</div><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"></div>
       <div class="field"><div class="field-label">Date J2 (optionnel)</div><input type="date" value="${s.tourJ2}" onchange="upd('${id}','Date tournage J2','date',this.value)"></div>
-    </div>
-    <div class="fg">
-      <div class="field"><div class="field-label">Lieu</div>
-      <select onchange="upd('${id}','Lieu tournage','sel',this.value)">
-        <option value="">Choisir...</option>
-        ${['Extérieur','Studio'].map(o=>`<option ${s.lieuTour===o?'selected':''}>${o}</option>`).join('')}
-      </select></div>
-      <div class="field"><div class="field-label">Équipement</div>
-      <select id="equip-${id}" onchange="onEquipChange(this,'${id}')" ${s.lieuTour==='Studio'?'disabled style="opacity:0.5"':''}>
-        <option value="">Choisir...</option>
-        ${['Sony FX30','iPhone 17','Matériel perso'].map(o=>`<option ${(s.lieuTour==='Studio'?'Sony FX30':s.equip)===o?'selected':''}>${o}</option>`).join('')}
-      </select>
-      ${s.lieuTour==='Studio'?'<div style="font-size:10px;color:var(--text3);margin-top:3px">Sony FX30 assignée automatiquement en Studio</div>':''}</div>
     </div>`);}
   if(!isInterne) {
   html+=step('Post-prod · Stockage',s.stockage?`p-blue ${s.stockage}`:'p-gray Non défini',
@@ -2547,25 +2534,7 @@ async function onLienBlur(input, id, v){
   }
 }
 
-// Auto-assignation Sony FX30 si Studio
-function onLieuChange(sel, id){
-  const val=sel.value;
-  upd(id,'Lieu tournage','sel',val);
-  if(val==='Studio'){
-    upd(id,'Équipement tournage','sel','Sony FX30');
-    const equipSel=document.getElementById('equip-'+id);
-    if(equipSel){
-      equipSel.value='Sony FX30';
-      equipSel.disabled=true;
-      equipSel.style.opacity='0.5';
-    }
-    toast('Sony FX30 assignée automatiquement','ok');
-  }else{
-    const equipSel=document.getElementById('equip-'+id);
-    if(equipSel){equipSel.disabled=false;equipSel.style.opacity='1';}
-  }
-}
-function onEquipChange(sel,id){upd(id,'Équipement tournage','sel',sel.value);}
+
 
 // ─── Afficher sous-format dans fiche détail ───
 function sousFormatBadge(s){
