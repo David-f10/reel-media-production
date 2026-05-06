@@ -1167,6 +1167,22 @@ function openDetail(id){
       </div>`;
     }).join('')+
     ``);
+  // Récupérer le dernier lien validé pour pré-remplir le champ
+  const dernierLien = s.lien3 || s.lien2 || s.lien1 || '';
+  const lienRenduAffiche = s.lienRendu || dernierLien;
+  html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
+    `<div class="field">
+      <div class="field-label">Plateforme</div>
+      <div style="font-size:12px;color:var(--text2);padding:6px 0">${s.plateforme||'Instagram'} <span style="font-size:10px;color:var(--text3)">(automatique selon le format)</span></div>
+    </div>
+    <div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
+    <div class="field">
+      <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Lien rendu final</span>
+        ${dernierLien && s.lienRendu===dernierLien ? '<span style="font-size:10px;color:var(--green)">✓ Récupéré automatiquement</span>' : ''}
+      </div>
+      <input type="url" value="${lienRenduAffiche||''}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)">
+    </div>`);
   // Step archivage dans fiche PAD
   if(s.statut==='PAD') {
     const emplacArchiv = s.emplacementArchivage || s.stockage || '';
@@ -1207,26 +1223,6 @@ function openDetail(id){
       `}
     </div>`;
   }
-  // Récupérer automatiquement le dernier lien validé
-  const dernierLien = s.lien3 || s.lien2 || s.lien1 || '';
-  if(dernierLien && !s.lienRendu) {
-    // Sauvegarder automatiquement si pas encore renseigné
-    upd(id,'Lien de rendu','url',dernierLien);
-    s.lienRendu = dernierLien;
-  }
-  html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
-    `<div class="field">
-      <div class="field-label">Plateforme</div>
-      <div style="font-size:12px;color:var(--text2);padding:6px 0">${s.plateforme||'Instagram'} <span style="font-size:10px;color:var(--text3)">(automatique selon le format)</span></div>
-    </div>
-    <div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
-    <div class="field">
-      <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
-        <span>Lien rendu final</span>
-        ${dernierLien && s.lienRendu===dernierLien ? '<span style="font-size:10px;color:var(--green)">✓ Récupéré automatiquement</span>' : ''}
-      </div>
-      <input type="url" value="${s.lienRendu||''}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)">
-    </div>`);
   } // end !isInterne
 
   // Statut + Livrables pour Interne
@@ -3208,25 +3204,37 @@ function renderArchives() {
         <th style="width:100px">Journaliste</th>
         <th style="width:80px">Chef</th>
         <th style="width:90px">Diffusion</th>
+        <th style="width:100px">Archivage</th>
         <th style="width:60px"></th>
       </tr></thead>
       <tbody>`;
   sujetsArchives.forEach(s => {
     const col = FMT_COLORS[s.format]||'#888';
-    html += `<tr onclick="openDetail('${s.id}')">
+    html += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
       <td class="td-code">${s.code||'—'}</td>
       <td class="td-titre">${s.titre}</td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       <td>${s.journaliste||'—'}</td>
       <td>${s.chef||'—'}</td>
       <td class="td-date">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
+      <td style="font-size:10px;color:var(--text3)">${s.emplacementArchivage||'—'}</td>
       <td onclick="event.stopPropagation()">
-        <button onclick="restaurerSujet('${s.id}')" style="background:none;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:10px;padding:3px 7px;border-radius:4px" title="Restaurer">↩ Restaurer</button>
+        <button onclick="restaurerSujet('${s.id}')" style="background:none;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:10px;padding:3px 7px;border-radius:4px" title="Restaurer">↩</button>
       </td>
     </tr>`;
   });
   html += '</tbody></table></div>';
   mc.innerHTML = html;
+}
+
+// Ouvrir la fiche depuis les archives — ajouter temporairement le sujet dans sujets si besoin
+function ouvrirFicheArchive(id) {
+  // S'assurer que le sujet est accessible dans sujets pour openDetail
+  if(!sujets.find(s => s.id === id)) {
+    const s = sujetsArchives.find(s => s.id === id);
+    if(s) sujets.push(s);
+  }
+  openDetail(id);
 }
 
 function renderListe() {
