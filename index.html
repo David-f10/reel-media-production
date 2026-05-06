@@ -1179,10 +1179,11 @@ function openDetail(id){
     <div class="field">
       <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
         <span>Lien rendu final</span>
-        ${dernierLien && s.lienRendu===dernierLien ? '<span style="font-size:10px;color:var(--green)">✓ Récupéré automatiquement</span>' : ''}
+        ${dernierLien && lienRenduAffiche===dernierLien ? '<span style="font-size:10px;color:var(--green)">✓ Récupéré automatiquement</span>' : ''}
       </div>
       <input type="url" value="${lienRenduAffiche||''}" placeholder="Lien de la vidéo publiée..." onblur="upd('${id}','Lien de rendu','url',this.value)">
-    </div>`);
+    </div>
+    ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary" style="width:100%;margin-top:8px;background:var(--green);border-color:var(--green)">✅ Marquer PAD</button>`:''}`);
   // Step archivage dans fiche PAD
   if(s.statut==='PAD') {
     const emplacArchiv = s.emplacementArchivage || s.stockage || '';
@@ -2447,8 +2448,6 @@ async function autoStatut(id, field, value){
     newStatut='Montage V1';
   else if(field==='Version validee' && cur < statutIndex('Validation chef'))
     newStatut='Validation chef';
-  else if(field==='Date de diffusion' && cur < statutIndex('PAD'))
-    newStatut='PAD';
 
   if(newStatut){
     await api(`/pages/${id}`,'PATCH',{properties:{Statut:{select:{name:newStatut}}}});
