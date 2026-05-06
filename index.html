@@ -952,6 +952,7 @@ function parsePage(p){
     archive:pr['Archivé']?.checkbox||false,
     archivageConfirme:pr['Archivage confirmé']?.checkbox||false,
     emplacementArchivage:pr['Emplacement archivage']?.select?.name||'',
+    versionClean:pr['Version clean']?.checkbox||false,
     retoursOuverts:0};  // rempli après chargement
 }
 
@@ -1170,6 +1171,7 @@ function openDetail(id){
   if(s.statut==='PAD') {
     const emplacArchiv = s.emplacementArchivage || s.stockage || '';
     const archConfirme = s.archivageConfirme;
+    const versionClean = s.versionClean;
     const stockageOptions = ['RM-VISUALS-01','RM-VISUALS-02','RM-VISUALS-03','RM-VISUALS-04','RM-VISUALS-05','RM-VISUALS-06','RM-VISUALS-07','RM-VISUALS-08','RM-VISUALS-09','RM-VISUALS-10','DD rédaction','NexisAvid'];
     html+=`<div class="step" style="${archConfirme?'background:var(--green-dim);border-color:rgba(29,158,117,0.2)':''}">
       <div class="step-hdr">
@@ -1177,20 +1179,29 @@ function openDetail(id){
         <span class="pill ${archConfirme?'p-green':'p-gray'}">${archConfirme?'✅ Archivé':'En attente'}</span>
       </div>
       ${archConfirme ? `
-        <div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Archivage confirmé — ${emplacArchiv}</div>
+        <div style="font-size:12px;color:var(--green);margin-bottom:4px">✅ Archivé sur ${emplacArchiv}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Version clean : ${versionClean?'✅ Oui':'❌ Non'}</div>
         <button onclick="archiverSujet('${id}')" class="nav-btn" style="width:100%;font-size:11px;color:var(--text3)">
           📦 Retirer du tableau principal
         </button>
       ` : `
+        <label class="cb-row" style="margin-bottom:14px">
+          <input type="checkbox" id="vclean-${id}" ${versionClean?'checked':''}
+            onchange="upd('${id}','Version clean','cb',this.checked)">
+          <span class="cb-label">Version clean générée (export ProRes des éléments sélectionnés)</span>
+        </label>
         <div class="field" style="margin-bottom:12px">
-          <div class="field-label" style="margin-bottom:6px">Emplacement d'archivage <span style="color:var(--text3);font-size:10px">(travail : ${s.stockage||'non défini'})</span></div>
+          <div class="field-label" style="margin-bottom:6px">
+            Emplacement d'archivage
+            ${s.stockage?`<span style="color:var(--text3);font-size:10px;font-weight:400"> · travail sur ${s.stockage}</span>`:''}
+          </div>
           <select id="emplacement-select-${id}" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:100%;margin-bottom:10px">
             <option value="">Choisir l'emplacement d'archivage...</option>
             ${stockageOptions.map(o=>`<option ${emplacArchiv===o?'selected':''}>${o}</option>`).join('')}
           </select>
           <button onclick="confirmerArchivage('${id}')" class="nav-btn primary"
             style="background:var(--green);border-color:var(--green);width:100%;font-size:12px">
-            📦 Confirmer l'archivage média
+            📦 Confirmer l'archivage
           </button>
         </div>
       `}
@@ -1616,12 +1627,15 @@ async function confirmerArchivage(id) {
   if(!empl) { toast("Choisissez l'emplacement d'archivage", 'err'); return; }
   if(!confirm(`Confirmer l'archivage sur ${empl} ?`)) return;
   try {
+    const vclean = document.getElementById('vclean-'+id)?.checked || s.versionClean;
     await api('/pages/'+id,'PATCH',{properties:{
       'Archivage confirmé':{checkbox:true},
-      'Emplacement archivage':{select:{name:empl}}
+      'Emplacement archivage':{select:{name:empl}},
+      'Version clean':{checkbox:vclean}
     }});
     s.archivageConfirme = true;
     s.emplacementArchivage = empl;
+    s.versionClean = vclean;
     toast('✅ Archivage confirmé sur '+empl,'ok');
     openDetail(id);
   } catch(e) { toast('Erreur : '+e.message,'err'); }
