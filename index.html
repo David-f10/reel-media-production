@@ -1003,7 +1003,6 @@ async function openNouveau(){
   document.getElementById('n-titre').value='';
   document.getElementById('n-chef').value='';
   document.getElementById('n-journ').value='';
-  document.getElementById('n-plat').value='';
   document.getElementById('n-brief').value='';
   document.getElementById('n-date').value='';
   document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
@@ -2535,7 +2534,6 @@ async function createSujet(){
   const chef=document.getElementById('n-chef').value;
   const journSel=document.getElementById('n-journ').value;
   const journ=journSel==='__nouveau__'?document.getElementById('n-journ-nouveau').value.trim():journSel;
-  const plat=document.getElementById('n-plat').value;
   const brief=document.getElementById('n-brief').value.trim();
   const date=document.getElementById('n-date').value;
   if(!titre||!activeFmt||!chef||!journ){toast('Titre, format, chef et journaliste requis','err');return;}
