@@ -582,6 +582,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <span style="flex:1;text-align:left">Production</span>
         <span class="sb-badge" id="cnt-all">—</span>
       </button>
+      <button class="sb-item" id="nav-archives" onclick="navTo('archives')">
+        <span class="sb-icon">📦</span>
+        <span style="flex:1;text-align:left">Archives</span>
+        <span class="sb-badge" id="cnt-archives">—</span>
+      </button>
     </div>
 
     <div class="sb-sep"></div>
@@ -701,11 +706,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
           <select id="n-journ" onchange="handleJournalisteChange(this)"><option value="">Choisir...</option><option>Julien</option><option>Augustin</option><option>Nico</option><option>Mickael</option><option>Juliette</option><option>Mathilde</option><option>Léa</option><option>Éloise</option><option value="__nouveau__">+ Nouvelle personne...</option></select>
           <input type="text" id="n-journ-nouveau" placeholder="Nom de la nouvelle personne" style="display:none;margin-top:6px"></div>
       </div>
-      <div class="fg">
-        <div class="field"><div class="field-label">Plateforme</div>
-          <select id="n-plat"><option value="">Choisir...</option><option>YouTube</option><option>Instagram</option></select></div>
-        <div class="field"><div class="field-label">Date de tournage</div><input type="date" id="n-date"></div>
-      </div>
+      <div class="field"><div class="field-label">Date de tournage <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" id="n-date"></div>
       <div class="field"><div class="field-label">Brief</div><textarea id="n-brief" placeholder="Instructions pour le journaliste..."></textarea></div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
@@ -847,7 +848,7 @@ const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
-let sujets=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
+let sujets=[],sujetsArchives=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
 let currentUser=null; // {id, nom, role}
 
 function getPrefixe(p){
@@ -948,6 +949,7 @@ function parsePage(p){
     typeL1:pr['Type L1']?.select?.name||'',
     typeL2:pr['Type L2']?.select?.name||'',
     typeL3:pr['Type L3']?.select?.name||'',
+    archive:pr['Archivé']?.checkbox||false,
     retoursOuverts:0};  // rempli après chargement
 }
 
@@ -1163,6 +1165,19 @@ function openDetail(id){
       </div>`;
     }).join('')+
     ``);
+  // Bouton archiver dans fiche PAD
+  if(s.statut==='PAD') {
+    html+=`<div class="step" style="background:var(--green-dim);border-color:rgba(29,158,117,0.2)">
+      <div class="step-hdr">
+        <span class="step-ttl" style="color:var(--green)">📦 Archivage</span>
+        <span class="pill p-green">Projet terminé</span>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">Ce projet est PAD. Une fois l'archivage média confirmé, la carte disparaîtra du tableau principal.</p>
+      <button onclick="archiverSujet('${id}')" class="nav-btn primary" style="background:var(--green);border-color:var(--green);width:100%;font-size:12px">
+        📦 Confirmer l'archivage et retirer du tableau
+      </button>
+    </div>`;
+  }
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="fg">
       <div class="field"><div class="field-label">Plateforme</div>
@@ -1526,6 +1541,37 @@ async function submitRetour() {
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
+}
+
+// ─── ARCHIVAGE ───
+async function archiverSujet(id) {
+  if(!confirm('Confirmer l'archivage ? La carte disparaîtra du tableau principal.')) return;
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{'Archivé':{checkbox:true}}});
+    toast('📦 Projet archivé','ok');
+    closeOv('ov-detail');
+    sujets = sujets.filter(s => s.id !== id);
+    const s = sujetsArchives.find(x=>x.id===id) || sujets.find(x=>x.id===id);
+    if(s) { s.archive=true; sujetsArchives.push(s); }
+    document.getElementById('cnt-all').textContent = sujets.length;
+    renderCards();
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function restaurerSujet(id) {
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{'Archivé':{checkbox:false}}});
+    toast('✅ Projet restauré','ok');
+    const s = sujetsArchives.find(x=>x.id===id);
+    if(s) {
+      s.archive=false;
+      sujetsArchives = sujetsArchives.filter(x=>x.id!==id);
+      sujets.unshift(s);
+    }
+    document.getElementById('cnt-all').textContent = sujets.length;
+    if(currentPage==='archives') renderArchives();
+    else renderCards();
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
 // ─── LIVRABLES INTERNE ───
@@ -2537,8 +2583,8 @@ async function createSujet(){
     const c=compteurs[activeFmt];
     if(!c){toast('Compteur introuvable pour ce format','err');return;}
     codeVal=`${c.prefixe}${c.dernierNumero+1}`;
-    const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
-    if(plat)props.Plateforme={select:{name:plat}};
+    const platAuto = activeFmt==='YouTube' ? 'YouTube' : 'Instagram';
+    const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:platAuto}}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
     if(date)props['Date tournage J1']={date:{start:date}};
     const sfVal2=document.getElementById('sous-format-select')?.value||'';
@@ -3047,6 +3093,44 @@ async function loadActiviteDashboard() {
 let listSortCol = 'created';
 let listSortDir = 1;
 
+function renderArchives() {
+  const mc = document.getElementById('main-content');
+  const badge = document.getElementById('cnt-archives');
+  if(badge) badge.textContent = sujetsArchives.length;
+  if(!sujetsArchives.length) {
+    mc.innerHTML = '<div class="empty"><h3>Aucun projet archivé</h3><p>Les projets PAD archivés apparaîtront ici.</p></div>';
+    return;
+  }
+  let html = `<div style="overflow-x:auto">
+    <table class="list-table">
+      <thead><tr>
+        <th style="width:80px">Code</th>
+        <th style="width:auto">Titre</th>
+        <th style="width:90px">Format</th>
+        <th style="width:100px">Journaliste</th>
+        <th style="width:80px">Chef</th>
+        <th style="width:90px">Diffusion</th>
+        <th style="width:60px"></th>
+      </tr></thead>
+      <tbody>`;
+  sujetsArchives.forEach(s => {
+    const col = FMT_COLORS[s.format]||'#888';
+    html += `<tr onclick="openDetail('${s.id}')">
+      <td class="td-code">${s.code||'—'}</td>
+      <td class="td-titre">${s.titre}</td>
+      <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
+      <td>${s.journaliste||'—'}</td>
+      <td>${s.chef||'—'}</td>
+      <td class="td-date">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
+      <td onclick="event.stopPropagation()">
+        <button onclick="restaurerSujet('${s.id}')" style="background:none;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:10px;padding:3px 7px;border-radius:4px" title="Restaurer">↩ Restaurer</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  mc.innerHTML = html;
+}
+
 function renderListe() {
   let list = sujets;
   if(curFilter && curFilter.t === 's' && curFilter.v) list = list.filter(s => s.statut === curFilter.v);
@@ -3154,7 +3238,7 @@ async function appLoadData() {
       api('/databases/' + DB_COMP + '/query', 'POST', {}),
       api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}]})
     ]);
-    sujets = prod.results.map(parsePage);
+    sujets = prod.results.map(parsePage).filter(s => !s.archive);
     compteurs = {};
     comp.results.forEach(p => {
       const pr = p.properties;
@@ -3173,6 +3257,7 @@ async function appLoadData() {
         derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || ''
       };
     });
+    sujetsArchives = prod.results.map(parsePage).filter(s => s.archive);
     document.getElementById('cnt-all').textContent = sujets.length;
     // Charger le nb de notifs non lues pour les badges cartes — une seule fois
     loadRetoursBadges();
@@ -3218,6 +3303,14 @@ function navTo(page) {
 
 // ── Render selon la page active ──
 function appRender() {
+  if(currentPage === 'archives') {
+    document.getElementById('breadcrumb').textContent = 'Archives';
+    document.getElementById('main-actions').innerHTML = '';
+    document.getElementById('view-tabs').style.display = 'none';
+    document.getElementById('sb-filters').style.display = 'none';
+    renderArchives();
+    return;
+  }
   if(currentPage === 'dashboard') {
     appRenderDashboard();
   } else if(currentPage === 'production') {
