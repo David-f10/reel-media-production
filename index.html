@@ -582,6 +582,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <span style="flex:1;text-align:left">Production</span>
         <span class="sb-badge" id="cnt-all">—</span>
       </button>
+      <button class="sb-item" id="nav-idees" onclick="navTo('idees')">
+        <span class="sb-icon">💡</span>
+        <span style="flex:1;text-align:left">Idées</span>
+        <span class="sb-badge" id="cnt-idees">—</span>
+      </button>
       <button class="sb-item" id="nav-archives" onclick="navTo('archives')">
         <span class="sb-icon">📦</span>
         <span style="flex:1;text-align:left">Archives</span>
@@ -841,6 +846,7 @@ const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
+const DB_IDEES='8528d4c2-9a11-4077-990f-3046d050ac6e';
 const FORMATS_INTERNES = ['Interne'];
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
@@ -848,7 +854,7 @@ const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
-let sujets=[],sujetsArchives=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
+let sujets=[],sujetsArchives=[],idees=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
 let currentUser=null; // {id, nom, role}
 
 function getPrefixe(p){
@@ -3184,6 +3190,260 @@ async function loadActiviteDashboard() {
 let listSortCol = 'created';
 let listSortDir = 1;
 
+// ─── IDÉES ───
+const IDEE_STATUTS = ['💡 Idée', '✅ Validée', '🚀 Démarrée', '❌ Déclinée'];
+const IDEE_COLORS = {'💡 Idée':'#EF9F27','✅ Validée':'#1D9E75','🚀 Démarrée':'#378ADD','❌ Déclinée':'#e63946'};
+
+async function loadIdees() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
+  try {
+    const data = await api('/databases/'+DB_IDEES+'/query','POST',{
+      sorts:[{timestamp:'created_time',direction:'descending'}]
+    });
+    idees = data.results.map(p => {
+      const pr = p.properties;
+      return {
+        id: p.id,
+        titre: pr.Titre?.title?.[0]?.plain_text||'Sans titre',
+        description: pr.Description?.rich_text?.[0]?.plain_text||'',
+        format: pr['Format envisagé']?.select?.name||'',
+        proposePar: pr['Proposé par']?.rich_text?.[0]?.plain_text||'',
+        statut: pr.Statut?.select?.name||'💡 Idée',
+        raisonDeclin: pr['Raison déclin']?.rich_text?.[0]?.plain_text||'',
+        created: p.created_time||''
+      };
+    });
+    const badge = document.getElementById('cnt-idees');
+    const actives = idees.filter(i => i.statut !== '❌ Déclinée').length;
+    if(badge) badge.textContent = actives;
+    renderIdees();
+  } catch(e) {
+    mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`;
+  }
+}
+
+function renderIdees() {
+  const mc = document.getElementById('main-content');
+  if(!idees.length) {
+    mc.innerHTML = '<div class="empty"><h3>Aucune idée</h3><p>Proposez la première idée de sujet !</p></div>';
+    return;
+  }
+
+  // Grouper par statut
+  const groupes = {};
+  IDEE_STATUTS.forEach(s => groupes[s] = idees.filter(i => i.statut === s));
+
+  let html = '<div style="display:flex;flex-direction:column;gap:24px">';
+  IDEE_STATUTS.forEach(statut => {
+    const items = groupes[statut];
+    if(!items.length) return;
+    const col = IDEE_COLORS[statut];
+    html += `<div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:12px;font-weight:600;color:${col}">${statut}</span>
+        <span style="font-size:10px;font-family:var(--mono);background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3)">${items.length}</span>
+      </div>
+      <div class="cards">`;
+    items.forEach(i => {
+      const fmtCol = FMT_COLORS[i.format]||'var(--text3)';
+      const initials = i.proposePar ? i.proposePar.substring(0,2).toUpperCase() : '?';
+      const date = new Date(i.created).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+      html += `<div class="card" onclick="ouvrirIdee('${i.id}')" style="border-left:3px solid ${col}">
+        <div class="card-hdr">
+          <span style="font-size:10px;color:${col};font-weight:600">${statut}</span>
+          ${i.format?`<span class="card-fmt" style="color:${fmtCol}">${i.format}</span>`:'<span class="card-fmt" style="color:var(--text3)">Format ?</span>'}
+        </div>
+        <div class="card-title">${i.titre}</div>
+        ${i.description?`<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.4">${i.description.substring(0,80)}${i.description.length>80?'...':''}</div>`:''}
+        <div class="card-meta">
+          <div class="av" style="background:var(--purple)">${initials}</div>
+          <span class="card-j">${i.proposePar||'—'} · ${date}</span>
+        </div>
+        ${i.raisonDeclin?`<div style="font-size:10px;color:var(--red);margin-top:6px;font-style:italic">❌ ${i.raisonDeclin}</div>`:''}
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  mc.innerHTML = html;
+}
+
+function ouvrirIdee(id) {
+  const i = idees.find(x=>x.id===id);
+  if(!i) return;
+  const modal = document.createElement('div');
+  modal.className = 'overlay open';
+  modal.id = 'ov-idee-detail';
+  const col = IDEE_COLORS[i.statut]||'#888';
+  const fmtOptions = ['MAG','Desk','Face Cam','Brand','YouTube','Interne'];
+  const isChef = currentUser?.role === 'Chef';
+  modal.innerHTML = `<div class="modal" style="max-width:520px">
+    <div class="modal-hdr">
+      <div>
+        <div style="font-size:10px;color:${col};font-weight:600;margin-bottom:3px">${i.statut}</div>
+        <div class="modal-title">${i.titre}</div>
+        <div class="modal-meta">Proposé par ${i.proposePar||'—'} · ${new Date(i.created).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('ov-idee-detail').remove()">×</button>
+    </div>
+    <div class="step">
+      <div class="step-hdr"><span class="step-ttl">Description</span></div>
+      <textarea id="idee-desc-${id}" style="min-height:80px" onblur="saveIdeeField('${id}','Description','rt',this.value)">${i.description}</textarea>
+    </div>
+    <div class="step">
+      <div class="step-hdr"><span class="step-ttl">Format envisagé</span></div>
+      <select onchange="saveIdeeField('${id}','Format envisagé','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:100%">
+        <option value="">Choisir...</option>
+        ${fmtOptions.map(f=>`<option ${i.format===f?'selected':''}>${f}</option>`).join('')}
+      </select>
+    </div>
+    ${i.statut !== '🚀 Démarrée' && i.statut !== '❌ Déclinée' ? `
+    <div class="step">
+      <div class="step-hdr"><span class="step-ttl">Actions</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${i.statut === '💡 Idée' ? `<button onclick="validerIdee('${id}')" class="nav-btn primary" style="background:var(--green);border-color:var(--green)">✅ Valider l'idée</button>` : ''}
+        ${i.statut === '✅ Validée' ? `<button onclick="demarrerIdee('${id}')" class="nav-btn primary" style="background:var(--blue);border-color:var(--blue)">🚀 Démarrer en production</button>` : ''}
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="raison-declin-${id}" placeholder="Raison du déclin..." style="flex:1;font-size:12px">
+          <button onclick="declinerIdee('${id}')" class="nav-btn" style="color:var(--red);border-color:var(--red);white-space:nowrap">❌ Décliner</button>
+        </div>
+      </div>
+    </div>` : ''}
+    ${i.statut === '🚀 Démarrée' ? `<div class="step"><div style="font-size:12px;color:var(--green)">🚀 Cette idée a été démarrée en production.</div></div>` : ''}
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function saveIdeeField(id, field, type, value) {
+  let props = {};
+  if(type==='rt') props[field] = {rich_text:[{text:{content:value}}]};
+  else if(type==='sel') props[field] = value ? {select:{name:value}} : {select:null};
+  try {
+    await api('/pages/'+id,'PATCH',{properties:props});
+    const i = idees.find(x=>x.id===id);
+    if(i) {
+      if(field==='Description') i.description = value;
+      if(field==='Format envisagé') i.format = value;
+    }
+    toast('Sauvegardé','ok');
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function validerIdee(id) {
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{Statut:{select:{name:'✅ Validée'}}}});
+    const i = idees.find(x=>x.id===id);
+    if(i) i.statut = '✅ Validée';
+    document.getElementById('ov-idee-detail')?.remove();
+    toast('✅ Idée validée','ok');
+    renderIdees();
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function declinerIdee(id) {
+  const raison = document.getElementById('raison-declin-'+id)?.value.trim() || '';
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{
+      Statut:{select:{name:'❌ Déclinée'}},
+      'Raison déclin':{rich_text:raison?[{text:{content:raison}}]:[]}
+    }});
+    const i = idees.find(x=>x.id===id);
+    if(i) { i.statut='❌ Déclinée'; i.raisonDeclin=raison; }
+    document.getElementById('ov-idee-detail')?.remove();
+    toast('Idée déclinée','ok');
+    renderIdees();
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function demarrerIdee(id) {
+  const idee = idees.find(x=>x.id===id);
+  if(!idee) return;
+  if(!idee.format) { toast('Choisissez un format avant de démarrer','err'); return; }
+  // Créer le sujet dans Production
+  const c = compteurs[idee.format];
+  if(!c) { toast('Compteur introuvable pour ce format','err'); return; }
+  const codeVal = `${c.prefixe}${c.dernierNumero+1}`;
+  const platAuto = idee.format==='YouTube' ? 'YouTube' : 'Instagram';
+  try {
+    const newPage = await api('/pages','POST',{
+      parent:{database_id:DB_PROD},
+      properties:{
+        'Titre':{title:[{text:{content:idee.titre}}]},
+        'Format':{select:{name:idee.format}},
+        'Journaliste':{select:{name:idee.proposePar||''}},
+        'Statut':{select:{name:'Brief / Idée'}},
+        'Code':{rich_text:[{text:{content:codeVal}}]},
+        'Plateforme':{select:{name:platAuto}},
+        'Notes chef':{rich_text:idee.description?[{text:{content:idee.description}}]:[]}
+      }
+    });
+    // Incrémenter compteur
+    await api('/pages/'+c.id,'PATCH',{properties:{'Dernier numéro':{number:c.dernierNumero+1}}});
+    c.dernierNumero++;
+    // Marquer idée comme démarrée
+    await api('/pages/'+id,'PATCH',{properties:{Statut:{select:{name:'🚀 Démarrée'}}}});
+    idee.statut = '🚀 Démarrée';
+    document.getElementById('ov-idee-detail')?.remove();
+    toast(`🚀 Sujet ${codeVal} créé en production !`,'ok');
+    renderIdees();
+    // Recharger les sujets
+    await appLoadData();
+    loadNotifs();
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+function openNouvelleIdee() {
+  const modal = document.createElement('div');
+  modal.className = 'overlay open';
+  modal.id = 'ov-nouvelle-idee';
+  const fmtOptions = ['MAG','Desk','Face Cam','Brand','YouTube','Interne'];
+  modal.innerHTML = `<div class="modal" style="max-width:480px">
+    <div class="modal-hdr">
+      <div class="modal-title">💡 Nouvelle idée</div>
+      <button class="modal-close" onclick="document.getElementById('ov-nouvelle-idee').remove()">×</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div class="field"><div class="field-label">Titre *</div>
+        <input type="text" id="ni-titre" placeholder="Ex: Reportage sur le logement étudiant"></div>
+      <div class="field"><div class="field-label">Description / angle éditorial</div>
+        <textarea id="ni-desc" placeholder="Décrivez brièvement l'idée..." style="min-height:70px"></textarea></div>
+      <div class="field"><div class="field-label">Format envisagé <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
+        <select id="ni-fmt" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:100%">
+          <option value="">Choisir...</option>
+          ${fmtOptions.map(f=>`<option>${f}</option>`).join('')}
+        </select></div>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button class="nav-btn" onclick="document.getElementById('ov-nouvelle-idee').remove()">Annuler</button>
+      <button class="nav-btn primary" onclick="soumettreidee()">Proposer →</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function soumettreidee() {
+  const titre = document.getElementById('ni-titre')?.value.trim();
+  const desc = document.getElementById('ni-desc')?.value.trim();
+  const fmt = document.getElementById('ni-fmt')?.value;
+  if(!titre) { toast('Ajoutez un titre','err'); return; }
+  try {
+    const props = {
+      'Titre':{title:[{text:{content:titre}}]},
+      'Statut':{select:{name:'💡 Idée'}},
+      'Proposé par':{rich_text:[{text:{content:currentUser?.nom||''}}]}
+    };
+    if(desc) props['Description'] = {rich_text:[{text:{content:desc}}]};
+    if(fmt) props['Format envisagé'] = {select:{name:fmt}};
+    await api('/pages','POST',{parent:{database_id:DB_IDEES},properties:props});
+    document.getElementById('ov-nouvelle-idee')?.remove();
+    toast('💡 Idée proposée !','ok');
+    loadIdees();
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
 function renderArchives() {
   const mc = document.getElementById('main-content');
   const badge = document.getElementById('cnt-archives');
@@ -3406,6 +3666,16 @@ function navTo(page) {
 
 // ── Render selon la page active ──
 function appRender() {
+  if(currentPage === 'idees') {
+    document.getElementById('breadcrumb').textContent = 'Idées';
+    document.getElementById('main-actions').innerHTML = `
+      <button class="nav-btn primary" onclick="openNouvelleIdee()" style="font-size:11px;white-space:nowrap">+ Nouvelle idée</button>`;
+    document.getElementById('view-tabs').style.display = 'none';
+    document.getElementById('sb-filters').style.display = 'none';
+    clearSearch();
+    loadIdees();
+    return;
+  }
   if(currentPage === 'archives') {
     document.getElementById('breadcrumb').textContent = 'Archives';
     document.getElementById('main-actions').innerHTML = '';
