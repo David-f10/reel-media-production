@@ -3252,7 +3252,6 @@ async function deleteRef(refId, sujetId, containerId) {
 
 function refsHTML(sujetId, containerId) {
   return `<div class="field" style="margin-bottom:10px">
-    <div class="field-label" style="margin-bottom:6px">📎 Références</div>
     <div id="${containerId}" style="margin-bottom:8px"></div>
     <div style="display:flex;gap:6px">
       <input type="url" id="ref-input-${sujetId}" placeholder="Coller un lien..." style="flex:1;font-size:12px"
@@ -3413,7 +3412,15 @@ async function validerIdee(id) {
   try {
     await api('/pages/'+id,'PATCH',{properties:{Statut:{select:{name:'✅ Validée'}}}});
     const i = idees.find(x=>x.id===id);
-    if(i) i.statut = '✅ Validée';
+    if(i) {
+      i.statut = '✅ Validée';
+      // Notif au journaliste
+      if(i.proposePar && currentUser && i.proposePar !== currentUser.nom) {
+        await createNotif('nouveau_sujet', id, '', i.titre, i.proposePar, currentUser.nom,
+          `${currentUser.nom} a validé ton idée : ${i.titre}`);
+        loadNotifs();
+      }
+    }
     document.getElementById('ov-idee-detail')?.remove();
     toast('✅ Idée validée','ok');
     renderIdees();
@@ -3428,7 +3435,16 @@ async function declinerIdee(id) {
       'Raison déclin':{rich_text:raison?[{text:{content:raison}}]:[]}
     }});
     const i = idees.find(x=>x.id===id);
-    if(i) { i.statut='❌ Déclinée'; i.raisonDeclin=raison; }
+    if(i) {
+      i.statut='❌ Déclinée';
+      i.raisonDeclin=raison;
+      // Notif au journaliste
+      if(i.proposePar && currentUser && i.proposePar !== currentUser.nom) {
+        await createNotif('retour', id, '', i.titre, i.proposePar, currentUser.nom,
+          `${currentUser.nom} a décliné ton idée : ${i.titre}${raison?' — '+raison:''}`);
+        loadNotifs();
+      }
+    }
     document.getElementById('ov-idee-detail')?.remove();
     toast('Idée déclinée','ok');
     renderIdees();
@@ -3464,6 +3480,11 @@ async function demarrerIdee(id) {
     await api('/pages/'+id,'PATCH',{properties:{Statut:{select:{name:'🚀 Démarrée'}}}});
     idee.statut = '🚀 Démarrée';
     document.getElementById('ov-idee-detail')?.remove();
+    // Notif au journaliste
+    if(idee.proposePar && currentUser && idee.proposePar !== currentUser.nom) {
+      await createNotif('nouveau_sujet', newPage.id, codeVal, idee.titre, idee.proposePar, currentUser.nom,
+        `${currentUser.nom} a démarré ton idée en production : ${codeVal} — ${idee.titre}`);
+    }
     toast(`🚀 Sujet ${codeVal} créé en production !`,'ok');
     renderIdees();
     // Recharger les sujets
