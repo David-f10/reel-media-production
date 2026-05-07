@@ -847,6 +847,7 @@ const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 const DB_IDEES='b164bf282a4e4ac78a15d5e894019daa';
+const DB_REFS='4ae84e174ee9473888eaa15112fcc6ee';
 const FORMATS_INTERNES = ['Interne'];
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
@@ -1087,7 +1088,8 @@ function openDetail(id){
     </div>`);
 
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
-    `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)">${s.notes}</textarea>`);
+    `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)" style="margin-bottom:14px">${s.notes}</textarea>
+    ${refsHTML(id,'refs-prod-'+id)}`);
   html+=step('Séquencier',s.seqValide?'p-green Validé':'p-amber En attente',
     `<label class="cb-row"><input type="checkbox" ${s.seqValide?'checked':''} onchange="upd('${id}','Séquencier validé','cb',this.checked)"><span class="cb-label">Séquencier validé par le chef</span></label>
     <div class="field" style="margin-top:8px"><div class="field-label">Lien Google Doc</div>
@@ -1314,6 +1316,8 @@ function openDetail(id){
   </div>`;
   document.getElementById('d-steps').innerHTML=html;
   openOv('ov-detail');
+  // Charger les références
+  setTimeout(()=>loadRefs(id,'refs-prod-'+id),100);
   // Pré-charger les dossiers Drive en arrière-plan (pour openDriveFolderSync)
   [s.lien1,s.lien2,s.lien3,s.livrable1,s.livrable2,s.livrable3]
     .filter(l=>l&&l.includes('drive.google.com'))
@@ -3190,6 +3194,76 @@ async function loadActiviteDashboard() {
 let listSortCol = 'created';
 let listSortDir = 1;
 
+// ─── RÉFÉRENCES ───
+async function loadRefs(sujetId, containerId) {
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML = '<div style="font-size:11px;color:var(--text3)">Chargement...</div>';
+  try {
+    const data = await api('/databases/'+DB_REFS+'/query','POST',{
+      filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
+      sorts:[{timestamp:'created_time',direction:'ascending'}]
+    });
+    const refs = data.results;
+    if(!refs.length) {
+      el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucun lien de référence</div>';
+      return;
+    }
+    el.innerHTML = refs.map(r => {
+      const url = r.properties['userDefined:URL']?.title?.[0]?.plain_text || 
+                  r.properties['URL']?.title?.[0]?.plain_text || '';
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <a href="${url}" target="_blank" rel="noopener"
+          style="flex:1;font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
+          title="${url}">↗ ${url.replace(/^https?:\/\//,'').substring(0,50)}${url.length>53?'...':''}</a>
+        <button onclick="deleteRef('${r.id}','${sujetId}','${containerId}')"
+          style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;line-height:1" title="Supprimer">×</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement</div>';
+  }
+}
+
+async function addRef(sujetId, inputId, containerId) {
+  const input = document.getElementById(inputId);
+  let url = input?.value.trim();
+  if(!url) { toast('Collez un lien','err'); return; }
+  if(!url.startsWith('http')) url = 'https://'+url;
+  try {
+    await api('/pages','POST',{
+      parent:{database_id:DB_REFS},
+      properties:{
+        'userDefined:URL':{title:[{text:{content:url}}]},
+        'Sujet ID':{rich_text:[{text:{content:sujetId}}]}
+      }
+    });
+    input.value = '';
+    toast('Lien ajouté','ok');
+    loadRefs(sujetId, containerId);
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function deleteRef(refId, sujetId, containerId) {
+  try {
+    await api('/pages/'+refId,'PATCH',{archived:true});
+    loadRefs(sujetId, containerId);
+  } catch(e) { toast('Erreur suppression','err'); }
+}
+
+function refsHTML(sujetId, containerId) {
+  return `<div class="field" style="margin-bottom:10px">
+    <div class="field-label" style="margin-bottom:6px">📎 Références</div>
+    <div id="${containerId}" style="margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px">
+      <input type="url" id="ref-input-${sujetId}" placeholder="Coller un lien..." style="flex:1;font-size:12px"
+        onkeydown="if(event.key==='Enter'){addRef('${sujetId}','ref-input-${sujetId}','${containerId}');event.preventDefault()}">
+      <button onclick="addRef('${sujetId}','ref-input-${sujetId}','${containerId}')"
+        class="nav-btn" style="white-space:nowrap;font-size:11px">+ Ajouter</button>
+    </div>
+  </div>`;
+}
+
 // ─── IDÉES ───
 const IDEE_STATUTS = ['💡 Idée', '✅ Validée', '🚀 Démarrée', '❌ Déclinée'];
 const IDEE_COLORS = {'💡 Idée':'#EF9F27','✅ Validée':'#1D9E75','🚀 Démarrée':'#378ADD','❌ Déclinée':'#e63946'};
@@ -3298,6 +3372,10 @@ function ouvrirIdee(id) {
         ${fmtOptions.map(f=>`<option ${i.format===f?'selected':''}>${f}</option>`).join('')}
       </select>
     </div>
+    <div class="step">
+      <div class="step-hdr"><span class="step-ttl">📎 Références</span></div>
+      ${refsHTML(i.id,'refs-idee-'+i.id)}
+    </div>
     ${i.statut !== '🚀 Démarrée' && i.statut !== '❌ Déclinée' ? `
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">Actions</span></div>
@@ -3314,6 +3392,7 @@ function ouvrirIdee(id) {
   </div>`;
   modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
   document.body.appendChild(modal);
+  setTimeout(()=>loadRefs(i.id,'refs-idee-'+i.id),100);
 }
 
 async function saveIdeeField(id, field, type, value) {
