@@ -3210,8 +3210,7 @@ async function loadRefs(sujetId, containerId) {
       return;
     }
     el.innerHTML = refs.map(r => {
-      const url = r.properties['userDefined:URL']?.title?.[0]?.plain_text || 
-                  r.properties['URL']?.title?.[0]?.plain_text || '';
+      const url = r.properties['URL']?.title?.[0]?.plain_text || '';
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <a href="${url}" target="_blank" rel="noopener"
           style="flex:1;font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
@@ -3234,7 +3233,7 @@ async function addRef(sujetId, inputId, containerId) {
     await api('/pages','POST',{
       parent:{database_id:DB_REFS},
       properties:{
-        'userDefined:URL':{title:[{text:{content:url}}]},
+        'URL':{title:[{text:{content:url}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]}
       }
     });
@@ -3494,6 +3493,10 @@ function openNouvelleIdee() {
           ${fmtOptions.map(f=>`<option>${f}</option>`).join('')}
         </select></div>
     </div>
+    <div style="padding:0 20px 16px">
+      <div class="field-label" style="margin-bottom:6px">Lien de référence <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
+      <input type="url" id="ni-ref" placeholder="https://..." style="font-size:12px;width:100%">
+    </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="document.getElementById('ov-nouvelle-idee').remove()">Annuler</button>
       <button class="nav-btn primary" onclick="soumettreidee()">Proposer →</button>
@@ -3516,7 +3519,19 @@ async function soumettreidee() {
     };
     if(desc) props['Description'] = {rich_text:[{text:{content:desc}}]};
     if(fmt) props['Format envisagé'] = {select:{name:fmt}};
-    await api('/pages','POST',{parent:{database_id:DB_IDEES},properties:props});
+    const newIdee = await api('/pages','POST',{parent:{database_id:DB_IDEES},properties:props});
+    // Ajouter le lien de référence si renseigné
+    const refUrl = document.getElementById('ni-ref')?.value.trim();
+    if(refUrl && newIdee?.id) {
+      let url = refUrl.startsWith('http') ? refUrl : 'https://'+refUrl;
+      await api('/pages','POST',{
+        parent:{database_id:DB_REFS},
+        properties:{
+          'URL':{title:[{text:{content:url}}]},
+          'Sujet ID':{rich_text:[{text:{content:newIdee.id}}]}
+        }
+      });
+    }
     document.getElementById('ov-nouvelle-idee')?.remove();
     toast('💡 Idée proposée !','ok');
     loadIdees();
