@@ -1915,7 +1915,7 @@ async function loadVersions(sujetId) {
     const tousLesNoms = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
     el.innerHTML = versions.map((v,i) => {
       const pr = v.properties;
-      const url = pr['userDefined:URL']?.title?.[0]?.plain_text || pr['URL']?.title?.[0]?.plain_text || '';
+      const url = pr['Titre']?.title?.[0]?.plain_text || '';
       // Pré-charger le dossier Drive en arrière-plan
       if(url && url.includes('drive.google.com')) prefetchDriveFolder(url);
       const version = pr.Version?.rich_text?.[0]?.plain_text || `V${i+1}`;
@@ -1985,7 +1985,7 @@ async function ajouterVersion(sujetId) {
     await api('/pages','POST',{
       parent:{database_id:DB_VERSIONS},
       properties:{
-        'userDefined:URL':{title:[{text:{content:''}}]},
+        'Titre':{title:[{text:{content:''}}]},
         'Version':{rich_text:[{text:{content:versionNum}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]},
         'Monteur':{rich_text:[{text:{content:s.journaliste||''}}]},
@@ -2007,7 +2007,7 @@ async function updateVersionUrl(versionId, sujetId, url) {
   if(!url) return;
   const s = sujets.find(x=>x.id===sujetId);
   try {
-    await api('/pages/'+versionId,'PATCH',{properties:{'userDefined:URL':{title:[{text:{content:url}}]}}});
+    await api('/pages/'+versionId,'PATCH',{properties:{'Titre':{title:[{text:{content:url}}]}}});
     loadVersions(sujetId);
     // Notif au chef
     if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
@@ -3512,7 +3512,7 @@ async function loadRefs(sujetId, containerId) {
       return;
     }
     el.innerHTML = refs.map(r => {
-      const url = r.properties['userDefined:URL']?.title?.[0]?.plain_text || '';
+      const url = r.properties['Lien']?.title?.[0]?.plain_text || '';
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <a href="${url}" target="_blank" rel="noopener"
           style="flex:1;font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
@@ -3535,7 +3535,7 @@ async function addRef(sujetId, inputId, containerId) {
     await api('/pages','POST',{
       parent:{database_id:DB_REFS},
       properties:{
-        'userDefined:URL':{title:[{text:{content:url}}]},
+        'Titre':{title:[{text:{content:url}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]}
       }
     });
@@ -3902,7 +3902,7 @@ async function soumettreidee() {
       await api('/pages','POST',{
         parent:{database_id:DB_REFS},
         properties:{
-          'userDefined:URL':{title:[{text:{content:url}}]},
+          'Titre':{title:[{text:{content:url}}]},
           'Sujet ID':{rich_text:[{text:{content:newIdee.id}}]}
         }
       });
