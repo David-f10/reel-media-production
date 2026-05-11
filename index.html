@@ -54,7 +54,13 @@ nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;h
 .modal-code{font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:3px}
 .modal-title{font-size:16px;font-weight:600;letter-spacing:-0.02em}
 .modal-meta{font-size:12px;color:var(--text2);margin-top:3px}
-.step{border-bottom:1px solid var(--border);padding:18px 22px}
+.step{border-bottom:1px solid var(--border);padding:0}
+.step-hdr{padding:14px 22px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:background 0.1s;user-select:none}
+.step-hdr:hover{background:var(--bg3)}
+.step-body{padding:0 22px 18px}
+.step-body.collapsed{display:none}
+.step-chevron{font-size:11px;color:var(--text3);transition:transform 0.2s;flex-shrink:0}
+.step-chevron.open{transform:rotate(180deg)}
 .step:last-child{border-bottom:none}
 .step-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .step-ttl{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.08em}
@@ -1059,6 +1065,19 @@ function openDetail(id){
   document.getElementById('d-meta').textContent=`Chef : ${s.chef||'—'} · Journaliste : ${s.journaliste||'—'}${s.diffusion?' · Diffusion : '+fmtDate(s.diffusion):''}`;
   const hasTour=NEEDS_TOUR.includes(s.format)||(s.format==='Desk'&&s.sousFormat==='Prodige');
   const isInterne = s.format === 'Interne';
+  // Déterminer quel step est actif selon le statut
+  const statusMap = {
+    'Brief / Idée': 'brief',
+    'Séquencier en cours': 'seq',
+    'Séquencier validé': 'seq',
+    'En tournage': 'tournage',
+    'Post-prod': 'stockage',
+    'Montage V1': 'montage',
+    'Retours': 'montage',
+    'Validation chef': 'montage',
+    'PAD': 'pad'
+  };
+  const activeStep = statusMap[s.statut] || 'brief';
   const stIdx=STATUS_ORDER.indexOf(s.statut);
   let html=`<div class="stepper">${STATUS_ORDER.map((st,i)=>{
     const cl=st===s.statut?'cur':i<stIdx?'done':'';
@@ -1108,7 +1127,7 @@ function openDetail(id){
         <span style="font-size:12px;color:var(--text2)">Dernière modification</span>
         <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${lastEditedFmt}</span>
       </div>
-    </div>`);
+    </div>`,true);
 
   const hasContact = ['Brand','MAG'].includes(s.format);
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
@@ -1142,7 +1161,7 @@ function openDetail(id){
         </div>
       </div>
     </div>` : ''}
-  `);
+  `,activeStep==='brief'||s.notes);
   // Pill séquencier selon le format
   const seqPill = s.format==='Brand'
     ? (s.validationClient?'p-green Validé client':(s.validationRM?'p-amber Validé RM':'p-gray En attente'))
@@ -1179,12 +1198,12 @@ function openDetail(id){
         ${s.seqValide?'✅ Séquencier validé':'⬜ Valider le séquencier'}
       </button>
     `}
-  `);
+  `,activeStep==='seq');
   if(hasTour){html+=step('Tournage',s.tourJ1?'p-amber Planifié':'p-gray Non planifié',
     `<div class="fg">
       <div class="field"><div class="field-label">Date J1</div><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"></div>
       <div class="field"><div class="field-label">Date J2 (optionnel)</div><input type="date" value="${s.tourJ2}" onchange="upd('${id}','Date tournage J2','date',this.value)"></div>
-    </div>`);}
+    </div>`,activeStep==='tournage');}
   if(!isInterne) {
   html+=step('Post-prod · Stockage',s.stockage?`p-blue ${s.stockage}`:'p-gray Non défini',
     `<div class="fg">
@@ -1199,7 +1218,7 @@ function openDetail(id){
         <button onclick="copyNom('nom-${id}')" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:10px;color:var(--text3);cursor:pointer">📋 Copier</button>
       </div>
       <input type="text" id="nom-${id}" value="${s.nomFichier}" placeholder="Généré au choix du stockage" onblur="upd('${id}','Nom fichier officiel','rt',this.value)" style="font-family:var(--mono);font-size:12px">
-    </div>`);
+    </div>`,activeStep==='stockage');
   html+=step('Montage','p-gray Versions',
     `<div id="versions-list-${id}" style="margin-bottom:10px">
       <div style="font-size:11px;color:var(--text3)">Chargement...</div>
@@ -1207,12 +1226,12 @@ function openDetail(id){
     <button onclick="ajouterVersion('${id}')"
       class="nav-btn" style="width:100%;font-size:12px">
       + Ajouter une version
-    </button>`);
+    </button>`,activeStep==='montage'||activeStep==='pad');
   // Récupérer le dernier lien validé depuis la base Versions
   const lienRenduAffiche = s.lienRendu || '';
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
-    ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary" style="width:100%;margin-top:8px;background:var(--green);border-color:var(--green)">✅ Marquer PAD</button>`:''}`);
+    ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary" style="width:100%;margin-top:8px;background:var(--green);border-color:var(--green)">✅ Marquer PAD</button>`:''}`,activeStep==='pad');
   // Step archivage dans fiche PAD
   if(s.statut==='PAD') {
     const emplacArchiv = s.emplacementArchivage || s.stockage || '';
@@ -1363,9 +1382,28 @@ function openDetail(id){
   loadComments(id);
 }
 
-function step(titre,pillCls,body){
+function step(titre,pillCls,body,open=true){
   const parts=pillCls.split(' ');const cls=parts[0];const label=parts.slice(1).join(' ');
-  return`<div class="step"><div class="step-hdr"><span class="step-ttl">${titre}</span><span class="pill ${cls}">${label}</span></div>${body}</div>`;
+  const uid = 'step-'+Math.random().toString(36).substr(2,6);
+  return`<div class="step">
+    <div class="step-hdr" onclick="toggleStep('${uid}')">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="step-ttl">${titre}</span>
+        <span class="pill ${cls}">${label}</span>
+      </div>
+      <span class="step-chevron ${open?'open':''}" id="chev-${uid}">▼</span>
+    </div>
+    <div class="step-body ${open?'':'collapsed'}" id="${uid}">${body}</div>
+  </div>`;
+}
+
+function toggleStep(uid) {
+  const body = document.getElementById(uid);
+  const chev = document.getElementById('chev-'+uid);
+  if(!body) return;
+  const isOpen = !body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', isOpen);
+  chev.classList.toggle('open', !isOpen);
 }
 
 async function upd(id,field,type,value){
@@ -1609,7 +1647,7 @@ async function submitRetour() {
       const cat = document.getElementById('ret-categorie').value;
       const tc = document.getElementById('ret-timecode').value.trim();
       await createNotif('retour', retourSujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom,
-        `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`);
+        `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`,true);
       loadNotifs();
     }
   } catch(e) {
