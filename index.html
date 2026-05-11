@@ -1200,49 +1200,14 @@ function openDetail(id){
       </div>
       <input type="text" id="nom-${id}" value="${s.nomFichier}" placeholder="Généré au choix du stockage" onblur="upd('${id}','Nom fichier officiel','rt',this.value)" style="font-family:var(--mono);font-size:12px">
     </div>`);
-  const tousLesNoms=['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
-  const monteurKeys=['monteur1','monteur2','monteur3'];
-  const nbLiens=[s.lien1,s.lien2,s.lien3].filter(Boolean).length;
-  const montPill=nbLiens===3?'p-green Version 3 disponible':nbLiens===2?'p-green Version 2 disponible':nbLiens===1?'p-amber Version 1 disponible':'p-gray En attente';
-  html+=step('Montage',montPill,
-    [1,2,3].map(v=>{
-      // Par défaut = monteur stocké, sinon journaliste du sujet
-      const monteurVal=s[monteurKeys[v-1]]||s.journaliste||'';
-      return`<div class="field" style="margin-bottom:10px">
-        <div class="field-label" style="margin-bottom:4px"><span>V${v}</span></div>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
-          <input type="url" value="${s['lien'+v]}" placeholder="Coller le lien V${v}..." onblur="onLienBlur(this,'${id}',${v})" style="flex:1">
-          ${s['lien'+v] ? `
-            <button onclick="openPlayer('${s['lien'+v]}','V${v} · ${s.titre}','${id}','V${v}')" 
-              style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;flex-shrink:0" 
-              title="Visionner">▶</button>
-            ${s['lien'+v].includes('drive.google.com') ? '<a href="#" onclick="openDriveFolderSync(\'' + s['lien'+v] + '\');return false;" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0;text-decoration:none;display:inline-flex;align-items:center" title="Ouvrir le dossier Drive">📁</a>' : ''}
-            <button onclick="copierLienClient('${id}','V${v}','${s['lien'+v]}')"
-              style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;flex-shrink:0"
-              title="Partager pour retours">🔗</button>
-          ` : ''}
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-          <span style="font-size:10px;color:var(--text3);white-space:nowrap">Déposé le :</span>
-          <span id="ts-${id}-${v}" style="font-size:11px;color:var(--text2);font-family:var(--mono)">${s['montJ'+v]?new Date(s['montJ'+v]).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</span>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
-            <select onchange="upd('${id}','Monteur V${v}','sel',this.value)" style="font-size:11px;padding:3px 8px">
-              <option value="">Choisir...</option>
-              ${tousLesNoms.map(m=>`<option ${monteurVal===m?'selected':''}>${m}</option>`).join('')}
-            </select>
-          </div>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;${s.versionValidee===`V${v}`?'color:var(--green)':'color:var(--text3)'}">
-            <input type="checkbox" ${s.versionValidee===`V${v}`?'checked':''} style="accent-color:var(--green);width:14px;height:14px"
-              onchange="upd('${id}','Version validee','sel',this.checked?'V${v}':'')">
-            <span style="font-size:11px;font-weight:500">✓ Version validée</span>
-          </label>
-        </div>
-      </div>`;
-    }).join('')+
-    ``);
+  html+=step('Montage','p-gray Versions',
+    `<div id="versions-list-${id}" style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+    </div>
+    <button onclick="ajouterVersion('${id}')"
+      class="nav-btn" style="width:100%;font-size:12px">
+      + Ajouter une version
+    </button>`);
   // Récupérer le dernier lien validé pour pré-remplir le champ
   const dernierLien = s.lien3 || s.lien2 || s.lien1 || '';
   const lienRenduAffiche = s.lienRendu || dernierLien;
