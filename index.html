@@ -859,6 +859,7 @@ const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 const DB_IDEES='b164bf282a4e4ac78a15d5e894019daa';
 const DB_REFS='4ae84e174ee9473888eaa15112fcc6ee';
+const DB_VERSIONS='d2038de9-b7a0-42d4-8c88-4712d60be0d0';
 const FORMATS_INTERNES = ['Interne'];
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
@@ -1398,6 +1399,8 @@ function openDetail(id){
   openOv('ov-detail');
   // Charger les références
   setTimeout(()=>loadRefs(id,'refs-prod-'+id),100);
+  // Charger les versions de montage
+  setTimeout(()=>loadVersions(id), 100);
   // Pré-charger les dossiers Drive en arrière-plan (pour openDriveFolderSync)
   [s.lien1,s.lien2,s.lien3,s.livrable1,s.livrable2,s.livrable3]
     .filter(l=>l&&l.includes('drive.google.com'))
@@ -1912,6 +1915,152 @@ async function toggleRetour(retourId, sujetId, newStatut) {
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
+}
+
+// ─── VERSIONS DE MONTAGE ───
+async function loadVersions(sujetId) {
+  const el = document.getElementById('versions-list-'+sujetId);
+  if(!el) return;
+  el.innerHTML = '<div style="font-size:11px;color:var(--text3)">Chargement...</div>';
+  try {
+    const data = await api('/databases/'+DB_VERSIONS+'/query','POST',{
+      filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
+      sorts:[{timestamp:'created_time',direction:'ascending'}]
+    });
+    const versions = data.results;
+    if(!versions.length) {
+      el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</div>';
+      return;
+    }
+    const tousLesNoms = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
+    el.innerHTML = versions.map((v,i) => {
+      const pr = v.properties;
+      const url = pr['userDefined:URL']?.title?.[0]?.plain_text || pr.URL?.title?.[0]?.plain_text || '';
+      const version = pr.Version?.rich_text?.[0]?.plain_text || `V${i+1}`;
+      const monteur = pr.Monteur?.rich_text?.[0]?.plain_text || '';
+      const validee = pr.Validée?.checkbox || false;
+      const date = new Date(v.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : null;
+      return `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;${validee?'border-color:var(--green);background:var(--green-dim)':''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${validee?'var(--green)':'var(--text)'}">${version}</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:10px;color:var(--text3)">${date}</span>
+            <button onclick="supprimerVersion('${v.id}','${sujetId}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1">×</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+          <input type="url" value="${url}" placeholder="Lien vidéo..." style="flex:1;font-size:12px"
+            onblur="updateVersionUrl('${v.id}','${sujetId}',this.value)"
+            onkeydown="if(event.key==='Enter'){updateVersionUrl('${v.id}','${sujetId}',this.value);this.blur()}">
+          ${url && type ? `<button onclick="openPlayer('${url}','${version}','${sujetId}','${version}')"
+            style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;flex-shrink:0">▶</button>` : ''}
+          ${url && type === 'drive' ? `<a href="#" onclick="event.preventDefault();openDriveFolder('${url}')"
+            style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0;text-decoration:none">📁</a>` : ''}
+          ${url ? `<button onclick="copierLienClient('${sujetId}','${version}','${url}')"
+            style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0">🔗</button>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
+            <select onchange="updateVersionMonteur('${v.id}','${sujetId}',this.value)" style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px">
+              <option value="">Choisir...</option>
+              ${tousLesNoms.map(n=>`<option ${monteur===n?'selected':''}>${n}</option>`).join('')}
+            </select>
+          </div>
+          <button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee})"
+            class="nav-btn ${validee?'primary':''}"
+            style="font-size:11px;white-space:nowrap;${validee?'background:var(--green);border-color:var(--green)':''}">
+            ${validee?'✅ Version validée':'⬜ Valider cette version'}
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    const el2 = document.getElementById('versions-list-'+sujetId);
+    if(el2) el2.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement versions</div>';
+  }
+}
+
+async function ajouterVersion(sujetId) {
+  const s = sujets.find(x=>x.id===sujetId);
+  if(!s) return;
+  // Calculer le prochain numéro de version
+  const el = document.getElementById('versions-list-'+sujetId);
+  const existing = el ? el.querySelectorAll('[style*="border-radius:8px"]').length : 0;
+  const versionNum = `V${existing+1}`;
+  try {
+    await api('/pages','POST',{
+      parent:{database_id:DB_VERSIONS},
+      properties:{
+        'userDefined:URL':{title:[{text:{content:''}}]},
+        'Version':{rich_text:[{text:{content:versionNum}}]},
+        'Sujet ID':{rich_text:[{text:{content:sujetId}}]},
+        'Monteur':{rich_text:[{text:{content:s.journaliste||''}}]},
+        'Validée':{checkbox:false}
+      }
+    });
+    // Transition statut
+    if(s.statut !== 'Montage V1' && s.statut !== 'Retours' && s.statut !== 'Validation chef' && s.statut !== 'PAD') {
+      await api('/pages/'+sujetId,'PATCH',{properties:{Statut:{select:{name:'Montage V1'}}}});
+      s.statut = 'Montage V1';
+      renderCards();
+    }
+    loadVersions(sujetId);
+    toast(`${versionNum} ajoutée`,'ok');
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function updateVersionUrl(versionId, sujetId, url) {
+  if(!url) return;
+  const s = sujets.find(x=>x.id===sujetId);
+  try {
+    await api('/pages/'+versionId,'PATCH',{properties:{'userDefined:URL':{title:[{text:{content:url}}]}}});
+    loadVersions(sujetId);
+    // Notif au chef
+    if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
+      const vNum = document.querySelector(`[data-vid="${versionId}"]`)?.dataset?.vnum || '';
+      await createNotif('v1_deposee', sujetId, s.code, s.titre, s.chef, currentUser.nom,
+        `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
+      loadNotifs();
+    }
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function updateVersionMonteur(versionId, sujetId, monteur) {
+  try {
+    await api('/pages/'+versionId,'PATCH',{properties:{'Monteur':{rich_text:[{text:{content:monteur}}]}}});
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee) {
+  const s = sujets.find(x=>x.id===sujetId);
+  const newVal = !wasValidee;
+  try {
+    await api('/pages/'+versionId,'PATCH',{properties:{'Validée':{checkbox:newVal}}});
+    if(newVal) {
+      // Transition statut
+      await api('/pages/'+sujetId,'PATCH',{properties:{Statut:{select:{name:'Validation chef'}}}});
+      if(s) s.statut = 'Validation chef';
+      renderCards();
+      // Notif au journaliste
+      if(s && s.journaliste && currentUser && s.journaliste !== currentUser.nom) {
+        await createNotif('version_validee', sujetId, s.code, s.titre, s.journaliste, currentUser.nom,
+          `${currentUser.nom} a validé la ${versionNum} de ${s.code} — ${s.titre}`);
+        loadNotifs();
+      }
+    }
+    loadVersions(sujetId);
+    toast(newVal ? '✅ Version validée' : 'Validation retirée','ok');
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function supprimerVersion(versionId, sujetId) {
+  try {
+    await api('/pages/'+versionId,'PATCH',{archived:true});
+    loadVersions(sujetId);
+    toast('Version supprimée','ok');
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
 // ─── VALIDATION SÉQUENCIER ───
