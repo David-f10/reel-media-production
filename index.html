@@ -730,6 +730,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
           <div class="field"><div class="field-label">Téléphone</div><input type="tel" id="n-contact-tel" placeholder="+33..."></div>
         </div>
       </div>
+      <div id="n-refs-panel" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-top:4px">
+        <div class="field-label" style="margin-bottom:8px">📎 Liens de référence <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
+        <div id="n-refs-list"></div>
+        <div style="display:flex;gap:6px">
+          <input type="url" id="n-ref-input" placeholder="https://..." style="flex:1;font-size:12px"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterRefModal()}">
+          <button class="nav-btn" onclick="ajouterRefModal()" style="white-space:nowrap;font-size:11px">+ Ajouter</button>
+        </div>
+      </div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="closeOv('ov-new')">Annuler</button>
@@ -1041,6 +1050,13 @@ async function openNouveau(){
   document.getElementById('n-date').value='';
   const cp = document.getElementById('n-contact-panel');
   if(cp) cp.style.display='none';
+  const rp = document.getElementById('n-refs-panel');
+  if(rp) rp.style.display='none';
+  const rl = document.getElementById('n-refs-list');
+  if(rl) rl.innerHTML='';
+  const ri = document.getElementById('n-ref-input');
+  if(ri) ri.value='';
+  modalRefs = [];
   ['n-contact-prenom','n-contact-nom','n-contact-mail','n-contact-tel'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
@@ -2827,6 +2843,12 @@ function selFmt(fmt,el){
   // Afficher contact client pour Brand et MAG
   const contactPanel = document.getElementById('n-contact-panel');
   if(contactPanel) contactPanel.style.display = ['Brand','MAG'].includes(fmt) ? 'block' : 'none';
+  const refsPanel = document.getElementById('n-refs-panel');
+  if(refsPanel) refsPanel.style.display = fmt === 'Desk' ? 'block' : 'none';
+  if(fmt !== 'Desk') { 
+    const rl = document.getElementById('n-refs-list'); 
+    if(rl) rl.innerHTML = ''; 
+  }
   const prev=document.getElementById('code-prev');
   const brandPanel=document.getElementById('brand-panel');
   // Sous-format
@@ -2978,6 +3000,29 @@ function updateBrandDecliCode(){
   document.getElementById('brand-decli-preview').style.display='block';
 }
 
+// Liens de référence dans le modal de création (Desk)
+let modalRefs = [];
+function ajouterRefModal() {
+  const input = document.getElementById('n-ref-input');
+  let url = input?.value.trim();
+  if(!url) { toast('Collez un lien','err'); return; }
+  if(!url.startsWith('http')) url = 'https://'+url;
+  modalRefs.push(url);
+  input.value = '';
+  refreshModalRefs();
+}
+function refreshModalRefs() {
+  const list = document.getElementById('n-refs-list');
+  if(!list) return;
+  list.innerHTML = modalRefs.map((u,i) => `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="flex:1;font-size:11px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+        title="${u}">${u.replace(/^https?:\/\//,'').substring(0,50)}${u.length>53?'...':''}</span>
+      <button onclick="modalRefs.splice(${i},1);refreshModalRefs()" 
+        style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1">×</button>
+    </div>`).join('');
+}
+
 async function createSujet(){
   const titre=document.getElementById('n-titre').value.trim();
   const chef=document.getElementById('n-chef').value;
@@ -3062,6 +3107,19 @@ async function createSujet(){
     const pageId=newPage.id;
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
+    // Sauvegarder les liens de référence si Desk
+    if(activeFmt==='Desk' && modalRefs.length > 0) {
+      await Promise.all(modalRefs.map(url =>
+        api('/pages','POST',{
+          parent:{database_id:DB_REFS},
+          properties:{
+            'Titre':{title:[{text:{content:url}}]},
+            'Sujet ID':{rich_text:[{text:{content:pageId}}]}
+          }
+        })
+      ));
+      modalRefs = [];
+    }
     // Notif au journaliste
     const auteurNom = currentUser?.nom || 'Inconnu';
     if(journ) {
