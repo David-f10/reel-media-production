@@ -713,6 +713,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
       <div class="field"><div class="field-label">Date de tournage <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" id="n-date"></div>
       <div class="field"><div class="field-label">Brief</div><textarea id="n-brief" placeholder="Instructions pour le journaliste..."></textarea></div>
+      <div id="n-contact-panel" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-top:4px">
+        <div class="field-label" style="margin-bottom:8px">👤 Contact client <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
+        <div class="fg" style="margin-bottom:6px">
+          <div class="field"><div class="field-label">Prénom</div><input type="text" id="n-contact-prenom" placeholder="Prénom..."></div>
+          <div class="field"><div class="field-label">Nom</div><input type="text" id="n-contact-nom" placeholder="Nom..."></div>
+        </div>
+        <div class="fg">
+          <div class="field"><div class="field-label">Mail</div><input type="email" id="n-contact-mail" placeholder="email@..."></div>
+          <div class="field"><div class="field-label">Téléphone</div><input type="tel" id="n-contact-tel" placeholder="+33..."></div>
+        </div>
+      </div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="closeOv('ov-new')">Annuler</button>
@@ -1021,6 +1032,11 @@ async function openNouveau(){
   document.getElementById('n-journ').value='';
   document.getElementById('n-brief').value='';
   document.getElementById('n-date').value='';
+  const cp = document.getElementById('n-contact-panel');
+  if(cp) cp.style.display='none';
+  ['n-contact-prenom','n-contact-nom','n-contact-mail','n-contact-tel'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
   document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
   document.getElementById('code-prev').style.display='none';
   document.getElementById('brand-panel').style.display='none';
@@ -1116,12 +1132,12 @@ function openDetail(id){
         <div class="field">
           <div class="field-label">Mail</div>
           <input type="email" value="${s.contactMail||''}" placeholder="email@..."
-            onblur="upd('${id}','Contact Mail','url',this.value)">
+            onblur="upd('${id}','Contact Mail','email',this.value)">
         </div>
         <div class="field">
           <div class="field-label">Téléphone</div>
           <input type="tel" value="${s.contactTel||''}" placeholder="+33..."
-            onblur="upd('${id}','Contact Tél','rt',this.value)">
+            onblur="upd('${id}','Contact Tél','phone',this.value)">
         </div>
       </div>
     </div>` : ''}
@@ -1418,6 +1434,8 @@ async function upd(id,field,type,value){
       if(urlVal&&!urlVal.startsWith('http'))urlVal='https://'+urlVal;
       props[field]={url:urlVal||null};
     }
+    else if(type==='email'){props[field]={email:value||null};}
+    else if(type==='phone'){props[field]={phone_number:value||null};}
     else if(type==='cb')props[field]={checkbox:value};
     await api(`/pages/${id}`,'PATCH',{properties:props});
     const s=sujets.find(x=>x.id===id);
@@ -2572,6 +2590,9 @@ function selFmt(fmt,el){
   activeFmt=fmt;brandMode=null;
   document.querySelectorAll('.fmt-opt').forEach(o=>o.classList.remove('sel'));
   el.classList.add('sel');
+  // Afficher contact client pour Brand et MAG
+  const contactPanel = document.getElementById('n-contact-panel');
+  if(contactPanel) contactPanel.style.display = ['Brand','MAG'].includes(fmt) ? 'block' : 'none';
   const prev=document.getElementById('code-prev');
   const brandPanel=document.getElementById('brand-panel');
   // Sous-format
@@ -2730,6 +2751,10 @@ async function createSujet(){
   const journ=journSel==='__nouveau__'?document.getElementById('n-journ-nouveau').value.trim():journSel;
   const brief=document.getElementById('n-brief').value.trim();
   const date=document.getElementById('n-date').value;
+  const contactPrenom=document.getElementById('n-contact-prenom')?.value.trim()||'';
+  const contactNom=document.getElementById('n-contact-nom')?.value.trim()||'';
+  const contactMail=document.getElementById('n-contact-mail')?.value.trim()||'';
+  const contactTel=document.getElementById('n-contact-tel')?.value.trim()||'';
   if(!titre||!activeFmt||!chef||!journ){toast('Titre, format, chef et journaliste requis','err');return;}
 
   let codeVal='';
@@ -2744,6 +2769,10 @@ async function createSujet(){
       const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
+      if(contactPrenom)props['Contact Prénom']={rich_text:[{text:{content:contactPrenom}}]};
+      if(contactNom)props['Contact Nom']={rich_text:[{text:{content:contactNom}}]};
+      if(contactMail)props['Contact Mail']={email:contactMail};
+      if(contactTel)props['Contact Tél']={phone_number:contactTel};
       const newPageBrand = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
       // Incrémenter compteur Brand
       await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
@@ -2769,6 +2798,10 @@ async function createSujet(){
       const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
+      if(contactPrenom)props['Contact Prénom']={rich_text:[{text:{content:contactPrenom}}]};
+      if(contactNom)props['Contact Nom']={rich_text:[{text:{content:contactNom}}]};
+      if(contactMail)props['Contact Mail']={email:contactMail};
+      if(contactTel)props['Contact Tél']={phone_number:contactTel};
       const newPageDecli = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
       // Notif au journaliste
       const auteurDecli = currentUser?.nom || 'Inconnu';
@@ -2785,6 +2818,10 @@ async function createSujet(){
     const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:platAuto}}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
     if(date)props['Date tournage J1']={date:{start:date}};
+    if(contactPrenom)props['Contact Prénom']={rich_text:[{text:{content:contactPrenom}}]};
+    if(contactNom)props['Contact Nom']={rich_text:[{text:{content:contactNom}}]};
+    if(contactMail)props['Contact Mail']={email:contactMail};
+    if(contactTel)props['Contact Tél']={phone_number:contactTel};
     const sfVal2=document.getElementById('sous-format-select')?.value||'';
     if(sfVal2)props['Sous-format']={select:{name:sfVal2}};
     const newPage=await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
