@@ -1359,12 +1359,14 @@ function openDetail(id){
       <span class="step-ttl">💬 Commentaires</span>
       <span class="pill p-gray" id="comments-count-${id}">...</span>
     </div>
-    <div id="comments-list-${id}" style="margin-bottom:12px">
-      <div style="font-size:11px;color:var(--text3)">Chargement...</div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:flex-end">
-      <textarea id="comment-input-${id}" placeholder="Laisser un commentaire..." style="flex:1;min-height:60px;resize:vertical"></textarea>
-      <button class="nav-btn primary" onclick="postComment('${id}')" style="font-size:11px;padding:7px 12px;white-space:nowrap;height:fit-content">Envoyer</button>
+    <div style="padding:0 22px 18px">
+      <div id="comments-list-${id}" style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <textarea id="comment-input-${id}" placeholder="Laisser un commentaire..." style="flex:1;min-height:60px;resize:vertical"></textarea>
+        <button class="nav-btn primary" onclick="postComment('${id}')" style="font-size:11px;padding:7px 12px;white-space:nowrap;height:fit-content">Envoyer</button>
+      </div>
     </div>
   </div>`;
   document.getElementById('d-steps').innerHTML=html;
