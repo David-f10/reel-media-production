@@ -1863,7 +1863,7 @@ async function loadRetours(sujetId) {
       countEl.className = 'pill ' + (ouverts > 0 ? 'p-red' : 'p-green');
     }
     if(!retours.length) {
-      listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">Aucun retour pour ce sujet</div>';
+      listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 14px">Aucun retour pour ce sujet</div>';
       return;
     }
     // Grouper par version
@@ -2473,6 +2473,7 @@ function detectVideoType(url) {
   if(url.includes('drive.google.com')) return 'drive';
   if(url.includes('frame.io') || url.includes('app.frame.io')) return 'frameio';
   if(url.includes('vimeo.com')) return 'vimeo';
+  if(url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
   return null;
 }
 
@@ -2493,6 +2494,11 @@ function toEmbedUrl(url, type) {
   if(type === 'vimeo') {
     const match = url.match(/vimeo\.com\/(\d+)/);
     if(match) return `https://player.vimeo.com/video/${match[1]}`;
+    return null;
+  }
+  if(type === 'youtube') {
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+    if(match) return `https://www.youtube.com/embed/${match[1]}`;
     return null;
   }
   return null;
@@ -3636,7 +3642,7 @@ async function loadRefs(sujetId, containerId) {
       return;
     }
     el.innerHTML = refs.map(r => {
-      const url = r.properties['Lien']?.title?.[0]?.plain_text || '';
+      const url = r.properties['Titre']?.title?.[0]?.plain_text || '';
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <a href="${url}" target="_blank" rel="noopener"
           style="flex:1;font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
