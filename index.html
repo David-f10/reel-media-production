@@ -1947,8 +1947,11 @@ async function loadVersions(sujetId) {
     if(pill) {
       const nbV = versions.length;
       const nbValidees = versions.filter(v => v.properties.Validée?.checkbox).length;
+      if(nbV === 0) pill.parentElement.className = 'pill p-gray';
+      else if(nbValidees > 0) pill.parentElement.className = 'pill p-green';
+      else pill.parentElement.className = 'pill p-amber';
       if(nbV === 0) pill.textContent = 'En attente';
-      else if(nbValidees > 0) pill.textContent = `V${nbValidees} validée`;
+      else if(nbValidees > 0) pill.textContent = '✅ Validé';
       else pill.textContent = `${nbV} version${nbV>1?'s':''} disponible${nbV>1?'s':''}`;
     }
     if(!versions.length) {
