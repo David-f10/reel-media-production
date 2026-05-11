@@ -3341,7 +3341,6 @@ function renderIdees(vue='cartes') {
   const groupes = {};
   STATUTS_VISIBLES.forEach(s => groupes[s] = idees.filter(i => i.statut === s));
 
-  let html = '<div style="display:flex;flex-direction:column;gap:24px">';
   STATUTS_VISIBLES.forEach(statut => {
     const items = groupes[statut];
     if(!items.length) return;
