@@ -3512,7 +3512,7 @@ async function loadRefs(sujetId, containerId) {
       return;
     }
     el.innerHTML = refs.map(r => {
-      const url = r.properties['URL']?.title?.[0]?.plain_text || '';
+      const url = r.properties['userDefined:URL']?.title?.[0]?.plain_text || '';
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <a href="${url}" target="_blank" rel="noopener"
           style="flex:1;font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
@@ -3535,7 +3535,7 @@ async function addRef(sujetId, inputId, containerId) {
     await api('/pages','POST',{
       parent:{database_id:DB_REFS},
       properties:{
-        'URL':{title:[{text:{content:url}}]},
+        'userDefined:URL':{title:[{text:{content:url}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]}
       }
     });
@@ -3902,7 +3902,7 @@ async function soumettreidee() {
       await api('/pages','POST',{
         parent:{database_id:DB_REFS},
         properties:{
-          'URL':{title:[{text:{content:url}}]},
+          'userDefined:URL':{title:[{text:{content:url}}]},
           'Sujet ID':{rich_text:[{text:{content:newIdee.id}}]}
         }
       });
