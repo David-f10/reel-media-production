@@ -1920,7 +1920,7 @@ async function loadVersions(sujetId) {
             onkeydown="if(event.key==='Enter'){updateVersionUrl('${v.id}','${sujetId}',this.value);this.blur()}">
           ${url && type ? `<button onclick="openPlayer('${url}','${version}','${sujetId}','${version}')"
             style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;flex-shrink:0">▶</button>` : ''}
-          ${url && type === 'drive' ? `<a href="#" onclick="event.preventDefault();openDriveFolder('${url}')"
+          ${url && type === 'drive' ? `<a href="#" onclick="event.preventDefault();openDriveFolderSync('${url}')"
             style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0;text-decoration:none">📁</a>` : ''}
           ${url ? `<button onclick="copierLienClient('${sujetId}','${version}','${url}')"
             style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0">🔗</button>` : ''}
