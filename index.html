@@ -1905,7 +1905,7 @@ async function toggleValidationSeq(id, type) {
     await upd(id,'Validation RM','cb',newVal);
     s.validationRM = newVal;
   } else if(type==='Client') {
-    if(!s.validationRM) { toast('Validez d'abord Réel Média','err'); return; }
+    if(!s.validationRM) { toast("Validez d'abord Réel Média",'err'); return; }
     const newVal = !s.validationClient;
     await upd(id,'Validation Client','cb',newVal);
     s.validationClient = newVal;
