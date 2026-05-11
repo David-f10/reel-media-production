@@ -1928,7 +1928,7 @@ async function loadVersions(sujetId) {
           <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${validee?'var(--green)':'var(--text)'}">${version}</span>
           <div style="display:flex;gap:6px;align-items:center">
             <span style="font-size:10px;color:var(--text3)">${date}</span>
-            <button onclick="supprimerVersion('${v.id}','${sujetId}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1">×</button>
+
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
@@ -1977,10 +1977,13 @@ async function loadVersions(sujetId) {
 async function ajouterVersion(sujetId) {
   const s = sujets.find(x=>x.id===sujetId);
   if(!s) return;
-  // Calculer le prochain numéro de version
+  // Calculer le prochain numéro depuis les versions existantes dans Notion
   const el = document.getElementById('versions-list-'+sujetId);
-  const existing = el ? el.querySelectorAll('[style*="border-radius:8px"]').length : 0;
-  const versionNum = `V${existing+1}`;
+  // Compter les entrées visibles actuelles (titres V1, V2...)
+  const titres = el ? [...el.querySelectorAll('[style*="font-weight:600"]')].map(e=>e.textContent.trim()) : [];
+  const nums = titres.map(t=>parseInt(t.replace('V',''))).filter(n=>!isNaN(n));
+  const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
+  const versionNum = `V${maxNum+1}`;
   try {
     await api('/pages','POST',{
       parent:{database_id:DB_VERSIONS},
