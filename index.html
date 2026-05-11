@@ -1994,7 +1994,7 @@ async function ajouterVersion(sujetId) {
     });
     // Transition statut
     if(s.statut !== 'Montage V1' && s.statut !== 'Retours' && s.statut !== 'Validation chef' && s.statut !== 'PAD') {
-      await api('/pages/'+sujetId,'PATCH',{properties:{Statut:{select:{name:'Montage V1'}}}});
+      await upd(sujetId, 'Statut', 'sel', 'Montage V1');
       s.statut = 'Montage V1';
       renderCards();
     }
