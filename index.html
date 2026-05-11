@@ -1577,11 +1577,15 @@ let retourSujetId = null;
 
 function openAjoutRetour(sujetId) {
   retourSujetId = sujetId;
-  // Pré-sélectionner la version selon les liens existants
-  const s = sujets.find(s => s.id === sujetId);
-  if(s) {
-    const v = s.lien3 ? 'V3' : s.lien2 ? 'V2' : 'V1';
-    document.getElementById('ret-version').value = v;
+  // Pré-sélectionner la dernière version disponible depuis la base Versions
+  const versionsEl = document.getElementById('versions-list-'+sujetId);
+  if(versionsEl) {
+    const titres = [...versionsEl.querySelectorAll('[style*="font-weight:600"]')].map(e=>e.textContent.trim().replace(/\s.*$/,''));
+    const nums = titres.map(t=>parseInt(t.replace('V',''))).filter(n=>!isNaN(n));
+    if(nums.length > 0) {
+      const lastV = `V${Math.max(...nums)}`;
+      document.getElementById('ret-version').value = lastV;
+    }
   }
   document.getElementById('ret-desc').value = '';
   document.getElementById('ret-timecode').value = '';
@@ -1908,6 +1912,9 @@ async function loadVersions(sujetId) {
         retoursOuvertsByVersion[v] = (retoursOuvertsByVersion[v]||0) + 1;
       }
     });
+    // Calculer le numéro max pour savoir quelle est la dernière version
+    const versionNums = versions.map(v => parseInt(v.properties.Version?.rich_text?.[0]?.plain_text?.replace('V','')||'0')).filter(n=>!isNaN(n));
+    const maxVersionNum = versionNums.length > 0 ? Math.max(...versionNums) : 0;
     if(!versions.length) {
       el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</div>';
       return;
@@ -1953,18 +1960,26 @@ async function loadVersions(sujetId) {
           </div>
           ${(()=>{
             const nbRetours = retoursOuvertsByVersion[version]||0;
+            const vNum = parseInt(version.replace('V',''));
+            const isLastVersion = vNum === maxVersionNum;
+            if(annulee) return `<button onclick="toggleAnnuleeVersion('${v.id}','${sujetId}')"
+              class="nav-btn" style="font-size:11px;white-space:nowrap;color:var(--text3)">
+              ↩ Restaurer</button>`;
             if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
               class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
-              ✅ Version validée
-            </button>`;
+              ✅ Version validée</button>`;
+            if(!isLastVersion) return `<button disabled
+              class="nav-btn" style="font-size:11px;white-space:nowrap;opacity:0.4;cursor:not-allowed">
+              ⏭ Version dépassée</button>`;
             if(nbRetours > 0) return `<button disabled
               class="nav-btn" style="font-size:11px;white-space:nowrap;background:var(--amber-dim);border-color:var(--amber);color:var(--amber);cursor:not-allowed;opacity:1">
-              ⚠️ ${nbRetours} retour${nbRetours>1?'s':''} à corriger
-            </button>`;
-            return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
-              class="nav-btn" style="font-size:11px;white-space:nowrap">
-              ⬜ Valider cette version
-            </button>`;
+              ⚠️ ${nbRetours} retour${nbRetours>1?'s':''} à corriger</button>`;
+            return `<div style="display:flex;gap:6px">
+              <button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
+                class="nav-btn" style="font-size:11px;white-space:nowrap;flex:1">⬜ Valider</button>
+              <button onclick="toggleAnnuleeVersion('${v.id}','${sujetId}')"
+                class="nav-btn" style="font-size:11px;white-space:nowrap;color:var(--red);border-color:var(--red)">❌ Annuler</button>
+            </div>`;
           })()}
         </div>
       </div>`;
