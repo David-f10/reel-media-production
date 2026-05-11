@@ -1900,7 +1900,7 @@ async function loadVersions(sujetId) {
     const tousLesNoms = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
     el.innerHTML = versions.map((v,i) => {
       const pr = v.properties;
-      const url = pr['userDefined:URL']?.title?.[0]?.plain_text || pr.URL?.title?.[0]?.plain_text || '';
+      const url = pr['URL']?.title?.[0]?.plain_text || '';
       const version = pr.Version?.rich_text?.[0]?.plain_text || `V${i+1}`;
       const monteur = pr.Monteur?.rich_text?.[0]?.plain_text || '';
       const validee = pr.Validée?.checkbox || false;
@@ -1958,7 +1958,7 @@ async function ajouterVersion(sujetId) {
     await api('/pages','POST',{
       parent:{database_id:DB_VERSIONS},
       properties:{
-        'userDefined:URL':{title:[{text:{content:''}}]},
+        'URL':{title:[{text:{content:''}}]},
         'Version':{rich_text:[{text:{content:versionNum}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]},
         'Monteur':{rich_text:[{text:{content:s.journaliste||''}}]},
@@ -1980,7 +1980,7 @@ async function updateVersionUrl(versionId, sujetId, url) {
   if(!url) return;
   const s = sujets.find(x=>x.id===sujetId);
   try {
-    await api('/pages/'+versionId,'PATCH',{properties:{'userDefined:URL':{title:[{text:{content:url}}]}}});
+    await api('/pages/'+versionId,'PATCH',{properties:{'URL':{title:[{text:{content:url}}]}}});
     loadVersions(sujetId);
     // Notif au chef
     if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
