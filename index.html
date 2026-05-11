@@ -1928,7 +1928,7 @@ async function loadVersions(sujetId) {
       const version = pr.Version?.rich_text?.[0]?.plain_text || `V${i+1}`;
       const monteur = pr.Monteur?.rich_text?.[0]?.plain_text || '';
       const validee = pr.Validée?.checkbox || false;
-      const annulee = pr.Statut?.select?.name === 'Annulée';
+
       const date = new Date(v.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
       const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : null;
       return `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;${validee?'border-color:var(--green);background:var(--green-dim)':''}">
@@ -1962,9 +1962,6 @@ async function loadVersions(sujetId) {
             const nbRetours = retoursOuvertsByVersion[version]||0;
             const vNum = parseInt(version.replace('V',''));
             const isLastVersion = vNum === maxVersionNum;
-            if(annulee) return `<button onclick="toggleAnnuleeVersion('${v.id}','${sujetId}')"
-              class="nav-btn" style="font-size:11px;white-space:nowrap;color:var(--text3)">
-              ↩ Restaurer</button>`;
             if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
               class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
               ✅ Version validée</button>`;
@@ -1974,12 +1971,8 @@ async function loadVersions(sujetId) {
             if(nbRetours > 0) return `<button disabled
               class="nav-btn" style="font-size:11px;white-space:nowrap;background:var(--amber-dim);border-color:var(--amber);color:var(--amber);cursor:not-allowed;opacity:1">
               ⚠️ ${nbRetours} retour${nbRetours>1?'s':''} à corriger</button>`;
-            return `<div style="display:flex;gap:6px">
-              <button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
-                class="nav-btn" style="font-size:11px;white-space:nowrap;flex:1">⬜ Valider</button>
-              <button onclick="toggleAnnuleeVersion('${v.id}','${sujetId}')"
-                class="nav-btn" style="font-size:11px;white-space:nowrap;color:var(--red);border-color:var(--red)">❌ Annuler</button>
-            </div>`;
+            return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
+              class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
         </div>
       </div>`;
@@ -2008,8 +2001,7 @@ async function ajouterVersion(sujetId) {
         'Version':{rich_text:[{text:{content:versionNum}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]},
         'Monteur':{rich_text:[{text:{content:s.journaliste||''}}]},
-        'Validée':{checkbox:false},
-        'Statut':{select:{name:'Active'}}
+        'Validée':{checkbox:false}
       }
     });
     // Transition statut
