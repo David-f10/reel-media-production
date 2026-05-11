@@ -1952,7 +1952,7 @@ async function loadVersions(sujetId) {
           </div>
           ${(()=>{
             const nbRetours = retoursOuvertsByVersion[version]||0;
-            if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee})"
+            if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
               class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
               ✅ Version validée
             </button>`;
@@ -1960,7 +1960,7 @@ async function loadVersions(sujetId) {
               class="nav-btn" style="font-size:11px;white-space:nowrap;background:var(--amber-dim);border-color:var(--amber);color:var(--amber);cursor:not-allowed;opacity:1">
               ⚠️ ${nbRetours} retour${nbRetours>1?'s':''} à corriger
             </button>`;
-            return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee})"
+            return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
               class="nav-btn" style="font-size:11px;white-space:nowrap">
               ⬜ Valider cette version
             </button>`;
@@ -2025,22 +2025,17 @@ async function updateVersionMonteur(versionId, sujetId, monteur) {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee) {
+async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, url) {
   const s = sujets.find(x=>x.id===sujetId);
   const newVal = !wasValidee;
   try {
     await api('/pages/'+versionId,'PATCH',{properties:{'Validée':{checkbox:newVal}}});
     if(newVal) {
-      // Récupérer l'URL de la version pour la sauvegarder dans Lien de rendu
-      try {
-        const vPage = await api('/pages/'+versionId,'GET');
-        const vUrl = vPage.properties['URL']?.title?.[0]?.plain_text || '';
-        if(vUrl) {
-          await api('/pages/'+sujetId,'PATCH',{properties:{'Lien de rendu':{url:vUrl}}});
-          const s2 = sujets.find(x=>x.id===sujetId);
-          if(s2) s2.lienRendu = vUrl;
-        }
-      } catch(e) { console.warn('Erreur récup URL version:', e.message); }
+      if(url) {
+        await api('/pages/'+sujetId,'PATCH',{properties:{'Lien de rendu':{url:url}}});
+        const s2 = sujets.find(x=>x.id===sujetId);
+        if(s2) s2.lienRendu = url;
+      }
       // Transition statut
       await api('/pages/'+sujetId,'PATCH',{properties:{Statut:{select:{name:'Validation chef'}}}});
       if(s) s.statut = 'Validation chef';
