@@ -1921,6 +1921,7 @@ async function loadVersions(sujetId) {
       const version = pr.Version?.rich_text?.[0]?.plain_text || `V${i+1}`;
       const monteur = pr.Monteur?.rich_text?.[0]?.plain_text || '';
       const validee = pr.Validée?.checkbox || false;
+      const annulee = pr.Statut?.select?.name === 'Annulée';
       const date = new Date(v.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
       const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : null;
       return `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;${validee?'border-color:var(--green);background:var(--green-dim)':''}">
@@ -1992,7 +1993,8 @@ async function ajouterVersion(sujetId) {
         'Version':{rich_text:[{text:{content:versionNum}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]},
         'Monteur':{rich_text:[{text:{content:s.journaliste||''}}]},
-        'Validée':{checkbox:false}
+        'Validée':{checkbox:false},
+        'Statut':{select:{name:'Active'}}
       }
     });
     // Transition statut
@@ -2052,6 +2054,19 @@ async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, 
     }
     loadVersions(sujetId);
     toast(newVal ? '✅ Version validée' : 'Validation retirée','ok');
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function toggleAnnuleeVersion(versionId, sujetId) {
+  const s = sujets.find(x=>x.id===sujetId);
+  try {
+    // Lire le statut actuel depuis le DOM
+    const el = document.getElementById('versions-list-'+sujetId);
+    const isAnnulee = el?.querySelector(`[onclick*="${versionId}"][style*="Annuler"]`) !== null;
+    const newStatut = isAnnulee ? 'Active' : 'Annulée';
+    await api('/pages/'+versionId,'PATCH',{properties:{'Statut':{select:{name:newStatut}}}});
+    toast(newStatut === 'Annulée' ? 'Version annulée' : 'Version restaurée','ok');
+    loadVersions(sujetId);
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
