@@ -2650,8 +2650,7 @@ async function createSujet(){
       const nv=c.dernierNumero+1;
       codeVal=`B${String(nv).padStart(2,'0')}`;
       // Créer le sujet
-      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
-      if(plat)props.Plateforme={select:{name:plat}};
+      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
       await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
@@ -2672,8 +2671,7 @@ async function createSujet(){
       const client=clients.find(c=>c.id===clientId);
       const prochainLettre=nextLetter(client.derniereLettre);
       codeVal=`${client.code}${prochainLettre}`;
-      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]}};
-      if(plat)props.Plateforme={select:{name:plat}};
+      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
       await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
@@ -3289,25 +3287,62 @@ async function loadIdees() {
     const badge = document.getElementById('cnt-idees');
     const actives = idees.filter(i => i.statut !== '❌ Déclinée').length;
     if(badge) badge.textContent = actives;
-    renderIdees();
+    renderIdees('cartes');
   } catch(e) {
     mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`;
   }
 }
 
-function renderIdees() {
+function renderIdees(vue='cartes') {
   const mc = document.getElementById('main-content');
-  if(!idees.length) {
-    mc.innerHTML = '<div class="empty"><h3>Aucune idée</h3><p>Proposez la première idée de sujet !</p></div>';
+  const visibles = idees.filter(i => i.statut !== '🚀 Démarrée');
+  
+  // Onglets
+  let html = `<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px">
+    <button onclick="renderIdees('cartes')" style="padding:8px 16px;font-size:12px;border:none;background:none;cursor:pointer;border-bottom:2px solid ${vue==='cartes'?'var(--red)':'transparent'};color:${vue==='cartes'?'var(--text)':'var(--text3)'};font-family:var(--font)">⊞ Cartes</button>
+    <button onclick="renderIdees('liste')" style="padding:8px 16px;font-size:12px;border:none;background:none;cursor:pointer;border-bottom:2px solid ${vue==='liste'?'var(--red)':'transparent'};color:${vue==='liste'?'var(--text)':'var(--text3)'};font-family:var(--font)">☰ Liste</button>
+  </div>`;
+
+  if(!visibles.length) {
+    mc.innerHTML = html + '<div class="empty"><h3>Aucune idée</h3><p>Proposez la première idée de sujet !</p></div>';
     return;
   }
 
-  // Grouper par statut
+  if(vue === 'liste') {
+    html += `<div style="overflow-x:auto"><table class="list-table">
+      <thead><tr>
+        <th>Statut</th>
+        <th>Titre</th>
+        <th>Format</th>
+        <th>Proposé par</th>
+        <th>Date</th>
+      </tr></thead><tbody>`;
+    visibles.forEach(i => {
+      const col = IDEE_COLORS[i.statut]||'#888';
+      const fmtCol = FMT_COLORS[i.format]||'var(--text3)';
+      const date = new Date(i.created).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+      html += `<tr onclick="ouvrirIdee('${i.id}')" style="cursor:pointer">
+        <td><span style="font-size:11px;color:${col};font-weight:500">${i.statut}</span></td>
+        <td class="td-titre">${i.titre}</td>
+        <td>${i.format?`<span style="color:${fmtCol};font-size:11px">${i.format}</span>`:'—'}</td>
+        <td>${i.proposePar||'—'}</td>
+        <td class="td-date">${date}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    mc.innerHTML = html;
+    return;
+  }
+
+  // Vue cartes
+  html += '<div style="display:flex;flex-direction:column;gap:24px">';
+  // Grouper par statut — masquer les démarrées
+  const STATUTS_VISIBLES = ['💡 Idée', '✅ Validée', '❌ Déclinée'];
   const groupes = {};
-  IDEE_STATUTS.forEach(s => groupes[s] = idees.filter(i => i.statut === s));
+  STATUTS_VISIBLES.forEach(s => groupes[s] = idees.filter(i => i.statut === s));
 
   let html = '<div style="display:flex;flex-direction:column;gap:24px">';
-  IDEE_STATUTS.forEach(statut => {
+  STATUTS_VISIBLES.forEach(statut => {
     const items = groupes[statut];
     if(!items.length) return;
     const col = IDEE_COLORS[statut];
@@ -3387,10 +3422,26 @@ function ouvrirIdee(id) {
       </div>
     </div>` : ''}
     ${i.statut === '🚀 Démarrée' ? `<div class="step"><div style="font-size:12px;color:var(--green)">🚀 Cette idée a été démarrée en production.</div></div>` : ''}
+    <div class="step" id="comments-section-${i.id}">
+      <div class="step-hdr">
+        <span class="step-ttl">💬 Commentaires</span>
+        <span class="pill p-gray" id="comments-count-${i.id}">...</span>
+      </div>
+      <div id="comments-list-${i.id}" style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <textarea id="comment-input-${i.id}" placeholder="Chef ou journaliste — laisser un commentaire..." style="flex:1;min-height:60px;resize:vertical"></textarea>
+        <button class="nav-btn primary" onclick="postComment('${i.id}')" style="font-size:11px;padding:7px 12px;white-space:nowrap;height:fit-content">Envoyer</button>
+      </div>
+    </div>
   </div>`;
   modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
   document.body.appendChild(modal);
-  setTimeout(()=>loadRefs(i.id,'refs-idee-'+i.id),100);
+  setTimeout(()=>{
+    loadRefs(i.id,'refs-idee-'+i.id);
+    loadComments(i.id);
+  },100);
 }
 
 async function saveIdeeField(id, field, type, value) {
