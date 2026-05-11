@@ -960,6 +960,12 @@ function parsePage(p){
     archivageConfirme:pr['Archivage confirmé']?.checkbox||false,
     emplacementArchivage:pr['Emplacement archivage']?.select?.name||'',
     versionClean:pr['Version clean']?.checkbox||false,
+    contactNom:pr['Contact Nom']?.rich_text?.[0]?.plain_text||'',
+    contactPrenom:pr['Contact Prénom']?.rich_text?.[0]?.plain_text||'',
+    contactMail:pr['Contact Mail']?.email||'',
+    contactTel:pr['Contact Tél']?.phone_number||'',
+    validationRM:pr['Validation RM']?.checkbox||false,
+    validationClient:pr['Validation Client']?.checkbox||false,
     retoursOuverts:0};  // rempli après chargement
 }
 
@@ -1087,18 +1093,76 @@ function openDetail(id){
       </div>
     </div>`);
 
+  const hasContact = ['Brand','MAG'].includes(s.format);
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
     `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)" style="margin-bottom:14px">${s.notes}</textarea>
-    ${refsHTML(id,'refs-prod-'+id)}`);
-  html+=step('Séquencier',s.seqValide?'p-green Validé':'p-amber En attente',
-    `<label class="cb-row"><input type="checkbox" ${s.seqValide?'checked':''} onchange="upd('${id}','Séquencier validé','cb',this.checked)"><span class="cb-label">Séquencier validé par le chef</span></label>
-    <div class="field" style="margin-top:8px"><div class="field-label">Lien Google Doc</div>
-    <div style="display:flex;gap:6px;align-items:center">
-      <input type="url" id="seq-${id}" value="${s.lienSeq||''}" placeholder="https://docs.google.com/..." style="flex:1"
-        onblur="saveSeq('${id}',this.value)"
-        onkeydown="if(event.key==='Enter'){saveSeq('${id}',this.value);this.blur()}">
-      ${s.lienSeq?`<a href="${s.lienSeq}" target="_blank" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;text-decoration:none;white-space:nowrap">↗ Ouvrir</a>`:''}
-    </div></div>`);
+    ${refsHTML(id,'refs-prod-'+id)}
+    ${hasContact ? `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="field-label" style="margin-bottom:8px">👤 Contact client <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
+      <div class="fg" style="margin-bottom:6px">
+        <div class="field">
+          <div class="field-label">Prénom</div>
+          <input type="text" value="${s.contactPrenom||''}" placeholder="Prénom..."
+            onblur="upd('${id}','Contact Prénom','rt',this.value)">
+        </div>
+        <div class="field">
+          <div class="field-label">Nom</div>
+          <input type="text" value="${s.contactNom||''}" placeholder="Nom..."
+            onblur="upd('${id}','Contact Nom','rt',this.value)">
+        </div>
+      </div>
+      <div class="fg">
+        <div class="field">
+          <div class="field-label">Mail</div>
+          <input type="email" value="${s.contactMail||''}" placeholder="email@..."
+            onblur="upd('${id}','Contact Mail','url',this.value)">
+        </div>
+        <div class="field">
+          <div class="field-label">Téléphone</div>
+          <input type="tel" value="${s.contactTel||''}" placeholder="+33..."
+            onblur="upd('${id}','Contact Tél','rt',this.value)">
+        </div>
+      </div>
+    </div>` : ''}
+  `);
+  // Pill séquencier selon le format
+  const seqPill = s.format==='Brand'
+    ? (s.validationClient?'p-green Validé client':(s.validationRM?'p-amber Validé RM':'p-gray En attente'))
+    : (s.seqValide?'p-green Validé':'p-amber En attente');
+
+  html+=step('Séquencier', seqPill,
+    `<div class="field" style="margin-bottom:12px">
+      <div class="field-label" style="margin-bottom:6px">Lien Google Doc</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="url" id="seq-${id}" value="${s.lienSeq||''}" placeholder="https://docs.google.com/..." style="flex:1"
+          onblur="saveSeq('${id}',this.value)"
+          onkeydown="if(event.key==='Enter'){saveSeq('${id}',this.value);this.blur()}">
+        ${s.lienSeq?`<a href="${s.lienSeq}" target="_blank" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;text-decoration:none;white-space:nowrap">↗ Ouvrir</a>`:''}
+      </div>
+    </div>
+    ${s.format==='Brand' ? `
+      <div style="display:flex;gap:8px;margin-bottom:4px">
+        <button onclick="toggleValidationSeq('${id}','RM')"
+          class="nav-btn ${s.validationRM?'primary':''}"
+          style="flex:1;font-size:12px;${s.validationRM?'background:var(--green);border-color:var(--green)':''}">
+          ${s.validationRM?'✅':'⬜'} Validation Réel Média
+        </button>
+        <button onclick="toggleValidationSeq('${id}','Client')"
+          class="nav-btn ${s.validationClient?'primary':''}"
+          style="flex:1;font-size:12px;${s.validationClient?'background:var(--blue);border-color:var(--blue)':''};${!s.validationRM?'opacity:0.5;cursor:not-allowed':''}"
+          ${!s.validationRM?'disabled':''}>
+          ${s.validationClient?'✅':'⬜'} Validation Client
+        </button>
+      </div>
+    ` : `
+      <button onclick="toggleValidationSeq('${id}','MAG')"
+        class="nav-btn ${s.seqValide?'primary':''}"
+        style="width:100%;font-size:12px;${s.seqValide?'background:var(--green);border-color:var(--green)':''}">
+        ${s.seqValide?'✅ Séquencier validé':'⬜ Valider le séquencier'}
+      </button>
+    `}
+  `);
   if(hasTour){html+=step('Tournage',s.tourJ1?'p-amber Planifié':'p-gray Non planifié',
     `<div class="fg">
       <div class="field"><div class="field-label">Date J1</div><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"></div>
@@ -1830,6 +1894,33 @@ async function toggleRetour(retourId, sujetId, newStatut) {
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
+}
+
+// ─── VALIDATION SÉQUENCIER ───
+async function toggleValidationSeq(id, type) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  if(type==='RM') {
+    const newVal = !s.validationRM;
+    await upd(id,'Validation RM','cb',newVal);
+    s.validationRM = newVal;
+  } else if(type==='Client') {
+    if(!s.validationRM) { toast('Validez d'abord Réel Média','err'); return; }
+    const newVal = !s.validationClient;
+    await upd(id,'Validation Client','cb',newVal);
+    s.validationClient = newVal;
+    if(newVal) {
+      // Transition auto vers En tournage si validé client
+      await api('/pages/'+id,'PATCH',{properties:{Statut:{select:{name:'En tournage'}}}});
+      s.statut = 'En tournage';
+      renderCards();
+    }
+  } else if(type==='MAG') {
+    const newVal = !s.seqValide;
+    await upd(id,'Séquencier validé','cb',newVal);
+    s.seqValide = newVal;
+  }
+  openDetail(id);
 }
 
 // ─── AUTHENTIFICATION ───
@@ -2653,9 +2744,13 @@ async function createSujet(){
       const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
-      await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+      const newPageBrand = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
       // Incrémenter compteur Brand
       await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
+      // Notif au journaliste
+      const auteurBrand = currentUser?.nom || 'Inconnu';
+      if(journ) await createNotif('nouveau_sujet', newPageBrand.id, codeVal, titre, journ, auteurBrand,
+        `${auteurBrand} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
       // Ajouter nouveau client dans DB_CLIENTS
       const nomClient=document.getElementById('brand-nom-client').value.trim()||titre;
       await api('/pages','POST',{parent:{database_id:DB_CLIENTS},properties:{
@@ -2674,7 +2769,11 @@ async function createSujet(){
       const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
-      await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+      const newPageDecli = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+      // Notif au journaliste
+      const auteurDecli = currentUser?.nom || 'Inconnu';
+      if(journ) await createNotif('nouveau_sujet', newPageDecli.id, codeVal, titre, journ, auteurDecli,
+        `${auteurDecli} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
       // Mettre à jour dernière lettre du client
       await api(`/pages/${client.id}`,'PATCH',{properties:{'Dernière lettre':{rich_text:[{text:{content:prochainLettre}}]}}});
     }
