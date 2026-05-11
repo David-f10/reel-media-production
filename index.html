@@ -1888,11 +1888,27 @@ async function loadVersions(sujetId) {
   if(!el) return;
   el.innerHTML = '<div style="font-size:11px;color:var(--text3)">Chargement...</div>';
   try {
-    const data = await api('/databases/'+DB_VERSIONS+'/query','POST',{
-      filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
-      sorts:[{timestamp:'created_time',direction:'ascending'}]
+    // Charger les versions ET les retours en parallèle
+    const [versionsData, retoursData] = await Promise.all([
+      api('/databases/'+DB_VERSIONS+'/query','POST',{
+        filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
+        sorts:[{timestamp:'created_time',direction:'ascending'}]
+      }),
+      api('/databases/'+DB_RETOURS+'/query','POST',{
+        filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
+        page_size:100
+      })
+    ]);
+    const versions = versionsData.results;
+    // Compter les retours ouverts par version
+    const retoursOuvertsByVersion = {};
+    retoursData.results.forEach(r => {
+      const v = r.properties.Version?.select?.name || '';
+      const statut = r.properties.Statut?.select?.name || '';
+      if(statut === 'Ouvert') {
+        retoursOuvertsByVersion[v] = (retoursOuvertsByVersion[v]||0) + 1;
+      }
     });
-    const versions = data.results;
     if(!versions.length) {
       el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</div>';
       return;
@@ -1935,11 +1951,21 @@ async function loadVersions(sujetId) {
               ${tousLesNoms.map(n=>`<option ${monteur===n?'selected':''}>${n}</option>`).join('')}
             </select>
           </div>
-          <button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee})"
-            class="nav-btn ${validee?'primary':''}"
-            style="font-size:11px;white-space:nowrap;${validee?'background:var(--green);border-color:var(--green)':''}">
-            ${validee?'✅ Version validée':'⬜ Valider cette version'}
-          </button>
+          ${(()=>{
+            const nbRetours = retoursOuvertsByVersion[version]||0;
+            if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee})"
+              class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
+              ✅ Version validée
+            </button>`;
+            if(nbRetours > 0) return `<button disabled
+              class="nav-btn" style="font-size:11px;white-space:nowrap;background:var(--amber-dim);border-color:var(--amber);color:var(--amber);cursor:not-allowed;opacity:1">
+              ⚠️ ${nbRetours} retour${nbRetours>1?'s':''} à corriger
+            </button>`;
+            return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee})"
+              class="nav-btn" style="font-size:11px;white-space:nowrap">
+              ⬜ Valider cette version
+            </button>`;
+          })()}
         </div>
       </div>`;
     }).join('');
