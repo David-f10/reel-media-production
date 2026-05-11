@@ -1172,7 +1172,7 @@ function openDetail(id){
         </button>
       </div>
     ` : `
-      <button onclick="toggleValidationSeq('${id}','MAG')"
+      <button onclick="toggleValidationSeq('${id}','autre')"
         class="nav-btn ${s.seqValide?'primary':''}"
         style="width:100%;font-size:12px;${s.seqValide?'background:var(--green);border-color:var(--green)':''}">
         ${s.seqValide?'✅ Séquencier validé':'⬜ Valider le séquencier'}
@@ -1918,25 +1918,47 @@ async function toggleRetour(retourId, sujetId, newStatut) {
 async function toggleValidationSeq(id, type) {
   const s = sujets.find(x=>x.id===id);
   if(!s) return;
+  const auteur = currentUser?.nom || '';
+
   if(type==='RM') {
     const newVal = !s.validationRM;
     await upd(id,'Validation RM','cb',newVal);
     s.validationRM = newVal;
+    if(newVal && s.journaliste && s.journaliste !== auteur) {
+      await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
+        `${auteur} a validé le séquencier côté Réel Média — ${s.code} · ${s.titre}`);
+      loadNotifs();
+    }
   } else if(type==='Client') {
     if(!s.validationRM) { toast("Validez d'abord Réel Média",'err'); return; }
     const newVal = !s.validationClient;
     await upd(id,'Validation Client','cb',newVal);
     s.validationClient = newVal;
     if(newVal) {
-      // Transition auto vers En tournage si validé client
+      // Transition auto vers En tournage
       await api('/pages/'+id,'PATCH',{properties:{Statut:{select:{name:'En tournage'}}}});
       s.statut = 'En tournage';
       renderCards();
+      // Notif au journaliste
+      if(s.journaliste && s.journaliste !== auteur) {
+        await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
+          `✅ Séquencier validé client — ${s.code} · ${s.titre} · Tournage peut démarrer !`);
+        loadNotifs();
+      }
     }
-  } else if(type==='MAG') {
+  } else {
+    // Tous les autres formats (MAG, Face Cam, Desk, YouTube, Interne, Prodige)
     const newVal = !s.seqValide;
     await upd(id,'Séquencier validé','cb',newVal);
     s.seqValide = newVal;
+    if(newVal) {
+      // Notif au journaliste que le chef a validé
+      if(s.journaliste && s.journaliste !== auteur) {
+        await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
+          `${auteur} a validé le séquencier de ${s.code} · ${s.titre}`);
+        loadNotifs();
+      }
+    }
   }
   openDetail(id);
 }
