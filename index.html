@@ -1219,7 +1219,7 @@ function openDetail(id){
       </div>
       <input type="text" id="nom-${id}" value="${s.nomFichier}" placeholder="Généré au choix du stockage" onblur="upd('${id}','Nom fichier officiel','rt',this.value)" style="font-family:var(--mono);font-size:12px">
     </div>`,activeStep==='stockage');
-  html+=step('Montage','p-gray Versions',
+  html+=step('Montage',`p-gray <span id="montage-pill-${id}">Chargement...</span>`,
     `<div id="versions-list-${id}" style="margin-bottom:10px">
       <div style="font-size:11px;color:var(--text3)">Chargement...</div>
     </div>
@@ -1942,6 +1942,15 @@ async function loadVersions(sujetId) {
     // Calculer le numéro max pour savoir quelle est la dernière version
     const versionNums = versions.map(v => parseInt(v.properties.Version?.rich_text?.[0]?.plain_text?.replace('V','')||'0')).filter(n=>!isNaN(n));
     const maxVersionNum = versionNums.length > 0 ? Math.max(...versionNums) : 0;
+    // Mettre à jour le badge du step Montage
+    const pill = document.getElementById('montage-pill-'+sujetId);
+    if(pill) {
+      const nbV = versions.length;
+      const nbValidees = versions.filter(v => v.properties.Validée?.checkbox).length;
+      if(nbV === 0) pill.textContent = 'En attente';
+      else if(nbValidees > 0) pill.textContent = `V${nbValidees} validée`;
+      else pill.textContent = `${nbV} version${nbV>1?'s':''} disponible${nbV>1?'s':''}`;
+    }
     if(!versions.length) {
       el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</div>';
       return;
