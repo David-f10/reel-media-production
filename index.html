@@ -1255,12 +1255,40 @@ function openDetail(id, forcePadOpen=false){
       class="nav-btn" style="width:100%;font-size:12px">
       + Ajouter une version
     </button>`,activeStep==='montage'||activeStep==='pad');
+  // Step musiques
+  if(!isInterne) {
+    html+=`<div class="step">
+      <div class="step-hdr" onclick="toggleStep('musiques-${id}')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="step-ttl">🎵 Musiques</span>
+          <span class="pill p-gray" id="musiques-count-${id}">...</span>
+        </div>
+        <span class="step-chevron" id="chev-musiques-${id}">▼</span>
+      </div>
+      <div class="step-body collapsed" id="musiques-${id}" style="padding:0 22px 18px">
+        <div id="musiques-list-${id}" style="margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <input type="text" id="mus-titre-${id}" placeholder="Titre de la musique..." style="flex:1;font-size:12px">
+          <input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:120px;font-size:12px">
+          <input type="text" id="mus-duree-${id}" placeholder="ex: 0:56" style="width:70px;font-size:12px">
+          <button onclick="ajouterMusique('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button>
+        </div>
+        <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">
+          📄 Exporter le relevé de musique
+        </button>
+      </div>
+    </div>`;
+  }
+
+
   // Récupérer le dernier lien validé depuis la base Versions
   const lienRenduAffiche = s.lienRendu || '';
   const capDeposee = s.capDeposee;
   const releveMusique = s.releveMusique;
   const sansMusique = s.sansMusique;
-  const padPret = capDeposee && (releveMusique || sansMusique);
+  const padPret = capDeposee && (sansMusique || releveMusique);
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
@@ -1283,7 +1311,7 @@ function openDetail(id, forcePadOpen=false){
         </div>
       ` : `
         <div style="display:flex;gap:8px">
-          <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button>
+          <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>{openDetail('${id}',true);setTimeout(()=>toggleStep('musiques-${id}'),200)})" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button>
           <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button>
         </div>
       `}
@@ -1415,33 +1443,6 @@ function openDetail(id, forcePadOpen=false){
         </div>
         <button onclick="creerDeclinaison('${id}')" class="nav-btn primary" style="width:100%;font-size:12px">
           + Créer une déclinaison Desk
-        </button>
-      </div>
-    </div>`;
-  }
-
-  // Step musiques
-  if(!isInterne) {
-    html+=`<div class="step">
-      <div class="step-hdr" onclick="toggleStep('musiques-${id}')">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="step-ttl">🎵 Musiques</span>
-          <span class="pill p-gray" id="musiques-count-${id}">...</span>
-        </div>
-        <span class="step-chevron" id="chev-musiques-${id}">▼</span>
-      </div>
-      <div class="step-body collapsed" id="musiques-${id}" style="padding:0 22px 18px">
-        <div id="musiques-list-${id}" style="margin-bottom:10px">
-          <div style="font-size:11px;color:var(--text3)">Chargement...</div>
-        </div>
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <input type="text" id="mus-titre-${id}" placeholder="Titre de la musique..." style="flex:1;font-size:12px">
-          <input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:120px;font-size:12px">
-          <input type="text" id="mus-duree-${id}" placeholder="ex: 0:56" style="width:70px;font-size:12px">
-          <button onclick="ajouterMusique('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button>
-        </div>
-        <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">
-          📄 Exporter le relevé de musique
         </button>
       </div>
     </div>`;
