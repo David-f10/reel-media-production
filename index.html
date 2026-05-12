@@ -1871,39 +1871,26 @@ async function exporterReleve(sujetId) {
     const musiques = data.results;
     const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
     const ligne = '─'.repeat(50);
-    let contenu = `RELEVÉ DE MUSIQUE — Réel Média
-${ligne}
-`;
-    contenu += `Projet  : ${s.code||'—'} — ${s.titre}
-`;
-    contenu += `Format  : ${s.format||'—'}${s.sousFormat?' · '+s.sousFormat:''}
-`;
-    contenu += `Monteur : ${s.journaliste||'—'}
-`;
-    contenu += `Date    : ${date}
-`;
-    contenu += `${ligne}
-
-`;
+    const NL = '\n';
+    let contenu = 'RELEVE DE MUSIQUE — Reel Media' + NL + ligne + NL;
+    contenu += 'Projet  : ' + (s.code||'—') + ' — ' + s.titre + NL;
+    contenu += 'Format  : ' + (s.format||'—') + (s.sousFormat?' · '+s.sousFormat:'') + NL;
+    contenu += 'Monteur : ' + (s.journaliste||'—') + NL;
+    contenu += 'Date    : ' + date + NL;
+    contenu += ligne + NL + NL;
     if(!musiques.length) {
-      contenu += 'Aucune musique renseignée.
-';
+      contenu += 'Aucune musique renseignee.' + NL;
     } else {
-      contenu += 'MUSIQUES UTILISÉES
-
-';
+      contenu += 'MUSIQUES UTILISEES' + NL + NL;
       musiques.forEach((m,i) => {
         const pr = m.properties;
         const titre = pr.Titre?.title?.[0]?.plain_text || '—';
         const artiste = pr.Artiste?.rich_text?.[0]?.plain_text || '—';
         const duree = pr.Durée?.rich_text?.[0]?.plain_text || '—';
-        contenu += `${i+1}. ${titre} — ${artiste} — ${duree}
-`;
+        contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — ' + duree + NL;
       });
     }
-    contenu += `
-${ligne}
-`;
+    contenu += NL + ligne + NL;
     // Télécharger le fichier
     const blob = new Blob([contenu], {type:'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
