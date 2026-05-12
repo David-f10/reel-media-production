@@ -1860,6 +1860,20 @@ async function supprimerMusique(musiqueId, sujetId) {
   } catch(e) { toast('Erreur suppression','err'); }
 }
 
+function formatDuree(val) {
+  if(!val) return '—';
+  const v = val.toString().trim();
+  if(v.includes(':')) return v;
+  const n = parseInt(v);
+  if(isNaN(n)) return v;
+  if(n < 100) {
+    return '0:' + (n < 10 ? '0'+n : n);
+  } else {
+    const min = Math.floor(n / 100);
+    const sec = n % 100;
+    return min + ':' + (sec < 10 ? '0'+sec : sec);
+  }
+}
 async function exporterReleve(sujetId) {
   const s = sujets.find(x=>x.id===sujetId);
   if(!s) return;
@@ -1887,7 +1901,7 @@ async function exporterReleve(sujetId) {
         const titre = pr.Titre?.title?.[0]?.plain_text || '—';
         const artiste = pr.Artiste?.rich_text?.[0]?.plain_text || '—';
         const duree = pr.Durée?.rich_text?.[0]?.plain_text || '—';
-        contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — ' + duree + NL;
+        contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — ' + formatDuree(duree) + ' s' + NL;
       });
     }
     contenu += NL + ligne + NL;
