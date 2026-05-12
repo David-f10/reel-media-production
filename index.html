@@ -1077,7 +1077,7 @@ async function openNouveau(){
   openOv('ov-new');
 }
 
-function openDetail(id){
+function openDetail(id, forcePadOpen=false){
   const s=sujets.find(x=>x.id===id);if(!s)return;
   const sfLabel = s.sousFormat === 'Décli' ? 'Décli '+(s.declinaisonNum||'?') : s.sousFormat;
   const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
@@ -1099,7 +1099,7 @@ function openDetail(id){
     'Validation chef': 'montage',
     'PAD': 'pad'
   };
-  const activeStep = statusMap[s.statut] || 'brief';
+  const activeStep = forcePadOpen ? 'pad' : (statusMap[s.statut] || 'brief');
   const stIdx=STATUS_ORDER.indexOf(s.statut);
   let html=`<div class="stepper">${STATUS_ORDER.map((st,i)=>{
     const cl=st===s.statut?'cur':i<stIdx?'done':'';
@@ -1261,15 +1261,15 @@ function openDetail(id){
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border-radius:8px;border:1px solid ${capDeposee?'var(--green)':'var(--border)'};background:${capDeposee?'var(--green-dim)':'var(--bg3)'}">
-        <input type="checkbox" ${capDeposee?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Cap d\u00e9pos\u00e9e','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.capDeposee=v;openDetail('${id}')})">
+      <label style="display:flex;align-items:center;gap:10px;cursor:${s.statut==='PAD'?'default':'pointer'};padding:10px;border-radius:8px;border:1px solid ${capDeposee?'var(--green)':'var(--border)'};background:${capDeposee?'var(--green-dim)':'var(--bg3)'}">
+        <input type="checkbox" ${capDeposee?'checked':''} ${s.statut==='PAD'?'disabled':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Cap d\u00e9pos\u00e9e','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.capDeposee=v;openDetail('${id}',true)})">
         <div>
           <div style="font-size:12px;font-weight:500;color:var(--text)">🖼️ Cap déposée</div>
           <div style="font-size:10px;color:var(--text3)">Miniature ${s.format==='YouTube'?'16x9':'9x16'} dans le dossier Drive</div>
         </div>
       </label>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border-radius:8px;border:1px solid ${releveMusique?'var(--green)':'var(--border)'};background:${releveMusique?'var(--green-dim)':'var(--bg3)'}">
-        <input type="checkbox" ${releveMusique?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Relev\u00e9 musique','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=v;openDetail('${id}')})">
+      <label style="display:flex;align-items:center;gap:10px;cursor:${s.statut==='PAD'?'default':'pointer'};padding:10px;border-radius:8px;border:1px solid ${releveMusique?'var(--green)':'var(--border)'};background:${releveMusique?'var(--green-dim)':'var(--bg3)'}">
+        <input type="checkbox" ${releveMusique?'checked':''} ${s.statut==='PAD'?'disabled':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Relev\u00e9 musique','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=v;openDetail('${id}',true)})">
         <div>
           <div style="font-size:12px;font-weight:500;color:var(--text)">🎵 Relevé de musique</div>
           <div style="font-size:10px;color:var(--text3)">Google Doc dans le dossier Drive</div>
