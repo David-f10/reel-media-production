@@ -990,6 +990,8 @@ function parsePage(p){
     archivageConfirme:pr['Archivage confirmé']?.checkbox||false,
     emplacementArchivage:pr['Emplacement archivage']?.select?.name||'',
     versionClean:pr['Version clean']?.checkbox||false,
+    capDeposee:pr['Cap déposée']?.checkbox||false,
+    releveMusique:pr['Relevé musique']?.checkbox||false,
     contactNom:pr['Contact Nom']?.rich_text?.[0]?.plain_text||'',
     contactPrenom:pr['Contact Prénom']?.rich_text?.[0]?.plain_text||'',
     contactMail:pr['Contact Mail']?.email||'',
@@ -1253,9 +1255,32 @@ function openDetail(id){
     </button>`,activeStep==='montage'||activeStep==='pad');
   // Récupérer le dernier lien validé depuis la base Versions
   const lienRenduAffiche = s.lienRendu || '';
+  const capDeposee = s.capDeposee;
+  const releveMusique = s.releveMusique;
+  const padPret = capDeposee && releveMusique;
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
-    ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary" style="width:100%;margin-top:8px;background:var(--green);border-color:var(--green)">✅ Marquer PAD</button>`:''}`,activeStep==='pad');
+    <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border-radius:8px;border:1px solid ${capDeposee?'var(--green)':'var(--border)'};background:${capDeposee?'var(--green-dim)':'var(--bg3)'}">
+        <input type="checkbox" ${capDeposee?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="upd('${id}','Cap déposée','cb',this.checked)">
+        <div>
+          <div style="font-size:12px;font-weight:500;color:var(--text)">🖼️ Cap déposée</div>
+          <div style="font-size:10px;color:var(--text3)">Miniature ${s.format==='YouTube'?'16x9':'9x16'} dans le dossier Drive</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border-radius:8px;border:1px solid ${releveMusique?'var(--green)':'var(--border)'};background:${releveMusique?'var(--green-dim)':'var(--bg3)'}">
+        <input type="checkbox" ${releveMusique?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="upd('${id}','Relevé musique','cb',this.checked)">
+        <div>
+          <div style="font-size:12px;font-weight:500;color:var(--text)">🎵 Relevé de musique</div>
+          <div style="font-size:10px;color:var(--text3)">Google Doc dans le dossier Drive</div>
+        </div>
+      </label>
+    </div>
+    ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary"
+      style="width:100%;background:${padPret?'var(--green)':'var(--bg4)'};border-color:${padPret?'var(--green)':'var(--border)'};color:${padPret?'#fff':'var(--text3)'};cursor:${padPret?'pointer':'not-allowed'}"
+      ${!padPret?'disabled':''}>
+      ${padPret?'✅ Marquer PAD':'⏳ Cap + relevé requis'}
+    </button>`:''}`,activeStep==='pad');
   // Step archivage dans fiche PAD
   if(s.statut==='PAD') {
     const emplacArchiv = s.emplacementArchivage || s.stockage || '';
