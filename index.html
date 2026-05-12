@@ -1016,7 +1016,7 @@ function cardHTML(s){
     <div class="card-hdr">
       <span class="card-code">${s.code||'—'}</span>
       <div style="display:flex;align-items:center;gap:4px">
-        <span class="card-fmt" style="color:${col}">${s.format||'—'}${s.sousFormat?(' · '+(s.sousFormat==='Décli'&&s.declinaisonNum?'Décli '+s.declinaisonNum:s.sousFormat)):''}</span>
+        <span class="card-fmt" style="color:${col}">${s.format||'—'}${s.sousFormat?(' · '+(s.sousFormat==='Décli'?'Décli '+(s.declinaisonNum||'?'):s.sousFormat)):''}</span>
         <button onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Supprimer">🗑</button>
       </div>
     </div>
@@ -1077,7 +1077,7 @@ async function openNouveau(){
 
 function openDetail(id){
   const s=sujets.find(x=>x.id===id);if(!s)return;
-  const sfLabel = s.sousFormat === 'Décli' && s.declinaisonNum ? 'Décli '+s.declinaisonNum : s.sousFormat;
+  const sfLabel = s.sousFormat === 'Décli' ? 'Décli '+(s.declinaisonNum||'?') : s.sousFormat;
   const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
   const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
   document.getElementById('d-code').innerHTML = `${s.code||'—'} · ${s.format}${sfSpan}${platSpan}`;
