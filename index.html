@@ -992,6 +992,7 @@ function parsePage(p){
     emplacementArchivage:pr['Emplacement archivage']?.select?.name||'',
     versionClean:pr['Version clean']?.checkbox||false,
     capDeposee:pr['Cap déposée']?.checkbox||false,
+    sansMusique:pr['Sans musique']?.checkbox||false,
     releveMusique:pr['Relevé musique']?.checkbox||false,
     contactNom:pr['Contact Nom']?.rich_text?.[0]?.plain_text||'',
     contactPrenom:pr['Contact Prénom']?.rich_text?.[0]?.plain_text||'',
@@ -1258,7 +1259,7 @@ function openDetail(id, forcePadOpen=false){
   const lienRenduAffiche = s.lienRendu || '';
   const capDeposee = s.capDeposee;
   const releveMusique = s.releveMusique;
-  const padPret = capDeposee && releveMusique;
+  const padPret = capDeposee && (releveMusique || sansMusique);
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
