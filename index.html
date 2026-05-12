@@ -1016,7 +1016,7 @@ function cardHTML(s){
     <div class="card-hdr">
       <span class="card-code">${s.code||'—'}</span>
       <div style="display:flex;align-items:center;gap:4px">
-        <span class="card-fmt" style="color:${col}">${s.format||'—'}${s.sousFormat?' · '+s.sousFormat:''}</span>
+        <span class="card-fmt" style="color:${col}">${s.format||'—'}${s.sousFormat?(' · '+(s.sousFormat==='Décli'&&s.declinaisonNum?'Décli '+s.declinaisonNum:s.sousFormat)):''}</span>
         <button onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Supprimer">🗑</button>
       </div>
     </div>
@@ -1077,7 +1077,8 @@ async function openNouveau(){
 
 function openDetail(id){
   const s=sujets.find(x=>x.id===id);if(!s)return;
-  const sfSpan = s.sousFormat ? ` <span style="color:var(--amber);font-size:10px">${s.sousFormat}</span>` : '';
+  const sfLabel = s.sousFormat === 'Décli' && s.declinaisonNum ? 'Décli '+s.declinaisonNum : s.sousFormat;
+  const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
   const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
   document.getElementById('d-code').innerHTML = `${s.code||'—'} · ${s.format}${sfSpan}${platSpan}`;
   document.getElementById('d-title').innerHTML=`<input type="text" id="d-titre-input" value="${s.titre}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;font-family:var(--font);letter-spacing:-0.02em;width:100%;padding:2px 0" onblur="upd('${s.id}','Titre','titre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">` ;
@@ -1106,7 +1107,7 @@ function openDetail(id){
   const createdFmt = s.created ? new Date(s.created).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
   const lastEditedFmt = s.lastEdited ? new Date(s.lastEdited).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
   const tousNoms=['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David',...journalistes.filter(j=>!['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'].includes(j))];
-  const sfOptions = s.format==='Face Cam' ? ['Classic','Vrai ou Faux'] : s.format==='Desk' ? ['Standard','Prodige'] : [];
+  const sfOptions = s.format==='Face Cam' ? ['Classic','Vrai ou Faux'] : s.format==='Desk' ? ['Standard','Prodige','Décli'] : [];
   html+=step('Informations','p-gray Fiche',
     `<div style="display:flex;flex-direction:column;gap:0">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
@@ -1805,13 +1806,14 @@ async function creerDeclinaison(parentId) {
   const c = compteurs['Desk'];
   if(!c) { toast('Compteur Desk introuvable','err'); return; }
   const codeVal = `${c.prefixe}${c.dernierNumero+1}`;
-  const titreDecli = `${parent.titre} décli ${numDecli}`;
+  const titreDecli = `${parent.titre} · Décli ${String(numDecli).padStart(2,'0')}`;
   try {
     const newPage = await api('/pages','POST',{
       parent:{database_id:DB_PROD},
       properties:{
         'Titre':{title:[{text:{content:titreDecli}}]},
         'Format':{select:{name:'Desk'}},
+        'Sous-format':{select:{name:'Décli'}},
         'Chef responsable':{select:{name:parent.chef||'Benjamin'}},
         'Journaliste':{select:{name:parent.journaliste||''}},
         'Statut':{select:{name:'Brief / Idée'}},
