@@ -1262,14 +1262,14 @@ function openDetail(id){
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border-radius:8px;border:1px solid ${capDeposee?'var(--green)':'var(--border)'};background:${capDeposee?'var(--green-dim)':'var(--bg3)'}">
-        <input type="checkbox" ${capDeposee?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="upd('${id}','Cap déposée','cb',this.checked)">
+        <input type="checkbox" ${capDeposee?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="upd('${id}','Cap déposée','cb',this.checked).then(()=>openDetail('${id}'))">
         <div>
           <div style="font-size:12px;font-weight:500;color:var(--text)">🖼️ Cap déposée</div>
           <div style="font-size:10px;color:var(--text3)">Miniature ${s.format==='YouTube'?'16x9':'9x16'} dans le dossier Drive</div>
         </div>
       </label>
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border-radius:8px;border:1px solid ${releveMusique?'var(--green)':'var(--border)'};background:${releveMusique?'var(--green-dim)':'var(--bg3)'}">
-        <input type="checkbox" ${releveMusique?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="upd('${id}','Relevé musique','cb',this.checked)">
+        <input type="checkbox" ${releveMusique?'checked':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="upd('${id}','Relevé musique','cb',this.checked).then(()=>openDetail('${id}'))">
         <div>
           <div style="font-size:12px;font-weight:500;color:var(--text)">🎵 Relevé de musique</div>
           <div style="font-size:10px;color:var(--text3)">Google Doc dans le dossier Drive</div>
