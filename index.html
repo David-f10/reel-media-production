@@ -1255,34 +1255,6 @@ function openDetail(id, forcePadOpen=false){
       class="nav-btn" style="width:100%;font-size:12px">
       + Ajouter une version
     </button>`,activeStep==='montage'||activeStep==='pad');
-  // Step musiques
-  if(!isInterne) {
-    html+=`<div class="step">
-      <div class="step-hdr" onclick="toggleStep('musiques-${id}')">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="step-ttl">🎵 Musiques</span>
-          <span class="pill p-gray" id="musiques-count-${id}">...</span>
-        </div>
-        <span class="step-chevron" id="chev-musiques-${id}">▼</span>
-      </div>
-      <div class="step-body collapsed" id="musiques-${id}" style="padding:0 22px 18px">
-        <div id="musiques-list-${id}" style="margin-bottom:10px">
-          <div style="font-size:11px;color:var(--text3)">Chargement...</div>
-        </div>
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <input type="text" id="mus-titre-${id}" placeholder="Titre de la musique..." style="flex:1;font-size:12px">
-          <input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:120px;font-size:12px">
-          <input type="text" id="mus-duree-${id}" placeholder="ex: 0:56" style="width:70px;font-size:12px">
-          <button onclick="ajouterMusique('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button>
-        </div>
-        <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">
-          📄 Exporter le relevé de musique
-        </button>
-      </div>
-    </div>`;
-  }
-
-
   // Récupérer le dernier lien validé depuis la base Versions
   const lienRenduAffiche = s.lienRendu || '';
   const capDeposee = s.capDeposee;
@@ -1305,13 +1277,28 @@ function openDetail(id, forcePadOpen=false){
           ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.sansMusique=false;}upd('${id}','Sans musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Modifier</button>`:''}
         </div>
       ` : s.releveMusique ? `
-        <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:12px;color:var(--green)">🎵 Relevé de musique confirmé</span>
-          ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.releveMusique=false;}upd('${id}','Relevé musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Modifier</button>`:''}
+        <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span style="font-size:12px;color:var(--green);font-weight:500">🎵 Musiques du projet</span>
+            ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.releveMusique=false;}upd('${id}','Relevé musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Pas de musique finalement</button>`:''}
+          </div>
+          <div id="musiques-list-${id}" style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div>
+          </div>
+          ${s.statut!=='PAD'?`
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <input type="text" id="mus-titre-${id}" placeholder="Titre de la musique..." style="flex:1;font-size:12px">
+            <input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:120px;font-size:12px">
+            <input type="text" id="mus-duree-${id}" placeholder="ex: 0:56" style="width:70px;font-size:12px">
+            <button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button>
+          </div>`:''}
+          <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px">
+            📄 Exporter le relevé de musique
+          </button>
         </div>
       ` : `
         <div style="display:flex;gap:8px">
-          <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>{openDetail('${id}',true);setTimeout(()=>toggleStep('musiques-${id}'),200)})" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button>
+          <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button>
           <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button>
         </div>
       `}
@@ -1319,7 +1306,7 @@ function openDetail(id, forcePadOpen=false){
     ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary"
       style="width:100%;background:${padPret?'var(--green)':'var(--bg4)'};border-color:${padPret?'var(--green)':'var(--border)'};color:${padPret?'#fff':'var(--text3)'};cursor:${padPret?'pointer':'not-allowed'}"
       ${!padPret?'disabled':''}>
-      ${padPret?'✅ Marquer PAD':'⏳ Cap + relevé requis'}
+      ${padPret?'✅ Marquer PAD':'⏳ Cap + musique requis'}
     </button>`:''}`,activeStep==='pad');
   // Step archivage dans fiche PAD
   if(s.statut==='PAD') {
@@ -1485,14 +1472,15 @@ function openDetail(id, forcePadOpen=false){
   setTimeout(()=>loadRefs(id,'refs-prod-'+id),100);
   // Charger les déclinaisons si YouTube
   if(s.format === 'YouTube') setTimeout(()=>loadDeclinaisons(id),100);
-  // Charger les musiques
-  setTimeout(()=>loadMusiques(id),100);
+  // Musiques chargées dans le step PAD si releveMusique
   // Charger les versions de montage
   setTimeout(()=>loadVersions(id), 100);
   // Pré-charger les dossiers Drive en arrière-plan (pour openDriveFolderSync)
   [s.lien1,s.lien2,s.lien3,s.livrable1,s.livrable2,s.livrable3]
     .filter(l=>l&&l.includes('drive.google.com'))
     .forEach(prefetchDriveFolder);
+  // Charger les musiques si releveMusique (dans le step PAD)
+  if(s.releveMusique) setTimeout(()=>loadMusiques(id), 100);
   // Charger les retours et commentaires
   loadRetours(id);
   loadComments(id);
@@ -1840,6 +1828,14 @@ async function loadMusiques(sujetId) {
   } catch(e) {
     if(el) el.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement</div>';
   }
+}
+
+async function ajouterMusiqueEtVerif(sujetId) {
+  await ajouterMusique(sujetId);
+  // Recharger la fiche pour vérifier si padPret est maintenant OK
+  const sx = sujets.find(x => x.id === sujetId);
+  if(sx) sx.releveMusique = true;
+  openDetail(sujetId, true);
 }
 
 async function ajouterMusique(sujetId) {
