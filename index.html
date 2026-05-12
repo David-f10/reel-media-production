@@ -2156,7 +2156,8 @@ async function loadVersions(sujetId) {
       const validee = pr.Validée?.checkbox || false;
 
       const date = new Date(v.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-      const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : null;
+      const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : (url.includes('youtube.com')||url.includes('youtu.be')) ? 'youtube' : null;
+      const lienInvalide = url && !type;
       return `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;${validee?'border-color:var(--green);background:var(--green-dim)':''}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${validee?'var(--green)':'var(--text)'}">${version}</span>
@@ -2169,6 +2170,7 @@ async function loadVersions(sujetId) {
           <input type="url" value="${url}" placeholder="Lien vidéo..." style="flex:1;font-size:12px"
             onblur="updateVersionUrl('${v.id}','${sujetId}',this.value)"
             onkeydown="if(event.key==='Enter'){updateVersionUrl('${v.id}','${sujetId}',this.value);this.blur()}">
+          ${lienInvalide ? `<span style="font-size:10px;color:var(--amber);white-space:nowrap;padding:4px 6px;background:var(--amber-dim);border-radius:4px">⚠️ Lien non lu</span>` : ''}
           ${url && type ? `<button onclick="openPlayer('${url}','${version}','${sujetId}','${version}')"
             style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;flex-shrink:0">▶</button>` : ''}
           ${url && type === 'drive' ? `<a href="#" onclick="event.preventDefault();openDriveFolderSync('${url}')"
@@ -2209,9 +2211,12 @@ async function loadVersions(sujetId) {
   }
 }
 
+let ajouterVersionEnCours = false;
 async function ajouterVersion(sujetId) {
+  if(ajouterVersionEnCours) { toast('Création en cours, patientez...','err'); return; }
+  ajouterVersionEnCours = true;
   const s = sujets.find(x=>x.id===sujetId);
-  if(!s) return;
+  if(!s) { ajouterVersionEnCours = false; return; }
   // Calculer le prochain numéro depuis les versions existantes dans Notion
   const el = document.getElementById('versions-list-'+sujetId);
   // Compter les entrées visibles actuelles (titres V1, V2...)
@@ -2236,14 +2241,24 @@ async function ajouterVersion(sujetId) {
       s.statut = 'Montage V1';
       renderCards();
     }
+    ajouterVersionEnCours = false;
     loadVersions(sujetId);
     toast(`${versionNum} ajoutée`,'ok');
-  } catch(e) { toast('Erreur : '+e.message,'err'); }
+  } catch(e) { ajouterVersionEnCours = false; toast('Erreur : '+e.message,'err'); }
 }
 
 async function updateVersionUrl(versionId, sujetId, url) {
   if(!url) return;
   const s = sujets.find(x=>x.id===sujetId);
+  // Vérifier que le lien est un lien Drive, Vimeo ou Frame.io
+  const isDrive = url.includes('drive.google.com');
+  const isVimeo = url.includes('vimeo.com');
+  const isFrame = url.includes('frame.io');
+  const isYT = url.includes('youtube.com') || url.includes('youtu.be');
+  if(!isDrive && !isVimeo && !isFrame && !isYT) {
+    toast('⚠️ Ce lien ne sera pas lisible dans le player — utilisez Drive, Vimeo ou Frame.io', 'err');
+    // On ne bloque pas — on sauvegarde quand même
+  }
   try {
     await api('/pages/'+versionId,'PATCH',{properties:{'Titre':{title:[{text:{content:url}}]}}});
     loadVersions(sujetId);
