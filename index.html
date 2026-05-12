@@ -903,10 +903,16 @@ function getCode(pr){
   return'';
 }
 
-async function api(endpoint,method='GET',body=null){
+async function api(endpoint,method='GET',body=null,_retry=0){
   const opts={method,headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
   const res=await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`,opts);
+  // Retry automatique sur 429 (rate limit) et 503 (indispo temporaire)
+  if((res.status===429||res.status===503)&&_retry<3){
+    const wait=Math.pow(2,_retry)*800; // 800ms, 1.6s, 3.2s
+    await new Promise(r=>setTimeout(r,wait));
+    return api(endpoint,method,body,_retry+1);
+  }
   if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||'Erreur API');}
   return res.json();
 }
@@ -916,7 +922,7 @@ async function loadSujets(){
   try{
     const[prod,comp,cli]=await Promise.all([
       api(`/databases/${DB_PROD}/query`,'POST',{sorts:[{timestamp:'created_time',direction:'descending'}]}),
-      api(`/databases/${DB_COMP}/query`,'POST',{}),
+      api(`/databases/${DB_COMP}/query`,'POST',{page_size:100}),
       api(`/databases/${DB_CLIENTS}/query`,'POST',{sorts:[{property:'Numéro',direction:'ascending'}]})
     ]);
     sujets=prod.results.map(parsePage);
@@ -1039,7 +1045,7 @@ function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEa
 // Ouvre le modal APRÈS avoir rechargé les compteurs depuis Notion
 async function openNouveau(){
   try{
-    const comp=await api(`/databases/${DB_COMP}/query`,'POST',{});
+    const comp=await api(`/databases/${DB_COMP}/query`,'POST',{page_size:100});
     compteurs={};
     comp.results.forEach(p=>{
       const pr=p.properties;
@@ -1259,8 +1265,7 @@ function openDetail(id, forcePadOpen=false){
   const lienRenduAffiche = s.lienRendu || '';
   const capDeposee = s.capDeposee;
   const releveMusique = s.releveMusique;
-  const sansMusique = s.sansMusique;
-  const padPret = capDeposee && (sansMusique || releveMusique);
+  const padPret = capDeposee && (releveMusique || sansMusique);
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
@@ -1271,42 +1276,18 @@ function openDetail(id, forcePadOpen=false){
           <div style="font-size:10px;color:var(--text3)">Miniature ${s.format==='YouTube'?'16x9':'9x16'} dans le dossier Drive</div>
         </div>
       </label>
-      ${s.sansMusique ? `
-        <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:12px;color:var(--green)">🔇 Aucune musique dans ce projet</span>
-          ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.sansMusique=false;}upd('${id}','Sans musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Modifier</button>`:''}
+      <label style="display:flex;align-items:center;gap:10px;cursor:${s.statut==='PAD'?'default':'pointer'};padding:10px;border-radius:8px;border:1px solid ${releveMusique?'var(--green)':'var(--border)'};background:${releveMusique?'var(--green-dim)':'var(--bg3)'}">
+        <input type="checkbox" ${releveMusique?'checked':''} ${s.statut==='PAD'?'disabled':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Relev\u00e9 musique','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=v;openDetail('${id}',true)})">
+        <div>
+          <div style="font-size:12px;font-weight:500;color:var(--text)">🎵 Relevé de musique</div>
+          <div style="font-size:10px;color:var(--text3)">Google Doc dans le dossier Drive</div>
         </div>
-      ` : s.releveMusique ? `
-        <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <span style="font-size:12px;color:var(--green);font-weight:500">🎵 Musiques du projet</span>
-            ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.releveMusique=false;}upd('${id}','Relevé musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Pas de musique finalement</button>`:''}
-          </div>
-          <div id="musiques-list-${id}" style="margin-bottom:10px">
-            <div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div>
-          </div>
-          ${s.statut!=='PAD'?`
-          <div style="display:flex;gap:6px;margin-bottom:6px">
-            <input type="text" id="mus-titre-${id}" placeholder="Titre de la musique..." style="flex:1;font-size:12px">
-            <input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:120px;font-size:12px">
-            <input type="text" id="mus-duree-${id}" placeholder="ex: 0:56" style="width:70px;font-size:12px">
-            <button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button>
-          </div>`:''}
-          <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px">
-            📄 Exporter le relevé de musique
-          </button>
-        </div>
-      ` : `
-        <div style="display:flex;gap:8px">
-          <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button>
-          <button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button>
-        </div>
-      `}
+      </label>
     </div>
     ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary"
       style="width:100%;background:${padPret?'var(--green)':'var(--bg4)'};border-color:${padPret?'var(--green)':'var(--border)'};color:${padPret?'#fff':'var(--text3)'};cursor:${padPret?'pointer':'not-allowed'}"
       ${!padPret?'disabled':''}>
-      ${padPret?'✅ Marquer PAD':'⏳ Cap + musique requis'}
+      ${padPret?'✅ Marquer PAD':'⏳ Cap + relevé requis'}
     </button>`:''}`,activeStep==='pad');
   // Step archivage dans fiche PAD
   if(s.statut==='PAD') {
@@ -1435,6 +1416,33 @@ function openDetail(id, forcePadOpen=false){
     </div>`;
   }
 
+  // Step musiques
+  if(!isInterne) {
+    html+=`<div class="step">
+      <div class="step-hdr" onclick="toggleStep('musiques-${id}')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="step-ttl">🎵 Musiques</span>
+          <span class="pill p-gray" id="musiques-count-${id}">...</span>
+        </div>
+        <span class="step-chevron" id="chev-musiques-${id}">▼</span>
+      </div>
+      <div class="step-body collapsed" id="musiques-${id}" style="padding:0 22px 18px">
+        <div id="musiques-list-${id}" style="margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text3)">Chargement...</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <input type="text" id="mus-titre-${id}" placeholder="Titre de la musique..." style="flex:1;font-size:12px">
+          <input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:120px;font-size:12px">
+          <input type="text" id="mus-duree-${id}" placeholder="ex: 0:56" style="width:70px;font-size:12px">
+          <button onclick="ajouterMusique('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button>
+        </div>
+        <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">
+          📄 Exporter le relevé de musique
+        </button>
+      </div>
+    </div>`;
+  }
+
   // Retours — même UX que la page review client
   html+=`<div class="step" style="padding:0;overflow:hidden" id="retours-section-${id}">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
@@ -1472,15 +1480,14 @@ function openDetail(id, forcePadOpen=false){
   setTimeout(()=>loadRefs(id,'refs-prod-'+id),100);
   // Charger les déclinaisons si YouTube
   if(s.format === 'YouTube') setTimeout(()=>loadDeclinaisons(id),100);
-  // Musiques chargées dans le step PAD si releveMusique
+  // Charger les musiques
+  setTimeout(()=>loadMusiques(id),100);
   // Charger les versions de montage
   setTimeout(()=>loadVersions(id), 100);
   // Pré-charger les dossiers Drive en arrière-plan (pour openDriveFolderSync)
   [s.lien1,s.lien2,s.lien3,s.livrable1,s.livrable2,s.livrable3]
     .filter(l=>l&&l.includes('drive.google.com'))
     .forEach(prefetchDriveFolder);
-  // Charger les musiques si releveMusique (dans le step PAD)
-  if(s.releveMusique) setTimeout(()=>loadMusiques(id), 100);
   // Charger les retours et commentaires
   loadRetours(id);
   loadComments(id);
@@ -1804,7 +1811,8 @@ async function loadMusiques(sujetId) {
   try {
     const data = await api('/databases/'+DB_MUSIQUES+'/query','POST',{
       filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
-      sorts:[{timestamp:'created_time',direction:'ascending'}]
+      sorts:[{timestamp:'created_time',direction:'ascending'}],
+      page_size:100
     });
     const musiques = data.results;
     if(countEl) countEl.textContent = musiques.length > 0 ? `${musiques.length} titre${musiques.length>1?'s':''}` : 'Aucune';
@@ -1828,14 +1836,6 @@ async function loadMusiques(sujetId) {
   } catch(e) {
     if(el) el.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement</div>';
   }
-}
-
-async function ajouterMusiqueEtVerif(sujetId) {
-  await ajouterMusique(sujetId);
-  // Recharger la fiche pour vérifier si padPret est maintenant OK
-  const sx = sujets.find(x => x.id === sujetId);
-  if(sx) sx.releveMusique = true;
-  openDetail(sujetId, true);
 }
 
 async function ajouterMusique(sujetId) {
@@ -1888,7 +1888,8 @@ async function exporterReleve(sujetId) {
   try {
     const data = await api('/databases/'+DB_MUSIQUES+'/query','POST',{
       filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
-      sorts:[{timestamp:'created_time',direction:'ascending'}]
+      sorts:[{timestamp:'created_time',direction:'ascending'}],
+      page_size:100
     });
     const musiques = data.results;
     const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -1935,7 +1936,8 @@ async function loadDeclinaisons(sujetId) {
   try {
     const data = await api('/databases/'+DB_PROD+'/query','POST',{
       filter:{property:'Sujet parent ID',rich_text:{equals:sujetId}},
-      sorts:[{property:'Déclinaison n°',direction:'ascending'}]
+      sorts:[{property:'Déclinaison n°',direction:'ascending'}],
+      page_size:100
     });
     const declis = data.results.map(parsePage).filter(d => !d.archive);
     if(countEl) countEl.textContent = declis.length > 0 ? `${declis.length} déclinaison${declis.length>1?'s':''}` : 'Aucune';
@@ -1962,7 +1964,10 @@ async function loadDeclinaisons(sujetId) {
   }
 }
 
+let _creerDecliEnCours = false;
 async function creerDeclinaison(parentId) {
+  if(_creerDecliEnCours) { toast('Création en cours, patientez...','err'); return; }
+  _creerDecliEnCours = true;
   const parent = sujets.find(s => s.id === parentId);
   if(!parent) return;
   // Compter les déclinaisons existantes depuis Notion
@@ -2029,6 +2034,7 @@ async function creerDeclinaison(parentId) {
     document.getElementById('cnt-all').textContent = sujets.length;
     renderCards();
     loadDeclinaisons(parentId);
+    _creerDecliEnCours = false;
     toast(`📎 Déclinaison ${codeVal} créée !`,'ok');
     // Notif au journaliste
     const auteur = currentUser?.nom || '';
@@ -2037,7 +2043,7 @@ async function creerDeclinaison(parentId) {
         `${auteur} a créé une déclinaison Desk : ${codeVal} — ${titreDecli}`);
       loadNotifs();
     }
-  } catch(e) { toast('Erreur : '+e.message,'err'); }
+  } catch(e) { _creerDecliEnCours = false; toast('Erreur : '+e.message,'err'); }
 }
 
 // ─── ARCHIVAGE ───
@@ -2180,7 +2186,8 @@ async function loadRetours(sujetId) {
       sorts: [
         {property:'Version', direction:'ascending'},
         {timestamp:'created_time', direction:'descending'}
-      ]
+      ],
+      page_size:100
     });
     const listEl = document.getElementById('retours-list-' + sujetId);
     const countEl = document.getElementById('retours-count-' + sujetId);
@@ -2270,7 +2277,8 @@ async function loadVersions(sujetId) {
     const [versionsData, retoursData] = await Promise.all([
       api('/databases/'+DB_VERSIONS+'/query','POST',{
         filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
-        sorts:[{timestamp:'created_time',direction:'ascending'}]
+        sorts:[{timestamp:'created_time',direction:'ascending'}],
+        page_size:100
       }),
       api('/databases/'+DB_RETOURS+'/query','POST',{
         filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
@@ -2568,7 +2576,7 @@ async function initLogin() {
 
   // Essayer de charger depuis Notion en arrière-plan
   try {
-    const data = await api('/databases/' + DB_EQUIPE + '/query', 'POST', {sorts:[{property:'Nom',direction:'ascending'}]});
+    const data = await api('/databases/' + DB_EQUIPE + '/query', 'POST', {sorts:[{property:'Nom',direction:'ascending'}],page_size:100});
     const notionEquipe = data.results.map(p => ({
       id: p.id,
       nom: p.properties.Nom?.title?.[0]?.plain_text || '',
@@ -2642,7 +2650,8 @@ async function loadComments(sujetId) {
   try {
     const data = await api('/databases/' + DB_COMMENTS + '/query', 'POST', {
       filter: {property:'Sujet ID', rich_text:{equals:sujetId}},
-      sorts:[{timestamp:'created_time', direction:'ascending'}]
+      sorts:[{timestamp:'created_time', direction:'ascending'}],
+      page_size:100
     });
     const listEl = document.getElementById('comments-list-' + sujetId);
     const countEl = document.getElementById('comments-count-' + sujetId);
@@ -3374,7 +3383,10 @@ function refreshModalRefs() {
     </div>`).join('');
 }
 
+let _createEnCours = false;
 async function createSujet(){
+  if(_createEnCours) { toast('Création en cours, patientez...','err'); return; }
+  _createEnCours = true;
   const titre=document.getElementById('n-titre').value.trim();
   const chef=document.getElementById('n-chef').value;
   const journSel=document.getElementById('n-journ').value;
@@ -3478,6 +3490,7 @@ async function createSujet(){
         `${auteurNom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
     }
   }
+  _createEnCours = false;
   closeOv('ov-new');
   toast(`Sujet créé — code ${codeVal}`,'ok');
   await appLoadData();
@@ -3508,7 +3521,7 @@ function deleteSujet(id, titre){
 }
 
 function openOv(id){document.getElementById(id).classList.add('open');}
-function closeOv(id){document.getElementById(id).classList.remove('open');}
+function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
 
@@ -3979,7 +3992,8 @@ async function loadRefs(sujetId, containerId) {
   try {
     const data = await api('/databases/'+DB_REFS+'/query','POST',{
       filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
-      sorts:[{timestamp:'created_time',direction:'ascending'}]
+      sorts:[{timestamp:'created_time',direction:'ascending'}],
+      page_size:100
     });
     const refs = data.results;
     if(!refs.length) {
@@ -4048,7 +4062,8 @@ async function loadIdees() {
   mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
   try {
     const data = await api('/databases/'+DB_IDEES+'/query','POST',{
-      sorts:[{timestamp:'created_time',direction:'descending'}]
+      sorts:[{timestamp:'created_time',direction:'descending'}],
+      page_size:100
     });
     idees = data.results.map(p => {
       const pr = p.properties;
@@ -4388,8 +4403,23 @@ async function soumettreidee() {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-function renderArchives() {
+async function renderArchives() {
   const mc = document.getElementById('main-content');
+  // Charger les archives depuis Notion si pas encore fait
+  if(!sujetsArchives.length) {
+    mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
+    try {
+      const data = await api('/databases/' + DB_PROD + '/query', 'POST', {
+        filter:{property:'Archivé',checkbox:{equals:true}},
+        sorts:[{timestamp:'last_edited_time',direction:'descending'}],
+        page_size:100
+      });
+      sujetsArchives = data.results.map(parsePage);
+    } catch(e) {
+      mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`;
+      return;
+    }
+  }
   const badge = document.getElementById('cnt-archives');
   if(badge) badge.textContent = sujetsArchives.length;
   if(!sujetsArchives.length) {
@@ -4541,11 +4571,12 @@ let currentVue = 'cards';
 async function appLoadData() {
   try {
     const [prod, comp, cli] = await Promise.all([
-      api('/databases/' + DB_PROD + '/query', 'POST', {sorts:[{timestamp:'created_time',direction:'descending'}]}),
-      api('/databases/' + DB_COMP + '/query', 'POST', {}),
-      api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}]})
+      api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}],page_size:100}),
+      api('/databases/' + DB_COMP + '/query', 'POST', {page_size:100}),
+      api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}],page_size:100})
     ]);
-    sujets = prod.results.map(parsePage).filter(s => !s.archive);
+    sujets = prod.results.map(parsePage); // filtrés côté Notion (Archivé=false)
+    sujetsArchives = []; // chargées à la demande dans renderArchives()
     compteurs = {};
     comp.results.forEach(p => {
       const pr = p.properties;
@@ -4564,7 +4595,7 @@ async function appLoadData() {
         derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || ''
       };
     });
-    sujetsArchives = prod.results.map(parsePage).filter(s => s.archive);
+    // sujetsArchives chargées à la demande
     document.getElementById('cnt-all').textContent = sujets.length;
     // Charger le nb de notifs non lues pour les badges cartes — une seule fois
     loadRetoursBadges();
