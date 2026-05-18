@@ -4690,7 +4690,7 @@ function getStatsPeriodeSujets() {
   });
 }
 
-function exportStatsTxt() { {
+function exportStatsTxt() {
   const list=getStatsPeriodeSujets();
   const formats=[...new Set(list.map(s=>s.format).filter(Boolean))].sort();
   const jours=[...new Set(list.map(s=>s.journaliste).filter(Boolean))].sort();
