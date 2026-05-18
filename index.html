@@ -3610,10 +3610,7 @@ function renderStatut(){
     items.forEach(s=>{
       const fmt=FMT_COLORS[s.format]||'#888';
       html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt};font-size:10px">${s.format}</span></div>
-          ${s.priorite?`<span style="font-size:9px;padding:1px 6px;border-radius:3px;font-weight:600;background:${s.priorite==='🔴 Haute'?'var(--red-dim)':s.priorite==='🟡 Normale'?'var(--amber-dim)':' var(--green-dim)'};color:${s.priorite==='🔴 Haute'?'var(--red)':s.priorite==='🟡 Normale'?'var(--amber)':' var(--green)'}">${s.priorite}</span>`:''}
-        </div>
+        <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt};font-size:10px">${s.format}</span></div>
         <div class="kanban-card-title">${s.titre}</div>
         <div class="kanban-card-meta">${s.journaliste||'—'}${s.tourJ1?' · '+fmtDate(s.tourJ1):''}</div>
       </div>`;
@@ -3648,10 +3645,7 @@ function renderJournaliste(){
       const fmt=FMT_COLORS[s.format]||'#888';
       const dotCol=stColor(s.statut);
       html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
-          ${s.priorite?`<span style="font-size:9px;padding:1px 6px;border-radius:3px;font-weight:600;background:${s.priorite==='🔴 Haute'?'var(--red-dim)':s.priorite==='🟡 Normale'?'var(--amber-dim)':' var(--green-dim)'};color:${s.priorite==='🔴 Haute'?'var(--red)':s.priorite==='🟡 Normale'?'var(--amber)':' var(--green)'}">${s.priorite}</span>`:''}
-        </div>
+        <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
         <div class="kanban-card-title">${s.titre}</div>
         <div class="kanban-card-meta" style="display:flex;align-items:center;gap:4px">
           <div class="sdot" style="background:${dotCol};width:5px;height:5px;border-radius:50%;flex-shrink:0"></div>
@@ -3944,7 +3938,6 @@ function renderDashboard(){
           ${buildAnneeSelect()}
         </select>
       </div>
-      <div id='stats-table' style='margin-bottom:12px'>Chargement...</div>
       <button onclick='exportStatsTxt()' style='width:100%;padding:8px;border-radius:6px;font-size:12px;border:1px solid var(--border2);cursor:pointer;font-family:var(--font);background:transparent;color:var(--text2)'>📄 Exporter les stats</button>
     </div>
   </div>`;
@@ -4302,18 +4295,14 @@ function ouvrirIdee(id) {
     </div>
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">Description</span></div>
-      <div style="padding:0 20px 16px">
-        <textarea id="idee-desc-${id}" style="min-height:80px;width:100%" onblur="saveIdeeField('${id}','Description','rt',this.value)">${i.description}</textarea>
-      </div>
+      <textarea id="idee-desc-${id}" style="min-height:80px" onblur="saveIdeeField('${id}','Description','rt',this.value)">${i.description}</textarea>
     </div>
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">Format envisagé</span></div>
-      <div style="padding:0 20px 16px">
-        <select onchange="saveIdeeField('${id}','Format envisagé','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:100%">
+      <select onchange="saveIdeeField('${id}','Format envisagé','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:100%">
         <option value="">Choisir...</option>
         ${fmtOptions.map(f=>`<option ${i.format===f?'selected':''}>${f}</option>`).join('')}
       </select>
-      </div>
     </div>
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">📎 Références</span></div>
@@ -4322,13 +4311,11 @@ function ouvrirIdee(id) {
     ${i.statut !== '🚀 Démarrée' && i.statut !== '❌ Déclinée' ? `
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">Actions</span></div>
-      <div style="display:flex;flex-direction:column;gap:10px;padding:0 20px 16px">
+      <div style="display:flex;flex-direction:column;gap:8px">
         ${i.statut === '💡 Idée' ? `<button onclick="validerIdee('${id}')" class="nav-btn primary" style="background:var(--green);border-color:var(--green)">✅ Valider l'idée</button>` : ''}
-        ${i.statut === '✅ Validée' ? `
-          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text2)">⏳ Idée validée — en attente de démarrage en production</div>
-          <button onclick="demarrerIdee('${id}')" class="nav-btn primary" style="background:var(--blue);border-color:var(--blue)">🚀 Démarrer en production</button>` : ''}
+        ${i.statut === '✅ Validée' ? `<button onclick="demarrerIdee('${id}')" class="nav-btn primary" style="background:var(--blue);border-color:var(--blue)">🚀 Démarrer en production</button>` : ''}
         <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" id="raison-declin-${id}" placeholder="Raison du déclin (optionnel)..." style="flex:1;font-size:12px">
+          <input type="text" id="raison-declin-${id}" placeholder="Raison du déclin..." style="flex:1;font-size:12px">
           <button onclick="declinerIdee('${id}')" class="nav-btn" style="color:var(--red);border-color:var(--red);white-space:nowrap">❌ Décliner</button>
         </div>
       </div>
@@ -4556,7 +4543,6 @@ async function renderArchives() {
     html += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
       <td class="td-code">${s.code||'—'}</td>
       <td class="td-titre">${s.titre}</td>
-      <td>${s.priorite?`<span style="font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600;background:${s.priorite==='🔴 Haute'?'var(--red-dim)':s.priorite==='🟡 Normale'?'var(--amber-dim)':' var(--green-dim)'};color:${s.priorite==='🔴 Haute'?'var(--red)':s.priorite==='🟡 Normale'?'var(--amber)':' var(--green)'}">${s.priorite}</span>`:'—'}</td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       <td>${s.journaliste||'—'}</td>
       <td>${s.chef||'—'}</td>
@@ -4605,7 +4591,6 @@ function renderListe() {
   const cols = [
     {key:'code', label:'Code', w:'80px'},
     {key:'titre', label:'Titre', w:'auto'},
-    {key:'priorite', label:'Prio', w:'80px'},
     {key:'format', label:'Format', w:'90px'},
     {key:'statut', label:'Statut', w:'130px'},
     {key:'journaliste', label:'Journaliste', w:'100px'},
@@ -4667,7 +4652,7 @@ function listSort(col) {
 }
 
 const MOIS_LABELS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-let dashStatsMois = new Date().getMonth(); // 0-11, -1 = tous
+let dashStatsMois = new Date().getMonth();
 let dashStatsAnnee = String(new Date().getFullYear());
 
 function buildMoisSelect() {
@@ -4689,12 +4674,10 @@ function buildAnneeSelect() {
 
 function setStatsMois(v) {
   dashStatsMois = parseInt(v);
-  renderStatsTable();
 }
 
 function setStatsAnnee(v) {
   dashStatsAnnee = v;
-  renderStatsTable();
 }
 
 function getStatsPeriodeSujets() {
@@ -4707,42 +4690,7 @@ function getStatsPeriodeSujets() {
   });
 }
 
-function renderStatsTable() {
-  const el=document.getElementById('stats-table');
-  if(!el) return;
-  const list=getStatsPeriodeSujets();
-  const formats=[...new Set(list.map(s=>s.format).filter(Boolean))].sort();
-  const jours=[...new Set(list.map(s=>s.journaliste).filter(Boolean))].sort();
-  if(!jours.length){el.innerHTML='<div style="font-size:12px;color:var(--text3)">Aucun projet sur cette période.</div>';return;}
-  let html='<table style="width:100%;border-collapse:collapse;font-size:11px">';
-  html+='<thead><tr><th style="text-align:left;padding:6px 10px;color:var(--text3);font-size:9px;font-family:var(--mono);text-transform:uppercase;border-bottom:1px solid var(--border)">Journaliste</th>';
-  formats.forEach(f=>{
-    const col=FMT_COLORS[f]||'var(--text3)';
-    html+=`<th style="text-align:center;padding:6px 8px;color:${col};font-size:9px;font-family:var(--mono);text-transform:uppercase;border-bottom:1px solid var(--border)">${f}</th>`;
-  });
-  html+='<th style="text-align:center;padding:6px 8px;color:var(--text2);font-size:9px;font-family:var(--mono);text-transform:uppercase;border-bottom:1px solid var(--border)">Total</th></tr></thead><tbody>';
-  jours.forEach(j=>{
-    const projs=list.filter(s=>s.journaliste===j);
-    html+=`<tr style="border-bottom:1px solid var(--border)"><td style="padding:7px 10px;color:var(--text);font-weight:500">${j}</td>`;
-    formats.forEach(f=>{
-      const cnt=projs.filter(s=>s.format===f).length;
-      const col=FMT_COLORS[f]||'var(--text3)';
-      html+=`<td style="text-align:center;padding:7px 8px;font-family:var(--mono);color:${cnt?col:'var(--text3)'}">${cnt||'—'}</td>`;
-    });
-    html+=`<td style="text-align:center;padding:7px 8px;font-family:var(--mono);color:var(--text);font-weight:600">${projs.length}</td></tr>`;
-  });
-  html+='<tr style="border-top:2px solid var(--border2)"><td style="padding:7px 10px;color:var(--text3);font-size:10px;font-family:var(--mono);text-transform:uppercase">Total</td>';
-  formats.forEach(f=>{
-    const cnt=list.filter(s=>s.format===f).length;
-    const col=FMT_COLORS[f]||'var(--text3)';
-    html+=`<td style="text-align:center;padding:7px 8px;font-family:var(--mono);color:${cnt?col:'var(--text3)'}">${cnt||'—'}</td>`;
-  });
-  html+=`<td style="text-align:center;padding:7px 8px;font-family:var(--mono);color:var(--text);font-weight:700">${list.length}</td></tr>`;
-  html+='</tbody></table>';
-  el.innerHTML=html;
-}
-
-function exportStatsTxt() {
+function exportStatsTxt() { {
   const list=getStatsPeriodeSujets();
   const formats=[...new Set(list.map(s=>s.format).filter(Boolean))].sort();
   const jours=[...new Set(list.map(s=>s.journaliste).filter(Boolean))].sort();
