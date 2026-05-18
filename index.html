@@ -2282,6 +2282,14 @@ async function toggleRetour(retourId, sujetId, newStatut) {
     });
     toast(newStatut === 'Corrigé' ? '✅ Marqué corrigé' : 'Retour réouvert', 'ok');
     loadRetours(sujetId);
+    // Notif au chef quand retour corrigé
+    if(newStatut === 'Corrigé' && currentUser) {
+      const s = sujets.find(x=>x.id===sujetId);
+      if(s && s.chef && s.chef !== currentUser.nom)
+        await createNotif('retour_corrige',sujetId,s.code,s.titre,s.chef,currentUser.nom,
+          `${currentUser.nom} a corrigé un retour sur ${s.code} — ${s.titre}`);
+      loadNotifs();
+    }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
@@ -2460,7 +2468,6 @@ async function updateVersionUrl(versionId, sujetId, url) {
     loadVersions(sujetId);
     // Notif au chef
     if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
-      const vNum = document.querySelector(`[data-vid="${versionId}"]`)?.dataset?.vnum || '';
       await createNotif('v1_deposee', sujetId, s.code, s.titre, s.chef, currentUser.nom,
         `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
       loadNotifs();
@@ -3220,6 +3227,18 @@ async function updStatut(id,statut){
   await upd(id,'Statut','sel',statut);
   const s=sujets.find(x=>x.id===id);if(s)s.statut=statut;
   renderCards();openDetail(id);
+  // Notifs selon le statut
+  const auteur = currentUser?.nom || '';
+  if(!s || !auteur) return;
+  if(statut==='PAD' && s.journaliste && s.journaliste!==auteur)
+    await createNotif('version_validee',id,s.code,s.titre,s.journaliste,auteur,`${s.code} est PAD 🎉 — ${s.titre}`);
+  else if(statut==='Validation chef' && s.journaliste && s.journaliste!==auteur)
+    await createNotif('version_validee',id,s.code,s.titre,s.journaliste,auteur,`${auteur} a passé ${s.code} en validation — ${s.titre}`);
+  else if(statut==='Retours' && s.journaliste && s.journaliste!==auteur)
+    await createNotif('retour',id,s.code,s.titre,s.journaliste,auteur,`${auteur} a des retours sur ${s.code} — ${s.titre}`);
+  else if(statut==='Montage V1' && s.chef && s.chef!==auteur)
+    await createNotif('v1_deposee',id,s.code,s.titre,s.chef,auteur,`${auteur} a déposé le montage de ${s.code} — ${s.titre}`);
+  loadNotifs();
 }
 
 function selFmt(fmt,el){
