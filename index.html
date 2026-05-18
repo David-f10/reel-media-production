@@ -3610,7 +3610,10 @@ function renderStatut(){
     items.forEach(s=>{
       const fmt=FMT_COLORS[s.format]||'#888';
       html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
-        <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt};font-size:10px">${s.format}</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt};font-size:10px">${s.format}</span></div>
+          ${s.priorite?`<span style="font-size:9px;padding:1px 6px;border-radius:3px;font-weight:600;background:${s.priorite==='🔴 Haute'?'var(--red-dim)':s.priorite==='🟡 Normale'?'var(--amber-dim)':' var(--green-dim)'};color:${s.priorite==='🔴 Haute'?'var(--red)':s.priorite==='🟡 Normale'?'var(--amber)':' var(--green)'}">${s.priorite}</span>`:''}
+        </div>
         <div class="kanban-card-title">${s.titre}</div>
         <div class="kanban-card-meta">${s.journaliste||'—'}${s.tourJ1?' · '+fmtDate(s.tourJ1):''}</div>
       </div>`;
@@ -3645,7 +3648,10 @@ function renderJournaliste(){
       const fmt=FMT_COLORS[s.format]||'#888';
       const dotCol=stColor(s.statut);
       html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
-        <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
+          ${s.priorite?`<span style="font-size:9px;padding:1px 6px;border-radius:3px;font-weight:600;background:${s.priorite==='🔴 Haute'?'var(--red-dim)':s.priorite==='🟡 Normale'?'var(--amber-dim)':' var(--green-dim)'};color:${s.priorite==='🔴 Haute'?'var(--red)':s.priorite==='🟡 Normale'?'var(--amber)':' var(--green)'}">${s.priorite}</span>`:''}
+        </div>
         <div class="kanban-card-title">${s.titre}</div>
         <div class="kanban-card-meta" style="display:flex;align-items:center;gap:4px">
           <div class="sdot" style="background:${dotCol};width:5px;height:5px;border-radius:50%;flex-shrink:0"></div>
@@ -4545,6 +4551,7 @@ async function renderArchives() {
     html += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
       <td class="td-code">${s.code||'—'}</td>
       <td class="td-titre">${s.titre}</td>
+      <td>${s.priorite?`<span style="font-size:10px;padding:2px 7px;border-radius:3px;font-weight:600;background:${s.priorite==='🔴 Haute'?'var(--red-dim)':s.priorite==='🟡 Normale'?'var(--amber-dim)':' var(--green-dim)'};color:${s.priorite==='🔴 Haute'?'var(--red)':s.priorite==='🟡 Normale'?'var(--amber)':' var(--green)'}">${s.priorite}</span>`:'—'}</td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       <td>${s.journaliste||'—'}</td>
       <td>${s.chef||'—'}</td>
@@ -4593,6 +4600,7 @@ function renderListe() {
   const cols = [
     {key:'code', label:'Code', w:'80px'},
     {key:'titre', label:'Titre', w:'auto'},
+    {key:'priorite', label:'Prio', w:'80px'},
     {key:'format', label:'Format', w:'90px'},
     {key:'statut', label:'Statut', w:'130px'},
     {key:'journaliste', label:'Journaliste', w:'100px'},
