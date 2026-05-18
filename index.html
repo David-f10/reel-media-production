@@ -869,6 +869,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <script>
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
+const CHEF_PAR_DEFAUT = 'Benjamin'; // Chef assigné automatiquement quand un journaliste crée un sujet
 const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
@@ -1051,8 +1052,13 @@ async function openNouveau(){
   }catch(e){console.warn('Erreur reload compteurs',e);}
   // Reset form
   document.getElementById('n-titre').value='';
-  document.getElementById('n-chef').value='';
-  document.getElementById('n-journ').value='';
+  // Pré-remplir le chef selon le rôle de l'utilisateur connecté
+  const chefs = ['Benjamin','Arnaud','Chloé'];
+  const isChef = currentUser && chefs.includes(currentUser.nom);
+  document.getElementById('n-chef').value = isChef ? currentUser.nom : CHEF_PAR_DEFAUT;
+  // Si c'est un journaliste qui crée, pré-remplir son nom
+  const isJournaliste = currentUser && !chefs.includes(currentUser.nom);
+  document.getElementById('n-journ').value = isJournaliste ? currentUser.nom : '';
   document.getElementById('n-brief').value='';
   document.getElementById('n-date').value='';
   const cp = document.getElementById('n-contact-panel');
