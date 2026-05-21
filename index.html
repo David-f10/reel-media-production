@@ -870,9 +870,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div style="padding:20px">
       <div class="field-label" style="margin-bottom:8px">Journalistes & monteurs</div>
       <div id="equipe-list" style="margin-bottom:16px"></div>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="equipe-new-nom" placeholder="Nom complet..." style="flex:1">
-        <button class="nav-btn primary" onclick="equippeAjouter()" style="white-space:nowrap">+ Ajouter</button>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <input type="text" id="equipe-new-nom" placeholder="Nom complet..." style="width:100%;font-size:13px;padding:8px 12px">
+        <select id="equipe-new-role" style="width:100%;font-size:13px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;outline:none">
+          <option value="Journaliste">Journaliste</option>
+          <option value="Monteur">Monteur</option>
+          <option value="Brand">Brand</option>
+          <option value="Chef">Chef</option>
+        </select>
+        <button class="nav-btn primary" onclick="equippeAjouter()" style="width:100%;padding:9px">+ Ajouter et créer l'accès</button>
       </div>
     </div>
   </div>
@@ -2538,24 +2544,7 @@ async function toggleValidationSeq(id, type) {
 
 // ─── AUTHENTIFICATION ───
 // Liste de secours si l'API est indisponible
-const EQUIPE_FALLBACK = [
-  {id:'ben',nom:'Benjamin',code:'ben26',role:'Chef'},
-  {id:'arn',nom:'Arnaud',code:'arn26',role:'Chef'},
-  {id:'chl',nom:'Chloé',code:'chl26',role:'Chef'},
-  {id:'jul',nom:'Julien',code:'jul26',role:'Journaliste'},
-  {id:'aug',nom:'Augustin',code:'aug26',role:'Journaliste'},
-  {id:'nic',nom:'Nico',code:'nic26',role:'Journaliste'},
-  {id:'mic',nom:'Mickael',code:'mic26',role:'Journaliste'},
-  {id:'jlt',nom:'Juliette',code:'jlt26',role:'Journaliste'},
-  {id:'mat',nom:'Mathilde',code:'mat26',role:'Journaliste'},
-  {id:'lea',nom:'Léa',code:'lea26',role:'Journaliste'},
-  {id:'elo',nom:'Éloise',code:'elo26',role:'Journaliste'},
-  {id:'thi',nom:'Thierry',code:'thi26',role:'Monteur'},
-  {id:'dav',nom:'David',code:'dav26',role:'Monteur'},
-  {id:'vic',nom:'Victor',code:'vic26',role:'Brand'},
-  {id:'lou',nom:'Louise',code:'lou26',role:'Brand'},
-  {id:'arc',nom:'Arnaud C',code:'arc26',role:'Brand'},
-];
+const EQUIPE_FALLBACK = []; // Codes gérés via Notion — ne pas remettre ici
 
 function peuplerSelect(liste) {
   const sel = document.getElementById('login-nom');
@@ -2802,15 +2791,32 @@ function renderEquipeList() {
     </div>`).join('');
 }
 
-function equippeAjouter() {
+async function equippeAjouter() {
   const input = document.getElementById('equipe-new-nom');
+  const roleEl = document.getElementById('equipe-new-role');
   const nom = input?.value.trim();
+  const role = roleEl?.value || 'Journaliste';
   if(!nom) { toast('Entrez un nom','err'); return; }
-  if(journalistes.includes(nom)) { toast('Déjà dans la liste','err'); return; }
-  addJournalisteToSelects(nom);
-  input.value = '';
-  renderEquipeList();
-  toast(`${nom} ajouté·e à l'équipe`,'ok');
+  if(equipe.find(m => m.nom === nom)) { toast('Déjà dans l\'équipe','err'); return; }
+  const base = nom.toLowerCase().replace(/[^a-z]/g,'').substring(0,3);
+  const code = base + '26';
+  try {
+    const newPage = await api('/pages', 'POST', {
+      parent: {database_id: DB_EQUIPE},
+      properties: {
+        'Nom': {title: [{text: {content: nom}}]},
+        'Code acces': {rich_text: [{text: {content: code}}]},
+        'Role': {select: {name: role}}
+      }
+    });
+    equipe.push({id: newPage.id, nom, code, role});
+    addJournalisteToSelects(nom);
+    input.value = '';
+    renderEquipeList();
+    toast(`✅ ${nom} ajouté·e — code : ${code}`, 'ok');
+  } catch(e) {
+    toast('Erreur : ' + e.message, 'err');
+  }
 }
 
 async function equipeSupprimerJournaliste(nom) {
