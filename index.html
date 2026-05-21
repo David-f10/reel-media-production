@@ -638,6 +638,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div style="display:flex;align-items:center;gap:7px">
           <div id="user-avatar" style="width:24px;height:24px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;font-family:var(--mono)">?</div>
           <span id="user-name" style="font-size:12px;color:var(--text2)">—</span>
+          <button onclick="ouvrirChangerCode()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:3px;border:1px solid var(--border);margin-left:2px" title="Changer mon code">🔑</button>
         </div>
         <button onclick="doLogout()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px" title="Déconnexion">↩</button>
       </div>
@@ -2689,6 +2690,49 @@ function showApp() {
     // Rafraîchir les notifs toutes les 60 secondes
     setInterval(loadNotifs, 60000);
   });
+}
+
+function ouvrirChangerCode() {
+  document.getElementById('cc-ancien').value = '';
+  document.getElementById('cc-nouveau').value = '';
+  document.getElementById('cc-confirm').value = '';
+  document.getElementById('cc-error').style.display = 'none';
+  openOv('ov-changer-code');
+}
+
+async function validerChangerCode() {
+  const ancien = document.getElementById('cc-ancien').value.trim();
+  const nouveau = document.getElementById('cc-nouveau').value.trim();
+  const confirm = document.getElementById('cc-confirm').value.trim();
+  const errEl = document.getElementById('cc-error');
+  const showErr = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+  if(!ancien) return showErr('Entrez votre code actuel');
+  if(!nouveau) return showErr('Entrez un nouveau code');
+  if(nouveau.length < 4) return showErr('Le code doit faire au moins 4 caractères');
+  if(nouveau !== confirm) return showErr('Les codes ne correspondent pas');
+  if(nouveau === ancien) return showErr('Le nouveau code doit être différent');
+
+  // Vérifier l'ancien code via la Function login
+  try {
+    const checkRes = await fetch('/.netlify/functions/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: currentUser.id, code: ancien})
+    });
+    const checkData = await checkRes.json();
+    if(!checkData.ok) return showErr('Code actuel incorrect');
+
+    // Mettre à jour dans Notion 👥 Équipe
+    await api('/pages/' + currentUser.id, 'PATCH', {
+      properties: {'Code acces': {rich_text: [{text: {content: nouveau}}]}}
+    });
+
+    closeOv('ov-changer-code');
+    toast('✅ Code mis à jour avec succès', 'ok');
+  } catch(e) {
+    showErr('Erreur : ' + e.message);
+  }
 }
 
 function doLogout() {
@@ -5011,5 +5055,28 @@ async function appReload() {
 
 </script>
 </div>
+<!-- Modal changer code -->
+<div id="ov-changer-code" class="ov" style="display:none">
+  <div class="ov-box" style="max-width:380px">
+    <div class="ov-hdr"><span class="ov-title">🔑 Changer mon code d'accès</span><button class="ov-close" onclick="closeOv('ov-changer-code')">×</button></div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div class="field"><div class="field-label">Code actuel</div>
+        <input type="password" id="cc-ancien" placeholder="Votre code actuel" style="font-size:13px;width:100%">
+      </div>
+      <div class="field"><div class="field-label">Nouveau code</div>
+        <input type="password" id="cc-nouveau" placeholder="Nouveau code (min. 4 caractères)" style="font-size:13px;width:100%">
+      </div>
+      <div class="field"><div class="field-label">Confirmer le nouveau code</div>
+        <input type="password" id="cc-confirm" placeholder="Répéter le nouveau code" style="font-size:13px;width:100%">
+      </div>
+      <div id="cc-error" style="font-size:12px;color:var(--red);display:none"></div>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeOv('ov-changer-code')" class="nav-btn">Annuler</button>
+      <button onclick="validerChangerCode()" class="nav-btn primary">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
