@@ -3838,19 +3838,40 @@ function renderDashboard(){
     <div class="delai-row"><span class="delai-label">Brief → PAD</span><span class="delai-val" style="color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'j':'—'}</span></div>
   </div>`;
 
-  // Alertes
-  html+=`<div class="dash-card">
-    <div class="dash-section-title">🚦 Alertes (${alertes.length})</div>
-    ${alertes.length===0?`<div style="font-size:12px;color:var(--text3);padding:8px 0">✅ Aucune alerte — tout est à jour</div>`:''}
-    ${alertes.slice(0,5).map(a=>`
-      <div class="alert-row" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'}-dim);cursor:pointer" onclick="openDetail('${a.id}')">
-        <div class="alert-dot" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'})"></div>
-        <div class="alert-content">
-          <div class="alert-title">${a.code||''} ${a.title}</div>
-          <div class="alert-sub">${a.msg}</div>
-        </div>
-      </div>`).join('')}
-    ${alertes.length>5?`<div style="font-size:11px;color:var(--text3);margin-top:6px">+${alertes.length-5} autres alertes</div>`:''}
+  // Alertes — pliables
+  const alertesRed = alertes.filter(a=>a.type==='red').length;
+  const alertesAmber = alertes.filter(a=>a.type==='amber').length;
+  const alertesPurple = alertes.filter(a=>a.type==='purple').length;
+  html+=`<div class="dash-card" style="padding:0">
+    <!-- Header cliquable -->
+    <div onclick="toggleDashAlertes()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;border-radius:var(--rl);transition:background 0.15s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">🚦 Alertes</span>
+        ${alertes.length===0
+          ? `<span style="font-size:11px;color:var(--green)">✅ Tout est à jour</span>`
+          : `<div style="display:flex;gap:4px">
+              ${alertesRed?`<span style="background:var(--red-dim);color:var(--red);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px">${alertesRed}</span>`:''}
+              ${alertesAmber?`<span style="background:var(--amber-dim);color:var(--amber);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px">${alertesAmber}</span>`:''}
+              ${alertesPurple?`<span style="background:var(--purple-dim);color:var(--purple);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px">${alertesPurple}</span>`:''}
+            </div>`
+        }
+      </div>
+      <span id="dash-alertes-chevron" style="font-size:12px;color:var(--text3);transition:transform 0.2s">▼</span>
+    </div>
+    <!-- Contenu dépliable -->
+    <div id="dash-alertes-body" style="display:none;padding:0 16px 12px">
+      ${alertes.length===0
+        ? `<div style="font-size:12px;color:var(--text3);padding:4px 0 8px">Aucune alerte</div>`
+        : alertes.map(a=>`
+          <div class="alert-row" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'}-dim);cursor:pointer;margin-bottom:4px;border-radius:6px" onclick="openDetail('${a.id}')">
+            <div class="alert-dot" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'})"></div>
+            <div class="alert-content">
+              <div class="alert-title">${a.code||''} ${a.title}</div>
+              <div class="alert-sub">${a.msg}</div>
+            </div>
+          </div>`).join('')
+      }
+    </div>
   </div>`;
 
   html+=`</div>`;
@@ -4599,6 +4620,15 @@ function listSort(col) {
   if(listSortCol === col) listSortDir *= -1;
   else { listSortCol = col; listSortDir = 1; }
   renderListe();
+}
+
+let _dashAlertesOpen = false;
+function toggleDashAlertes() {
+  _dashAlertesOpen = !_dashAlertesOpen;
+  const body = document.getElementById('dash-alertes-body');
+  const chevron = document.getElementById('dash-alertes-chevron');
+  if(body) body.style.display = _dashAlertesOpen ? 'block' : 'none';
+  if(chevron) chevron.style.transform = _dashAlertesOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
 function setDashPeriode(p) {
