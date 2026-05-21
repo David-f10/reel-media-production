@@ -255,19 +255,19 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 }
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
-.dash{display:flex;flex-direction:column;gap:0;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box}
-.dash>.dash-kpi-section{padding:8px 0 24px}
+.dash{display:flex;flex-direction:column;gap:12px;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box}
+.dash>.dash-kpi-section{padding:4px 0 0}
 .dash>.dash-alert-section{margin-bottom:16px}
-.dash>.dash-card{margin-bottom:12px}
-.dash>.dash-section{margin-bottom:12px}
-.dash>.dash-secondary{margin-bottom:8px;opacity:0.85}
-.dash>.dash-export{margin-top:8px;padding-bottom:16px}
+.dash>.dash-card{margin-bottom:0}
+.dash>.dash-section{margin-bottom:0}
+.dash>.dash-secondary{margin-bottom:0;opacity:0.9}
+.dash>.dash-export{margin-top:0;padding-bottom:16px}
 .dash-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-.kpi{background:transparent;border:none;border-right:1px solid var(--border);padding:16px 20px 16px 0;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
-.kpi-accent{position:absolute;top:0;left:0;right:0;height:2px}
-.kpi-val{font-size:36px;font-weight:800;font-family:var(--mono);letter-spacing:-0.05em;line-height:1.1}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;transition:border-color 0.15s}.kpi:hover{border-color:var(--border2)}
+.kpi-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:8px 8px 0 0}
+.kpi-val{font-size:32px;font-weight:7000;font-family:var(--mono);letter-spacing:-0.05em;line-height:1.1}
 .kpi-label{font-size:11px;color:var(--text3);font-weight:500;margin-top:2px}
 .kpi-sub{font-size:10px;color:var(--text3);margin-top:4px}
 .bar-chart{display:flex;flex-direction:column;gap:10px}
@@ -3814,8 +3814,8 @@ function renderDashboard(){
   // KPIs
 
   html+=`<div class="dash-kpi-section">
-    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px">Vue globale</div>
-    <div class="kpi-row" style="gap:0;border-top:1px solid var(--border)">
+    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px">Vue globale</div>
+    <div class="kpi-row">
       <div class="kpi"><div class="kpi-accent" style="background:var(--text3)"></div><div class="kpi-val" style="color:var(--text)">${total}</div><div class="kpi-label">Projets total</div></div>
       <div class="kpi"><div class="kpi-accent" style="background:var(--green)"></div><div class="kpi-val" style="color:var(--green)">${pad}</div><div class="kpi-label">PAD · Publiés</div><div class="kpi-sub">${total?Math.round(pad/total*100):0}% du total</div></div>
       <div class="kpi"><div class="kpi-accent" style="background:var(--amber)"></div><div class="kpi-val" style="color:var(--amber)">${enCours}</div><div class="kpi-label">En production</div></div>
