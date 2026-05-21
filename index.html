@@ -190,6 +190,9 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   /* Mobile modal */
   .modal{max-width:100%!important;max-height:100vh!important;border-radius:0!important;margin:0!important}
   .overlay{padding:0!important;align-items:flex-end!important}
+  /* Mobile dashboard */
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .two-col{grid-template-columns:1fr}
   /* Sidebar mobile = bottom nav */
   .app-body{flex-direction:column}
   .main-area{order:1}
@@ -252,7 +255,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 }
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
-.dash{display:flex;flex-direction:column;gap:16px;width:100%;max-width:1800px;margin:0 auto;box-sizing:border-box;padding:0 8px}
+.dash{display:flex;flex-direction:column;gap:16px;width:100%;max-width:1800px;margin:0 auto;box-sizing:border-box}
 .dash-3col{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:16px;align-items:start}
 .dash-col{display:flex;flex-direction:column;gap:16px}
 @media(max-width:1400px){.dash-3col{grid-template-columns:1fr 1fr}}
@@ -260,8 +263,6 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .dash-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-@media(max-width:900px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:600px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
 .kpi-accent{position:absolute;top:0;left:0;right:0;height:2px}
 .kpi-val{font-size:30px;font-weight:700;font-family:var(--mono);letter-spacing:-0.05em;line-height:1.1}
@@ -273,7 +274,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .bar-track{flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
 .bar-fill{height:100%;border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
 .bar-count{font-size:11px;font-family:var(--mono);color:var(--text3);width:24px;text-align:right;font-weight:600}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:768px){.two-col{grid-template-columns:1fr}}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .dash-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px}
 .delai-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
 .delai-row:last-child{border-bottom:none}
@@ -641,7 +642,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div style="display:flex;align-items:center;gap:7px">
           <div id="user-avatar" style="width:24px;height:24px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;font-family:var(--mono)">?</div>
           <span id="user-name" style="font-size:12px;color:var(--text2)">—</span>
-          <button onclick="ouvrirChangerCode()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:3px;border:1px solid var(--border);margin-left:2px" title="Changer mon code">🔑</button>
         </div>
         <button onclick="doLogout()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px" title="Déconnexion">↩</button>
       </div>
@@ -863,15 +863,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div style="padding:20px">
       <div class="field-label" style="margin-bottom:8px">Journalistes & monteurs</div>
       <div id="equipe-list" style="margin-bottom:16px"></div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-        <input type="text" id="equipe-new-nom" placeholder="Nom complet..." style="width:100%;font-size:13px;padding:8px 12px">
-        <select id="equipe-new-role" style="width:100%;font-size:13px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;outline:none">
-          <option value="Journaliste">Journaliste</option>
-          <option value="Monteur">Monteur</option>
-          <option value="Brand">Brand</option>
-          <option value="Chef">Chef</option>
-        </select>
-        <button class="nav-btn primary" onclick="equippeAjouter()" style="width:100%;padding:9px">+ Ajouter et créer l'accès</button>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="equipe-new-nom" placeholder="Nom complet..." style="flex:1">
+        <button class="nav-btn primary" onclick="equippeAjouter()" style="white-space:nowrap">+ Ajouter</button>
       </div>
     </div>
   </div>
@@ -931,7 +925,7 @@ async function loadSujets(){
   try{
     const[prod,comp,cli]=await Promise.all([
       api(`/databases/${DB_PROD}/query`,'POST',{sorts:[{timestamp:'created_time',direction:'descending'}]}),
-      api(`/databases/${DB_COMP}/query`,'POST',{page_size:100}),
+      api(`/databases/${DB_COMP}/query`,'POST',{}),
       api(`/databases/${DB_CLIENTS}/query`,'POST',{sorts:[{property:'Numéro',direction:'ascending'}]})
     ]);
     sujets=prod.results.map(parsePage);
@@ -1041,7 +1035,6 @@ function cardHTML(s){
       </div>
     </div>
     <div class="card-title">${s.titre}</div>
-    ${s.priorite?`<div style="margin-bottom:6px"><span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;background:${s.priorite==='🔴 Haute'?'var(--red-dim)':s.priorite==='🟡 Normale'?'var(--amber-dim)':' var(--green-dim)'};color:${s.priorite==='🔴 Haute'?'var(--red)':s.priorite==='🟡 Normale'?'var(--amber)':' var(--green)'}">${s.priorite}</span></div>`:''}
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${s.journaliste||'Non attribué'}${s.chef?` · ${s.chef}`:''}</span></div>
     <div class="card-st"><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
     <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
@@ -1056,7 +1049,7 @@ function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEa
 // Ouvre le modal APRÈS avoir rechargé les compteurs depuis Notion
 async function openNouveau(){
   try{
-    const comp=await api(`/databases/${DB_COMP}/query`,'POST',{page_size:100});
+    const comp=await api(`/databases/${DB_COMP}/query`,'POST',{});
     compteurs={};
     comp.results.forEach(p=>{
       const pr=p.properties;
@@ -1130,7 +1123,7 @@ function openDetail(id, forcePadOpen=false){
   // Step Informations création
   const createdFmt = s.created ? new Date(s.created).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
   const lastEditedFmt = s.lastEdited ? new Date(s.lastEdited).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
-  const tousNoms=['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David',...journalistes.filter(j=>!['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David','Victor','Louise','Arnaud C'].includes(j))];
+  const tousNoms=['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David',...journalistes.filter(j=>!['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'].includes(j))];
   const sfOptions = s.format==='Face Cam' ? ['Classic','Vrai ou Faux'] : s.format==='Desk' ? ['Standard','Prodige','Décli'] : [];
   html+=step('Informations','p-gray Fiche',
     `<div style="display:flex;flex-direction:column;gap:0">
@@ -1300,10 +1293,8 @@ function openDetail(id, forcePadOpen=false){
       </label>
       ${s.sansMusique ? `
         <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${s.statut!=='PAD'?'10px':'0'}">
-            <span style="font-size:12px;color:var(--green);font-weight:500">🔇 Aucune musique dans ce projet</span>
-            ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.sansMusique=false;}upd('${id}','Sans musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Modifier</button>`:''}
-          </div>
+          <span style="font-size:12px;color:var(--green);font-weight:500">🔇 Aucune musique dans ce projet</span>
+          ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.sansMusique=false;}upd('${id}','Sans musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Modifier</button>`:''}
         </div>
       ` : s.releveMusique ? `
         <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)">
@@ -2067,7 +2058,7 @@ async function creerDeclinaison(parentId) {
         `${auteur} a créé une déclinaison Desk : ${codeVal} — ${titreDecli}`);
       loadNotifs();
     }
-  } catch(e) { _creerDecliEnCours = false; toast('Erreur : '+e.message,'err'); }
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
 // ─── ARCHIVAGE ───
@@ -2466,6 +2457,7 @@ async function updateVersionUrl(versionId, sujetId, url) {
     loadVersions(sujetId);
     // Notif au chef
     if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
+      const vNum = document.querySelector(`[data-vid="${versionId}"]`)?.dataset?.vnum || '';
       await createNotif('v1_deposee', sujetId, s.code, s.titre, s.chef, currentUser.nom,
         `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
       loadNotifs();
@@ -2578,7 +2570,24 @@ async function toggleValidationSeq(id, type) {
 
 // ─── AUTHENTIFICATION ───
 // Liste de secours si l'API est indisponible
-const EQUIPE_FALLBACK = []; // Codes gérés côté serveur via Notion — ne pas remettre ici
+const EQUIPE_FALLBACK = [
+  {id:'ben',nom:'Benjamin',code:'ben26',role:'Chef'},
+  {id:'arn',nom:'Arnaud',code:'arn26',role:'Chef'},
+  {id:'chl',nom:'Chloé',code:'chl26',role:'Chef'},
+  {id:'jul',nom:'Julien',code:'jul26',role:'Journaliste'},
+  {id:'aug',nom:'Augustin',code:'aug26',role:'Journaliste'},
+  {id:'nic',nom:'Nico',code:'nic26',role:'Journaliste'},
+  {id:'mic',nom:'Mickael',code:'mic26',role:'Journaliste'},
+  {id:'jlt',nom:'Juliette',code:'jlt26',role:'Journaliste'},
+  {id:'mat',nom:'Mathilde',code:'mat26',role:'Journaliste'},
+  {id:'lea',nom:'Léa',code:'lea26',role:'Journaliste'},
+  {id:'elo',nom:'Éloise',code:'elo26',role:'Journaliste'},
+  {id:'thi',nom:'Thierry',code:'thi26',role:'Monteur'},
+  {id:'dav',nom:'David',code:'dav26',role:'Monteur'},
+  {id:'vic',nom:'Victor',code:'vic26',role:'Brand'},
+  {id:'lou',nom:'Louise',code:'lou26',role:'Brand'},
+  {id:'arc',nom:'Arnaud C',code:'arc26',role:'Brand'},
+];
 
 function peuplerSelect(liste) {
   const sel = document.getElementById('login-nom');
@@ -2622,39 +2631,19 @@ async function initLogin() {
   document.getElementById('app-shell').style.display = 'none';
 }
 
-async function doLogin() {
+function doLogin() {
   const selId = document.getElementById('login-nom').value;
   const code = document.getElementById('login-code').value.trim();
   const errEl = document.getElementById('login-error');
-  const btn = document.querySelector('#login-screen button');
   if(!selId) { errEl.textContent='Choisissez votre nom'; errEl.style.display='block'; return; }
   if(!code) { errEl.textContent="Entrez votre code d'accès"; errEl.style.display='block'; return; }
-  // Vérification côté serveur
-  try {
-    if(btn) btn.textContent = 'Vérification...';
-    const res = await fetch('/.netlify/functions/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: selId, code})
-    });
-    const data = await res.json();
-    if(!data.ok) {
-      errEl.textContent = data.error || 'Code incorrect';
-      errEl.style.display = 'block';
-      if(btn) btn.textContent = 'Accéder →';
-      return;
-    }
-    currentUser = data.user;
-    localStorage.setItem('rm-user', JSON.stringify(currentUser));
-    errEl.style.display = 'none';
-    showApp();
-  } catch(e) {
-    // Pas de fallback — message d'erreur clair
-    errEl.textContent = 'Service temporairement indisponible — réessayez dans quelques instants';
-    errEl.style.display = 'block';
-    if(btn) btn.textContent = 'Accéder →';
-  }
-  if(btn) btn.textContent = 'Accéder →';
+  const membre = equipe.find(m => m.id === selId);
+  if(!membre) { errEl.textContent='Membre introuvable'; errEl.style.display='block'; return; }
+  if(membre.code !== code) { errEl.textContent='Code incorrect'; errEl.style.display='block'; return; }
+  currentUser = {id: membre.id, nom: membre.nom, role: membre.role};
+  localStorage.setItem('rm-user', JSON.stringify(currentUser));
+  errEl.style.display='none';
+  showApp();
 }
 
 function showApp() {
@@ -2673,77 +2662,6 @@ function showApp() {
     // Rafraîchir les notifs toutes les 60 secondes
     setInterval(loadNotifs, 60000);
   });
-}
-
-function confirmerAction(message, labelOk='Confirmer', labelAnnuler='Annuler') {
-  return new Promise(resolve => {
-    // Supprimer un éventuel toast de confirmation existant
-    document.getElementById('confirm-toast')?.remove();
-    const div = document.createElement('div');
-    div.id = 'confirm-toast';
-    div.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:14px 18px;z-index:9999;display:flex;flex-direction:column;gap:10px;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.4)';
-    div.innerHTML = `
-      <div style='font-size:13px;color:var(--text);text-align:center'>${message}</div>
-      <div style='display:flex;gap:8px'>
-        <button onclick="document.getElementById('confirm-toast').remove();" style='flex:1;padding:7px;border-radius:6px;font-size:12px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--font)'>${labelAnnuler}</button>
-        <button id='confirm-ok-btn' style='flex:1;padding:7px;border-radius:6px;font-size:12px;border:none;background:var(--red);color:#fff;cursor:pointer;font-family:var(--font);font-weight:600'>${labelOk}</button>
-      </div>`;
-    document.body.appendChild(div);
-    document.getElementById('confirm-ok-btn').onclick = () => {
-      div.remove();
-      resolve(true);
-    };
-    div.querySelector('button').onclick = () => {
-      div.remove();
-      resolve(false);
-    };
-  });
-}
-
-function ouvrirChangerCode() {
-  document.getElementById('cc-ancien').value = '';
-  document.getElementById('cc-nouveau').value = '';
-  document.getElementById('cc-confirm').value = '';
-  document.getElementById('cc-error').style.display = 'none';
-  document.getElementById('ov-changer-code').classList.add('open');
-}
-function closeChangerCode() {
-  document.getElementById('ov-changer-code').classList.remove('open');
-}
-
-async function validerChangerCode() {
-  const ancien = document.getElementById('cc-ancien').value.trim();
-  const nouveau = document.getElementById('cc-nouveau').value.trim();
-  const confirm = document.getElementById('cc-confirm').value.trim();
-  const errEl = document.getElementById('cc-error');
-  const showErr = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
-
-  if(!ancien) return showErr('Entrez votre code actuel');
-  if(!nouveau) return showErr('Entrez un nouveau code');
-  if(nouveau.length < 4) return showErr('Le code doit faire au moins 4 caractères');
-  if(nouveau !== confirm) return showErr('Les codes ne correspondent pas');
-  if(nouveau === ancien) return showErr('Le nouveau code doit être différent');
-
-  // Vérifier l'ancien code via la Function login
-  try {
-    const checkRes = await fetch('/.netlify/functions/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: currentUser.id, code: ancien})
-    });
-    const checkData = await checkRes.json();
-    if(!checkData.ok) return showErr('Code actuel incorrect');
-
-    // Mettre à jour dans Notion 👥 Équipe
-    await api('/pages/' + currentUser.id, 'PATCH', {
-      properties: {'Code acces': {rich_text: [{text: {content: nouveau}}]}}
-    });
-
-    closeOv('ov-changer-code');
-    toast('✅ Code mis à jour avec succès', 'ok');
-  } catch(e) {
-    showErr('Erreur : ' + e.message);
-  }
 }
 
 function doLogout() {
@@ -2856,75 +2774,34 @@ function openGererJournalistes() {
 function renderEquipeList() {
   const container = document.getElementById('equipe-list');
   if(!container) return;
-  // Grouper par rôle depuis equipe[] (Notion) ou journalistes[] (fallback)
-  const roles = ['Chef','Journaliste','Monteur','Brand'];
-  const source = equipe.length > 0 ? equipe : journalistes.map(j => ({nom:j, role:'Journaliste'}));
-  let html = '';
-  roles.forEach(role => {
-    const membres = source.filter(m => m.role === role);
-    if(!membres.length) return;
-    html += `<div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin:10px 0 6px">${role}</div>`;
-    html += membres.map(m => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:4px">
-        <span style="font-size:13px">${m.nom||m}</span>
-        <button onclick="equipeSupprimerJournaliste('${m.nom||m}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0" title="Supprimer">×</button>
-      </div>`).join('');
-  });
-  container.innerHTML = html || '<div style="font-size:12px;color:var(--text3)">Aucun membre</div>';
+  container.innerHTML = journalistes.map(j => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:4px">
+      <span style="font-size:13px">${j}</span>
+      <button onclick="equipeSupprimerJournaliste('${j}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0" title="Supprimer">×</button>
+    </div>`).join('');
 }
 
-async function equippeAjouter() {
+function equippeAjouter() {
   const input = document.getElementById('equipe-new-nom');
-  const roleEl = document.getElementById('equipe-new-role');
   const nom = input?.value.trim();
-  const role = roleEl?.value || 'Journaliste';
   if(!nom) { toast('Entrez un nom','err'); return; }
-  if(equipe.find(m => m.nom === nom)) { toast('Déjà dans l\'équipe','err'); return; }
-  const base = nom.toLowerCase().replace(/[^a-z]/g,'').substring(0,3);
-  const code = base + '26';
-  try {
-    const newPage = await api('/pages', 'POST', {
-      parent: {database_id: DB_EQUIPE},
-      properties: {
-        'Nom': {title: [{text: {content: nom}}]},
-        'Code acces': {rich_text: [{text: {content: code}}]},
-        'Role': {select: {name: role}}
-      }
-    });
-    equipe.push({id: newPage.id, nom, code, role});
-    addJournalisteToSelects(nom);
-    input.value = '';
-    renderEquipeList();
-    toast(`${nom} ajouté — code : ${code}`, 'ok');
-  } catch(e) {
-    toast('Erreur : ' + e.message, 'err');
-  }
+  if(journalistes.includes(nom)) { toast('Déjà dans la liste','err'); return; }
+  addJournalisteToSelects(nom);
+  input.value = '';
+  renderEquipeList();
+  toast(`${nom} ajouté·e à l'équipe`,'ok');
 }
 
-async function equipeSupprimerJournaliste(nom) {
-  // Confirmation via toast dans l'app (pas le confirm natif du navigateur)
-  const confirmed = await confirmerAction(`Retirer ${nom} de l'équipe ?`, 'Supprimer', 'Annuler');
-  if(!confirmed) return;
-  const membre = equipe.find(m => m.nom === nom);
-  if(membre?.id) {
-    try {
-      // Archiver la page dans Notion (suppression douce)
-      await api('/pages/' + membre.id, 'PATCH', { archived: true });
-    } catch(e) {
-      toast('Erreur suppression Notion : ' + e.message, 'err');
-      return;
-    }
-  }
-  // Mettre à jour la liste locale
-  equipe = equipe.filter(m => m.nom !== nom);
+function equipeSupprimerJournaliste(nom) {
+  if(!confirm(`Retirer ${nom} de la liste ? Les fiches existantes ne seront pas affectées.`)) return;
   removeJournaliste(nom);
   renderEquipeList();
-  toast(`${nom} retiré·e de l'équipe`, 'ok');
+  toast(`${nom} retiré·e de la liste`,'ok');
 }
 
 // ─── GESTION JOURNALISTES DYNAMIQUES ───
 // Liste maître des journalistes (mise à jour dynamiquement)
-let journalistes = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Victor','Louise','Arnaud C'];
+let journalistes = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise'];
 
 function addJournalisteToSelects(nom) {
   if(!nom || journalistes.includes(nom)) return;
@@ -3520,26 +3397,6 @@ function updateBrandDecliCode(){
 
 // Liens de référence dans le modal de création (Desk)
 let modalRefs = [];
-let ideeRefs = [];
-function ajouterRefIdee() {
-  const input=document.getElementById('ni-ref');
-  let url=input?.value.trim();
-  if(!url){toast('Collez un lien','err');return;}
-  if(!url.startsWith('http'))url='https://'+url;
-  ideeRefs.push(url);
-  input.value='';
-  refreshIdeeRefs();
-}
-function refreshIdeeRefs(){
-  const list=document.getElementById('ni-refs-list');
-  if(!list)return;
-  list.innerHTML=ideeRefs.map((u,i)=>`
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-      <span style="flex:1;font-size:11px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${u}">${u.replace(/^https?:\/\//,'').substring(0,50)}${u.length>53?'...':''}</span>
-      <button onclick="ideeRefs.splice(${i},1);refreshIdeeRefs()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1">×</button>
-    </div>`).join('');
-}
-
 function ajouterRefModal() {
   const input = document.getElementById('n-ref-input');
   let url = input?.value.trim();
@@ -3946,18 +3803,15 @@ function renderDashboard(){
   // ── Render HTML ──
   const pct=(v,max)=>Math.round((v/max)*100);
 
-  let html=`<div class="dash" style="padding:0 4px">`;
+  let html=`<div class="dash">`;
 
-  // Date dashboard
   html+=`<div style="margin-bottom:8px">
     <div style="font-size:12px;color:var(--text3);font-family:var(--mono)">${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
   </div>`;
 
   // KPIs
-    html+=`<div class="dash-3col">`;
 
-  html+=`<div class="dash-col">`;
-html+=`<div>
+  html+=`<div>
     <div class="dash-section-title">Vue globale</div>
     <div class="kpi-row">
       <div class="kpi"><div class="kpi-accent" style="background:var(--text3)"></div><div class="kpi-val" style="color:var(--text)">${total}</div><div class="kpi-label">Projets total</div></div>
@@ -3970,6 +3824,10 @@ html+=`<div>
 
   // Graphique mensuel
   const periodeLabel = dashPeriode===1?'1 mois':dashPeriode===3?'3 mois':dashPeriode===0?'1 semaine':'6 mois';
+
+  html+=`<div class="dash-3col">`;
+
+  html+=`<div class="dash-col">`;
   html+=`<div class="two-col">
     <div class="dash-card">
       <div class="dash-section-title">⏱ Délais moyens</div>
@@ -3993,10 +3851,10 @@ html+=`<div>
   </div>`;
 
   // ── Activité récente ──
-      html+=`</div>`;
+  html+=`</div>`;
 
   html+=`<div class="dash-col">`;
-html+=`<div>
+  html+=`<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="dash-section-title" style="margin-bottom:0;flex:1">Activité mensuelle</div>
       <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r);padding:3px">
@@ -4026,6 +3884,15 @@ html+=`<div>
   </div>`;
 
   // Deux colonnes : formats + journalistes
+  html+=`<div>
+    <div class="dash-section-title">Activité récente</div>
+    <div class="dash-card" id="dash-activite" style="padding:4px 18px">
+      <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
+    </div>
+  </div>`;
+  html+=`</div>`;
+
+  html+=`<div class="dash-col">`;
   html+=`<div class="two-col">
     <div class="dash-card">
       <div class="dash-section-title">Par format</div>
@@ -4052,79 +3919,11 @@ html+=`<div>
   </div>`;
 
   // Délais
-    html+=`</div>`;
-
-  html+=`<div class="dash-col">`;
-html+=`<div>
-    <div class="dash-section-title">Activité récente</div>
-    <div class="dash-card" id="dash-activite" style="padding:4px 18px">
-      <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
-    </div>
-  </div>`;
-
-  // ── Stats journaliste × format ──
-  
-html+=`<div>
-    <div class='dash-section-title'>Production par journaliste et par format</div>
-    <div class='dash-card' style='overflow-x:auto'>
-      <div style='display:flex;gap:8px;margin-bottom:14px;align-items:center'>
-        <select onchange='setStatsMois(this.value)' style='background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;flex:1'>
-          ${buildMoisSelect()}
-        </select>
-        <select onchange='setStatsAnnee(this.value)' style='background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;flex:1'>
-          <option value='all' ${dashStatsAnnee==='all'?'selected':''}>Toutes les années</option>
-          ${buildAnneeSelect()}
-        </select>
-      </div>
-      <button onclick='exportStatsTxt()' style='width:100%;padding:8px;border-radius:6px;font-size:12px;border:1px solid var(--border2);cursor:pointer;font-family:var(--font);background:transparent;color:var(--text2)'>📄 Exporter les stats</button>
-    </div>
-  </div>`;
-
-  // ── Jours travaillés ──
-  const projTournage=sujets.filter(s=>s.tourJ1&&s.montJ1).map(s=>({
-    titre:s.titre,code:s.code,
-    joursTournage:s.tourJ2?Math.round(Math.abs(new Date(s.tourJ2)-new Date(s.tourJ1))/86400000)+1:1,
-    joursMontage:s.montJ2?Math.round(Math.abs(new Date(s.montJ2)-new Date(s.montJ1))/86400000)+1:1,
-    totalJours:Math.round(Math.abs(new Date(s.diffusion||s.lastEdited)-new Date(s.created))/86400000)
-  }));
-  const moyMontage=projTournage.length?Math.round(projTournage.reduce((a,p)=>a+p.joursMontage,0)/projTournage.length):null;
-  const projPAD=sujets.filter(s=>s.statut==='PAD'&&s.created&&s.diffusion);
-  const moyTotal=projPAD.length?Math.round(projPAD.reduce((a,s)=>a+Math.abs(new Date(s.diffusion)-new Date(s.created))/86400000,0)/projPAD.length):null;
-
-  
   html+=`</div>`;
-
-html+=`<div>
-    <div class='dash-section-title'>⏱ Jours travaillés par projet</div>
-    <div class='dash-card'>
-      <div style='display:flex;gap:24px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)'>
-        <div><div style='font-size:22px;font-weight:700;font-family:var(--mono);color:var(--amber)'>${moyTotal??'—'}<span style='font-size:11px;color:var(--text3);font-weight:400'>j</span></div><div style='font-size:11px;color:var(--text3)'>Moy. Brief → PAD</div></div>
-        <div><div style='font-size:22px;font-weight:700;font-family:var(--mono);color:var(--blue)'>${moyMontage??'—'}<span style='font-size:11px;color:var(--text3);font-weight:400'>j</span></div><div style='font-size:11px;color:var(--text3)'>Moy. montage</div></div>
-      </div>
-      ${projTournage.length?`<table style='width:100%;border-collapse:collapse;font-size:11px'>
-        <thead><tr>
-          <th style='text-align:left;padding:5px 8px;color:var(--text3);font-weight:400;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px;text-transform:uppercase'>Projet</th>
-          <th style='text-align:center;padding:5px 8px;color:var(--amber);font-weight:400;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px'>Tournage</th>
-          <th style='text-align:center;padding:5px 8px;color:var(--blue);font-weight:400;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px'>Montage</th>
-          <th style='text-align:center;padding:5px 8px;color:var(--green);font-weight:400;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:9px'>Total</th>
-        </tr></thead>
-        <tbody>${projTournage.slice(0,8).map(p=>`
-          <tr style='border-bottom:1px solid var(--border)'>
-            <td style='padding:6px 8px;color:var(--text)'><span style='font-family:var(--mono);color:var(--red);font-size:10px'>${p.code}</span> ${p.titre.substring(0,28)}${p.titre.length>28?'...':''}</td>
-            <td style='text-align:center;padding:6px 8px;color:var(--amber);font-family:var(--mono)'>${p.joursTournage}j</td>
-            <td style='text-align:center;padding:6px 8px;color:var(--blue);font-family:var(--mono)'>${p.joursMontage}j</td>
-            <td style='text-align:center;padding:6px 8px;color:var(--green);font-family:var(--mono)'>${p.totalJours}j</td>
-          </tr>`).join('')}
-        </tbody></table>`:'<div style="font-size:12px;color:var(--text3)">Pas encore assez de données.</div>'}
-    </div>
-  </div>`;
-
-    html+=`</div>`;
 
   html+=`</div>`;
 html+=`</div>`;
   document.getElementById('vue-wrap').innerHTML=html;
-
 }
 
 async function loadActiviteDashboard() {
@@ -4479,7 +4278,6 @@ function ouvrirIdee(id) {
       </div>
     </div>
   </div>`;
-  ideeRefs = [];
   modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
   document.body.appendChild(modal);
   setTimeout(()=>{
@@ -4611,19 +4409,13 @@ function openNouvelleIdee() {
     </div>
     <div style="padding:0 20px 16px">
       <div class="field-label" style="margin-bottom:6px">Lien de référence <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
-      <div id="ni-refs-list" style="margin-bottom:6px"></div>
-        <div style="display:flex;gap:6px">
-          <input type="url" id="ni-ref" placeholder="https://..." style="flex:1;font-size:12px"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterRefIdee()}">
-          <button class="nav-btn" onclick="ajouterRefIdee()" style="white-space:nowrap;font-size:11px">+ Ajouter</button>
-        </div>
+      <input type="url" id="ni-ref" placeholder="https://..." style="font-size:12px;width:100%">
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="document.getElementById('ov-nouvelle-idee').remove()">Annuler</button>
       <button class="nav-btn primary" onclick="soumettreidee()">Proposer →</button>
     </div>
   </div>`;
-  ideeRefs = [];
   modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
   document.body.appendChild(modal);
 }
@@ -4642,11 +4434,17 @@ async function soumettreidee() {
     if(desc) props['Description'] = {rich_text:[{text:{content:desc}}]};
     if(fmt) props['Format envisagé'] = {select:{name:fmt}};
     const newIdee = await api('/pages','POST',{parent:{database_id:DB_IDEES},properties:props});
-    const refUrlSingle=document.getElementById('ni-ref')?.value.trim();
-    if(refUrlSingle){let u=refUrlSingle.startsWith('http')?refUrlSingle:'https://'+refUrlSingle;if(!ideeRefs.includes(u))ideeRefs.push(u);}
-    if(ideeRefs.length>0&&newIdee?.id){
-      await Promise.all(ideeRefs.map(url=>api('/pages','POST',{parent:{database_id:DB_REFS},properties:{'Titre':{title:[{text:{content:url}}]},'Sujet ID':{rich_text:[{text:{content:newIdee.id}}]}}})));
-      ideeRefs=[];
+    // Ajouter le lien de référence si renseigné
+    const refUrl = document.getElementById('ni-ref')?.value.trim();
+    if(refUrl && newIdee?.id) {
+      let url = refUrl.startsWith('http') ? refUrl : 'https://'+refUrl;
+      await api('/pages','POST',{
+        parent:{database_id:DB_REFS},
+        properties:{
+          'Titre':{title:[{text:{content:url}}]},
+          'Sujet ID':{rich_text:[{text:{content:newIdee.id}}]}
+        }
+      });
     }
     document.getElementById('ov-nouvelle-idee')?.remove();
     toast('💡 Idée proposée !','ok');
@@ -4795,83 +4593,6 @@ function listSort(col) {
   renderListe();
 }
 
-const MOIS_LABELS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-let dashStatsMois = new Date().getMonth();
-let dashStatsAnnee = String(new Date().getFullYear());
-
-function buildMoisSelect() {
-  let html = `<option value='-1' ${dashStatsMois===-1?'selected':''}>Tous les mois</option>`;
-  MOIS_LABELS.forEach((label,i) => {
-    html += `<option value='${i}' ${dashStatsMois===i?'selected':''}>${label}</option>`;
-  });
-  return html;
-}
-
-function buildAnneeSelect() {
-  const now = new Date();
-  let html = '';
-  for(let y = now.getFullYear(); y >= now.getFullYear()-3; y--) {
-    html += `<option value='${y}' ${dashStatsAnnee===String(y)?'selected':''}>${y}</option>`;
-  }
-  return html;
-}
-
-function setStatsMois(v) {
-  dashStatsMois = parseInt(v);
-}
-
-function setStatsAnnee(v) {
-  dashStatsAnnee = v;
-}
-
-function getStatsPeriodeSujets() {
-  return sujets.filter(s => {
-    if(!s.created) return false;
-    const d = new Date(s.created);
-    const anneeOk = dashStatsAnnee === 'all' || d.getFullYear() === parseInt(dashStatsAnnee);
-    const moisOk = dashStatsMois === -1 || d.getMonth() === dashStatsMois;
-    return anneeOk && moisOk;
-  });
-}
-
-function exportStatsTxt() {
-  const list=getStatsPeriodeSujets();
-  const formats=[...new Set(list.map(s=>s.format).filter(Boolean))].sort();
-  const jours=[...new Set(list.map(s=>s.journaliste).filter(Boolean))].sort();
-  const now=new Date();
-  let pl = '';
-  if(dashStatsMois !== -1) pl += MOIS_LABELS[dashStatsMois] + ' ';
-  pl += dashStatsAnnee === 'all' ? 'Toutes années' : dashStatsAnnee;
-  pl = pl.trim();
-  const sep='─'.repeat(60);
-  const date=now.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
-  let txt=`STATS PRODUCTION — Réel Média\n${sep}\nPériode : ${pl}\nExport  : ${date}\n${sep}\n\n`;
-  const colW=12,nameW=16;
-  let header='Journaliste'.padEnd(nameW);
-  formats.forEach(f=>{header+=f.substring(0,colW-1).padStart(colW);});
-  header+='Total'.padStart(colW);
-  txt+=header+'\n'+'─'.repeat(header.length)+'\n';
-  jours.forEach(j=>{
-    const projs=list.filter(s=>s.journaliste===j);
-    let ligne=j.substring(0,nameW-1).padEnd(nameW);
-    formats.forEach(f=>{const cnt=projs.filter(s=>s.format===f).length;ligne+=(cnt||'—').toString().padStart(colW);});
-    ligne+=projs.length.toString().padStart(colW);
-    txt+=ligne+'\n';
-  });
-  txt+='─'.repeat(header.length)+'\n';
-  let total='TOTAL'.padEnd(nameW);
-  formats.forEach(f=>{const cnt=list.filter(s=>s.format===f).length;total+=(cnt||'—').toString().padStart(colW);});
-  total+=list.length.toString().padStart(colW);
-  txt+=total+'\n\n'+sep+'\n';
-  const blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=`Stats_${pl.replace(/ /g,'_')}_${date.replace(/\//g,'-')}.txt`;
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
-  toast('📄 Stats exportées','ok');
-}
-
 function setDashPeriode(p) {
   dashPeriode = p;
   if(currentPage === 'dashboard') appRenderDashboard();
@@ -4892,8 +4613,8 @@ async function appLoadData() {
   try {
     const [prod, comp, cli] = await Promise.all([
       api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}],page_size:100}),
-      api('/databases/' + DB_COMP + '/query', 'POST', {page_size:100}),
-      api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}],page_size:100})
+      api('/databases/' + DB_COMP + '/query', 'POST', {}),
+      api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}]})
     ]);
     sujets = prod.results.map(parsePage);
     sujetsArchives = [];
@@ -5123,31 +4844,5 @@ async function appReload() {
 
 </script>
 </div>
-<!-- Modal changer code -->
-<div id="ov-changer-code" class="overlay" onclick="if(event.target===this)closeChangerCode()">
-  <div class="modal" style="max-width:380px;width:100%">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
-      <span style="font-size:14px;font-weight:600">🔑 Changer mon code</span>
-      <button onclick="closeChangerCode()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;padding:0">×</button>
-    </div>
-    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
-      <div class="field"><div class="field-label">Code actuel</div>
-        <input type="password" id="cc-ancien" placeholder="Votre code actuel" style="font-size:13px;width:100%">
-      </div>
-      <div class="field"><div class="field-label">Nouveau code</div>
-        <input type="password" id="cc-nouveau" placeholder="Nouveau code (min. 4 caractères)" style="font-size:13px;width:100%">
-      </div>
-      <div class="field"><div class="field-label">Confirmer le nouveau code</div>
-        <input type="password" id="cc-confirm" placeholder="Répéter le nouveau code" style="font-size:13px;width:100%">
-      </div>
-      <div id="cc-error" style="font-size:12px;color:var(--red);display:none"></div>
-    </div>
-    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="closeChangerCode()" class="nav-btn">Annuler</button>
-      <button onclick="validerChangerCode()" class="nav-btn primary">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
