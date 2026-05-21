@@ -2697,7 +2697,10 @@ function ouvrirChangerCode() {
   document.getElementById('cc-nouveau').value = '';
   document.getElementById('cc-confirm').value = '';
   document.getElementById('cc-error').style.display = 'none';
-  openOv('ov-changer-code');
+  document.getElementById('ov-changer-code').classList.add('open');
+}
+function closeChangerCode() {
+  document.getElementById('ov-changer-code').classList.remove('open');
 }
 
 async function validerChangerCode() {
@@ -5056,9 +5059,12 @@ async function appReload() {
 </script>
 </div>
 <!-- Modal changer code -->
-<div id="ov-changer-code" class="ov">
-  <div class="ov-box" style="max-width:380px">
-    <div class="ov-hdr"><span class="ov-title">🔑 Changer mon code d'accès</span><button class="ov-close" onclick="closeOv('ov-changer-code')">×</button></div>
+<div id="ov-changer-code" class="overlay" onclick="if(event.target===this)closeChangerCode()">
+  <div class="modal" style="max-width:380px;width:100%">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+      <span style="font-size:14px;font-weight:600">🔑 Changer mon code</span>
+      <button onclick="closeChangerCode()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;padding:0">×</button>
+    </div>
     <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
       <div class="field"><div class="field-label">Code actuel</div>
         <input type="password" id="cc-ancien" placeholder="Votre code actuel" style="font-size:13px;width:100%">
@@ -5072,7 +5078,7 @@ async function appReload() {
       <div id="cc-error" style="font-size:12px;color:var(--red);display:none"></div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="closeOv('ov-changer-code')" class="nav-btn">Annuler</button>
+      <button onclick="closeChangerCode()" class="nav-btn">Annuler</button>
       <button onclick="validerChangerCode()" class="nav-btn primary">Enregistrer</button>
     </div>
   </div>
