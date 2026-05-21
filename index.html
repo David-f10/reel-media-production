@@ -252,7 +252,11 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 }
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
-.dash{display:flex;flex-direction:column;gap:20px;width:100%;max-width:100%;box-sizing:border-box}
+.dash{display:flex;flex-direction:column;gap:16px;width:100%;max-width:1800px;margin:0 auto;box-sizing:border-box;padding:0 8px}
+.dash-3col{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:16px;align-items:start}
+.dash-col{display:flex;flex-direction:column;gap:16px}
+@media(max-width:1400px){.dash-3col{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.dash-3col{grid-template-columns:1fr}}
 .dash-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
@@ -3950,7 +3954,10 @@ function renderDashboard(){
   </div>`;
 
   // KPIs
-  html+=`<div>
+    html+=`<div class="dash-3col">`;
+
+  html+=`<div class="dash-col">`;
+html+=`<div>
     <div class="dash-section-title">Vue globale</div>
     <div class="kpi-row">
       <div class="kpi"><div class="kpi-accent" style="background:var(--text3)"></div><div class="kpi-val" style="color:var(--text)">${total}</div><div class="kpi-label">Projets total</div></div>
@@ -3963,7 +3970,33 @@ function renderDashboard(){
 
   // Graphique mensuel
   const periodeLabel = dashPeriode===1?'1 mois':dashPeriode===3?'3 mois':dashPeriode===0?'1 semaine':'6 mois';
-  html+=`<div>
+  html+=`<div class="two-col">
+    <div class="dash-card">
+      <div class="dash-section-title">⏱ Délais moyens</div>
+      <div class="delai-row"><span class="delai-label">Tournage → V1</span><span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</span></div>
+      <div class="delai-row"><span class="delai-label">V1 → V2</span><span class="delai-val" style="color:var(--blue)">${delaiV1Valid!==null?delaiV1Valid+'j':'—'}</span></div>
+      <div class="delai-row"><span class="delai-label">Brief → PAD</span><span class="delai-val" style="color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'j':'—'}</span></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-section-title">🚦 Alertes (${alertes.length})</div>
+      ${alertes.length===0?`<div style="font-size:12px;color:var(--text3);padding:8px 0">✅ Aucune alerte — tout est à jour</div>`:''}
+      ${alertes.slice(0,5).map(a=>`
+        <div class="alert-row" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'}-dim);cursor:pointer" onclick="openDetail('${a.id}')">
+          <div class="alert-dot" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'})"></div>
+          <div class="alert-content">
+            <div class="alert-title">${a.code||''} ${a.title}</div>
+            <div class="alert-sub">${a.msg}</div>
+          </div>
+        </div>`).join('')}
+      ${alertes.length>5?`<div style="font-size:11px;color:var(--text3);margin-top:6px">+${alertes.length-5} autres alertes</div>`:''}
+    </div>
+  </div>`;
+
+  // ── Activité récente ──
+      html+=`</div>`;
+
+  html+=`<div class="dash-col">`;
+html+=`<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="dash-section-title" style="margin-bottom:0;flex:1">Activité mensuelle</div>
       <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r);padding:3px">
@@ -4019,30 +4052,9 @@ function renderDashboard(){
   </div>`;
 
   // Délais
-  html+=`<div class="two-col">
-    <div class="dash-card">
-      <div class="dash-section-title">⏱ Délais moyens</div>
-      <div class="delai-row"><span class="delai-label">Tournage → V1</span><span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</span></div>
-      <div class="delai-row"><span class="delai-label">V1 → V2</span><span class="delai-val" style="color:var(--blue)">${delaiV1Valid!==null?delaiV1Valid+'j':'—'}</span></div>
-      <div class="delai-row"><span class="delai-label">Brief → PAD</span><span class="delai-val" style="color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'j':'—'}</span></div>
-    </div>
-    <div class="dash-card">
-      <div class="dash-section-title">🚦 Alertes (${alertes.length})</div>
-      ${alertes.length===0?`<div style="font-size:12px;color:var(--text3);padding:8px 0">✅ Aucune alerte — tout est à jour</div>`:''}
-      ${alertes.slice(0,5).map(a=>`
-        <div class="alert-row" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'}-dim);cursor:pointer" onclick="openDetail('${a.id}')">
-          <div class="alert-dot" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'})"></div>
-          <div class="alert-content">
-            <div class="alert-title">${a.code||''} ${a.title}</div>
-            <div class="alert-sub">${a.msg}</div>
-          </div>
-        </div>`).join('')}
-      ${alertes.length>5?`<div style="font-size:11px;color:var(--text3);margin-top:6px">+${alertes.length-5} autres alertes</div>`:''}
-    </div>
-  </div>`;
+    html+=`</div>`;
 
-  // ── Activité récente ──
-    html+=`<div class="two-col" style="align-items:start">`;
+  html+=`<div class="dash-col">`;
 html+=`<div>
     <div class="dash-section-title">Activité récente</div>
     <div class="dash-card" id="dash-activite" style="padding:4px 18px">
@@ -4107,7 +4119,10 @@ html+=`<div>
     </div>
   </div>`;
 
+    html+=`</div>`;
+
   html+=`</div>`;
+html+=`</div>`;
   document.getElementById('vue-wrap').innerHTML=html;
 
 }
