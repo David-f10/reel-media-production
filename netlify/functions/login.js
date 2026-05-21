@@ -1,8 +1,39 @@
 // netlify/functions/login.js
-// Vérifie le code d'accès via la base Notion 👥 Équipe
-// Les codes ne sont jamais exposés dans le HTML
+// Vérifie le code d'accès via Notion 👥 Équipe
+// Cache 1 minute — résilience sans compromis sécurité
 
 const DB_EQUIPE = 'df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
+const CACHE_TTL = 60 * 1000; // 1 minute
+
+// Cache en mémoire (partagé entre les invocations chaudes)
+let membresCache = null;
+let cacheTimestamp = 0;
+
+async function getMembres(token) {
+  const now = Date.now();
+
+  // Retourner le cache si valide (< 1 minute)
+  if (membresCache && (now - cacheTimestamp) < CACHE_TTL) {
+    return membresCache;
+  }
+
+  const res = await fetch(`https://api.notion.com/v1/databases/${DB_EQUIPE}/query`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Notion-Version': '2022-06-28',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ page_size: 100 })
+  });
+
+  if (!res.ok) throw new Error(`Notion API error: ${res.status}`);
+
+  const data = await res.json();
+  membresCache = data.results;
+  cacheTimestamp = now;
+  return membresCache;
+}
 
 exports.handler = async (event) => {
   const headers = {
@@ -30,23 +61,11 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: 'Token Notion manquant' }) };
     }
 
-    // Lire les membres depuis Notion 👥 Équipe
-    const res = await fetch(`https://api.notion.com/v1/databases/${DB_EQUIPE}/query`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${NOTION_TOKEN}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ page_size: 100 })
-    });
+    // Récupérer les membres (cache ou Notion)
+    const membres = await getMembres(NOTION_TOKEN);
 
-    if (!res.ok) throw new Error(`Notion API error: ${res.status}`);
-
-    const data = await res.json();
-
-    // Trouver le membre par son UUID Notion (= l'ID envoyé par le select login)
-    const page = data.results.find(p => p.id === id);
+    // Trouver le membre par UUID Notion
+    const page = membres.find(p => p.id === id);
 
     if (!page) {
       return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Membre introuvable' }) };
