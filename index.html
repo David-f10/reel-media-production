@@ -190,9 +190,6 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   /* Mobile modal */
   .modal{max-width:100%!important;max-height:100vh!important;border-radius:0!important;margin:0!important}
   .overlay{padding:0!important;align-items:flex-end!important}
-  /* Mobile dashboard */
-  .kpi-row{grid-template-columns:repeat(2,1fr)}
-  .two-col{grid-template-columns:1fr}
   /* Sidebar mobile = bottom nav */
   .app-body{flex-direction:column}
   .main-area{order:1}
@@ -255,10 +252,12 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 }
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
-.dash{display:flex;flex-direction:column;gap:20px;max-width:1200px}
+.dash{display:flex;flex-direction:column;gap:20px;width:100%;max-width:100%;box-sizing:border-box}
 .dash-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+@media(max-width:900px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
 .kpi-accent{position:absolute;top:0;left:0;right:0;height:2px}
 .kpi-val{font-size:30px;font-weight:700;font-family:var(--mono);letter-spacing:-0.05em;line-height:1.1}
@@ -270,7 +269,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .bar-track{flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
 .bar-fill{height:100%;border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
 .bar-count{font-size:11px;font-family:var(--mono);color:var(--text3);width:24px;text-align:right;font-weight:600}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:768px){.two-col{grid-template-columns:1fr}}
 .dash-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px}
 .delai-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
 .delai-row:last-child{border-bottom:none}
@@ -2575,24 +2574,7 @@ async function toggleValidationSeq(id, type) {
 
 // ─── AUTHENTIFICATION ───
 // Liste de secours si l'API est indisponible
-const EQUIPE_FALLBACK = [
-  {id:'ben',nom:'Benjamin',code:'ben26',role:'Chef'},
-  {id:'arn',nom:'Arnaud',code:'arn26',role:'Chef'},
-  {id:'chl',nom:'Chloé',code:'chl26',role:'Chef'},
-  {id:'jul',nom:'Julien',code:'jul26',role:'Journaliste'},
-  {id:'aug',nom:'Augustin',code:'aug26',role:'Journaliste'},
-  {id:'nic',nom:'Nico',code:'nic26',role:'Journaliste'},
-  {id:'mic',nom:'Mickael',code:'mic26',role:'Journaliste'},
-  {id:'jlt',nom:'Juliette',code:'jlt26',role:'Journaliste'},
-  {id:'mat',nom:'Mathilde',code:'mat26',role:'Journaliste'},
-  {id:'lea',nom:'Léa',code:'lea26',role:'Journaliste'},
-  {id:'elo',nom:'Éloise',code:'elo26',role:'Journaliste'},
-  {id:'thi',nom:'Thierry',code:'thi26',role:'Monteur'},
-  {id:'dav',nom:'David',code:'dav26',role:'Monteur'},
-  {id:'vic',nom:'Victor',code:'vic26',role:'Brand'},
-  {id:'lou',nom:'Louise',code:'lou26',role:'Brand'},
-  {id:'arc',nom:'Arnaud C',code:'arc26',role:'Brand'},
-];
+const EQUIPE_FALLBACK = []; // Codes gérés côté serveur via Notion — ne pas remettre ici
 
 function peuplerSelect(liste) {
   const sel = document.getElementById('login-nom');
@@ -2663,19 +2645,10 @@ async function doLogin() {
     errEl.style.display = 'none';
     showApp();
   } catch(e) {
-    // Fallback local si la Function est inaccessible
-    console.warn('Login serveur inaccessible, fallback local:', e);
-    const membre = equipe.find(m => m.id === selId);
-    if(!membre || membre.code !== code) {
-      errEl.textContent = 'Code incorrect';
-      errEl.style.display = 'block';
-      if(btn) btn.textContent = 'Accéder →';
-      return;
-    }
-    currentUser = {id: membre.id, nom: membre.nom, role: membre.role};
-    localStorage.setItem('rm-user', JSON.stringify(currentUser));
-    errEl.style.display = 'none';
-    showApp();
+    // Pas de fallback — message d'erreur clair
+    errEl.textContent = 'Service temporairement indisponible — réessayez dans quelques instants';
+    errEl.style.display = 'block';
+    if(btn) btn.textContent = 'Accéder →';
   }
   if(btn) btn.textContent = 'Accéder →';
 }
@@ -3969,7 +3942,7 @@ function renderDashboard(){
   // ── Render HTML ──
   const pct=(v,max)=>Math.round((v/max)*100);
 
-  let html=`<div class="dash">`;
+  let html=`<div class="dash" style="padding:0 4px">`;
 
   // Date dashboard
   html+=`<div style="margin-bottom:8px">
@@ -4069,7 +4042,8 @@ function renderDashboard(){
   </div>`;
 
   // ── Activité récente ──
-  html+=`<div>
+    html+=`<div class="two-col" style="align-items:start">`;
+html+=`<div>
     <div class="dash-section-title">Activité récente</div>
     <div class="dash-card" id="dash-activite" style="padding:4px 18px">
       <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
@@ -4077,7 +4051,8 @@ function renderDashboard(){
   </div>`;
 
   // ── Stats journaliste × format ──
-  html+=`<div>
+  
+html+=`<div>
     <div class='dash-section-title'>Production par journaliste et par format</div>
     <div class='dash-card' style='overflow-x:auto'>
       <div style='display:flex;gap:8px;margin-bottom:14px;align-items:center'>
@@ -4104,7 +4079,10 @@ function renderDashboard(){
   const projPAD=sujets.filter(s=>s.statut==='PAD'&&s.created&&s.diffusion);
   const moyTotal=projPAD.length?Math.round(projPAD.reduce((a,s)=>a+Math.abs(new Date(s.diffusion)-new Date(s.created))/86400000,0)/projPAD.length):null;
 
-  html+=`<div>
+  
+  html+=`</div>`;
+
+html+=`<div>
     <div class='dash-section-title'>⏱ Jours travaillés par projet</div>
     <div class='dash-card'>
       <div style='display:flex;gap:24px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)'>
