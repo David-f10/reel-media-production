@@ -4275,6 +4275,7 @@ function ouvrirIdee(id) {
       </div>
       <button class="modal-close" onclick="document.getElementById('ov-idee-detail').remove()">×</button>
     </div>
+    <div style="padding:0 20px 20px">
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">Description</span></div>
       <textarea id="idee-desc-${id}" style="min-height:80px" onblur="saveIdeeField('${id}','Description','rt',this.value)">${i.description}</textarea>
@@ -4315,6 +4316,7 @@ function ouvrirIdee(id) {
         <textarea id="comment-input-${i.id}" placeholder="Chef ou journaliste — laisser un commentaire..." style="flex:1;min-height:60px;resize:vertical"></textarea>
         <button class="nav-btn primary" onclick="postComment('${i.id}')" style="font-size:11px;padding:7px 12px;white-space:nowrap;height:fit-content">Envoyer</button>
       </div>
+    </div>
     </div>
   </div>`;
   modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
