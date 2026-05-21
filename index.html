@@ -2582,6 +2582,9 @@ const EQUIPE_FALLBACK = [
   {id:'elo',nom:'Éloise',code:'elo26',role:'Journaliste'},
   {id:'thi',nom:'Thierry',code:'thi26',role:'Monteur'},
   {id:'dav',nom:'David',code:'dav26',role:'Monteur'},
+  {id:'vic',nom:'Victor',code:'vic26',role:'Brand'},
+  {id:'lou',nom:'Louise',code:'lou26',role:'Brand'},
+  {id:'arc',nom:'Arnaud C',code:'arc26',role:'Brand'},
 ];
 
 function peuplerSelect(liste) {
@@ -2626,19 +2629,48 @@ async function initLogin() {
   document.getElementById('app-shell').style.display = 'none';
 }
 
-function doLogin() {
+async function doLogin() {
   const selId = document.getElementById('login-nom').value;
   const code = document.getElementById('login-code').value.trim();
   const errEl = document.getElementById('login-error');
+  const btn = document.querySelector('#login-screen button');
   if(!selId) { errEl.textContent='Choisissez votre nom'; errEl.style.display='block'; return; }
   if(!code) { errEl.textContent="Entrez votre code d'accès"; errEl.style.display='block'; return; }
-  const membre = equipe.find(m => m.id === selId);
-  if(!membre) { errEl.textContent='Membre introuvable'; errEl.style.display='block'; return; }
-  if(membre.code !== code) { errEl.textContent='Code incorrect'; errEl.style.display='block'; return; }
-  currentUser = {id: membre.id, nom: membre.nom, role: membre.role};
-  localStorage.setItem('rm-user', JSON.stringify(currentUser));
-  errEl.style.display='none';
-  showApp();
+  // Vérification côté serveur
+  try {
+    if(btn) btn.textContent = 'Vérification...';
+    const res = await fetch('/.netlify/functions/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: selId, code})
+    });
+    const data = await res.json();
+    if(!data.ok) {
+      errEl.textContent = data.error || 'Code incorrect';
+      errEl.style.display = 'block';
+      if(btn) btn.textContent = 'Accéder →';
+      return;
+    }
+    currentUser = data.user;
+    localStorage.setItem('rm-user', JSON.stringify(currentUser));
+    errEl.style.display = 'none';
+    showApp();
+  } catch(e) {
+    // Fallback local si la Function est inaccessible
+    console.warn('Login serveur inaccessible, fallback local:', e);
+    const membre = equipe.find(m => m.id === selId);
+    if(!membre || membre.code !== code) {
+      errEl.textContent = 'Code incorrect';
+      errEl.style.display = 'block';
+      if(btn) btn.textContent = 'Accéder →';
+      return;
+    }
+    currentUser = {id: membre.id, nom: membre.nom, role: membre.role};
+    localStorage.setItem('rm-user', JSON.stringify(currentUser));
+    errEl.style.display = 'none';
+    showApp();
+  }
+  if(btn) btn.textContent = 'Accéder →';
 }
 
 function showApp() {
