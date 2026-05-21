@@ -640,24 +640,25 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
     <div class="sb-bottom">
       <div style="padding:8px 8px 0;display:flex;flex-direction:column;gap:6px">
-        <button onclick="navTo('production');openNouveau()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font)">
-          <span>＋</span><span>Nouveau sujet</span>
+        <button onclick="navTo('production');openNouveau()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
+          <span style="width:16px;display:inline-flex;justify-content:center">＋</span><span>Nouveau sujet</span>
         </button>
-        <button onclick="openNouvelleIdee()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--amber);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font)">
-          <span>💡</span><span>Nouvelle idée</span>
+        <button onclick="openNouvelleIdee()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--amber);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
+          <span style="width:16px;display:inline-flex;justify-content:center">💡</span><span>Nouvelle idée</span>
+        </button>
+        <button onclick="openGererJournalistes()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
+          <span style="width:16px;display:inline-flex;justify-content:center">👥</span><span>Gérer l'équipe</span>
         </button>
       </div>
-      <button class="sb-item" onclick="openGererJournalistes()" style="color:var(--text3)">
-        <span class="sb-icon">👥</span>
-        <span style="flex:1;text-align:left">Gérer l'équipe</span>
-      </button>
-      <div style="padding:6px 10px;display:flex;align-items:center;justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:7px">
-          <div id="user-avatar" style="width:24px;height:24px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;font-family:var(--mono)">?</div>
-          <span id="user-name" style="font-size:12px;color:var(--text2)">—</span>
-          <button onclick="ouvrirChangerCode()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:3px;border:1px solid var(--border);margin-left:2px" title="Changer mon code">🔑</button>
+      <div style="padding:10px 8px 0;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <div id="user-avatar" style="width:26px;height:26px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;font-family:var(--mono);flex-shrink:0">?</div>
+          <span id="user-name" style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
         </div>
-        <button onclick="doLogout()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px" title="Déconnexion">↩</button>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+          <button onclick="ouvrirChangerCode()" style="background:none;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:11px;padding:4px 7px;border-radius:5px" title="Changer mon code">🔑</button>
+          <button onclick="doLogout()" style="background:none;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:11px;padding:4px 7px;border-radius:5px" title="Déconnexion">↩</button>
+        </div>
       </div>
     </div>
   </div>
