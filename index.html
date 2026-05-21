@@ -648,6 +648,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div style="display:flex;align-items:center;gap:7px">
           <div id="user-avatar" style="width:24px;height:24px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;font-family:var(--mono)">?</div>
           <span id="user-name" style="font-size:12px;color:var(--text2)">—</span>
+          <button onclick="ouvrirChangerCode()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:3px;border:1px solid var(--border);margin-left:2px" title="Changer mon code">🔑</button>
         </div>
         <button onclick="doLogout()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px" title="Déconnexion">↩</button>
       </div>
@@ -1151,6 +1152,10 @@ function openDetail(id, forcePadOpen=false){
           ${sfOptions.map(sf=>`<option ${s.sousFormat===sf?'selected':''}>${sf}</option>`).join('')}
         </select>
       </div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Priorité</span>
+        <select onchange="upd('${id}','Priorité','sel',this.value);const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.priorite=this.value;renderCards()" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px"><option value="">— Non définie —</option>${['🔴 Haute','🟡 Normale','🟢 Basse'].map(p=>`<option ${s.priorite===p?'selected':''} value="${p}">${p}</option>`).join('')}</select>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text2)">Chef responsable</span>
         <select onchange="upd('${id}','Chef responsable','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
@@ -1945,7 +1950,10 @@ async function loadDeclinaisons(sujetId) {
   }
 }
 
-async function creerDeclinaison(parentId) {
+let _creerDecliEnCours=false;
+async function creerDeclinaison(parentId){
+  if(_creerDecliEnCours){toast('Création en cours...','err');return;}
+  _creerDecliEnCours=true;
   const parent = sujets.find(s => s.id === parentId);
   if(!parent) return;
   // Compter les déclinaisons existantes depuis Notion
@@ -2012,6 +2020,7 @@ async function creerDeclinaison(parentId) {
     document.getElementById('cnt-all').textContent = sujets.length;
     renderCards();
     loadDeclinaisons(parentId);
+    _creerDecliEnCours=false;
     toast(`📎 Déclinaison ${codeVal} créée !`,'ok');
     // Notif au journaliste
     const auteur = currentUser?.nom || '';
@@ -2238,6 +2247,12 @@ async function toggleRetour(retourId, sujetId, newStatut) {
     });
     toast(newStatut === 'Corrigé' ? '✅ Marqué corrigé' : 'Retour réouvert', 'ok');
     loadRetours(sujetId);
+    if(newStatut==='Corrigé'&&currentUser){
+      const s=sujets.find(x=>x.id===sujetId);
+      if(s&&s.chef&&s.chef!==currentUser.nom)
+        await createNotif('retour_corrige',sujetId,s.code,s.titre,s.chef,currentUser.nom,`${currentUser.nom} a corrigé un retour sur ${s.code}`);
+      loadNotifs();
+    }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
@@ -2358,6 +2373,8 @@ async function loadVersions(sujetId) {
 let ajouterVersionEnCours = false;
 async function ajouterVersion(sujetId) {
   if(ajouterVersionEnCours) { toast('Création en cours, patientez...','err'); return; }
+  const countEl=document.getElementById('retours-count-'+sujetId);
+  if(countEl?.textContent?.includes('ouvert')){toast('❌ Des retours sont encore ouverts — corrigez-les d\'abord','err');return;}
   ajouterVersionEnCours = true;
   const s = sujets.find(x=>x.id===sujetId);
   if(!s) { ajouterVersionEnCours = false; return; }
@@ -2614,6 +2631,60 @@ function showApp() {
   });
 }
 
+function confirmerAction(message, labelOk='Confirmer', labelAnnuler='Annuler') {
+  return new Promise(resolve => {
+    document.getElementById('confirm-toast')?.remove();
+    const div = document.createElement('div');
+    div.id = 'confirm-toast';
+    div.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:14px 18px;z-index:9999;display:flex;flex-direction:column;gap:10px;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.4)';
+    div.innerHTML = `<div style='font-size:13px;color:var(--text);text-align:center'>${message}</div><div style='display:flex;gap:8px'><button onclick="document.getElementById('confirm-toast').remove()" style='flex:1;padding:7px;border-radius:6px;font-size:12px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer'>${labelAnnuler}</button><button id='confirm-ok-btn' style='flex:1;padding:7px;border-radius:6px;font-size:12px;border:none;background:var(--red);color:#fff;cursor:pointer;font-weight:600'>${labelOk}</button></div>`;
+    document.body.appendChild(div);
+    document.getElementById('confirm-ok-btn').onclick = () => { div.remove(); resolve(true); };
+    div.querySelector('button').onclick = () => { div.remove(); resolve(false); };
+  });
+}
+
+let _dashAlertesOpen = false;
+function toggleDashAlertes() {
+  _dashAlertesOpen = !_dashAlertesOpen;
+  const body = document.getElementById('dash-alertes-body');
+  const chevron = document.getElementById('dash-alertes-chevron');
+  if(body) body.style.display = _dashAlertesOpen ? 'block' : 'none';
+  if(chevron) chevron.style.transform = _dashAlertesOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+function ouvrirChangerCode() {
+  document.getElementById('cc-ancien').value = '';
+  document.getElementById('cc-nouveau').value = '';
+  document.getElementById('cc-confirm').value = '';
+  document.getElementById('cc-error').style.display = 'none';
+  document.getElementById('ov-changer-code').classList.add('open');
+}
+function closeChangerCode() {
+  document.getElementById('ov-changer-code').classList.remove('open');
+}
+
+async function validerChangerCode() {
+  const ancien=document.getElementById('cc-ancien').value.trim();
+  const nouveau=document.getElementById('cc-nouveau').value.trim();
+  const confirm=document.getElementById('cc-confirm').value.trim();
+  const errEl=document.getElementById('cc-error');
+  const showErr=msg=>{errEl.textContent=msg;errEl.style.display='block';};
+  if(!ancien) return showErr('Entrez votre code actuel');
+  if(!nouveau) return showErr('Entrez un nouveau code');
+  if(nouveau.length<4) return showErr('Le code doit faire au moins 4 caractères');
+  if(nouveau!==confirm) return showErr('Les codes ne correspondent pas');
+  if(nouveau===ancien) return showErr('Le nouveau code doit être différent');
+  try {
+    const checkRes=await fetch('/.netlify/functions/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentUser.id,code:ancien})});
+    const checkData=await checkRes.json();
+    if(!checkData.ok) return showErr('Code actuel incorrect');
+    await api('/pages/'+currentUser.id,'PATCH',{properties:{'Code acces':{rich_text:[{text:{content:nouveau}}]}}});
+    closeChangerCode();
+    toast('✅ Code mis à jour','ok');
+  } catch(e) { showErr('Erreur : '+e.message); }
+}
+
 function doLogout() {
   localStorage.removeItem('rm-user');
   currentUser = null;
@@ -2742,11 +2813,18 @@ function equippeAjouter() {
   toast(`${nom} ajouté·e à l'équipe`,'ok');
 }
 
-function equipeSupprimerJournaliste(nom) {
-  if(!confirm(`Retirer ${nom} de la liste ? Les fiches existantes ne seront pas affectées.`)) return;
+async function equipeSupprimerJournaliste(nom) {
+  const confirmed = await confirmerAction(`Retirer ${nom} de l'équipe ?`, 'Supprimer', 'Annuler');
+  if(!confirmed) return;
+  const membre = equipe.find(m => m.nom === nom);
+  if(membre?.id) {
+    try { await api('/pages/' + membre.id, 'PATCH', { archived: true }); }
+    catch(e) { toast('Erreur : ' + e.message, 'err'); return; }
+  }
+  equipe = equipe.filter(m => m.nom !== nom);
   removeJournaliste(nom);
   renderEquipeList();
-  toast(`${nom} retiré·e de la liste`,'ok');
+  toast(`${nom} retiré·e de l'équipe`, 'ok');
 }
 
 // ─── GESTION JOURNALISTES DYNAMIQUES ───
@@ -3359,7 +3437,10 @@ function refreshModalRefs() {
     </div>`).join('');
 }
 
+let _createEnCours=false;
 async function createSujet(){
+  if(_createEnCours){toast('Création en cours...','err');return;}
+  _createEnCours=true;
   const titre=document.getElementById('n-titre').value.trim();
   const chef=document.getElementById('n-chef').value;
   const journSel=document.getElementById('n-journ').value;
@@ -3463,6 +3544,7 @@ async function createSujet(){
         `${auteurNom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
     }
   }
+  _createEnCours=false;
   closeOv('ov-new');
   toast(`Sujet créé — code ${codeVal}`,'ok');
   await appLoadData();
@@ -3493,7 +3575,7 @@ function deleteSujet(id, titre){
 }
 
 function openOv(id){document.getElementById(id).classList.add('open');}
-function closeOv(id){document.getElementById(id).classList.remove('open');}
+function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
 
@@ -3549,7 +3631,7 @@ function renderJournaliste(){
   const journalistes=[...new Set(filtered.map(s=>s.journaliste||'Non attribué'))].sort();
   let html='<div class="vue-kanban">';
   journalistes.forEach(j=>{
-    const items=filtered.filter(s=>(s.journaliste||'Non attribué')===j);
+    const items=filtered.filter(s=>(s.journaliste||'Non attribué')===j).sort((a,b)=>({'🔴 Haute':0,'🟡 Normale':1,'🟢 Basse':2}[a.priorite]??3)-({'🔴 Haute':0,'🟡 Normale':1,'🟢 Basse':2}[b.priorite]??3));
     const initials=j.substring(0,2).toUpperCase();
     html+=`<div class="kanban-col">
       <div class="kanban-col-header">
@@ -4390,8 +4472,15 @@ async function soumettreidee() {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-function renderArchives() {
+async function renderArchives() {
   const mc = document.getElementById('main-content');
+  if(!sujetsArchives.length) {
+    mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
+    try {
+      const data = await api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:true}},sorts:[{timestamp:'last_edited_time',direction:'descending'}],page_size:100});
+      sujetsArchives = data.results.map(parsePage);
+    } catch(e) { mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`; return; }
+  }
   const badge = document.getElementById('cnt-archives');
   if(badge) badge.textContent = sujetsArchives.length;
   if(!sujetsArchives.length) {
@@ -4563,11 +4652,12 @@ let currentVue = 'cards';
 async function appLoadData() {
   try {
     const [prod, comp, cli] = await Promise.all([
-      api('/databases/' + DB_PROD + '/query', 'POST', {sorts:[{timestamp:'created_time',direction:'descending'}]}),
+      api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}],page_size:100}),
       api('/databases/' + DB_COMP + '/query', 'POST', {}),
       api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}]})
     ]);
-    sujets = prod.results.map(parsePage).filter(s => !s.archive);
+    sujets = prod.results.map(parsePage);
+    sujetsArchives = [];
     compteurs = {};
     comp.results.forEach(p => {
       const pr = p.properties;
@@ -4586,7 +4676,7 @@ async function appLoadData() {
         derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || ''
       };
     });
-    sujetsArchives = prod.results.map(parsePage).filter(s => s.archive);
+    // sujetsArchives chargées à la demande
     document.getElementById('cnt-all').textContent = sujets.length;
     // Charger le nb de notifs non lues pour les badges cartes — une seule fois
     loadRetoursBadges();
@@ -4794,5 +4884,24 @@ async function appReload() {
 
 </script>
 </div>
+<div id="ov-changer-code" class="overlay" onclick="if(event.target===this)closeChangerCode()">
+  <div class="modal" style="max-width:380px;width:100%">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+      <span style="font-size:14px;font-weight:600">🔑 Changer mon code</span>
+      <button onclick="closeChangerCode()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;padding:0">×</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <div class="field"><div class="field-label">Code actuel</div><input type="password" id="cc-ancien" placeholder="Votre code actuel" style="font-size:13px;width:100%"></div>
+      <div class="field"><div class="field-label">Nouveau code</div><input type="password" id="cc-nouveau" placeholder="Nouveau code (min. 4 caractères)" style="font-size:13px;width:100%"></div>
+      <div class="field"><div class="field-label">Confirmer</div><input type="password" id="cc-confirm" placeholder="Répéter le nouveau code" style="font-size:13px;width:100%"></div>
+      <div id="cc-error" style="font-size:12px;color:var(--red);display:none"></div>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeChangerCode()" class="nav-btn">Annuler</button>
+      <button onclick="validerChangerCode()" class="nav-btn primary">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
