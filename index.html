@@ -257,7 +257,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 /* DASHBOARD */
 .dash{display:flex;flex-direction:column;gap:0;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box}
 .dash>.dash-kpi-section{padding:4px 0 32px}
-.dash>.dash-alert-section{margin-bottom:28px}
+.dash>.dash-alert-section{margin-bottom:32px}
 .dash>.dash-card{margin-bottom:0}
 .dash>.dash-section{margin-bottom:0}
 .dash>.dash-secondary{margin-bottom:0;opacity:0.9}
@@ -3825,10 +3825,10 @@ function renderDashboard(){
   </div>`;
   html+=`</div>`;
 
-  // Graphique mensuel
-  const periodeLabel = dashPeriode===1?'1 mois':dashPeriode===3?'3 mois':dashPeriode===0?'1 semaine':'6 mois';
+    html+=`<div style="height:32px"></div>`;
 
-    // Alertes — pliables
+  html+=`<div class="two-col" style="align-items:start">`;
+// Alertes — pliables
   html+=`<div class="dash-alert-section">`;
   const alertesRed = alertes.filter(a=>a.type==='red').length;
   const alertesAmber = alertes.filter(a=>a.type==='amber').length;
@@ -3867,7 +3867,7 @@ function renderDashboard(){
   html+=`</div>`;
 
   // Graphique mensuel
-  html+=`<div class="dash-section" style="padding-bottom:24px">
+  html+=`<div class="dash-section" style="padding-bottom:32px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="dash-section-title" style="margin-bottom:0;flex:1">Activité mensuelle</div>
       <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r);padding:3px">
@@ -3896,7 +3896,23 @@ function renderDashboard(){
     </div>
   </div>`;
 
-    html+=`<div class="two-col">`;
+    html+=`</div>`;
+// Activité récente
+  html+=`<div class="dash-secondary" style="padding-top:0">
+    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Activité récente</div>
+    <div class="dash-card" id="dash-activite" style="padding:4px 18px">
+      <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
+    </div>
+  </div>`;
+
+      html+=`</div>`;
+
+  html+=`<div style="height:32px"></div>`;
+
+// Graphique mensuel
+  const periodeLabel = dashPeriode===1?'1 mois':dashPeriode===3?'3 mois':dashPeriode===0?'1 semaine':'6 mois';
+
+      html+=`<div class="two-col">`;
 // Formats
   html+=`<div class="dash-card">
     <div class="dash-section-title">Par format</div>
@@ -3925,6 +3941,9 @@ function renderDashboard(){
 
   html+=`</div>`;
 
+  html+=`<div style="height:32px"></div>`;
+
+  html+=`<div class="two-col" style="align-items:start">`;
 // Délais — ligne horizontale compacte
   html+=`<div class="dash-secondary" style="display:flex;align-items:stretch;border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:0">
     <div style="font-size:9px;font-family:var(--mono);color:var(--text3);padding:12px 14px;border-right:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center">⏱ Délais</div>
@@ -3944,15 +3963,7 @@ function renderDashboard(){
     </div>
   </div>`;
 
-  // Activité récente
-  html+=`<div class="dash-secondary" style="padding-top:8px">
-    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Activité récente</div>
-    <div class="dash-card" id="dash-activite" style="padding:4px 18px">
-      <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
-    </div>
-  </div>`;
-
-    // Export stats — discret en bas
+  // Export stats — discret en bas
   html+=`<div class="dash-export">
     <div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">📊 Export stats</div>
     <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
@@ -3966,6 +3977,7 @@ function renderDashboard(){
     </div>
     <button onclick='exportStatsTxt()' style='width:100%;padding:8px;border-radius:6px;font-size:12px;border:1px solid var(--border);cursor:pointer;font-family:var(--font);background:transparent;color:var(--text3)'>📄 Exporter les stats</button>
   </div>`;
+  html+=`</div>`;
 html+=`</div>`;
   document.getElementById('vue-wrap').innerHTML=html;
 }
