@@ -639,10 +639,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
 
     <div class="sb-bottom">
-      <button class="sb-item" style="color:var(--red)" onclick="navTo('production');openNouveau()">
-        <span class="sb-icon">＋</span>
-        <span style="flex:1;text-align:left">Nouveau sujet</span>
-      </button>
+      <div style="padding:8px 8px 0;display:flex;flex-direction:column;gap:6px">
+        <button onclick="navTo('production');openNouveau()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font)">
+          <span>＋</span><span>Nouveau sujet</span>
+        </button>
+        <button onclick="openNouvelleIdee()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--amber);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font)">
+          <span>💡</span><span>Nouvelle idée</span>
+        </button>
+      </div>
       <button class="sb-item" onclick="openGererJournalistes()" style="color:var(--text3)">
         <span class="sb-icon">👥</span>
         <span style="flex:1;text-align:left">Gérer l'équipe</span>
