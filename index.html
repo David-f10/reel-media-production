@@ -255,11 +255,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 }
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
-.dash{display:flex;flex-direction:column;gap:16px;width:100%;max-width:1800px;margin:0 auto;box-sizing:border-box}
-.dash-3col{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:16px;align-items:start}
-.dash-col{display:flex;flex-direction:column;gap:16px}
-@media(max-width:1400px){.dash-3col{grid-template-columns:1fr 1fr}}
-@media(max-width:900px){.dash-3col{grid-template-columns:1fr}}
+.dash{display:flex;flex-direction:column;gap:16px;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box}
 .dash-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
@@ -3825,12 +3821,7 @@ function renderDashboard(){
   // Graphique mensuel
   const periodeLabel = dashPeriode===1?'1 mois':dashPeriode===3?'3 mois':dashPeriode===0?'1 semaine':'6 mois';
 
-  html+=`<div class="dash-3col">`;
-
-  // ── COL 1 : Vue d'ensemble ──
-  html+=`<div class="dash-col">`;
-
-  // Délais
+    // Délais
   html+=`<div class="dash-card">
     <div class="dash-section-title">⏱ Délais moyens</div>
     <div class="delai-row"><span class="delai-label">Tournage → V1</span><span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</span></div>
@@ -3874,11 +3865,6 @@ function renderDashboard(){
     </div>
   </div>`;
 
-  html+=`</div>`;
-
-  // ── COL 2 : Activité ──
-  html+=`<div class="dash-col">`;
-
   // Graphique mensuel
   html+=`<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -3917,11 +3903,6 @@ function renderDashboard(){
     </div>
   </div>`;
 
-  html+=`</div>`;
-
-  // ── COL 3 : Analyse ──
-  html+=`<div class="dash-col">`;
-
   // Formats
   html+=`<div class="dash-card">
     <div class="dash-section-title">Par format</div>
@@ -3948,9 +3929,6 @@ function renderDashboard(){
     </div>
   </div>`;
 
-  html+=`</div>`;
-
-  html+=`</div>`;
 html+=`</div>`;
   document.getElementById('vue-wrap').innerHTML=html;
 }
