@@ -255,9 +255,9 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 }
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
-.dash{display:flex;flex-direction:column;gap:12px;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box}
-.dash>.dash-kpi-section{padding:4px 0 0}
-.dash>.dash-alert-section{margin-bottom:16px}
+.dash{display:flex;flex-direction:column;gap:0;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box}
+.dash>.dash-kpi-section{padding:4px 0 32px}
+.dash>.dash-alert-section{margin-bottom:28px}
 .dash>.dash-card{margin-bottom:0}
 .dash>.dash-section{margin-bottom:0}
 .dash>.dash-secondary{margin-bottom:0;opacity:0.9}
@@ -3867,7 +3867,7 @@ function renderDashboard(){
   html+=`</div>`;
 
   // Graphique mensuel
-  html+=`<div class="dash-section">
+  html+=`<div class="dash-section" style="padding-bottom:24px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="dash-section-title" style="margin-bottom:0;flex:1">Activité mensuelle</div>
       <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r);padding:3px">
@@ -3945,7 +3945,7 @@ function renderDashboard(){
   </div>`;
 
   // Activité récente
-  html+=`<div class="dash-secondary">
+  html+=`<div class="dash-secondary" style="padding-top:8px">
     <div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Activité récente</div>
     <div class="dash-card" id="dash-activite" style="padding:4px 18px">
       <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
