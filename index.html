@@ -607,6 +607,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <span style="flex:1;text-align:left">Archives</span>
         <span class="sb-badge" id="cnt-archives">—</span>
       </button>
+      <button class="sb-item" onclick="ouvrirExportStats()" style="color:var(--text2)">
+        <span class="sb-icon">📊</span>
+        <span style="flex:1;text-align:left">Export stats</span>
+      </button>
     </div>
 
     <div class="sb-sep"></div>
@@ -4642,6 +4646,54 @@ function exportStatsTxt(){
   const blob=new Blob([txt],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=`Stats_${pl.replace(/ /g,'_')}_${date.replace(/\//g,'-')}.txt`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   toast('📄 Stats exportées','ok');
+}
+
+function ouvrirExportStats() {
+  // Supprimer modal existant
+  document.getElementById('modal-export-stats')?.remove();
+  const div = document.createElement('div');
+  div.className = 'overlay open';
+  div.id = 'modal-export-stats';
+  div.onclick = e => { if(e.target===div) div.remove(); };
+  div.innerHTML = `
+    <div class="modal" style="max-width:360px;width:100%">
+      <div class="modal-hdr">
+        <div class="modal-title">📊 Export stats</div>
+        <button class="modal-close" onclick="document.getElementById('modal-export-stats').remove()">×</button>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div class="field">
+          <div class="field-label">Mois</div>
+          <select id="exp-mois" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-family:var(--font)">
+            <option value='-1'>Tous les mois</option>
+            ${['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].map((l,i)=>`<option value='${i}'>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">Année</div>
+          <select id="exp-annee" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-family:var(--font)">
+            <option value='all'>Toutes les années</option>
+            ${[0,1,2,3].map(i=>{const y=new Date().getFullYear()-i;return `<option value='${y}'>${y}</option>`;}).join('')}
+          </select>
+        </div>
+        <button onclick="exportStatsFromModal()" style="width:100%;padding:10px;border-radius:6px;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:var(--font)">📄 Exporter</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+  // Pré-sélectionner les valeurs actuelles du dashboard
+  const mEl = div.querySelector('#exp-mois');
+  const aEl = div.querySelector('#exp-annee');
+  if(mEl) mEl.value = dashStatsMois;
+  if(aEl) aEl.value = dashStatsAnnee;
+}
+
+function exportStatsFromModal() {
+  const mEl = document.getElementById('exp-mois');
+  const aEl = document.getElementById('exp-annee');
+  if(mEl) dashStatsMois = parseInt(mEl.value);
+  if(aEl) dashStatsAnnee = aEl.value;
+  exportStatsTxt();
+  document.getElementById('modal-export-stats')?.remove();
 }
 
 function setDashPeriode(p) {
