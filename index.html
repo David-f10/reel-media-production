@@ -2784,11 +2784,20 @@ function openGererJournalistes() {
 function renderEquipeList() {
   const container = document.getElementById('equipe-list');
   if(!container) return;
-  container.innerHTML = journalistes.map(j => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:4px">
-      <span style="font-size:13px">${j}</span>
-      <button onclick="equipeSupprimerJournaliste('${j}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0" title="Supprimer">×</button>
-    </div>`).join('');
+  const roles = ['Chef','Journaliste','Monteur','Brand'];
+  const source = equipe.length > 0 ? equipe : journalistes.map(j => ({nom:j, role:'Journaliste'}));
+  let html = '';
+  roles.forEach(role => {
+    const membres = source.filter(m => m.role === role);
+    if(!membres.length) return;
+    html += `<div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin:10px 0 6px">${role}</div>`;
+    html += membres.map(m => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:4px">
+        <span style="font-size:13px">${m.nom||m}</span>
+        <button onclick="equipeSupprimerJournaliste('${m.nom||m}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0">×</button>
+      </div>`).join('');
+  });
+  container.innerHTML = html || '<div style="font-size:12px;color:var(--text3)">Aucun membre</div>';
 }
 
 async function equippeAjouter() {
@@ -2835,7 +2844,7 @@ async function equipeSupprimerJournaliste(nom) {
 
 // ─── GESTION JOURNALISTES DYNAMIQUES ───
 // Liste maître des journalistes (mise à jour dynamiquement)
-let journalistes = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise'];
+let journalistes = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Victor','Louise','Arnaud C'];
 
 function addJournalisteToSelects(nom) {
   if(!nom || journalistes.includes(nom)) return;
@@ -3833,7 +3842,7 @@ function renderDashboard(){
 
   // KPIs
 
-html+=`<div>
+  html+=`<div>
     <div class="dash-section-title">Vue globale</div>
     <div class="kpi-row">
       <div class="kpi"><div class="kpi-accent" style="background:var(--text3)"></div><div class="kpi-val" style="color:var(--text)">${total}</div><div class="kpi-label">Projets total</div></div>
@@ -3864,17 +3873,17 @@ html+=`<div>
       ${alertes.length>5?`<div style="font-size:11px;color:var(--text3);margin-top:6px">+${alertes.length-5} autres alertes</div>`:''}
     </div>
   </div>`;
-html+=`<div>
-    <div class="dash-section-title">Activité récente</div>
-    <div class="dash-card" id="dash-activite" style="padding:4px 18px">
-      <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
+  html+=`<div class="dash-card" style="padding:4px 18px">
+    <div class="dash-section-title" style="padding:12px 14px 0">Activité récente</div>
+    <div id="dash-activite">
+      <div style="font-size:11px;color:var(--text3);padding:12px 14px">Chargement...</div>
     </div>
   </div>`;
   html+=`</div>`;
 
   html+=`<div class="dash-sp"></div>`;
 
-html+=`<div>
+  html+=`<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="dash-section-title" style="margin-bottom:0;flex:1">Activité mensuelle</div>
       <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r);padding:3px">
