@@ -256,18 +256,22 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
 /* DASHBOARD */
 .dash{display:flex;flex-direction:column;gap:0;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box}
-.dash>.dash-kpi-section{padding:4px 0 32px}
-.dash>.dash-alert-section{margin-bottom:32px}
-.dash>.dash-card{margin-bottom:0}
-.dash>.dash-section{margin-bottom:0}
-.dash>.dash-secondary{margin-bottom:0;opacity:0.9}
-.dash>.dash-export{margin-top:0;padding-bottom:16px}
+.dash-sp{height:32px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+.kpi:hover{border-color:var(--border2)}
+.kpi-accent{position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-val{font-size:32px;font-weight:700;line-height:1}
+.kpi-label{font-size:11px;color:var(--text3);font-weight:500}
+.kpi-sub{font-size:10px;color:var(--text3);opacity:0.6;font-family:var(--mono)}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.kpi-row{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
 .dash-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;transition:border-color 0.15s}.kpi:hover{border-color:var(--border2)}
-.kpi-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:8px 8px 0 0}
-.kpi-val{font-size:32px;font-weight:7000;font-family:var(--mono);letter-spacing:-0.05em;line-height:1.1}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
+.kpi-accent{position:absolute;top:0;left:0;right:0;height:2px}
+.kpi-val{font-size:30px;font-weight:700;font-family:var(--mono);letter-spacing:-0.05em;line-height:1.1}
 .kpi-label{font-size:11px;color:var(--text3);font-weight:500;margin-top:2px}
 .kpi-sub{font-size:10px;color:var(--text3);margin-top:4px}
 .bar-chart{display:flex;flex-direction:column;gap:10px}
@@ -914,10 +918,7 @@ async function api(endpoint,method='GET',body=null,_retry=0){
   const opts={method,headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
   const res=await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`,opts);
-  if((res.status===429||res.status===503)&&_retry<3){
-    await new Promise(r=>setTimeout(r,Math.pow(2,_retry)*800));
-    return api(endpoint,method,body,_retry+1);
-  }
+  if((res.status===429||res.status===503)&&_retry<3){await new Promise(r=>setTimeout(r,Math.pow(2,_retry)*800));return api(endpoint,method,body,_retry+1);}
   if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||'Erreur API');}
   return res.json();
 }
@@ -1152,10 +1153,7 @@ function openDetail(id, forcePadOpen=false){
       </div>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text2)">Priorité</span>
-        <select onchange="upd('${id}','Priorité','sel',this.value);const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.priorite=this.value;renderCards()" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
-          <option value="">— Non définie —</option>
-          ${['🔴 Haute','🟡 Normale','🟢 Basse'].map(p=>`<option ${s.priorite===p?'selected':''} value="${p}">${p}</option>`).join('')}
-        </select>
+        <select onchange="upd('${id}','Priorité','sel',this.value);const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.priorite=this.value;renderCards()" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px"><option value="">— Non définie —</option>${['🔴 Haute','🟡 Normale','🟢 Basse'].map(p=>`<option ${s.priorite===p?'selected':''} value="${p}">${p}</option>`).join('')}</select>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text2)">Chef responsable</span>
@@ -1295,18 +1293,11 @@ function openDetail(id, forcePadOpen=false){
       </label>
       ${s.sansMusique ? `
         <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)">
-          <span style="font-size:12px;color:var(--green);font-weight:500">🔇 Aucune musique dans ce projet</span>
-          ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.sansMusique=false;}upd('${id}','Sans musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Modifier</button>`:''}
+          <span style="font-size:12px;color:var(--green);font-weight:500">🔇 Aucune musique</span>
         </div>
       ` : s.releveMusique ? `
         <div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <span style="font-size:12px;color:var(--green);font-weight:500">🎵 Musiques du projet</span>
-            ${s.statut!=='PAD'?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx){sx.releveMusique=false;}upd('${id}','Relevé musique','cb',false).then(()=>openDetail('${id}',true))" style="font-size:11px;background:none;border:none;color:var(--text3);cursor:pointer;text-decoration:underline">Pas de musique finalement</button>`:''}
-          </div>
-          <div id="musiques-list-${id}" style="margin-bottom:10px">
-            <div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div>
-          </div>
+          <div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>
           ${s.statut!=='PAD'?`
           <div style="display:flex;gap:6px;margin-bottom:6px">
             <input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px">
@@ -1314,7 +1305,7 @@ function openDetail(id, forcePadOpen=false){
             <input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px">
             <button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button>
           </div>`:''}
-          <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">📄 Exporter le relevé de musique</button>
+          <button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">📄 Exporter le relevé</button>
         </div>
       ` : `
         <div style="display:flex;gap:8px">
@@ -1981,10 +1972,10 @@ async function loadDeclinaisons(sujetId) {
   }
 }
 
-let _creerDecliEnCours = false;
-async function creerDeclinaison(parentId) {
-  if(_creerDecliEnCours) { toast('Création en cours, patientez...','err'); return; }
-  _creerDecliEnCours = true;
+let _creerDecliEnCours=false;
+async function creerDeclinaison(parentId){
+  if(_creerDecliEnCours){toast('Création en cours...','err');return;}
+  _creerDecliEnCours=true;
   const parent = sujets.find(s => s.id === parentId);
   if(!parent) return;
   // Compter les déclinaisons existantes depuis Notion
@@ -2051,7 +2042,7 @@ async function creerDeclinaison(parentId) {
     document.getElementById('cnt-all').textContent = sujets.length;
     renderCards();
     loadDeclinaisons(parentId);
-    _creerDecliEnCours = false;
+    _creerDecliEnCours=false;
     toast(`📎 Déclinaison ${codeVal} créée !`,'ok');
     // Notif au journaliste
     const auteur = currentUser?.nom || '';
@@ -2278,12 +2269,6 @@ async function toggleRetour(retourId, sujetId, newStatut) {
     });
     toast(newStatut === 'Corrigé' ? '✅ Marqué corrigé' : 'Retour réouvert', 'ok');
     loadRetours(sujetId);
-    if(newStatut==='Corrigé'&&currentUser) {
-      const s=sujets.find(x=>x.id===sujetId);
-      if(s&&s.chef&&s.chef!==currentUser.nom)
-        await createNotif('retour_corrige',sujetId,s.code,s.titre,s.chef,currentUser.nom,`${currentUser.nom} a corrigé un retour sur ${s.code} — ${s.titre}`);
-      loadNotifs();
-    }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
@@ -2404,11 +2389,8 @@ async function loadVersions(sujetId) {
 let ajouterVersionEnCours = false;
 async function ajouterVersion(sujetId) {
   if(ajouterVersionEnCours) { toast('Création en cours, patientez...','err'); return; }
-  const countEl = document.getElementById('retours-count-'+sujetId);
-  if(countEl?.textContent?.includes('ouvert')) {
-    toast('❌ Des retours sont encore ouverts — corrigez-les avant de déposer une nouvelle version','err');
-    return;
-  }
+  const countEl=document.getElementById('retours-count-'+sujetId);
+  if(countEl?.textContent?.includes('ouvert')){toast('❌ Des retours sont encore ouverts — corrigez-les d\'abord','err');return;}
   ajouterVersionEnCours = true;
   const s = sujets.find(x=>x.id===sujetId);
   if(!s) { ajouterVersionEnCours = false; return; }
@@ -2633,19 +2615,27 @@ async function initLogin() {
   document.getElementById('app-shell').style.display = 'none';
 }
 
-function doLogin() {
-  const selId = document.getElementById('login-nom').value;
-  const code = document.getElementById('login-code').value.trim();
-  const errEl = document.getElementById('login-error');
-  if(!selId) { errEl.textContent='Choisissez votre nom'; errEl.style.display='block'; return; }
-  if(!code) { errEl.textContent="Entrez votre code d'accès"; errEl.style.display='block'; return; }
-  const membre = equipe.find(m => m.id === selId);
-  if(!membre) { errEl.textContent='Membre introuvable'; errEl.style.display='block'; return; }
-  if(membre.code !== code) { errEl.textContent='Code incorrect'; errEl.style.display='block'; return; }
-  currentUser = {id: membre.id, nom: membre.nom, role: membre.role};
-  localStorage.setItem('rm-user', JSON.stringify(currentUser));
-  errEl.style.display='none';
-  showApp();
+async function doLogin(){
+  const selId=document.getElementById('login-nom').value;
+  const code=document.getElementById('login-code').value.trim();
+  const errEl=document.getElementById('login-error');
+  const btn=document.querySelector('#login-screen button');
+  if(!selId){errEl.textContent='Choisissez votre nom';errEl.style.display='block';return;}
+  if(!code){errEl.textContent="Entrez votre code d'accès";errEl.style.display='block';return;}
+  try{
+    if(btn)btn.textContent='Vérification...';
+    const res=await fetch('/.netlify/functions/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:selId,code})});
+    const data=await res.json();
+    if(!data.ok){errEl.textContent=data.error||'Code incorrect';errEl.style.display='block';if(btn)btn.textContent='Accéder →';return;}
+    currentUser=data.user;
+    localStorage.setItem('rm-user',JSON.stringify(currentUser));
+    errEl.style.display='none';
+    showApp();
+  }catch(e){
+    errEl.textContent='Service temporairement indisponible — réessayez';
+    errEl.style.display='block';
+  }
+  if(btn)btn.textContent='Accéder →';
 }
 
 function showApp() {
@@ -3223,13 +3213,13 @@ async function updStatut(id,statut){
   const s=sujets.find(x=>x.id===id);if(s)s.statut=statut;
   renderCards();openDetail(id);
   const auteur=currentUser?.nom||'';
-  if(!s||!auteur) return;
+  if(!s||!auteur)return;
   if(statut==='PAD'&&s.journaliste&&s.journaliste!==auteur)
-    await createNotif('version_validee',id,s.code,s.titre,s.journaliste,auteur,`${s.code} est PAD 🎉 — ${s.titre}`);
+    await createNotif('version_validee',id,s.code,s.titre,s.journaliste,auteur,`${s.code} est PAD 🎉`);
   else if(statut==='Retours'&&s.journaliste&&s.journaliste!==auteur)
-    await createNotif('retour',id,s.code,s.titre,s.journaliste,auteur,`${auteur} a des retours sur ${s.code} — ${s.titre}`);
+    await createNotif('retour',id,s.code,s.titre,s.journaliste,auteur,`${auteur} a des retours sur ${s.code}`);
   else if(statut==='Montage V1'&&s.chef&&s.chef!==auteur)
-    await createNotif('v1_deposee',id,s.code,s.titre,s.chef,auteur,`${auteur} a déposé le montage de ${s.code} — ${s.titre}`);
+    await createNotif('v1_deposee',id,s.code,s.titre,s.chef,auteur,`${auteur} a déposé le montage de ${s.code}`);
   loadNotifs();
 }
 
@@ -3420,10 +3410,10 @@ function refreshModalRefs() {
     </div>`).join('');
 }
 
-let _createEnCours = false;
+let _createEnCours=false;
 async function createSujet(){
-  if(_createEnCours) { toast('Création en cours, patientez...','err'); return; }
-  _createEnCours = true;
+  if(_createEnCours){toast('Création en cours...','err');return;}
+  _createEnCours=true;
   const titre=document.getElementById('n-titre').value.trim();
   const chef=document.getElementById('n-chef').value;
   const journSel=document.getElementById('n-journ').value;
@@ -3527,7 +3517,7 @@ async function createSujet(){
         `${auteurNom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
     }
   }
-  _createEnCours = false;
+  _createEnCours=false;
   closeOv('ov-new');
   toast(`Sujet créé — code ${codeVal}`,'ok');
   await appLoadData();
@@ -3614,11 +3604,7 @@ function renderJournaliste(){
   const journalistes=[...new Set(filtered.map(s=>s.journaliste||'Non attribué'))].sort();
   let html='<div class="vue-kanban">';
   journalistes.forEach(j=>{
-    const items=filtered.filter(s=>(s.journaliste||'Non attribué')===j)
-      .sort((a,b)=>{
-        const po={'🔴 Haute':0,'🟡 Normale':1,'🟢 Basse':2};
-        return (po[a.priorite]??3)-(po[b.priorite]??3);
-      });
+    const items=filtered.filter(s=>(s.journaliste||'Non attribué')===j).sort((a,b)=>({'🔴 Haute':0,'🟡 Normale':1,'🟢 Basse':2}[a.priorite]??3)-({'🔴 Haute':0,'🟡 Normale':1,'🟢 Basse':2}[b.priorite]??3));
     const initials=j.substring(0,2).toUpperCase();
     html+=`<div class="kanban-col">
       <div class="kanban-col-header">
@@ -3807,14 +3793,14 @@ function renderDashboard(){
 
   let html=`<div class="dash">`;
 
+  // Date dashboard
   html+=`<div style="margin-bottom:8px">
     <div style="font-size:12px;color:var(--text3);font-family:var(--mono)">${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
   </div>`;
 
   // KPIs
-
-  html+=`<div class="dash-kpi-section">
-    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px">Vue globale</div>
+  html+=`<div>
+    <div class="dash-section-title">Vue globale</div>
     <div class="kpi-row">
       <div class="kpi"><div class="kpi-accent" style="background:var(--text3)"></div><div class="kpi-val" style="color:var(--text)">${total}</div><div class="kpi-label">Projets total</div></div>
       <div class="kpi"><div class="kpi-accent" style="background:var(--green)"></div><div class="kpi-val" style="color:var(--green)">${pad}</div><div class="kpi-label">PAD · Publiés</div><div class="kpi-sub">${total?Math.round(pad/total*100):0}% du total</div></div>
@@ -3823,51 +3809,10 @@ function renderDashboard(){
       <div class="kpi"><div class="kpi-accent" style="background:var(--blue)"></div><div class="kpi-val" style="color:var(--blue)">${avecV1}</div><div class="kpi-label">V1 disponible</div><div class="kpi-sub">${total?Math.round(avecV1/total*100):0}% du total</div></div>
     </div>
   </div>`;
-  html+=`</div>`;
-
-    html+=`<div style="height:32px"></div>`;
-
-  html+=`<div class="two-col" style="align-items:start">`;
-// Alertes — pliables
-  html+=`<div class="dash-alert-section">`;
-  const alertesRed = alertes.filter(a=>a.type==='red').length;
-  const alertesAmber = alertes.filter(a=>a.type==='amber').length;
-  const alertesPurple = alertes.filter(a=>a.type==='purple').length;
-  html+=`<div class="dash-card" style="padding:0">
-    <!-- Header cliquable -->
-    <div onclick="toggleDashAlertes()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;border-radius:var(--rl);transition:background 0.15s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:12px;font-weight:600;color:var(--text2)">🚦 Alertes</span>
-        ${alertes.length===0
-          ? `<span style="font-size:11px;color:var(--green)">✅ Tout est à jour</span>`
-          : `<div style="display:flex;gap:4px">
-              ${alertesRed?`<span style="background:var(--red-dim);color:var(--red);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px">${alertesRed}</span>`:''}
-              ${alertesAmber?`<span style="background:var(--amber-dim);color:var(--amber);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px">${alertesAmber}</span>`:''}
-              ${alertesPurple?`<span style="background:var(--purple-dim);color:var(--purple);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px">${alertesPurple}</span>`:''}
-            </div>`
-        }
-      </div>
-      <span id="dash-alertes-chevron" style="font-size:12px;color:var(--text3);transition:transform 0.2s">▼</span>
-    </div>
-    <!-- Contenu dépliable -->
-    <div id="dash-alertes-body" style="display:none;padding:0 16px 12px">
-      ${alertes.length===0
-        ? `<div style="font-size:12px;color:var(--text3);padding:4px 0 8px">Aucune alerte</div>`
-        : alertes.map(a=>`
-          <div class="alert-row" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'}-dim);cursor:pointer;margin-bottom:4px;border-radius:6px" onclick="openDetail('${a.id}')">
-            <div class="alert-dot" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'})"></div>
-            <div class="alert-content">
-              <div class="alert-title">${a.code||''} ${a.title}</div>
-              <div class="alert-sub">${a.msg}</div>
-            </div>
-          </div>`).join('')
-      }
-    </div>
-  </div>`;
-  html+=`</div>`;
 
   // Graphique mensuel
-  html+=`<div class="dash-section" style="padding-bottom:32px">
+  const periodeLabel = dashPeriode===1?'1 mois':dashPeriode===3?'3 mois':dashPeriode===0?'1 semaine':'6 mois';
+  html+=`<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="dash-section-title" style="margin-bottom:0;flex:1">Activité mensuelle</div>
       <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r);padding:3px">
@@ -3896,86 +3841,134 @@ function renderDashboard(){
     </div>
   </div>`;
 
-    html+=`</div>`;
-// Activité récente
-  html+=`<div class="dash-secondary" style="padding-top:0">
-    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Activité récente</div>
+  // Deux colonnes : formats + journalistes
+  html+=`<div class="two-col">
+    <div class="dash-card">
+      <div class="dash-section-title">Par format</div>
+      <div class="bar-chart">
+        ${Object.entries(fmtCount).sort((a,b)=>b[1]-a[1]).map(([fmt,cnt])=>`
+          <div class="bar-row">
+            <div class="bar-name" style="color:${FMT_COLORS[fmt]||'var(--text2)'}">${fmt}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxFmt)}%;background:${FMT_COLORS[fmt]||'var(--text2)'}"></div></div>
+            <div class="bar-count">${cnt}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-section-title">Par journaliste</div>
+      <div class="bar-chart">
+        ${jSorted.map(([j,cnt])=>`
+          <div class="bar-row">
+            <div class="bar-name">${j.split(' ')[0]}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxJ)}%;background:var(--blue)"></div></div>
+            <div class="bar-count" title="${jPad[j]||0} PAD">${cnt}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // Délais
+  html+=`<div class="two-col">
+    <div class="dash-card">
+      <div class="dash-section-title">⏱ Délais moyens</div>
+      <div class="delai-row"><span class="delai-label">Tournage → V1</span><span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</span></div>
+      <di
+
+  html+=`<div class="dash-sp"></div>`;
+
+  html+=`<div class="two-col" style="align-items:stretch">`;
+  html+=`<div class="dash-card">
+      <div class="dash-section-title">🚦 Alertes (${alertes.length})</div>
+      ${alertes.length===0?`<div style="font-size:12px;color:var(--text3);padding:8px 0">✅ Aucune alerte — tout est à jour</div>`:''}
+      ${alertes.slice(0,5).map(a=>`
+        <div class="alert-row" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'}-dim);cursor:pointer" onclick="openDetail('${a.id}')">
+          <div class="alert-dot" style="background:var(--${a.type==='red'?'red':a.type==='amber'?'amber':'purple'})"></div>
+          <div class="alert-content">
+            <div class="alert-title">${a.code||''} ${a.title}</div>
+            <div class="alert-sub">${a.msg}</div>
+          </div>
+        </div>`).join('')}
+      ${alertes.length>5?`<div style="font-size:11px;color:var(--text3);margin-top:6px">+${alertes.length-5} autres alertes</div>`:''}
+    </div>`;
+html+=`<div>
+    <div class="dash-section-title">Activité récente</div>
     <div class="dash-card" id="dash-activite" style="padding:4px 18px">
       <div style="font-size:11px;color:var(--text3);padding:12px 0">Chargement...</div>
     </div>
   </div>`;
-
-      html+=`</div>`;
-
-  html+=`<div style="height:32px"></div>`;
-
-// Graphique mensuel
-  const periodeLabel = dashPeriode===1?'1 mois':dashPeriode===3?'3 mois':dashPeriode===0?'1 semaine':'6 mois';
-
-      html+=`<div class="two-col">`;
-// Formats
-  html+=`<div class="dash-card">
-    <div class="dash-section-title">Par format</div>
-    <div class="bar-chart">
-      ${Object.entries(fmtCount).sort((a,b)=>b[1]-a[1]).map(([fmt,cnt])=>`
-        <div class="bar-row">
-          <div class="bar-name" style="color:${FMT_COLORS[fmt]||'var(--text2)'}">${fmt}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxFmt)}%;background:${FMT_COLORS[fmt]||'var(--text2)'}"></div></div>
-          <div class="bar-count">${cnt}</div>
-        </div>`).join('')}
-    </div>
-  </div>`;
-
-  // Par journaliste
-  html+=`<div class="dash-card" style="padding:12px 14px">
-    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px">Par journaliste</div>
-    <div class="bar-chart">
-      ${jSorted.map(([j,cnt])=>`
-        <div class="bar-row">
-          <div class="bar-name">${j.split(' ')[0]}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxJ)}%;background:var(--blue)"></div></div>
-          <div class="bar-count" title="${jPad[j]||0} PAD">${cnt}</div>
-        </div>`).join('')}
-    </div>
-  </div>`;
-
   html+=`</div>`;
 
-  html+=`<div style="height:32px"></div>`;
+  html+=`<div class="dash-sp"></div>`;
 
-  html+=`<div class="two-col" style="align-items:start">`;
-// Délais — ligne horizontale compacte
-  html+=`<div class="dash-secondary" style="display:flex;align-items:stretch;border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:0">
-    <div style="font-size:9px;font-family:var(--mono);color:var(--text3);padding:12px 14px;border-right:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:0.08em;display:flex;align-items:center">⏱ Délais</div>
-    <div style="flex:1;display:flex">
-      <div style="flex:1;padding:10px 14px;border-right:1px solid var(--border);text-align:center">
-        <div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</div>
-        <div style="font-size:9px;color:var(--text3);margin-top:2px;font-family:var(--mono)">Tournage → V1</div>
+html+=`<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="dash-section-title" style="margin-bottom:0;flex:1">Activité mensuelle</div>
+      <div style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r);padding:3px">
+        ${[['1 sem',0],['1 mois',1],['3 mois',3],['6 mois',6]].map(([label,val])=>`
+          <button onclick="setDashPeriode(${val})" style="padding:3px 10px;border-radius:5px;font-size:11px;border:none;cursor:pointer;font-family:var(--font);transition:all 0.15s;${dashPeriode===val?'background:var(--bg2);color:var(--text);font-weight:500':'background:transparent;color:var(--text3)'}">${label}</button>
+        `).join('')}
       </div>
-      <div style="flex:1;padding:10px 14px;border-right:1px solid var(--border);text-align:center">
-        <div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--blue)">${delaiV1Valid!==null?delaiV1Valid+'j':'—'}</div>
-        <div style="font-size:9px;color:var(--text3);margin-top:2px;font-family:var(--mono)">V1 → V2</div>
+    </div>
+    <div class="dash-card">
+      <div style="display:flex;gap:16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--amber)"></div><span style="font-size:11px;color:var(--text2)">Tournés</span></div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--blue)"></div><span style="font-size:11px;color:var(--text2)">Montés (V1)</span></div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:2px;background:var(--green)"></div><span style="font-size:11px;color:var(--text2)">PAD</span></div>
       </div>
-      <div style="flex:1;padding:10px 14px;text-align:center">
-        <div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'j':'—'}</div>
-        <div style="font-size:9px;color:var(--text3);margin-top:2px;font-family:var(--mono)">Brief → PAD</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding-bottom:20px;position:relative">
+        ${moisData.map(m=>`
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0;height:100%;justify-content:flex-end;position:relative">
+            <div style="width:100%;display:flex;gap:2px;align-items:flex-end;height:90px">
+              <div style="flex:1;background:var(--amber);border-radius:3px 3px 0 0;height:${pct(m.tournes,maxMois)*0.9}%;min-height:${m.tournes?2:0}px;transition:height 0.5s" title="${m.tournes} tournés"></div>
+              <div style="flex:1;background:var(--blue);border-radius:3px 3px 0 0;height:${pct(m.montes,maxMois)*0.9}%;min-height:${m.montes?2:0}px;transition:height 0.5s" title="${m.montes} montés"></div>
+              <div style="flex:1;background:var(--green);border-radius:3px 3px 0 0;height:${pct(m.pads,maxMois)*0.9}%;min-height:${m.pads?2:0}px;transition:height 0.5s" title="${m.pads} PAD"></div>
+            </div>
+            <div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:4px;position:absolute;bottom:-16px">${m.label}</div>
+          </div>`).join('')}
       </div>
     </div>
   </div>`;
+  html+=`<div class="two-col">`;
+  html+=`<div class="dash-card">
+      <div class="dash-section-title">Par format</div>
+      <div class="bar-chart">
+        ${Object.entries(fmtCount).sort((a,b)=>b[1]-a[1]).map(([fmt,cnt])=>`
+          <div class="bar-row">
+            <div class="bar-name" style="color:${FMT_COLORS[fmt]||'var(--text2)'}">${fmt}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxFmt)}%;background:${FMT_COLORS[fmt]||'var(--text2)'}"></div></div>
+            <div class="bar-count">${cnt}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  html+=`<div class="dash-card">
+      <div class="dash-section-title">Par journaliste</div>
+      <div class="bar-chart">
+        ${jSorted.map(([j,cnt])=>`
+          <div class="bar-row">
+            <div class="bar-name">${j.split(' ')[0]}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct(cnt,maxJ)}%;background:var(--blue)"></div></div>
+            <div class="bar-count" title="${jPad[j]||0} PAD">${cnt}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  html+=`</div>`;
 
-  // Export stats — discret en bas
-  html+=`<div class="dash-export">
-    <div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">📊 Export stats</div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-      <select onchange='setStatsMois(this.value)' style='background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;flex:1'>
-        ${buildMoisSelect()}
-      </select>
-      <select onchange='setStatsAnnee(this.value)' style='background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:6px 10px;border-radius:6px;font-size:12px;font-family:var(--font);outline:none;flex:1'>
-        <option value='all' ${dashStatsAnnee==='all'?'selected':''}>Toutes les années</option>
-        ${buildAnneeSelect()}
-      </select>
+  html+=`<div class="dash-sp"></div>`;
+
+  html+=`<div class="two-col" style="align-items:stretch">`;
+  html+=`<div class="dash-card">
+      <div class="dash-section-title">⏱ Délais moyens</div>
+      <div class="delai-row"><span class="delai-label">Tournage → V1</span><span class="delai-val" style="color:var(--amber)">${delaiTournV1!==null?delaiTournV1+'j':'—'}</span></div>
+      <div class="delai-row"><span class="delai-label">V1 → V2</span><span class="delai-val" style="color:var(--blue)">${delaiV1Valid!==null?delaiV1Valid+'j':'—'}</span></div>
+      <div class="delai-row"><span class="delai-label">Brief → PAD</span><span class="delai-val" style="color:var(--green)">${delaiBriefPad!==null?delaiBriefPad+'j':'—'}</span></div>
+    </div>`;
+  html+=`<div class="dash-card">
+    <div class="dash-section-title" style="font-size:10px">📊 Export stats</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <select onchange="setStatsMois(this.value)" style="flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:6px 8px;border-radius:6px;font-size:11px;font-family:var(--font);outline:none">${buildMoisSelect()}</select>
+      <select onchange="setStatsAnnee(this.value)" style="flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:6px 8px;border-radius:6px;font-size:11px;font-family:var(--font);outline:none"><option value="all" ${dashStatsAnnee==='all'?'selected':''}>Toutes années</option>${buildAnneeSelect()}</select>
     </div>
-    <button onclick='exportStatsTxt()' style='width:100%;padding:8px;border-radius:6px;font-size:12px;border:1px solid var(--border);cursor:pointer;font-family:var(--font);background:transparent;color:var(--text3)'>📄 Exporter les stats</button>
+    <button onclick="exportStatsTxt()" style="width:100%;padding:8px;border-radius:6px;font-size:11px;border:1px solid var(--border);cursor:pointer;font-family:var(--font);background:transparent;color:var(--text2)">📄 Exporter</button>
   </div>`;
   html+=`</div>`;
 html+=`</div>`;
@@ -4508,15 +4501,8 @@ async function soumettreidee() {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-async function renderArchives() {
+function renderArchives() {
   const mc = document.getElementById('main-content');
-  if(!sujetsArchives.length) {
-    mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
-    try {
-      const data = await api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:true}},sorts:[{timestamp:'last_edited_time',direction:'descending'}],page_size:100});
-      sujetsArchives = data.results.map(parsePage);
-    } catch(e) { mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`; return; }
-  }
   const badge = document.getElementById('cnt-archives');
   if(badge) badge.textContent = sujetsArchives.length;
   if(!sujetsArchives.length) {
@@ -4649,84 +4635,24 @@ function listSort(col) {
   renderListe();
 }
 
-let _dashAlertesOpen = false;
-const MOIS_LABELS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-let dashStatsMois = new Date().getMonth();
-let dashStatsAnnee = String(new Date().getFullYear());
-
-function buildMoisSelect() {
-  let html = `<option value='-1' ${dashStatsMois===-1?'selected':''}>Tous les mois</option>`;
-  MOIS_LABELS.forEach((label,i) => {
-    html += `<option value='${i}' ${dashStatsMois===i?'selected':''}>${label}</option>`;
-  });
-  return html;
-}
-
-function buildAnneeSelect() {
-  const now = new Date();
-  let html = '';
-  for(let y = now.getFullYear(); y >= now.getFullYear()-3; y--) {
-    html += `<option value='${y}' ${dashStatsAnnee===String(y)?'selected':''}>${y}</option>`;
-  }
-  return html;
-}
-
-function setStatsMois(v) { dashStatsMois = parseInt(v); }
-function setStatsAnnee(v) { dashStatsAnnee = v; }
-
-function getStatsPeriodeSujets() {
-  return sujets.filter(s => {
-    if(!s.created) return false;
-    const d = new Date(s.created);
-    const anneeOk = dashStatsAnnee === 'all' || d.getFullYear() === parseInt(dashStatsAnnee);
-    const moisOk = dashStatsMois === -1 || d.getMonth() === dashStatsMois;
-    return anneeOk && moisOk;
-  });
-}
-
-function exportStatsTxt() {
-  const list = getStatsPeriodeSujets();
-  const formats = [...new Set(list.map(s=>s.format).filter(Boolean))].sort();
-  const jours = [...new Set(list.map(s=>s.journaliste).filter(Boolean))].sort();
-  let pl = '';
-  if(dashStatsMois !== -1) pl += MOIS_LABELS[dashStatsMois] + ' ';
-  pl += dashStatsAnnee === 'all' ? 'Toutes années' : dashStatsAnnee;
-  pl = pl.trim();
-  const sep = '─'.repeat(60);
-  const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
-  let txt = `STATS PRODUCTION — Réel Média\n${sep}\nPériode : ${pl}\nExport  : ${date}\n${sep}\n\n`;
-  const colW=12, nameW=16;
-  let header = 'Journaliste'.padEnd(nameW);
-  formats.forEach(f => { header += f.substring(0,colW-1).padStart(colW); });
-  header += 'Total'.padStart(colW);
-  txt += header + '\n' + '─'.repeat(header.length) + '\n';
-  jours.forEach(j => {
-    const projs = list.filter(s=>s.journaliste===j);
-    let ligne = j.substring(0,nameW-1).padEnd(nameW);
-    formats.forEach(f => { const cnt = projs.filter(s=>s.format===f).length; ligne += (cnt||'—').toString().padStart(colW); });
-    ligne += projs.length.toString().padStart(colW);
-    txt += ligne + '\n';
-  });
-  txt += '─'.repeat(header.length) + '\n';
-  let total = 'TOTAL'.padEnd(nameW);
-  formats.forEach(f => { const cnt = list.filter(s=>s.format===f).length; total += (cnt||'—').toString().padStart(colW); });
-  total += list.length.toString().padStart(colW);
-  txt += total + '\n\n' + sep + '\n';
-  const blob = new Blob([txt],{type:'text/plain;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href=url; a.download=`Stats_${pl.replace(/ /g,'_')}_${date.replace(/\//g,'-')}.txt`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+const MOIS_LABELS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+let dashStatsMois=new Date().getMonth(),dashStatsAnnee=String(new Date().getFullYear());
+function buildMoisSelect(){let h=`<option value='-1' ${dashStatsMois===-1?'selected':''}>Tous les mois</option>`;MOIS_LABELS.forEach((l,i)=>{h+=`<option value='${i}' ${dashStatsMois===i?'selected':''}>${l}</option>`;});return h;}
+function buildAnneeSelect(){const now=new Date();let h='';for(let y=now.getFullYear();y>=now.getFullYear()-3;y--){h+=`<option value='${y}' ${dashStatsAnnee===String(y)?'selected':''}>${y}</option>`;}return h;}
+function setStatsMois(v){dashStatsMois=parseInt(v);}
+function setStatsAnnee(v){dashStatsAnnee=v;}
+function getStatsPeriodeSujets(){return sujets.filter(s=>{if(!s.created)return false;const d=new Date(s.created);return(dashStatsAnnee==='all'||d.getFullYear()===parseInt(dashStatsAnnee))&&(dashStatsMois===-1||d.getMonth()===dashStatsMois);});}
+function exportStatsTxt(){
+  const list=getStatsPeriodeSujets(),formats=[...new Set(list.map(s=>s.format).filter(Boolean))].sort(),jours=[...new Set(list.map(s=>s.journaliste).filter(Boolean))].sort();
+  let pl=(dashStatsMois!==-1?MOIS_LABELS[dashStatsMois]+' ':'')+(dashStatsAnnee==='all'?'Toutes années':dashStatsAnnee);
+  const sep='─'.repeat(60),date=new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  let txt=`STATS PRODUCTION — Réel Média\n${sep}\nPériode : ${pl}\nExport  : ${date}\n${sep}\n\n`;
+  const cW=12,nW=16;let hdr='Journaliste'.padEnd(nW);formats.forEach(f=>{hdr+=f.substring(0,cW-1).padStart(cW);});hdr+='Total'.padStart(cW);txt+=hdr+'\n'+'─'.repeat(hdr.length)+'\n';
+  jours.forEach(j=>{const p=list.filter(s=>s.journaliste===j);let l=j.substring(0,nW-1).padEnd(nW);formats.forEach(f=>{l+=(p.filter(s=>s.format===f).length||'—').toString().padStart(cW);});l+=p.length.toString().padStart(cW);txt+=l+'\n';});
+  txt+='─'.repeat(hdr.length)+'\n';let tot='TOTAL'.padEnd(nW);formats.forEach(f=>{tot+=(list.filter(s=>s.format===f).length||'—').toString().padStart(cW);});tot+=list.length.toString().padStart(cW);txt+=tot+'\n\n'+sep+'\n';
+  const blob=new Blob([txt],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`Stats_${pl.replace(/ /g,'_')}_${date.replace(/\//g,'-')}.txt`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   toast('📄 Stats exportées','ok');
-}
-
-function toggleDashAlertes() {
-  _dashAlertesOpen = !_dashAlertesOpen;
-  const body = document.getElementById('dash-alertes-body');
-  const chevron = document.getElementById('dash-alertes-chevron');
-  if(body) body.style.display = _dashAlertesOpen ? 'block' : 'none';
-  if(chevron) chevron.style.transform = _dashAlertesOpen ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
 function setDashPeriode(p) {
@@ -4752,8 +4678,7 @@ async function appLoadData() {
       api('/databases/' + DB_COMP + '/query', 'POST', {}),
       api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}]})
     ]);
-    sujets = prod.results.map(parsePage);
-    sujetsArchives = [];
+    sujets = prod.results.map(parsePage).filter(s => !s.archive);
     compteurs = {};
     comp.results.forEach(p => {
       const pr = p.properties;
@@ -4772,7 +4697,7 @@ async function appLoadData() {
         derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || ''
       };
     });
-    // sujetsArchives chargées à la demande
+    sujetsArchives = prod.results.map(parsePage).filter(s => s.archive);
     document.getElementById('cnt-all').textContent = sujets.length;
     // Charger le nb de notifs non lues pour les badges cartes — une seule fois
     loadRetoursBadges();
