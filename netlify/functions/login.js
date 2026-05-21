@@ -1,8 +1,10 @@
 // netlify/functions/login.js
-// Vérifie le code d'accès côté serveur — les codes ne sont jamais exposés dans le HTML
+// Vérifie le code d'accès via la base Notion 👥 Équipe
+// Les codes ne sont jamais exposés dans le HTML
+
+const DB_EQUIPE = 'df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 
 exports.handler = async (event) => {
-  // CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -23,51 +25,56 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants' }) };
     }
 
-    // Liste des membres — stockée côté serveur uniquement
-    const EQUIPE = [
-      { id: 'ben', nom: 'Benjamin', code: process.env.CODE_BEN || 'ben26', role: 'Chef' },
-      { id: 'arn', nom: 'Arnaud',   code: process.env.CODE_ARN || 'arn26', role: 'Chef' },
-      { id: 'chl', nom: 'Chloé',    code: process.env.CODE_CHL || 'chl26', role: 'Chef' },
-      { id: 'jul', nom: 'Julien',   code: process.env.CODE_JUL || 'jul26', role: 'Journaliste' },
-      { id: 'aug', nom: 'Augustin', code: process.env.CODE_AUG || 'aug26', role: 'Journaliste' },
-      { id: 'nic', nom: 'Nico',     code: process.env.CODE_NIC || 'nic26', role: 'Journaliste' },
-      { id: 'mic', nom: 'Mickael',  code: process.env.CODE_MIC || 'mic26', role: 'Journaliste' },
-      { id: 'jlt', nom: 'Juliette', code: process.env.CODE_JLT || 'jlt26', role: 'Journaliste' },
-      { id: 'mat', nom: 'Mathilde', code: process.env.CODE_MAT || 'mat26', role: 'Journaliste' },
-      { id: 'lea', nom: 'Léa',      code: process.env.CODE_LEA || 'lea26', role: 'Journaliste' },
-      { id: 'elo', nom: 'Éloise',   code: process.env.CODE_ELO || 'elo26', role: 'Journaliste' },
-      { id: 'thi', nom: 'Thierry',  code: process.env.CODE_THI || 'thi26', role: 'Monteur' },
-      { id: 'dav', nom: 'David',    code: process.env.CODE_DAV || 'dav26', role: 'Monteur' },
-      { id: 'vic', nom: 'Victor',   code: process.env.CODE_VIC || 'vic26', role: 'Brand' },
-      { id: 'lou', nom: 'Louise',   code: process.env.CODE_LOU || 'lou26', role: 'Brand' },
-      { id: 'arc', nom: 'Arnaud C', code: process.env.CODE_ARC || 'arc26', role: 'Brand' },
-    ];
-
-    const membre = EQUIPE.find(m => m.id === id);
-
-    if (!membre || membre.code !== code) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Code incorrect' })
-      };
+    const NOTION_TOKEN = process.env.NOTION_TOKEN;
+    if (!NOTION_TOKEN) {
+      return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: 'Token Notion manquant' }) };
     }
 
-    // Retourner les infos du membre sans le code
+    // Lire les membres depuis Notion 👥 Équipe
+    const res = await fetch(`https://api.notion.com/v1/databases/${DB_EQUIPE}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NOTION_TOKEN}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ page_size: 100 })
+    });
+
+    if (!res.ok) throw new Error(`Notion API error: ${res.status}`);
+
+    const data = await res.json();
+
+    // Trouver le membre par son UUID Notion (= l'ID envoyé par le select login)
+    const page = data.results.find(p => p.id === id);
+
+    if (!page) {
+      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Membre introuvable' }) };
+    }
+
+    const pr = page.properties;
+    const codeNotion = pr['Code acces']?.rich_text?.[0]?.plain_text || '';
+    const nom = pr.Nom?.title?.[0]?.plain_text || '';
+    const role = pr.Role?.select?.name || 'Journaliste';
+
+    if (!codeNotion || codeNotion !== code) {
+      return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Code incorrect' }) };
+    }
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         ok: true,
-        user: { id: membre.id, nom: membre.nom, role: membre.role }
+        user: { id: page.id, nom, role }
       })
     };
 
   } catch (e) {
     return {
-      statusCode: 500,
+      statusCode: 503,
       headers,
-      body: JSON.stringify({ ok: false, error: e.message })
+      body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible — réessayez' })
     };
   }
 };
