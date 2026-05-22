@@ -564,6 +564,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 </nav>
 
+<div id="notion-banner" style="display:none;background:var(--red-dim);border-bottom:1px solid var(--red);color:var(--text);padding:8px 24px;font-size:12px;align-items:center;justify-content:space-between;gap:12px">
+  <span>⚠ Connexion Notion interrompue</span>
+  <button class="nav-btn" id="notion-banner-retry" style="font-size:11px;padding:4px 10px">Réessayer</button>
+</div>
+
 <div class="app-body">
 
   <!-- SIDEBAR -->
@@ -937,6 +942,53 @@ async function api(endpoint,method='GET',body=null,_r=0){
   if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||'Erreur API');}
   return res.json();
 }
+
+// ─── PHASE A : wrapper api() pour indicateur Notion ───
+const _apiOriginal = api;
+let _lastFailedCall = null;
+let _retryBound = false;
+
+function showNotionBanner(){
+  const shell = document.getElementById('app-shell');
+  if(!shell || shell.style.display === 'none') return;
+  const b = document.getElementById('notion-banner');
+  if(!b) return;
+  b.style.display = 'flex';
+  if(!_retryBound){
+    const btn = document.getElementById('notion-banner-retry');
+    if(btn){
+      btn.addEventListener('click', async () => {
+        if(!_lastFailedCall){ hideNotionBanner(); return; }
+        btn.disabled = true; const old = btn.textContent; btn.textContent = '…';
+        try{ await api(_lastFailedCall.endpoint, _lastFailedCall.method, _lastFailedCall.body); }
+        catch(_){ /* banner reste affiché */ }
+        finally{ btn.disabled = false; btn.textContent = old; }
+      });
+      _retryBound = true;
+    }
+  }
+}
+function hideNotionBanner(){
+  const b = document.getElementById('notion-banner');
+  if(b) b.style.display = 'none';
+}
+
+api = async function(endpoint, method, body, _r){
+  try{
+    const r = await _apiOriginal(endpoint, method, body, _r);
+    hideNotionBanner();
+    return r;
+  }catch(e){
+    const msg = (e && e.message) || '';
+    const isNetwork = e instanceof TypeError
+      || /failed to fetch|networkerror|load failed|timeout|aborted/i.test(msg);
+    if(isNetwork){
+      _lastFailedCall = {endpoint, method, body};
+      showNotionBanner();
+    }
+    throw e;
+  }
+};
 
 async function loadSujets(){
   document.getElementById('cards-wrap').innerHTML='<div class="loading"><div class="spin"></div></div>';
@@ -3601,6 +3653,38 @@ function openOv(id){document.getElementById(id).classList.add('open');}
 function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
+
+// ─── PHASE A : handlers globaux ───
+let _lastErrToastAt = 0;
+function _showErrToast(msg){
+  const now = Date.now();
+  if(now - _lastErrToastAt < 3000) return;
+  _lastErrToastAt = now;
+  toast(msg, 'err');
+}
+window.onerror = function(message, source, line, col, error){
+  const name = (error && error.name) || '';
+  let msg = "Une erreur s'est produite";
+  if(name === 'TypeError') msg = "Un élément n'a pas pu être chargé";
+  else if(name === 'ReferenceError') msg = "Action indisponible pour le moment";
+  else if(name === 'SyntaxError') msg = "Erreur interne";
+  _showErrToast(msg);
+  console.error('[window.onerror]', error || message);
+  return false;
+};
+window.onunhandledrejection = function(event){
+  const r = event.reason;
+  const rmsg = (r && r.message) || '';
+  const isNetwork = r instanceof TypeError
+    || /failed to fetch|networkerror|load failed|timeout|aborted/i.test(rmsg);
+  if(isNetwork){
+    _showErrToast("Connexion interrompue");
+    showNotionBanner();
+  } else {
+    _showErrToast("L'action n'a pas pu aboutir");
+  }
+  console.error('[unhandledrejection]', r);
+};
 
 // ─── GESTION DES VUES ───
 let vueActive='cards';
