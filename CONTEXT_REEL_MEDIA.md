@@ -5,6 +5,17 @@
 > Section maintenue automatiquement. Les modifs les plus récentes sont en haut.
 > Format : ### YYYY-MM-DD — Titre court / Liste de points / Optionnel : raison
 
+### 2026-05-22 — Phase A : gestion d'erreur globale
+- `window.onerror` : capture des erreurs JS non gérées → toast user-friendly (TypeError/ReferenceError/SyntaxError mappés vers messages non-techniques)
+- `window.onunhandledrejection` : capture des promesses rejetées (await sans try/catch) → toast + déclenche bandeau Notion si erreur réseau
+- Bandeau `#notion-banner` placé en flex-item dans `.app-shell` (entre `<nav>` et `.app-body`, pas de sticky/z-index) : apparaît dès le 1er échec d'appel `/.netlify/functions/notion` (réseau/timeout/aborted), disparaît auto au prochain succès
+- Bouton "Réessayer" rejoue uniquement la dernière requête échouée (`_lastFailedCall`) ; listener lié en lazy dans `showNotionBanner()` avec garde anti double-binding
+- Garde de visibilité : bandeau supprimé si `#app-shell` est masqué (évite l'affichage par-dessus l'écran de login pendant `initLogin()`)
+- La fonction `api()` reste inchangée, on l'enveloppe par réassignation (`_apiOriginal`) — interception transparente succès/échec
+- Regex de détection réseau : `failed to fetch | networkerror | load failed | timeout | aborted` (pas de match sur codes HTTP 5xx pour éviter les faux positifs)
+- Debounce 3s anti-spam sur les toasts d'erreur globaux
+- Variables CSS réutilisées : `--red-dim`, `--red`, `--text`. Réutilise `toast()` existant et la classe `.nav-btn`
+
 ### 2026-05-22 — Harmonisation sidebar bas
 - 3 boutons en bas de sidebar maintenant uniformes (même largeur, padding, border-radius, font)
 - **+ Nouveau sujet** : fond rouge plein (`var(--red)`)
