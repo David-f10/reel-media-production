@@ -1,5 +1,41 @@
 # Contexte projet — Réel Média Production App
 
+## 📝 Historique des modifs
+
+> Section maintenue automatiquement. Les modifs les plus récentes sont en haut.
+> Format : ### YYYY-MM-DD — Titre court / Liste de points / Optionnel : raison
+
+### 2026-05-22 — Harmonisation sidebar bas
+- 3 boutons en bas de sidebar maintenant uniformes (même largeur, padding, border-radius, font)
+- **+ Nouveau sujet** : fond rouge plein (`var(--red)`)
+- **💡 Nouvelle idée** : fond amber plein (`var(--amber)`)
+- **👥 Gérer l'équipe** : fond `var(--bg2)` + bordure subtile (style atténué car action de gestion, pas de création)
+- Icônes alignées (largeur fixe 16px) pour que les textes commencent à la même position
+- Ligne user retravaillée : avatar 26px (au lieu de 24px), boutons 🔑 et ↩ regroupés à droite avec même style (bordure + padding 4px 7px), nom utilisateur tronque avec ellipsis si trop long
+
+### 2026-05-21 — Dashboard restructuré en 4 niveaux
+- N1 : KPIs **Vue globale** encadrés (bg2 + border + padding 24px) — mise en valeur du résumé
+- N2 : grid 2 colonnes `1fr 1fr` → **Alertes (8 visibles)** | **Activité récente**
+- N3 : **Activité mensuelle** + two-col Formats/Journaliste
+- N4 : two-col **Délais** | **Export stats**
+- Espacement vertical 28px entre chaque niveau
+- `max-width` supprimé du dashboard (pleine largeur disponible)
+- `main-content` padding ajusté à 24px 32px
+- `toggleDashAlertes()` ajouté — alertes pliables
+- Helpers ajoutés : `buildMoisSelect`, `buildAnneeSelect`, `exportStatsTxt`
+
+### 2026-05-21 — Ajout entrée Export stats dans sidebar
+- Nouvelle entrée 📊 **Export stats** dans la navigation (sous Archives)
+- Au clic : modal léger avec sélecteurs Mois + Année pré-remplis
+- Fonctions ajoutées : `ouvrirExportStats()`, `exportStatsFromModal()`
+- Le bloc Export stats du dashboard reste intact (double accès)
+
+### 2026-05-20 — Modal idée consultation corrigé
+- Padding interne corrigé : `padding:0 20px 20px`
+- Cohérence visuelle avec les modals "Nouveau sujet" et "Nouvelle idée"
+
+---
+
 ## Infos projet
 - **URL** : reel-media-production.netlify.app
 - **GitHub** : David-f10/reel-media-production
@@ -22,21 +58,17 @@
 | 📹 Versions | 3793eebb-2aeb-4d49-84ae-06d79cfb2704 |
 | 🎵 Musiques | d9d3579257bc49059e6cd683a8b02fef |
 
-## ⚠️ État actuel du code — IMPORTANT
-Le fichier `index.html` dans le project knowledge est **LA SOURCE OFFICIELLE À JOUR**.
-- Il contient TOUTES les corrections déjà appliquées.
-- **Ne jamais repartir de zéro.**
-- **Ne jamais recréer du code from scratch** — toujours modifier le fichier existant.
-- Toute modif doit être livrée sous forme d'un fichier `index.html` complet à télécharger.
-
-## Règles importantes (ne pas casser)
+## ⚠️ Règles d'or à respecter (ne jamais casser)
+- Le fichier `index.html` dans le project knowledge est **LA SOURCE OFFICIELLE À JOUR**
+- **Ne jamais repartir de zéro** — toujours modifier le fichier existant
+- **Toute modif** doit être livrée sous forme d'un fichier `index.html` complet à télécharger
+- **À chaque modif d'index.html**, livrer aussi un `CONTEXT_REEL_MEDIA.md` à jour (avec nouvelle entrée dans l'historique en haut)
 - `EQUIPE_FALLBACK = []` — ne JAMAIS remettre les codes en clair dans le HTML
 - `CHEF_PAR_DEFAUT = 'Benjamin'`
 - Les IDs des bases Notion ne changent pas après déplacement workspace
 - Communication en français
-- Quand David demande une modif UX, lui livrer un fichier index.html complet modifié à télécharger
 
-## Corrections déjà appliquées
+## État du code — corrections déjà appliquées
 
 ### 🔐 Sécurité / Authentification
 - `doLogin()` async → appelle `/.netlify/functions/login` côté serveur (ligne ~2598)
@@ -94,7 +126,7 @@ Le fichier `index.html` dans le project knowledge est **LA SOURCE OFFICIELLE À 
 - `main-content` padding:24px 32px
 
 ### 🎛️ Sidebar (3 boutons harmonisés)
-Les 3 boutons en bas de sidebar ont maintenant le même format :
+Les 3 boutons en bas de sidebar ont le même format :
 - Même largeur (100%), même padding (`9px 14px`), même `border-radius` (6px)
 - Même `font-size` (12px) et `font-weight` (600)
 - Icônes alignées (largeur fixe 16px) pour que les textes commencent à la même position
@@ -123,14 +155,17 @@ Les 3 boutons en bas de sidebar ont maintenant le même format :
 3. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
 4. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` qui reset à zéro — root cause à investiguer
 
-## 📋 Workflow recommandé pour les modifications
+## 📋 Workflow de modification
 1. David décrit la modif voulue (en français, avec capture d'écran si possible)
 2. Claude lit le fichier `index.html` dans le project knowledge
-3. Claude effectue la modif via `str_replace` ou édition ciblée
-4. Claude livre un nouveau fichier `index.html` complet à télécharger
-5. David upload sur GitHub `David-f10/reel-media-production` → Netlify déploie automatiquement
-6. David sauvegarde la version localement (il a un système de stockage local de toutes les versions)
-7. **Important** : David doit remplacer le `index.html` dans le project knowledge pour la prochaine session
+3. Claude effectue la modif
+4. **Claude livre DEUX fichiers** :
+   - `index.html` complet modifié
+   - `CONTEXT_REEL_MEDIA.md` mis à jour avec nouvelle entrée d'historique en haut
+5. David push les 2 fichiers sur GitHub `David-f10/reel-media-production`
+6. David clique "Synchroniser maintenant" dans le project knowledge
+7. Netlify déploie automatiquement le site
+8. David sauvegarde une copie en local (système de versions personnel)
 
 ## 🎨 Variables CSS clés (pour cohérence visuelle)
 - `--red` : rouge principal (boutons primaires, alertes)
@@ -140,3 +175,10 @@ Les 3 boutons en bas de sidebar ont maintenant le même format :
 - `--text` / `--text2` / `--text3` : hiérarchie de texte (clair → atténué)
 - `--font` : police principale
 - `--mono` : police monospace (codes, IDs)
+
+## 👥 Équipe (rôles)
+- **Chef** : Benjamin (chef principal par défaut), autres chefs à compléter
+- **Journalistes** : Augustin, Julien, Nico, Mathilde, Mickael, Juliette, etc.
+- **Brand** : Victor (vic26), Louise (lou26), Arnaud C (arc26)
+- **David** : développeur principal de l'app
+- **Arnaud** : responsable côté Réel Média (gère la migration Notion à venir)
