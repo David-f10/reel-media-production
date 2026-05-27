@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Réel Média · Production</title>
+<script
+  src="https://js-de.sentry-cdn.com/a555d2e77ba48da5ec408a38b6e95eec.min.js"
+  crossorigin="anonymous"
+></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/layout.css">
@@ -426,6 +430,29 @@
 </div>
 
 <script>
+// ─── SENTRY — Configuration runtime ───
+if (typeof Sentry !== 'undefined' && Sentry.onLoad) {
+  Sentry.onLoad(function() {
+    Sentry.init({
+      environment: (function(){
+        var h = location.hostname;
+        if (h.indexOf('deploy-preview') === 0) return 'preview';
+        if (h.indexOf('localhost') !== -1) return 'development';
+        return 'production';
+      })(),
+      release: 'reel-media@' + new Date().toISOString().slice(0, 10),
+      beforeSend: function(event, hint) {
+        var err = hint && hint.originalException;
+        var msg = (err && err.message) || event.message || '';
+        if (/NetworkError|Failed to fetch|Load failed|timeout|aborted/i.test(msg)) return null;
+        if (/ResizeObserver loop limit/i.test(msg)) return null;
+        if (!msg) return null;
+        return event;
+      }
+    });
+  });
+}
+
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const CHEF_PAR_DEFAUT = 'Benjamin';
 const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
@@ -2184,6 +2211,7 @@ async function initLogin() {
   if(saved) {
     try {
       currentUser = JSON.parse(saved);
+      if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser({id:currentUser.id,username:currentUser.nom});Sentry.setTag('role',currentUser.role||'inconnu');}
       showApp();
       return;
     } catch(e) { localStorage.removeItem('rm-user'); }
@@ -2202,7 +2230,9 @@ async function doLogin(){
     const res=await fetch('/.netlify/functions/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:selId,code})});
     const data=await res.json();
     if(!data.ok){errEl.textContent=data.error||'Code incorrect';errEl.style.display='block';if(btn)btn.textContent='Accéder →';return;}
-    currentUser=data.user;localStorage.setItem('rm-user',JSON.stringify(currentUser));errEl.style.display='none';showApp();
+    currentUser=data.user;localStorage.setItem('rm-user',JSON.stringify(currentUser));errEl.style.display='none';
+    if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser({id:currentUser.id,username:currentUser.nom});Sentry.setTag('role',currentUser.role||'inconnu');}
+    showApp();
   }catch(e){errEl.textContent='Service indisponible — réessayez';errEl.style.display='block';}
   if(btn)btn.textContent='Accéder →';
 }
@@ -2281,6 +2311,7 @@ async function validerChangerCode() {
 }
 
 function doLogout() {
+  if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser(null);}
   localStorage.removeItem('rm-user');
   currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
