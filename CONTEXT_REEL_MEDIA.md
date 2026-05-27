@@ -5,6 +5,19 @@
 > Section maintenue automatiquement. Les modifs les plus récentes sont en haut.
 > Format : ### YYYY-MM-DD — Titre court / Liste de points / Optionnel : raison
 
+### 2026-05-27 — Phase B PR1 : Extraction CSS vers fichiers séparés
+- Tout le bloc `<style>` inline (~479 lignes) sorti de `index.html` vers 4 fichiers :
+  - `css/base.css` (12 lignes) : `@import` fonts, `:root` variables, reset, body, inputs génériques
+  - `css/layout.css` (217 lignes) : `nav`, `app-shell`, `app-body`, sidebar, main-area, view-tabs, media queries mobile
+  - `css/components.css` (130 lignes) : boutons, cards, modals, pills, toast, search, spinners
+  - `css/views.css` (124 lignes) : kanban, calendrier, dashboard, notifications, retours, liste
+- `index.html` : `<style>...</style>` remplacé par 4 `<link rel="stylesheet">` dans le `<head>`, ordre cascade respecté (base → layout → components → views)
+- `index.html` passe de 5060 à ~4584 lignes (-477 lignes)
+- Zéro changement de règle CSS ni de logique JS, juste déplacement
+- Bloc `<script>` strictement identique (vérifié par diff) — Phase A préservée intacte
+- Nouveau fichier `netlify.toml` à la racine : cache-control `max-age=0, must-revalidate` sur `/css/*` et `/index.html` pour éviter le cache obsolète pendant la phase B
+- Doublons CSS présents dans le bloc original ont été préservés tels quels (sections "NOUVELLE ARCHITECTURE" qui redéclaraient des sélecteurs comme `.sidebar`, `nav`, `.kpi-row`). Pas de nettoyage dans cette PR — déplacement uniquement.
+
 ### 2026-05-22 — Phase A : gestion d'erreur globale
 - `window.onerror` : capture des erreurs JS non gérées → toast user-friendly (TypeError/ReferenceError/SyntaxError mappés vers messages non-techniques)
 - `window.onunhandledrejection` : capture des promesses rejetées (await sans try/catch) → toast + déclenche bandeau Notion si erreur réseau
@@ -50,7 +63,9 @@
 ## Infos projet
 - **URL** : reel-media-production.netlify.app
 - **GitHub** : David-f10/reel-media-production
-- **Fichier principal** : index.html (fichier unique HTML/CSS/JS, ~4976 lignes, ~263 Ko)
+- **Fichier principal** : `index.html` (squelette HTML + JS inline, ~4584 lignes depuis PR1)
+- **CSS** : 4 fichiers dans `/css/` (base, layout, components, views) — depuis PR1
+- **Build config** : `netlify.toml` à la racine (cache-control sur `/css/*` et `/index.html`)
 - **Netlify Functions** : netlify/functions/notion.js (proxy API Notion) + netlify/functions/login.js (auth)
 - **Langue de travail** : français
 
@@ -78,6 +93,15 @@
 - `CHEF_PAR_DEFAUT = 'Benjamin'`
 - Les IDs des bases Notion ne changent pas après déplacement workspace
 - Communication en français
+
+## 🏗️ Architecture en cours — Phase B (refonte modulaire)
+- **PR 1 ✅** (2026-05-27) : extraction CSS vers 4 fichiers `/css/*.css`
+- **PR 2** : passage en modules ES6 + extraction utilitaires (toast, format, overlay, parsing)
+- **PR 3** : extraction `js/core/` (auth, api, errors, notifications)
+- **PR 4** : extraction `js/views/` (dashboard, production, idées, archives)
+- **PR 5** : extraction `js/modals/` (detail, nouveau-sujet, versions, retours, équipe, export)
+- **PR 6** : nettoyage final + documentation
+- Cible : `index.html` squelette ~200 lignes en fin de phase B
 
 ## État du code — corrections déjà appliquées
 
@@ -112,6 +136,7 @@
 - Guard retours ouverts dans `ajouterVersion`
 - Filtre `Archivé=false` + `page_size:100`
 - Archives chargées à la demande (`async renderArchives`)
+- **Phase A (2026-05-22)** : `window.onerror` + `window.onunhandledrejection` + bandeau `#notion-banner` (voir historique)
 
 ### 🚦 Priorité
 - `priorite` dans `parsePage`
@@ -161,10 +186,11 @@ Les 3 boutons en bas de sidebar ont le même format :
 - Modal "Nouvelle idée" : padding cohérent avec les autres modals
 
 ## 🔧 Ce qui reste à faire
-1. **Backup automatique** (GitHub Actions, export Notion → JSON nightly)
-2. **Monitoring Sentry**
-3. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
-4. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` qui reset à zéro — root cause à investiguer
+1. **Phase B PR2-6** (en cours) : finir la refonte modulaire (ES6, core, views, modals, cleanup)
+2. **Backup automatique** (GitHub Actions, export Notion → JSON nightly)
+3. **Monitoring Sentry**
+4. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
+5. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` qui reset à zéro — root cause à investiguer
 
 ## 📋 Workflow de modification
 1. David décrit la modif voulue (en français, avec capture d'écran si possible)
