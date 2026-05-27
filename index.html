@@ -625,7 +625,8 @@ function cardHTML(s){
   const prog=Math.round(((STATUS_ORDER.indexOf(s.statut)+1)/STATUS_ORDER.length)*100);
   const dotCol=stColor(s.statut);
   const init=s.journaliste?s.journaliste.substring(0,2).toUpperCase():'?';
-  return`<div class="card" onclick="openDetail('${s.id}')">
+  const priCol=s.priorite.includes('Haute')?'var(--red)':s.priorite.includes('Normale')?'var(--amber)':s.priorite.includes('Basse')?'var(--green)':'';
+  return`<div class="card" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
       <span class="card-code">${s.code||'—'}</span>
       <div style="display:flex;align-items:center;gap:4px">
@@ -3289,7 +3290,8 @@ function renderStatut(){
       </div>`;
     items.forEach(s=>{
       const fmt=FMT_COLORS[s.format]||'#888';
-      html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
+      const priCol=s.priorite.includes('Haute')?'var(--red)':s.priorite.includes('Normale')?'var(--amber)':s.priorite.includes('Basse')?'var(--green)':'';
+      html+=`<div class="kanban-card" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
         <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt};font-size:10px">${s.format}</span></div>
         <div class="kanban-card-title">${s.titre}</div>
         <div class="kanban-card-meta">${s.journaliste||'—'}${s.tourJ1?' · '+fmtDate(s.tourJ1):''}</div>
@@ -3320,9 +3322,9 @@ function renderJournaliste(){
     items.forEach(s=>{
       const fmt=FMT_COLORS[s.format]||'#888';
       const dotCol=stColor(s.statut);
-      const priCol = s.priorite.includes('Haute') ? 'var(--red)' : s.priorite.includes('Normale') ? 'var(--amber)' : s.priorite.includes('Basse') ? 'var(--green)' : '';
-      html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
-        <div class="kanban-card-code">${priCol?`<span class="sdot" style="background:${priCol};width:6px;height:6px;display:inline-block;border-radius:50%;margin-right:4px;vertical-align:middle"></span>`:''}${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
+      const priCol=s.priorite.includes('Haute')?'var(--red)':s.priorite.includes('Normale')?'var(--amber)':s.priorite.includes('Basse')?'var(--green)':'';
+      html+=`<div class="kanban-card" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
+        <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
         <div class="kanban-card-title">${s.titre}</div>
         <div class="kanban-card-meta" style="display:flex;align-items:center;gap:4px">
           <div class="sdot" style="background:${dotCol};width:5px;height:5px;border-radius:50%;flex-shrink:0"></div>
@@ -4518,6 +4520,10 @@ function renderListe() {
       bv = STATUS_ORDER.indexOf(b.statut);
       return (av - bv) * listSortDir;
     }
+    if(listSortCol === 'priorite') {
+      const priOrd = p => p.includes('Haute')?0:p.includes('Normale')?1:p.includes('Basse')?2:3;
+      return (priOrd(a.priorite) - priOrd(b.priorite)) * listSortDir;
+    }
     return av.localeCompare(bv) * listSortDir;
   });
 
@@ -4529,6 +4535,7 @@ function renderListe() {
     {key:'titre', label:'Titre', w:'auto'},
     {key:'format', label:'Format', w:'90px'},
     {key:'statut', label:'Statut', w:'130px'},
+    {key:'priorite', label:'Prio', w:'50px'},
     {key:'journaliste', label:'Journaliste', w:'100px'},
     {key:'chef', label:'Chef', w:'80px', cls:'td-chef'},
     {key:'tourJ1', label:'Tournage', w:'90px'},
@@ -4566,6 +4573,7 @@ function renderListe() {
           <span style="font-size:11px">${s.statut||'—'}</span>
         </div>
       </td>
+      <td style="text-align:center">${(()=>{const p=s.priorite;const c=p.includes('Haute')?'var(--red)':p.includes('Normale')?'var(--amber)':p.includes('Basse')?'var(--green)':'';return c?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c}"></span>`:''})()}</td>
       <td>${s.journaliste||'—'}</td>
       <td class="td-chef">${s.chef||'—'}</td>
       <td class="td-date">${s.tourJ1?fmtDate(s.tourJ1):'—'}</td>
@@ -4888,7 +4896,8 @@ function cardHTMLHighlight(s, q) {
   const prog=Math.round(((STATUS_ORDER.indexOf(s.statut)+1)/STATUS_ORDER.length)*100);
   const dotCol=stColor(s.statut);
   const init=s.journaliste?s.journaliste.substring(0,2).toUpperCase():'?';
-  return`<div class="card" onclick="openDetail('${s.id}')">
+  const priCol=s.priorite.includes('Haute')?'var(--red)':s.priorite.includes('Normale')?'var(--amber)':s.priorite.includes('Basse')?'var(--green)':'';
+  return`<div class="card" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
       <span class="card-code">${highlightText(s.code||'—',q)}</span>
       <div style="display:flex;align-items:center;gap:6px">
