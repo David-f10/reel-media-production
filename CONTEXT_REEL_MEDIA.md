@@ -5,72 +5,62 @@
 > Section maintenue automatiquement. Les modifs les plus récentes sont en haut.
 > Format : ### YYYY-MM-DD — Titre court / Liste de points / Optionnel : raison
 
+### 2026-05-27 — Évolutions UX Tâches perso (stats, modification, toggle terminées)
+- **Évolution A — Stats pills en haut** : 4 pills colorés alignés horizontalement au-dessus de la liste, affichant les compteurs : `🔴 X en retard` / `🟠 X aujourd'hui` / `🔵 X à venir` / `✓ X terminée(s) aujourd'hui`. Style discret (font-size 11px, padding 4×10px, border-radius 6px). Fond `var(--*-dim)` quand count > 0, fond `var(--bg3)` neutre quand count = 0. Pluralisation auto pour "terminée(s)".
+- **Évolution B — Modification d'une tâche** : click sur le TITRE d'une tâche (zone dédiée avec `cursor:pointer`) → ouvre une modale "Modifier la tâche" avec champs Titre et Date pré-remplis. Bouton "Sauver" appelle `sauverModifTache()` qui PATCH la page Notion (Titre + Date échéance), affiche un toast, et recharge la liste. Zones de clic isolées : checkbox toggle, titre modifie, corbeille archive.
+- **Évolution C — Toggle "Afficher terminées"** : checkbox discrète à droite des stats (style accent-color vert). Par défaut OFF → la section "Terminées" est exclue du rendu. Quand ON → la section apparaît avec les 20 dernières tâches faites. Variable globale `afficherTerminees = false` + fonction `toggleAfficherTerminees()` qui inverse l'état et re-render (pas de re-fetch).
+- **Nouvelles fonctions** : `openModifierTache(id)`, `sauverModifTache()`, `toggleAfficherTerminees()`.
+- **Variables globales** : `afficherTerminees`, `tacheEditId`.
+- **Périmètre strict** : Tâches PERSO uniquement (sidebar). Les Tâches de sujet (fiche détail partagée) sont inchangées.
+- `index.html` : 4947 → 5018 lignes (+71).
+
 ### 2026-05-27 — UX Pastille priorité : bordure droite colorée sur toutes les vues
-- **Problème UX détecté** : la petite pastille ronde colorée à gauche du code (R2 + fix .includes) se confondait visuellement avec les autres points sur la carte (code rouge, statut .sdot). Distinction faible. De plus, elle n'était que sur 1 vue (Par journaliste) alors qu'on voulait une cohérence globale.
-- **Solution UX appliquée** : remplacement par une **bordure verticale droite colorée 3px**, de haut en bas de la carte, appliquée sur **toutes les vues de cartes** :
-  - Vue Cartes (`cardHTML()`) : bordure droite sur chaque `<div class="card">`
-  - Vue Par statut (`renderStatut()`) : bordure droite sur chaque `<div class="kanban-card">`
-  - Vue Par journaliste (`renderJournaliste()`) : idem
-- **Vue Liste** : nouvelle colonne **"Prio"** (largeur 50px) ajoutée entre "Statut" et "Journaliste". Affiche un petit point coloré 8×8px centré (rond), couleur selon priorité, ou rien si vide.
-- **Vue Calendrier** : pas de modif (la couleur de chaque événement représente déjà le format, ajouter la couleur de priorité créerait du conflit visuel).
-- L'ancienne pastille ronde .sdot du fix R2 a été supprimée de `renderJournaliste()`.
-- Détection des priorités via `.includes()` (résiste aux variations d'encodage emoji) :
-  - Contient 'Haute' → `var(--red)`
-  - Contient 'Normale' → `var(--amber)`
-  - Contient 'Basse' → `var(--green)`
-  - Sinon → pas d'indicateur
-- `index.html` : 4938 → 4947 lignes (+9 lignes nettes, ajustements chirurgicaux).
+- Remplacement de la pastille ronde par une bordure verticale droite 3px sur toutes les cartes (Cartes, Par statut, Par journaliste)
+- Nouvelle colonne "Prio" (50px) avec point coloré 8x8px dans la vue Liste
+- Vue Calendrier non modifiée
+- Détection via `.includes()` pour résister aux variations d'encodage emoji
 
 ### 2026-05-27 — Fix R2 : Pastille priorité (comparaison défensive)
 - Problème : pastille colorée (R2 initiale) n'apparaissait pas alors que le tri marchait
-- Cause : comparaison stricte par clé d'objet `{'🔴 Haute': ...}[s.priorite]` échouait à cause d'une variation d'encodage emoji dans Notion
+- Cause : comparaison stricte par clé d'objet `{'🔴 Haute': ...}[s.priorite]` échouait
 - Fix : remplacement par `.includes()` pour matcher par contenu
-- 1 seule ligne modifiée (ligne 3323)
 
 ### 2026-05-27 — Régression 2 + Task Reminder V2 (refonte 2 systèmes)
-- **R2** : pastille couleur de priorité sur cartes vue journaliste (remplacée ensuite par bordure droite UX)
+- R2 : pastille couleur priorité sur cartes vue journaliste
 - **Task Reminder V2 — 2 systèmes distincts** :
-  - **Système 1 — Tâches personnelles (sidebar privée)** : entrée sidebar `📋 Tâches`, badge rouge, vue groupée, tâches privées (filtre Sujet lié vide). Fonctions : `parseTache`, `loadTachesPerso`, `loadTachesBadgeSilent`, `renderTachesPerso`, `openNouvelleTache`, `creerTachePerso`, `toggleTachePerso`, `archiverTachePerso`, `updateBadgeTaches`
-  - **Système 2 — Tâches de sujet (fiche détail partagée)** : section `✅ Tâches` entre Retours et Commentaires. Visible par toute l'équipe. Créateur = Assigné par défaut. Fonctions : `loadTachesSujet`, `openAjoutTacheSujet`, `creerTacheSujet`, `toggleTacheSujet`, `archiverTacheSujet`
+  - **Système 1 — Tâches personnelles (sidebar privée)** : entrée sidebar `📋 Tâches`, badge rouge, vue groupée, filtre Sujet lié vide
+  - **Système 2 — Tâches de sujet (fiche détail partagée)** : section `✅ Tâches` entre Retours et Commentaires, partagée toute équipe
   - Distinction : champ `Sujet lié` vide (perso) ou rempli (sujet)
-  - Fix bug init dashboard via `loadTachesBadgeSilent()`
-- Base Notion `📋 Tâches` (DB_TACHES = `0241d8dc-00a1-461c-9efa-00eb7e5fac70`) avec 7 propriétés
+- Base Notion `📋 Tâches` (DB_TACHES = `0241d8dc-00a1-461c-9efa-00eb7e5fac70`)
 - `index.html` : 4614 → 4938 lignes (+324)
 
 ### 2026-05-27 — Régression 1 : Liens multiples à la création d'une nouvelle idée
-- Modal "Nouvelle idée" : système de liens multiples (aligné sur modal Desk)
+- Modal "Nouvelle idée" : système de liens multiples
 - Variable `ideeRefs` séparée de `modalRefs`
-- Fonctions : `ajouterRefIdee()`, `refreshIdeeRefs()`
-- `index.html` : 4583 → 4614 lignes
 
 ### 2026-05-27 — Phase B PR1 : Extraction CSS vers fichiers séparés
-- Bloc `<style>` inline (~479 lignes) sorti vers 4 fichiers `/css/`
-- `index.html` : 5060 → 4583 lignes
+- Bloc `<style>` inline sorti vers 4 fichiers `/css/`
 - Nouveau `netlify.toml` avec cache-control
 
 ### 2026-05-22 — Phase A : gestion d'erreur globale
 - `window.onerror` + `window.onunhandledrejection`
-- Bandeau `#notion-banner`
-- Bouton "Réessayer" rejoue la dernière requête échouée
+- Bandeau `#notion-banner` avec bouton "Réessayer"
 
 ### 2026-05-22 — Harmonisation sidebar bas
-- 3 boutons en bas de sidebar uniformisés
+- 3 boutons uniformisés
 
 ### 2026-05-21 — Dashboard restructuré en 4 niveaux
 - N1 KPIs / N2 Alertes+Activité / N3 Mensuel+Formats / N4 Délais+Export
 
 ### 2026-05-21 — Ajout entrée Export stats dans sidebar
-- Modal léger avec sélecteurs Mois + Année
-
 ### 2026-05-20 — Modal idée consultation corrigé
-- Padding interne corrigé
 
 ---
 
 ## Infos projet
 - **URL** : reel-media-production.netlify.app
 - **GitHub** : David-f10/reel-media-production
-- **Fichier principal** : `index.html` (~4947 lignes)
+- **Fichier principal** : `index.html` (~5018 lignes)
 - **CSS** : 4 fichiers dans `/css/` (base, layout, components, views)
 - **Build config** : `netlify.toml`
 - **Netlify Functions** : notion.js (proxy API Notion) + login.js (auth)
@@ -95,7 +85,7 @@
 ## ⚠️ Règles d'or à respecter (ne jamais casser)
 - Le fichier `index.html` dans le project knowledge est **LA SOURCE OFFICIELLE À JOUR**
 - **Ne jamais repartir de zéro** — toujours modifier le fichier existant
-- **Toute modif** doit être livrée sous forme d'un fichier `index.html` complet à télécharger
+- **Toute modif** doit être livrée sous forme d'un fichier `index.html` complet
 - **À chaque modif d'index.html**, livrer aussi un `CONTEXT_REEL_MEDIA.md` à jour
 - `EQUIPE_FALLBACK = []` — ne JAMAIS remettre les codes en clair
 - `CHEF_PAR_DEFAUT = 'Benjamin'`
@@ -108,8 +98,9 @@
 - **PR 1 ✅** (2026-05-27) : extraction CSS vers 4 fichiers
 - **R1 ✅** (2026-05-27) : liens multiples idée
 - **R2 + Task Reminder V2 ✅** (2026-05-27) : 2 systèmes tâches
-- **Fix R2 .includes ✅** (2026-05-27) : pastille fonctionne
-- **UX Pastille bordure droite ✅** (2026-05-27) : cohérence sur toutes les vues
+- **Fix R2 .includes ✅** (2026-05-27)
+- **UX Pastille bordure droite ✅** (2026-05-27)
+- **Évolutions Tâches perso ✅** (2026-05-27) : stats + modification + toggle terminées
 - **PR 2-6** : EN PAUSE jusqu'à utilisation réelle avec les journalistes
 
 ## État du code — corrections déjà appliquées
@@ -121,11 +112,9 @@
 ### 👥 Équipe
 - Brand : Victor, Louise, Arnaud C
 - `renderEquipeList()` groupé par rôle
-- `equippeAjouter()` crée dans Notion avec code auto
 
 ### 🎵 Musiques / PAD
 - Boutons 🎵/🔇 dans le step PAD
-- `padPret = capDeposee && (sansMusique || releveMusique)`
 
 ### 🛡️ Robustesse
 - Retry API 429/503 (3 tentatives)
@@ -133,37 +122,50 @@
 - **Phase A** : gestion d'erreur globale
 
 ### 🚦 Priorité (état actuel — UX complète)
-- `priorite` dans `parsePage`
-- Select Priorité dans la fiche détail (3 valeurs : Haute / Normale / Basse)
+- Select Priorité dans la fiche détail (3 valeurs)
 - Tri par priorité dans `renderJournaliste`
-- **Indicateur visuel UX** : bordure verticale droite 3px colorée sur les cartes (Cartes, Par statut, Par journaliste) + colonne dédiée "Prio" avec point coloré dans la vue Liste
+- **Indicateur visuel UX** : bordure verticale droite 3px sur cartes + colonne dédiée "Prio" dans Liste
 - Détection par `.includes()` pour résister aux variations d'encodage emoji
-- Vue Calendrier non affectée (la couleur format est déjà visuellement présente)
+- Vue Calendrier non affectée
 
 ### 🔔 Notifications
 - `updStatut` : notifs PAD→journaliste, Retours→journaliste, MontageV1→chef
-- `toggleRetour` : notif chef quand retour corrigé
 
 ### ✏️ Pré-remplissage
 - `CHEF_PAR_DEFAUT = 'Benjamin'`
 
-### ✅ Task Reminder (2 systèmes)
-- **Système 1 — Tâches personnelles** : sidebar `📋 Tâches`, privées, badge rouge, init silencieuse
-- **Système 2 — Tâches de sujet** : section dans `openDetail()` entre Retours et Commentaires, partagées
-- Distinction Notion : champ `Sujet lié`
+### ✅ Task Reminder — État complet (V2 + évolutions UX)
+- **Système 1 — Tâches personnelles** (sidebar `📋 Tâches`) :
+  - Filtre Notion : Archivé=false + Assigné=currentUser + Sujet lié vide
+  - **Stats pills en haut** : 4 compteurs colorés (En retard / Aujourd'hui / À venir / Terminées aujourd'hui)
+  - **Toggle "Afficher terminées"** à droite des stats (OFF par défaut)
+  - Vue groupée 4 sections (la 4e Terminées masquée par défaut)
+  - Badge rouge sidebar si ≥1 tâche en retard/aujourd'hui
+  - **Modification d'une tâche** : click sur titre → modale (Titre + Date pré-remplis) → "Sauver"
+  - Initialisation silencieuse via `loadTachesBadgeSilent` (login)
+  - Variables : `afficherTerminees`, `tacheEditId`
+  - Fonctions principales : `loadTachesPerso`, `loadTachesBadgeSilent`, `renderTachesPerso`, `openNouvelleTache`, `creerTachePerso`, `toggleTachePerso`, `archiverTachePerso`, `openModifierTache`, `sauverModifTache`, `toggleAfficherTerminees`, `updateBadgeTaches`
+- **Système 2 — Tâches de sujet** (fiche détail) : INCHANGÉ depuis V2
+  - Section `✅ Tâches` entre Retours et Commentaires
+  - Partagées par toute l'équipe
+  - Créateur = Assigné par défaut
+  - Fonctions : `loadTachesSujet`, `openAjoutTacheSujet`, `creerTacheSujet`, `toggleTacheSujet`, `archiverTacheSujet`
+- **Distinction Notion** : champ `Sujet lié` vide (perso) ou rempli (sujet)
 
 ### 🪟 UX divers
 - Modal "Nouvelle idée" : système de liens multiples (R1)
-- Variable `ideeRefs` (Idée) séparée de `modalRefs` (Desk)
+- Variable `ideeRefs` séparée de `modalRefs`
 - Bordure droite colorée pour priorité (cohérence visuelle toutes vues)
 
 ## 🔧 Ce qui reste à faire
-1. **Phase B PR2-6** (en pause) : reprendre quand on travaille avec les journalistes en live
-2. **Backup automatique** (GitHub Actions, export Notion → JSON nightly)
-3. **Monitoring Sentry**
-4. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
-5. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` reset à zéro
-6. **Notifications pour tâches de sujet** (à évaluer à l'usage)
+1. **Test journalistes en live** : c'est l'étape suivante ! Observer leurs usages réels du Task Reminder + bordure priorité
+2. **Phase B PR2-6** (en pause) : reprendre quand on travaille avec les journalistes en live
+3. **Backup automatique** (GitHub Actions, export Notion → JSON nightly)
+4. **Monitoring Sentry**
+5. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
+6. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` reset à zéro
+7. **Notifications pour tâches de sujet** (à évaluer à l'usage)
+8. **Évolutions Task Reminder V3** (à évaluer après test journalistes) : tâches récurrentes, sous-tâches, description, catégories/tags, épingler
 
 ## 📋 Workflow de modification
 1. David décrit la modif voulue
@@ -178,10 +180,13 @@
 10. David clique "Synchroniser maintenant"
 
 ## 🎨 Variables CSS clés
-- `--red`, `--amber`, `--green` : indicateurs priorité (Haute/Normale/Basse)
+- `--red`, `--amber`, `--green`, `--blue`, `--purple` : couleurs principales
+- `--red-dim`, `--amber-dim`, `--green-dim`, `--blue-dim`, `--purple-dim` : variantes "diluées" (15% opacité) pour fonds de pills/badges
 - `--bg2`, `--bg3`, `--bg4` : fonds
 - `--border`, `--border2` : bordures
 - `--text`, `--text2`, `--text3` : hiérarchie texte
+- `--font` : DM Sans
+- `--mono` : DM Mono
 
 ## 👥 Équipe (rôles)
 - **Chef** : Benjamin (par défaut), autres à compléter

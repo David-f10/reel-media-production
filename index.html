@@ -4212,6 +4212,9 @@ async function loadTachesBadgeSilent() {
   } catch (_) {}
 }
 
+let afficherTerminees = false;
+let tacheEditId = null;
+
 function renderTachesPerso() {
   const mc = document.getElementById('main-content');
   const today = new Date().toISOString().slice(0, 10);
@@ -4220,6 +4223,7 @@ function renderTachesPerso() {
   const aujourdhui = taches.filter(t => t.statut === 'À faire' && t.dateEcheance === today);
   const aVenir = taches.filter(t => t.statut === 'À faire' && (!t.dateEcheance || t.dateEcheance > today));
   const terminees = taches.filter(t => t.statut === 'Fait').sort((a, b) => (b.lastEdited || '').localeCompare(a.lastEdited || '')).slice(0, 20);
+  const termineesAujourdhui = taches.filter(t => t.statut === 'Fait' && t.lastEdited && t.lastEdited.slice(0, 10) === today).length;
 
   if (!enRetard.length && !aujourdhui.length && !aVenir.length && !terminees.length) {
     mc.innerHTML = `<div class="empty">
@@ -4230,13 +4234,32 @@ function renderTachesPerso() {
     return;
   }
 
-  let html = '';
+  // Pills stats
+  const pills = [
+    {label: 'en retard', count: enRetard.length, bg: 'var(--red-dim)', color: 'var(--red)'},
+    {label: "aujourd'hui", count: aujourdhui.length, bg: 'var(--amber-dim)', color: 'var(--amber)'},
+    {label: 'à venir', count: aVenir.length, bg: 'var(--blue-dim)', color: 'var(--blue)'},
+    {label: 'terminée' + (termineesAujourdhui > 1 ? 's' : '') + ' aujourd\'hui', count: termineesAujourdhui, bg: 'var(--green-dim)', color: 'var(--green)'}
+  ];
+
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${pills.map(p => `<span style="font-size:11px;padding:4px 10px;border-radius:6px;background:${p.count ? p.bg : 'var(--bg3)'};color:${p.count ? p.color : 'var(--text3)'};white-space:nowrap">${p.count} ${p.label}</span>`).join('')}
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer;white-space:nowrap;flex-shrink:0">
+      <input type="checkbox" ${afficherTerminees ? 'checked' : ''} onchange="toggleAfficherTerminees()" style="width:13px;height:13px;accent-color:var(--green);cursor:pointer">
+      Afficher terminées
+    </label>
+  </div>`;
+
   const sections = [
     {emoji: '🔴', label: 'En retard', items: enRetard, color: 'var(--red)'},
     {emoji: '🟠', label: "Aujourd'hui", items: aujourdhui, color: 'var(--amber)'},
-    {emoji: '🔵', label: 'À venir', items: aVenir, color: 'var(--blue)'},
-    {emoji: '✓', label: 'Terminées', items: terminees, color: 'var(--green)'}
+    {emoji: '🔵', label: 'À venir', items: aVenir, color: 'var(--blue)'}
   ];
+  if (afficherTerminees) {
+    sections.push({emoji: '✓', label: 'Terminées', items: terminees, color: 'var(--green)'});
+  }
 
   sections.forEach(sec => {
     if (!sec.items.length) return;
@@ -4247,7 +4270,7 @@ function renderTachesPerso() {
       html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);transition:background 0.1s"
         onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
         <div class="retour-check${isDone ? ' done' : ''}" onclick="toggleTachePerso('${t.id}')" title="${isDone ? 'Marquer à faire' : 'Marquer fait'}">${isDone ? '✓' : ''}</div>
-        <div style="flex:1;min-width:0">
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openModifierTache('${t.id}')">
           <div style="font-size:13px;color:var(--text);${isDone ? 'text-decoration:line-through;opacity:0.5' : ''}">${t.titre}</div>
         </div>
         <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;flex-shrink:0">${fmtDate(t.dateEcheance)}</span>
@@ -4326,6 +4349,54 @@ async function archiverTachePerso(id) {
     updateBadgeTaches();
     renderTachesPerso();
     toast('Tâche archivée', 'ok');
+  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
+function toggleAfficherTerminees() {
+  afficherTerminees = !afficherTerminees;
+  renderTachesPerso();
+}
+
+function openModifierTache(id) {
+  const t = taches.find(x => x.id === id);
+  if (!t) return;
+  tacheEditId = id;
+  const modal = document.createElement('div');
+  modal.className = 'overlay open';
+  modal.id = 'ov-modifier-tache';
+  modal.innerHTML = `<div class="modal" style="max-width:480px">
+    <div class="modal-hdr">
+      <div class="modal-title">📋 Modifier la tâche</div>
+      <button class="modal-close" onclick="document.getElementById('ov-modifier-tache').remove()">×</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div class="field"><div class="field-label">Titre *</div>
+        <input type="text" id="mt-titre" value="${t.titre.replace(/"/g,'&quot;')}"></div>
+      <div class="field"><div class="field-label">Date d'échéance *</div>
+        <input type="date" id="mt-date" value="${t.dateEcheance}"></div>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button class="nav-btn" onclick="document.getElementById('ov-modifier-tache').remove()">Annuler</button>
+      <button class="nav-btn primary" onclick="sauverModifTache()">Sauver</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function sauverModifTache() {
+  const titre = document.getElementById('mt-titre')?.value.trim();
+  const date = document.getElementById('mt-date')?.value;
+  if (!titre) { toast('Ajoutez un titre', 'err'); return; }
+  if (!date) { toast('Choisissez une date', 'err'); return; }
+  try {
+    await api('/pages/' + tacheEditId, 'PATCH', {properties: {
+      'Titre': {title: [{text: {content: titre}}]},
+      'Date échéance': {date: {start: date}}
+    }});
+    toast('✓ Tâche modifiée', 'ok');
+    document.getElementById('ov-modifier-tache')?.remove();
+    loadTachesPerso();
   } catch (e) { toast('Erreur : ' + e.message, 'err'); }
 }
 
