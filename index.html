@@ -3035,6 +3035,30 @@ function refreshModalRefs() {
     </div>`).join('');
 }
 
+// Liens de référence dans le modal "Nouvelle idée"
+let ideeRefs = [];
+function ajouterRefIdee() {
+  const input = document.getElementById('ni-ref-input');
+  let url = input?.value.trim();
+  if(!url) { toast('Collez un lien','err'); return; }
+  if(!url.startsWith('http')) url = 'https://'+url;
+  ideeRefs.push(url);
+  input.value = '';
+  refreshIdeeRefs();
+}
+function refreshIdeeRefs() {
+  const list = document.getElementById('ni-refs-list');
+  if(!list) return;
+  list.innerHTML = ideeRefs.map((u,i) => `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="flex:1;font-size:11px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+        title="${u}">${u.replace(/^https?:\/\//,'').substring(0,50)}${u.length>53?'...':''}</span>
+      <button onclick="ideeRefs.splice(${i},1);refreshIdeeRefs()"
+        style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0 4px">×</button>
+    </div>
+  `).join('');
+}
+
 let _createEnCours=false;
 async function createSujet(){
   if(_createEnCours){toast('Création en cours...','err');return;}
@@ -4036,6 +4060,7 @@ async function demarrerIdee(id) {
 }
 
 function openNouvelleIdee() {
+  ideeRefs = [];
   const modal = document.createElement('div');
   modal.className = 'overlay open';
   modal.id = 'ov-nouvelle-idee';
@@ -4057,8 +4082,13 @@ function openNouvelleIdee() {
         </select></div>
     </div>
     <div style="padding:0 20px 16px">
-      <div class="field-label" style="margin-bottom:6px">Lien de référence <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
-      <input type="url" id="ni-ref" placeholder="https://..." style="font-size:12px;width:100%">
+      <div class="field-label" style="margin-bottom:6px">Liens de référence <span style="color:var(--text3);font-size:10px">(optionnel — plusieurs possibles)</span></div>
+      <div id="ni-refs-list"></div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input type="url" id="ni-ref-input" placeholder="https://..." style="flex:1;font-size:12px"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterRefIdee()}">
+        <button class="nav-btn" onclick="ajouterRefIdee()" style="white-space:nowrap;font-size:11px">+ Ajouter</button>
+      </div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="document.getElementById('ov-nouvelle-idee').remove()">Annuler</button>
@@ -4083,17 +4113,18 @@ async function soumettreidee() {
     if(desc) props['Description'] = {rich_text:[{text:{content:desc}}]};
     if(fmt) props['Format envisagé'] = {select:{name:fmt}};
     const newIdee = await api('/pages','POST',{parent:{database_id:DB_IDEES},properties:props});
-    // Ajouter le lien de référence si renseigné
-    const refUrl = document.getElementById('ni-ref')?.value.trim();
-    if(refUrl && newIdee?.id) {
-      let url = refUrl.startsWith('http') ? refUrl : 'https://'+refUrl;
-      await api('/pages','POST',{
-        parent:{database_id:DB_REFS},
-        properties:{
-          'Titre':{title:[{text:{content:url}}]},
-          'Sujet ID':{rich_text:[{text:{content:newIdee.id}}]}
-        }
-      });
+    // Sauvegarder tous les liens de référence
+    if(ideeRefs.length > 0 && newIdee?.id) {
+      await Promise.all(ideeRefs.map(url =>
+        api('/pages','POST',{
+          parent:{database_id:DB_REFS},
+          properties:{
+            'Titre':{title:[{text:{content:url}}]},
+            'Sujet ID':{rich_text:[{text:{content:newIdee.id}}]}
+          }
+        })
+      ));
+      ideeRefs = [];
     }
     document.getElementById('ov-nouvelle-idee')?.remove();
     toast('💡 Idée proposée !','ok');
