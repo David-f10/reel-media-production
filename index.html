@@ -130,6 +130,11 @@
         <span style="flex:1;text-align:left">Idées</span>
         <span class="sb-badge" id="cnt-idees">—</span>
       </button>
+      <button class="sb-item" id="nav-taches" onclick="navTo('taches')">
+        <span class="sb-icon">📋</span>
+        <span style="flex:1;text-align:left">Tâches</span>
+        <span class="sb-badge" id="cnt-taches" style="display:none;background:var(--red);width:7px;height:7px;border-radius:50%;padding:0;min-width:0"></span>
+      </button>
       <button class="sb-item" id="nav-archives" onclick="navTo('archives')">
         <span class="sb-icon">📦</span>
         <span style="flex:1;text-align:left">Archives</span>
@@ -434,10 +439,11 @@ const FORMATS_INTERNES = ['Interne'];
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
 const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
+const DB_TACHES='0241d8dc-00a1-461c-9efa-00eb7e5fac70';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
-let sujets=[],sujetsArchives=[],idees=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
+let sujets=[],sujetsArchives=[],idees=[],taches=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
 let currentUser=null; // {id, nom, role}
 
 function getPrefixe(p){
@@ -1030,6 +1036,20 @@ function openDetail(id, forcePadOpen=false){
 
   </div>`;
 
+  // Tâches de sujet
+  html+=`<div class="step" style="padding:0;overflow:hidden" id="taches-section-${id}">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <span class="step-ttl">✅ Tâches</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:8px;font-family:var(--mono)" id="taches-count-${id}">...</span>
+        <button onclick="openAjoutTacheSujet('${id}')" class="nav-btn primary" style="font-size:10px;padding:3px 10px">+ Ajouter</button>
+      </div>
+    </div>
+    <div id="taches-list-${id}" style="min-height:40px">
+      <div style="padding:14px 16px;font-size:11px;color:var(--text3)">Chargement...</div>
+    </div>
+  </div>`;
+
   // Commentaires
   html+=`<div class="step" id="comments-section-${id}">
     <div class="step-hdr">
@@ -1063,6 +1083,7 @@ function openDetail(id, forcePadOpen=false){
   if(s.releveMusique) setTimeout(()=>loadMusiques(id), 100);
   // Charger les retours et commentaires
   loadRetours(id);
+  loadTachesSujet(id);
   loadComments(id);
 }
 
@@ -2198,6 +2219,7 @@ function showApp() {
   appLoadData().then(() => {
     navTo('dashboard');
     loadNotifs();
+    loadTachesBadgeSilent();
     // Rafraîchir les notifs toutes les 60 secondes
     setInterval(loadNotifs, 60000);
   });
@@ -3298,8 +3320,9 @@ function renderJournaliste(){
     items.forEach(s=>{
       const fmt=FMT_COLORS[s.format]||'#888';
       const dotCol=stColor(s.statut);
+      const priCol={'🔴 Haute':'var(--red)','🟡 Normale':'var(--amber)','🟢 Basse':'var(--green)'}[s.priorite]||'';
       html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
-        <div class="kanban-card-code">${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
+        <div class="kanban-card-code">${priCol?`<span class="sdot" style="background:${priCol};width:6px;height:6px;display:inline-block;border-radius:50%;margin-right:4px;vertical-align:middle"></span>`:''}${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
         <div class="kanban-card-title">${s.titre}</div>
         <div class="kanban-card-meta" style="display:flex;align-items:center;gap:4px">
           <div class="sdot" style="background:${dotCol};width:5px;height:5px;border-radius:50%;flex-shrink:0"></div>
@@ -4132,6 +4155,297 @@ async function soumettreidee() {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
+// ─── TÂCHES PERSONNELLES (Système 1 — sidebar privée) ───
+
+function parseTache(p) {
+  const pr = p.properties;
+  return {
+    id: p.id,
+    titre: pr['Titre']?.title?.[0]?.plain_text || 'Sans titre',
+    statut: pr['Statut']?.select?.name || 'À faire',
+    dateEcheance: pr['Date échéance']?.date?.start || '',
+    assigne: pr['Assigné']?.rich_text?.[0]?.plain_text || '',
+    creePar: pr['Créé par']?.rich_text?.[0]?.plain_text || '',
+    sujetLie: pr['Sujet lié']?.rich_text?.[0]?.plain_text || '',
+    lastEdited: p.last_edited_time || ''
+  };
+}
+
+async function loadTachesPerso() {
+  if (!currentUser) return;
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
+  try {
+    const data = await api('/databases/' + DB_TACHES + '/query', 'POST', {
+      filter: {and: [
+        {property: 'Archivé', checkbox: {equals: false}},
+        {property: 'Assigné', rich_text: {equals: currentUser.nom}},
+        {property: 'Sujet lié', rich_text: {is_empty: true}}
+      ]},
+      sorts: [{property: 'Date échéance', direction: 'ascending'}],
+      page_size: 100
+    });
+    taches = data.results.map(parseTache);
+    updateBadgeTaches();
+    renderTachesPerso();
+  } catch (e) {
+    mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`;
+  }
+}
+
+async function loadTachesBadgeSilent() {
+  if (!currentUser) return;
+  try {
+    const data = await api('/databases/' + DB_TACHES + '/query', 'POST', {
+      filter: {and: [
+        {property: 'Archivé', checkbox: {equals: false}},
+        {property: 'Assigné', rich_text: {equals: currentUser.nom}},
+        {property: 'Sujet lié', rich_text: {is_empty: true}}
+      ]},
+      sorts: [{property: 'Date échéance', direction: 'ascending'}],
+      page_size: 100
+    });
+    taches = data.results.map(parseTache);
+    updateBadgeTaches();
+  } catch (_) {}
+}
+
+function renderTachesPerso() {
+  const mc = document.getElementById('main-content');
+  const today = new Date().toISOString().slice(0, 10);
+
+  const enRetard = taches.filter(t => t.statut === 'À faire' && t.dateEcheance && t.dateEcheance < today);
+  const aujourdhui = taches.filter(t => t.statut === 'À faire' && t.dateEcheance === today);
+  const aVenir = taches.filter(t => t.statut === 'À faire' && (!t.dateEcheance || t.dateEcheance > today));
+  const terminees = taches.filter(t => t.statut === 'Fait').sort((a, b) => (b.lastEdited || '').localeCompare(a.lastEdited || '')).slice(0, 20);
+
+  if (!enRetard.length && !aujourdhui.length && !aVenir.length && !terminees.length) {
+    mc.innerHTML = `<div class="empty">
+      <h3>Aucune tâche</h3>
+      <p style="margin-bottom:14px">Vos rappels personnels apparaîtront ici.</p>
+      <button class="nav-btn primary" onclick="openNouvelleTache()">+ Nouvelle tâche</button>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+  const sections = [
+    {emoji: '🔴', label: 'En retard', items: enRetard, color: 'var(--red)'},
+    {emoji: '🟠', label: "Aujourd'hui", items: aujourdhui, color: 'var(--amber)'},
+    {emoji: '🔵', label: 'À venir', items: aVenir, color: 'var(--blue)'},
+    {emoji: '✓', label: 'Terminées', items: terminees, color: 'var(--green)'}
+  ];
+
+  sections.forEach(sec => {
+    if (!sec.items.length) return;
+    html += `<div style="margin-bottom:24px">
+      <div class="dash-section-title" style="color:${sec.color}">${sec.emoji} ${sec.label} (${sec.items.length})</div>`;
+    sec.items.forEach(t => {
+      const isDone = t.statut === 'Fait';
+      html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);transition:background 0.1s"
+        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+        <div class="retour-check${isDone ? ' done' : ''}" onclick="toggleTachePerso('${t.id}')" title="${isDone ? 'Marquer à faire' : 'Marquer fait'}">${isDone ? '✓' : ''}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--text);${isDone ? 'text-decoration:line-through;opacity:0.5' : ''}">${t.titre}</div>
+        </div>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;flex-shrink:0">${fmtDate(t.dateEcheance)}</span>
+        <button onclick="archiverTachePerso('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px;flex-shrink:0" title="Archiver">🗑</button>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  mc.innerHTML = html;
+}
+
+function openNouvelleTache() {
+  const modal = document.createElement('div');
+  modal.className = 'overlay open';
+  modal.id = 'ov-nouvelle-tache';
+  const today = new Date().toISOString().slice(0, 10);
+  modal.innerHTML = `<div class="modal" style="max-width:480px">
+    <div class="modal-hdr">
+      <div class="modal-title">📋 Nouvelle tâche</div>
+      <button class="modal-close" onclick="document.getElementById('ov-nouvelle-tache').remove()">×</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div class="field"><div class="field-label">Titre *</div>
+        <input type="text" id="nt-titre" placeholder="Ex: Appeler Marie pour le micro"></div>
+      <div class="field"><div class="field-label">Date d'échéance *</div>
+        <input type="date" id="nt-date" value="${today}"></div>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button class="nav-btn" onclick="document.getElementById('ov-nouvelle-tache').remove()">Annuler</button>
+      <button class="nav-btn primary" onclick="creerTachePerso()">Créer →</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function creerTachePerso() {
+  const titre = document.getElementById('nt-titre')?.value.trim();
+  const date = document.getElementById('nt-date')?.value;
+  if (!titre) { toast('Ajoutez un titre', 'err'); return; }
+  if (!date) { toast('Choisissez une date', 'err'); return; }
+  try {
+    await api('/pages', 'POST', {parent: {database_id: DB_TACHES}, properties: {
+      'Titre': {title: [{text: {content: titre}}]},
+      'Statut': {select: {name: 'À faire'}},
+      'Date échéance': {date: {start: date}},
+      'Assigné': {rich_text: [{text: {content: currentUser.nom}}]},
+      'Créé par': {rich_text: [{text: {content: currentUser.nom}}]},
+      'Archivé': {checkbox: false}
+    }});
+    toast('✓ Tâche créée', 'ok');
+    document.getElementById('ov-nouvelle-tache')?.remove();
+    loadTachesPerso();
+  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
+async function toggleTachePerso(id) {
+  const t = taches.find(x => x.id === id);
+  if (!t) return;
+  const newStatut = t.statut === 'Fait' ? 'À faire' : 'Fait';
+  try {
+    await api('/pages/' + id, 'PATCH', {properties: {'Statut': {select: {name: newStatut}}}});
+    t.statut = newStatut;
+    updateBadgeTaches();
+    renderTachesPerso();
+  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
+async function archiverTachePerso(id) {
+  const ok = await confirmerAction('Archiver cette tâche ?', 'Archiver', 'Annuler');
+  if (!ok) return;
+  try {
+    await api('/pages/' + id, 'PATCH', {properties: {'Archivé': {checkbox: true}}});
+    taches = taches.filter(t => t.id !== id);
+    updateBadgeTaches();
+    renderTachesPerso();
+    toast('Tâche archivée', 'ok');
+  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
+function updateBadgeTaches() {
+  const today = new Date().toISOString().slice(0, 10);
+  const urgent = taches.filter(t => t.statut === 'À faire' && t.dateEcheance && t.dateEcheance <= today && !t.sujetLie).length;
+  const badge = document.getElementById('cnt-taches');
+  if (badge) badge.style.display = urgent > 0 ? 'inline-block' : 'none';
+}
+
+// ─── TÂCHES DE SUJET (Système 2 — fiche détail partagée) ───
+
+let tacheSujetIdCourant = null;
+
+async function loadTachesSujet(sujetId) {
+  const listEl = document.getElementById('taches-list-' + sujetId);
+  const countEl = document.getElementById('taches-count-' + sujetId);
+  if (!listEl) return;
+  try {
+    const data = await api('/databases/' + DB_TACHES + '/query', 'POST', {
+      filter: {and: [
+        {property: 'Archivé', checkbox: {equals: false}},
+        {property: 'Sujet lié', rich_text: {equals: sujetId}}
+      ]},
+      sorts: [{property: 'Date échéance', direction: 'ascending'}],
+      page_size: 100
+    });
+    const items = data.results.map(parseTache);
+    const aFaire = items.filter(t => t.statut === 'À faire').length;
+    if (countEl) {
+      countEl.textContent = aFaire > 0 ? `${aFaire} à faire` : items.length > 0 ? 'Tout fait ✅' : '0';
+      countEl.className = 'pill ' + (aFaire > 0 ? 'p-amber' : 'p-green');
+    }
+    if (!items.length) {
+      listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 14px">Aucune tâche sur ce sujet</div>';
+      return;
+    }
+    let html = '';
+    items.forEach(t => {
+      const isDone = t.statut === 'Fait';
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);${isDone ? 'opacity:0.45' : ''}"
+        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+        <div class="retour-check${isDone ? ' done' : ''}" onclick="toggleTacheSujet('${t.id}','${sujetId}','${t.statut}')" title="${isDone ? 'Rouvrir' : 'Marquer fait'}">${isDone ? '✓' : ''}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:var(--text);${isDone ? 'text-decoration:line-through' : ''}">${t.titre}</div>
+        </div>
+        <span style="font-size:10px;color:var(--text3);white-space:nowrap">${t.creePar ? 'par ' + t.creePar : ''}</span>
+        <span style="font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;flex-shrink:0">${fmtDate(t.dateEcheance)}</span>
+        <button onclick="archiverTacheSujet('${t.id}','${sujetId}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0 4px;flex-shrink:0" title="Archiver">🗑</button>
+      </div>`;
+    });
+    listEl.innerHTML = html;
+  } catch (e) {
+    listEl.innerHTML = `<div style="font-size:11px;color:var(--red);padding:4px 14px">${e.message}</div>`;
+  }
+}
+
+function openAjoutTacheSujet(sujetId) {
+  tacheSujetIdCourant = sujetId;
+  const modal = document.createElement('div');
+  modal.className = 'overlay open';
+  modal.id = 'ov-tache-sujet';
+  const today = new Date().toISOString().slice(0, 10);
+  modal.innerHTML = `<div class="modal" style="max-width:420px">
+    <div class="modal-hdr">
+      <div class="modal-title">✅ Nouvelle tâche sujet</div>
+      <button class="modal-close" onclick="document.getElementById('ov-tache-sujet').remove()">×</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div class="field"><div class="field-label">Titre *</div>
+        <input type="text" id="nts-titre" placeholder="Ex: Vérifier les rushs"></div>
+      <div class="field"><div class="field-label">Date d'échéance *</div>
+        <input type="date" id="nts-date" value="${today}"></div>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button class="nav-btn" onclick="document.getElementById('ov-tache-sujet').remove()">Annuler</button>
+      <button class="nav-btn primary" onclick="creerTacheSujet()">Créer →</button>
+    </div>
+  </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function creerTacheSujet() {
+  const titre = document.getElementById('nts-titre')?.value.trim();
+  const date = document.getElementById('nts-date')?.value;
+  if (!titre) { toast('Ajoutez un titre', 'err'); return; }
+  if (!date) { toast('Choisissez une date', 'err'); return; }
+  try {
+    await api('/pages', 'POST', {parent: {database_id: DB_TACHES}, properties: {
+      'Titre': {title: [{text: {content: titre}}]},
+      'Statut': {select: {name: 'À faire'}},
+      'Date échéance': {date: {start: date}},
+      'Assigné': {rich_text: [{text: {content: currentUser.nom}}]},
+      'Créé par': {rich_text: [{text: {content: currentUser.nom}}]},
+      'Sujet lié': {rich_text: [{text: {content: tacheSujetIdCourant}}]},
+      'Archivé': {checkbox: false}
+    }});
+    toast('✓ Tâche ajoutée', 'ok');
+    document.getElementById('ov-tache-sujet')?.remove();
+    loadTachesSujet(tacheSujetIdCourant);
+  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
+async function toggleTacheSujet(tacheId, sujetId, currentStatut) {
+  const newStatut = currentStatut === 'Fait' ? 'À faire' : 'Fait';
+  try {
+    await api('/pages/' + tacheId, 'PATCH', {properties: {'Statut': {select: {name: newStatut}}}});
+    loadTachesSujet(sujetId);
+  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
+async function archiverTacheSujet(tacheId, sujetId) {
+  const ok = await confirmerAction('Archiver cette tâche ?', 'Archiver', 'Annuler');
+  if (!ok) return;
+  try {
+    await api('/pages/' + tacheId, 'PATCH', {properties: {'Archivé': {checkbox: true}}});
+    loadTachesSujet(sujetId);
+    toast('Tâche archivée', 'ok');
+  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
+}
+
 async function renderArchives() {
   const mc = document.getElementById('main-content');
   if(!sujetsArchives.length) {
@@ -4438,6 +4752,16 @@ function appRender() {
     document.getElementById('sb-filters').style.display = 'none';
     clearSearch();
     loadIdees();
+    return;
+  }
+  if(currentPage === 'taches') {
+    document.getElementById('breadcrumb').textContent = 'Tâches';
+    document.getElementById('main-actions').innerHTML = `
+      <button class="nav-btn primary" onclick="openNouvelleTache()" style="font-size:11px;white-space:nowrap">+ Nouvelle tâche</button>`;
+    document.getElementById('view-tabs').style.display = 'none';
+    document.getElementById('sb-filters').style.display = 'none';
+    clearSearch();
+    loadTachesPerso();
     return;
   }
   if(currentPage === 'archives') {

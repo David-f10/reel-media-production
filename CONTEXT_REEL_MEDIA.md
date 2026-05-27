@@ -5,6 +5,30 @@
 > Section maintenue automatiquement. Les modifs les plus récentes sont en haut.
 > Format : ### YYYY-MM-DD — Titre court / Liste de points / Optionnel : raison
 
+### 2026-05-27 — Régression 2 + Task Reminder V2 (refonte 2 systèmes)
+- **Régression 2 — Pastille priorité vue journaliste** : pastille colorée 6×6px ajoutée à côté du code sujet sur chaque carte de `renderJournaliste()`. Couleurs alignées sur les variables CSS : Haute=`var(--red)`, Normale=`var(--amber)`, Basse=`var(--green)`. Réutilise la classe `.sdot` existante. Pas de pastille si priorité vide. Le tri par priorité (qui existait déjà) reste inchangé. Aucune modif des autres vues.
+- **Task Reminder V2 — Refonte en 2 systèmes distincts** suite à clarification produit :
+  - **Système 1 — Tâches personnelles (sidebar privée)** :
+    - Nouvelle entrée sidebar `📋 Tâches` entre Idées et Archives
+    - Badge rouge discret (point 7×7px) si ≥1 tâche perso en retard/aujourd'hui
+    - Tâches PRIVÉES : chaque user voit uniquement les siennes
+    - Filtre Notion : `Archivé=false AND Assigné=currentUser AND Sujet lié=vide`
+    - Vue groupée 4 sections : 🔴 En retard / 🟠 Aujourd'hui / 🔵 À venir / ✓ Terminées (20 dernières)
+    - Modal création : Titre + Date (PAS de champ Sujet lié)
+    - Fonctions : `parseTache`, `loadTachesPerso`, `loadTachesBadgeSilent`, `renderTachesPerso`, `openNouvelleTache`, `creerTachePerso`, `toggleTachePerso`, `archiverTachePerso`, `updateBadgeTaches`
+  - **Système 2 — Tâches de sujet (fiche détail partagée)** :
+    - Nouvelle section `✅ Tâches` dans la fiche détail d'un sujet, entre `📋 Retours équipe` et `💬 Commentaires`
+    - Pattern visuel/code identique à la section Retours équipe (cloné)
+    - Tâches PARTAGÉES : tous les users voient les tâches d'un sujet (collaboratif comme les retours)
+    - Filtre Notion : `Archivé=false AND Sujet lié=sujetId`
+    - Modal création : Titre + Date (Sujet lié auto = sujet courant, Créateur = Assigné par défaut)
+    - Affichage : checkbox, titre, date, "par [créateur]", bouton corbeille, statut Fait avec line-through
+    - Fonctions : `loadTachesSujet`, `openAjoutTacheSujet`, `creerTacheSujet`, `toggleTacheSujet`, `archiverTacheSujet`
+  - **Distinction stricte** : la seule différence Notion entre les 2 systèmes est le champ `Sujet lié`. Une tâche perso a Sujet lié vide, une tâche de sujet a Sujet lié rempli avec un UUID.
+  - **Fix bug init dashboard** : `loadTachesBadgeSilent()` est appelée après `navTo('dashboard')` au login. Cette fonction met à jour le badge sans toucher `main-content`, évitant que le dashboard soit écrasé par la vue Tâches au démarrage.
+- Base Notion `📋 Tâches` (DB_TACHES = `0241d8dc-00a1-461c-9efa-00eb7e5fac70`) créée préalablement par le chat master, avec 7 propriétés : Titre (title), Statut (select À faire/Fait), Date échéance (date), Assigné (rich_text), Créé par (rich_text), Sujet lié (rich_text), Archivé (checkbox).
+- `index.html` : 4614 → 4938 lignes (+324 lignes ajoutées).
+
 ### 2026-05-27 — Régression 1 : Liens multiples à la création d'une nouvelle idée
 - Régression corrigée : à la création d'une nouvelle idée (modal "Nouvelle idée"), on ne pouvait ajouter qu'un seul lien de référence. Le système existait avant, perdu en route lors d'une reconstruction depuis une version ancienne par Claude Code.
 - Implémentation alignée à 100% sur le système existant de la modal "Nouveau sujet Desk" (mêmes styles, mêmes comportements).
@@ -13,39 +37,28 @@
   - Fonction `ajouterRefIdee()` : ajoute un lien à `ideeRefs` après normalisation (ajout de `https://` si manquant)
   - Fonction `refreshIdeeRefs()` : rafraîchit l'affichage de la liste avec bouton × pour retirer chaque lien
   - Champ unique `id="ni-ref"` remplacé par : liste `id="ni-refs-list"` + input `id="ni-ref-input"` + bouton "+ Ajouter"
-  - Validation Enter sur l'input ajoute le lien directement
-- `soumettreidee()` modifiée : ancien bloc qui créait 1 seule référence remplacé par une boucle `await Promise.all(ideeRefs.map(...))` qui crée toutes les références dans la base 📎 Références (DB_REFS) avec propriété `Sujet ID` pointant vers l'idée.
-- `ideeRefs = []` est réinitialisée au début de `openNouvelleIdee()` à chaque ouverture, évitant que les liens d'une création précédente persistent.
-- `index.html` : 4583 → 4614 lignes (+31 lignes ajoutées).
+- `soumettreidee()` modifiée : boucle `await Promise.all(ideeRefs.map(...))` crée toutes les références dans la base 📎 Références.
+- `ideeRefs = []` réinitialisée au début de `openNouvelleIdee()` à chaque ouverture.
+- `index.html` : 4583 → 4614 lignes (+31 lignes).
 
 ### 2026-05-27 — Phase B PR1 : Extraction CSS vers fichiers séparés
 - Tout le bloc `<style>` inline (~479 lignes) sorti de `index.html` vers 4 fichiers :
-  - `css/base.css` (12 lignes) : `@import` fonts, `:root` variables, reset, body, inputs génériques
-  - `css/layout.css` (217 lignes) : `nav`, `app-shell`, `app-body`, sidebar, main-area, view-tabs, media queries mobile
-  - `css/components.css` (130 lignes) : boutons, cards, modals, pills, toast, search, spinners
-  - `css/views.css` (124 lignes) : kanban, calendrier, dashboard, notifications, retours, liste
-- `index.html` : `<style>...</style>` remplacé par 4 `<link rel="stylesheet">` dans le `<head>`, ordre cascade respecté (base → layout → components → views)
+  - `css/base.css` (12 lignes), `css/layout.css` (217 lignes), `css/components.css` (130 lignes), `css/views.css` (124 lignes)
+- `index.html` : `<style>...</style>` remplacé par 4 `<link rel="stylesheet">` dans le `<head>`
 - `index.html` passe de 5060 à 4583 lignes (-477 lignes)
-- Zéro changement de règle CSS ni de logique JS, juste déplacement
-- Bloc `<script>` strictement identique (vérifié par diff) — Phase A préservée intacte
-- Nouveau fichier `netlify.toml` à la racine : cache-control `max-age=0, must-revalidate` sur `/css/*` et `/index.html` pour éviter le cache obsolète pendant la phase B
+- Nouveau fichier `netlify.toml` à la racine : cache-control sur `/css/*` et `/index.html`
 
 ### 2026-05-22 — Phase A : gestion d'erreur globale
-- `window.onerror` : capture des erreurs JS non gérées → toast user-friendly
-- `window.onunhandledrejection` : capture des promesses rejetées → toast + bandeau Notion si erreur réseau
-- Bandeau `#notion-banner` : apparaît dès le 1er échec d'appel `/.netlify/functions/notion`, disparaît auto au prochain succès
+- `window.onerror` + `window.onunhandledrejection` : capture erreurs JS et promesses rejetées
+- Bandeau `#notion-banner` : apparaît dès le 1er échec d'appel `/.netlify/functions/notion`
 - Bouton "Réessayer" rejoue la dernière requête échouée (`_lastFailedCall`)
-- Garde de visibilité : bandeau supprimé si `#app-shell` est masqué (pas d'affichage par-dessus login)
-- La fonction `api()` reste inchangée, on l'enveloppe par réassignation (`_apiOriginal`)
+- Garde de visibilité : bandeau supprimé si `#app-shell` masqué
+- La fonction `api()` enveloppée par réassignation (`_apiOriginal`)
 - Regex de détection réseau : `failed to fetch | networkerror | load failed | timeout | aborted`
-- Debounce 3s anti-spam sur les toasts d'erreur globaux
 
 ### 2026-05-22 — Harmonisation sidebar bas
-- 3 boutons en bas de sidebar maintenant uniformes (largeur, padding, border-radius, font)
-- + Nouveau sujet : fond rouge plein
-- 💡 Nouvelle idée : fond amber plein
-- 👥 Gérer l'équipe : fond `bg2` + bordure subtile
-- Ligne user : avatar 26px, boutons 🔑 et ↩ regroupés à droite, ellipsis sur nom long
+- 3 boutons en bas de sidebar uniformisés : `+ Nouveau sujet` (rouge plein), `💡 Nouvelle idée` (amber plein), `👥 Gérer l'équipe` (bg2 + bordure subtile)
+- Ligne user : avatar 26px, boutons 🔑 et ↩ regroupés à droite
 
 ### 2026-05-21 — Dashboard restructuré en 4 niveaux
 - N1 : KPIs Vue globale encadrés
@@ -56,20 +69,19 @@
 
 ### 2026-05-21 — Ajout entrée Export stats dans sidebar
 - Modal léger avec sélecteurs Mois + Année
-- Fonctions ajoutées : `ouvrirExportStats()`, `exportStatsFromModal()`
 
 ### 2026-05-20 — Modal idée consultation corrigé
-- Padding interne corrigé : `padding:0 20px 20px`
+- Padding interne corrigé
 
 ---
 
 ## Infos projet
 - **URL** : reel-media-production.netlify.app
 - **GitHub** : David-f10/reel-media-production
-- **Fichier principal** : `index.html` (squelette HTML + JS inline, ~4614 lignes depuis Régression 1)
+- **Fichier principal** : `index.html` (~4938 lignes depuis R2 + Task Reminder V2)
 - **CSS** : 4 fichiers dans `/css/` (base, layout, components, views) — depuis PR1 Phase B
-- **Build config** : `netlify.toml` à la racine (cache-control sur `/css/*` et `/index.html`)
-- **Netlify Functions** : netlify/functions/notion.js (proxy API Notion) + netlify/functions/login.js (auth)
+- **Build config** : `netlify.toml` à la racine
+- **Netlify Functions** : notion.js (proxy API Notion) + login.js (auth)
 - **Langue de travail** : français
 
 ## Bases Notion
@@ -86,6 +98,7 @@
 | 📎 Références | 4ae84e174ee9473888eaa15112fcc6ee |
 | 📹 Versions | 3793eebb-2aeb-4d49-84ae-06d79cfb2704 |
 | 🎵 Musiques | d9d3579257bc49059e6cd683a8b02fef |
+| 📋 Tâches | 0241d8dc-00a1-461c-9efa-00eb7e5fac70 |
 
 ## ⚠️ Règles d'or à respecter (ne jamais casser)
 - Le fichier `index.html` dans le project knowledge est **LA SOURCE OFFICIELLE À JOUR**
@@ -97,16 +110,19 @@
 - Les IDs des bases Notion ne changent pas après déplacement workspace
 - Communication en français
 - **À chaque nouvelle PR**, Claude Code doit partir du `main` à jour : `curl -sL https://raw.githubusercontent.com/David-f10/reel-media-production/main/index.html -o index.html`
+- **Format des prompts Claude Code** : intention + emplacement, sans coller le code JS/HTML. Décrire l'intention fonctionnelle, où dans le code, les patterns à réutiliser, les contraintes et vérifications grep. Laisser Claude Code écrire le code lui-même.
 
-## 🏗️ Architecture en cours — Phase B (refonte modulaire)
+## 🏗️ Architecture — Phase B (refonte modulaire) — EN PAUSE
 - **PR 1 ✅** (2026-05-27) : extraction CSS vers 4 fichiers `/css/*.css`
 - **Régression 1 ✅** (2026-05-27) : liens multiples à la création d'une idée
-- **Régression 2** : priorités dans la vue par journaliste (à venir)
-- **PR 2** : passage en modules ES6 + extraction utilitaires (toast, format, overlay, parsing)
-- **PR 3** : extraction `js/core/` (auth, api, errors, notifications)
-- **PR 4** : extraction `js/views/` (dashboard, production, idées, archives) + intégration Task Reminder
-- **PR 5** : extraction `js/modals/` (detail, nouveau-sujet, versions, retours, équipe, export)
-- **PR 6** : nettoyage final + documentation
+- **Régression 2 ✅** (2026-05-27) : pastilles priorité vue journaliste
+- **Task Reminder V2 ✅** (2026-05-27) : 2 systèmes distincts (perso + sujet)
+- **PR 2-6** : EN PAUSE jusqu'à utilisation réelle avec les journalistes
+  - PR 2 : passage en modules ES6 + extraction utilitaires
+  - PR 3 : extraction `js/core/` (auth, api, errors, notifications)
+  - PR 4 : extraction `js/views/` (dashboard, production, idées, archives, tâches)
+  - PR 5 : extraction `js/modals/` (detail, nouveau-sujet, versions, retours, équipe, export)
+  - PR 6 : nettoyage final + documentation
 - Cible : `index.html` squelette ~200 lignes en fin de phase B
 
 ## État du code — corrections déjà appliquées
@@ -130,8 +146,6 @@
 ### 🛡️ Robustesse
 - Retry API 429/503 (3 tentatives, backoff exponentiel)
 - Guard `_createEnCours` sur `createSujet`
-- Guard `_creerDecliEnCours` sur `creerDeclinaison`
-- Guard retours ouverts dans `ajouterVersion`
 - Filtre `Archivé=false` + `page_size:100`
 - Archives chargées à la demande (`async renderArchives`)
 - **Phase A (2026-05-22)** : `window.onerror` + `window.onunhandledrejection` + bandeau `#notion-banner`
@@ -140,7 +154,7 @@
 - `priorite` dans `parsePage`
 - Select Priorité dans la fiche détail
 - Tri par priorité dans `renderJournaliste`
-- ⚠️ Régression 2 à venir : remettre le tri + pastille couleur dans la vue Par journaliste
+- **Pastille colorée sur les cartes de la vue Par journaliste** (depuis R2 du 2026-05-27) : `var(--red)` / `var(--amber)` / `var(--green)` selon Haute/Normale/Basse
 
 ### 🔔 Notifications
 - `updStatut` : notifs PAD→journaliste, Retours→journaliste, MontageV1→chef
@@ -150,35 +164,49 @@
 - `CHEF_PAR_DEFAUT = 'Benjamin'`
 - Chef auto-rempli selon rôle
 
+### ✅ Task Reminder (2 systèmes — depuis V2 du 2026-05-27)
+- **Système 1 — Tâches personnelles** : sidebar `📋 Tâches`, privées, sans sujet lié
+  - Badge rouge sidebar si ≥1 tâche en retard/aujourd'hui (point 7×7px)
+  - Vue groupée par sections (En retard / Aujourd'hui / À venir / Terminées)
+  - Initialisation silencieuse au login (`loadTachesBadgeSilent`)
+- **Système 2 — Tâches de sujet** : section dans `openDetail()` entre Retours et Commentaires
+  - Visibles par toute l'équipe (collaboratif)
+  - Créateur = Assigné par défaut
+  - Pattern visuel cloné de la section Retours équipe
+- **Distinction Notion** : champ `Sujet lié` vide (perso) ou rempli (sujet)
+
 ### 🪟 UX divers
 - Modal idée consultation : `padding:0 20px 20px`
-- Modal "Nouvelle idée" : **système de liens multiples** depuis Régression 1 (aligné sur le modal Desk)
+- Modal "Nouvelle idée" : **système de liens multiples** depuis Régression 1
 - Variable `ideeRefs` (liens multiples Idée) séparée de `modalRefs` (liens multiples Desk)
 
 ## 🔧 Ce qui reste à faire
-1. **Régression 2** : priorité dans la vue par journaliste (3 couleurs Haute/Normale/Basse + tri + pastille)
-2. **Phase B PR2-6** (en cours) : finir la refonte modulaire (ES6, core, views, modals, cleanup)
-3. **Task Reminder** : nouvelle feature à intégrer dans PR4 (nouvelle base Notion `📋 Tâches` + entrée sidebar + tâches liées aux sujets)
-4. **Backup automatique** (GitHub Actions, export Notion → JSON nightly)
-5. **Monitoring Sentry**
-6. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
-7. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` qui reset à zéro
+1. **Phase B PR2-6** (en pause) : reprendre quand on travaille avec les journalistes en live
+2. **Backup automatique** (GitHub Actions, export Notion → JSON nightly)
+3. **Monitoring Sentry**
+4. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
+5. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` qui reset à zéro
+6. **Notifications pour tâches de sujet** (à évaluer à l'usage : faut-il notifier quand quelqu'un crée une tâche sur un sujet dont je suis chef/journaliste ?)
 
 ## 📋 Workflow de modification
 1. David décrit la modif voulue
 2. Claude lit le fichier `index.html` dans le project knowledge
-3. Claude effectue la modif
-4. **Claude livre DEUX fichiers** : `index.html` complet modifié + `CONTEXT_REEL_MEDIA.md` mis à jour
-5. David push les 2 fichiers sur GitHub `David-f10/reel-media-production`
-6. David clique "Synchroniser maintenant" dans le project knowledge
-7. Netlify déploie automatiquement le site
+3. Claude rédige le prompt pour Claude Code (format intention + emplacement)
+4. Claude Code part du main à jour via curl, applique les modifs, livre un fichier
+5. Claude vérifie programmatiquement (grep + hash)
+6. **Claude livre DEUX fichiers** : `index.html` complet + `CONTEXT_REEL_MEDIA.md` mis à jour
+7. David push les 2 fichiers sur une nouvelle branche GitHub
+8. Preview Netlify automatique, tests utilisateur
+9. Merge si OK, suppression de la branche
+10. David clique "Synchroniser maintenant" dans le project knowledge
 
-## 🎨 Variables CSS clés (pour cohérence visuelle)
-- `--red` : rouge principal (boutons primaires, alertes)
-- `--amber` : jaune ambre (idées, attention)
-- `--bg2` : fond secondaire (cartes, modals)
-- `--border` / `--border2` : bordures subtiles
-- `--text` / `--text2` / `--text3` : hiérarchie de texte
+## 🎨 Variables CSS clés
+- `--red` : rouge principal (boutons primaires, alertes, priorité Haute)
+- `--amber` : jaune ambre (idées, attention, priorité Normale)
+- `--green` : vert (validations, priorité Basse)
+- `--bg2`, `--bg3`, `--bg4` : fonds secondaires
+- `--border`, `--border2` : bordures subtiles
+- `--text`, `--text2`, `--text3` : hiérarchie de texte
 - `--font` : police principale
 - `--mono` : police monospace
 
@@ -187,4 +215,4 @@
 - **Journalistes** : Augustin, Julien, Nico, Mathilde, Mickael, Juliette, etc.
 - **Brand** : Victor (vic26), Louise (lou26), Arnaud C (arc26)
 - **David** : développeur principal de l'app
-- **Arnaud** : responsable côté Réel Média
+- **Arnaud** : responsable côté Réel Média (migration Notion à venir)
