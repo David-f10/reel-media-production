@@ -3320,7 +3320,7 @@ function renderJournaliste(){
     items.forEach(s=>{
       const fmt=FMT_COLORS[s.format]||'#888';
       const dotCol=stColor(s.statut);
-      const priCol={'🔴 Haute':'var(--red)','🟡 Normale':'var(--amber)','🟢 Basse':'var(--green)'}[s.priorite]||'';
+      const priCol = s.priorite.includes('Haute') ? 'var(--red)' : s.priorite.includes('Normale') ? 'var(--amber)' : s.priorite.includes('Basse') ? 'var(--green)' : '';
       html+=`<div class="kanban-card" onclick="openDetail('${s.id}')">
         <div class="kanban-card-code">${priCol?`<span class="sdot" style="background:${priCol};width:6px;height:6px;display:inline-block;border-radius:50%;margin-right:4px;vertical-align:middle"></span>`:''}${s.code||'—'} <span style="color:${fmt}">${s.format}</span></div>
         <div class="kanban-card-title">${s.titre}</div>
