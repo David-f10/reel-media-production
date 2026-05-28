@@ -13,6 +13,12 @@
 <link rel="stylesheet" href="/css/layout.css">
 <link rel="stylesheet" href="/css/components.css">
 <link rel="stylesheet" href="/css/views.css">
+<style>
+#login-panel .login-group-titre{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);padding:8px 8px 4px}
+#login-panel .login-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:6px 8px;border:none;background:transparent;border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:14px;cursor:pointer;text-align:left}
+#login-panel .login-opt:hover,#login-panel .login-opt:focus{background:var(--bg3);outline:none}
+.login-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--mono);color:var(--bg);flex-shrink:0}
+</style>
 </head>
 <body>
 <!-- ÉCRAN DE CONNEXION -->
@@ -38,26 +44,15 @@
       <div style="font-size:12px;color:var(--text3)">Connectez-vous pour accéder à l'outil</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:12px">
-      <div>
+      <div style="position:relative">
         <div class="field-label" style="margin-bottom:6px">Qui êtes-vous ?</div>
-        <select id="login-nom" style="width:100%" onchange="document.getElementById('login-code').value=''">
-          <option value="">Choisir...</option>
-          <option value="ben">Benjamin · Chef</option>
-          <option value="arn">Arnaud · Chef</option>
-          <option value="chl">Chloé · Chef</option>
-          <option value="jul">Julien · Journaliste</option>
-          <option value="aug">Augustin · Journaliste</option>
-          <option value="nic">Nico · Journaliste</option>
-          <option value="mic">Mickael · Journaliste</option>
-          <option value="jlt">Juliette · Journaliste</option>
-          <option value="mat">Mathilde · Journaliste</option>
-          <option value="lea">Léa · Journaliste</option>
-          <option value="elo">Éloise · Journaliste</option>
-          <option value="thi">Thierry · Monteur</option>
-          <option value="dav">David · Monteur</option>
-        </select>
+        <button type="button" id="login-select-bar" aria-label="Choisir votre nom" aria-haspopup="listbox" aria-expanded="false" onclick="toggleLoginPanel(event)" style="width:100%;height:44px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:14px;cursor:pointer;text-align:left">
+          <span id="login-bar-content" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;color:var(--text3)">Choisir...</span>
+          <span id="login-bar-caret" style="color:var(--text3);font-size:10px;flex-shrink:0">▾</span>
+        </button>
+        <div id="login-panel" role="listbox" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;max-height:260px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:50;padding:4px"></div>
       </div>
-      <div>
+      <div id="login-code-wrap" style="display:none">
         <div class="field-label" style="margin-bottom:6px">Code d'accès</div>
         <input type="password" id="login-code" placeholder="Votre code personnel..." style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
@@ -2212,12 +2207,97 @@ async function toggleValidationSeq(id, type) {
 // Liste de secours si l'API est indisponible
 const EQUIPE_FALLBACK = []; // Codes gérés via Notion — ne pas remettre ici
 
-function peuplerSelect(liste) {
-  const sel = document.getElementById('login-nom');
-  if(!sel) return;
-  sel.innerHTML = '<option value="">Choisir...</option>' +
-    liste.map(m => `<option value="${m.id}">${m.nom}${m.role?' · '+m.role:''}</option>`).join('');
+// UUID Notion de la personne sélectionnée (transmis à doLogin)
+let selectedLoginId = '';
+
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// Sections de la grille de login, dans l'ordre d'affichage (couleur d'avatar par rôle)
+const LOGIN_GROUPES = [
+  {titre:'Chefs',        col:'var(--purple)', match:r=>/chef/i.test(r)},
+  {titre:'Journalistes', col:'var(--blue)',   match:r=>/journ/i.test(r)},
+  {titre:'Monteurs',     col:'var(--amber)',  match:r=>/mont/i.test(r)},
+];
+const LOGIN_AUTRES_COL = 'var(--text3)';
+
+function loginInitiales(nom){
+  const mots = String(nom||'').trim().split(/\s+/).filter(Boolean);
+  if(mots.length===0) return '?';
+  if(mots.length===1) return mots[0].slice(0,2).toUpperCase();
+  return (mots[0][0]+mots[1][0]).toUpperCase();
 }
+
+function peuplerSelect(liste) {
+  const panel = document.getElementById('login-panel');
+  if(!panel) return;
+  const groupes = LOGIN_GROUPES.map(g => ({titre:g.titre, col:g.col, match:g.match, membres:[]}));
+  const autres = {titre:'Autres', col:LOGIN_AUTRES_COL, membres:[]};
+  (liste||[]).forEach(m => {
+    const g = groupes.find(g => g.match(m.role||''));
+    (g||autres).membres.push(m);
+  });
+  const sections = [...groupes, autres].filter(g => g.membres.length);
+  panel.innerHTML = sections.map(g => {
+    const opts = g.membres.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr')).map(m => {
+      const init = escapeHtml(loginInitiales(m.nom));
+      return `<button type="button" role="option" class="login-opt" data-id="${escapeHtml(m.id)}" data-nom="${escapeHtml(m.nom)}" data-col="${g.col}" onclick="selectLoginPersonne(this)">`
+        + `<span class="login-avatar" style="background:${g.col}">${init}</span>`
+        + `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(m.nom)}</span>`
+        + `</button>`;
+    }).join('');
+    return `<div class="login-group-titre">${escapeHtml(g.titre)}</div>${opts}`;
+  }).join('');
+}
+
+function toggleLoginPanel(e){
+  if(e) e.stopPropagation();
+  const panel = document.getElementById('login-panel');
+  if(!panel) return;
+  if(panel.style.display === 'block') closeLoginPanel(); else openLoginPanel();
+}
+function openLoginPanel(){
+  const panel = document.getElementById('login-panel');
+  if(!panel) return;
+  panel.style.display = 'block';
+  const bar = document.getElementById('login-select-bar');
+  if(bar) bar.setAttribute('aria-expanded','true');
+  const caret = document.getElementById('login-bar-caret');
+  if(caret) caret.textContent = '▴';
+}
+function closeLoginPanel(){
+  const panel = document.getElementById('login-panel');
+  if(!panel) return;
+  panel.style.display = 'none';
+  const bar = document.getElementById('login-select-bar');
+  if(bar) bar.setAttribute('aria-expanded','false');
+  const caret = document.getElementById('login-bar-caret');
+  if(caret) caret.textContent = '▾';
+}
+
+function selectLoginPersonne(btn){
+  selectedLoginId = btn.dataset.id;
+  const nom = btn.dataset.nom, col = btn.dataset.col;
+  const init = escapeHtml(loginInitiales(nom));
+  document.getElementById('login-bar-content').innerHTML =
+    `<span class="login-avatar" style="background:${col};width:24px;height:24px;font-size:10px">${init}</span>`
+    + `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${escapeHtml(nom)}</span>`;
+  closeLoginPanel();
+  const codeWrap = document.getElementById('login-code-wrap');
+  const codeInput = document.getElementById('login-code');
+  if(codeInput) codeInput.value = '';
+  if(codeWrap) codeWrap.style.display = '';
+  if(codeInput) codeInput.focus();
+}
+
+// Fermeture du panneau au clic extérieur / touche Échap
+document.addEventListener('click', e => {
+  const panel = document.getElementById('login-panel');
+  const bar = document.getElementById('login-select-bar');
+  if(!panel || panel.style.display !== 'block') return;
+  if(panel.contains(e.target) || (bar && bar.contains(e.target))) return;
+  closeLoginPanel();
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeLoginPanel(); });
 
 async function initLogin() {
   // Charger depuis la liste de secours d'abord (instantané)
@@ -2256,7 +2336,7 @@ async function initLogin() {
 }
 
 async function doLogin(){
-  const selId=document.getElementById('login-nom').value,code=document.getElementById('login-code').value.trim(),errEl=document.getElementById('login-error'),btn=document.querySelector('#login-screen button');
+  const selId=selectedLoginId,code=document.getElementById('login-code').value.trim(),errEl=document.getElementById('login-error'),btn=document.querySelector('#login-screen button');
   if(!selId){errEl.textContent='Choisissez votre nom';errEl.style.display='block';return;}
   if(!code){errEl.textContent="Entrez votre code d'accès";errEl.style.display='block';return;}
   try{
@@ -2351,6 +2431,12 @@ function doLogout() {
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app-shell').style.display = 'none';
   document.getElementById('login-code').value = '';
+  selectedLoginId = '';
+  closeLoginPanel();
+  const codeWrap = document.getElementById('login-code-wrap');
+  if(codeWrap) codeWrap.style.display = 'none';
+  const barContent = document.getElementById('login-bar-content');
+  if(barContent){ barContent.textContent = 'Choisir...'; barContent.style.color = 'var(--text3)'; }
 }
 
 // ─── COMMENTAIRES ───
