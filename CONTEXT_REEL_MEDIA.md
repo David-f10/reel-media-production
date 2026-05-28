@@ -45,6 +45,15 @@
 - Padding interne corrigé : `padding:0 20px 20px`
 - Cohérence visuelle avec les modals "Nouveau sujet" et "Nouvelle idée"
 
+### 2026-05-28 — UX : rafraîchissement auto de la fiche détail
+- Problème : après une action dans la fiche détail (case cochée, lien déposé...), le changement n'apparaissait pas tant qu'on ne fermait/rouvrait pas la carte
+- Cause : openDetail n'était ré-appelé que par autoStatut, et seulement en cas de changement de statut
+- Solution (Option 1, validée par David + Claude Code) : nouveau helper `refreshDetail(id, forcePadOpen)` appelé en fin de upd() et sur les actions ponctuelles (cap déposée, choix musique, reset statut)
+- Garde-fous : debounce 300ms (groupe les appels rapprochés type onLienBlur qui fait 2 upd), sauvegarde/restaure scrollTop, ne fait rien si la fiche est fermée
+- Pas de saut de curseur : tous les champs texte sauvegardent au onblur (jamais oninput), donc le refresh ne touche pas la saisie en cours
+- Option 2 (refresh partiel zéro-réseau via split de openDetail) gardée en réserve si le léger flicker des placeholders gêne à l'usage
+- Préservé : Phase A, Sentry, feature Brand, troncature, tooltips. Syntaxe JS validée. 5068→5085 lignes
+
 ---
 
 ## Infos projet
