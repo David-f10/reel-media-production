@@ -265,6 +265,16 @@
           <select id="brand-client-select" onchange="updateBrandDecliCode()"><option value="">Choisir un client...</option></select>
           <div id="brand-decli-preview" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--red);display:none">Code attribué : <strong id="brand-decli-val"></strong></div>
         </div>
+        <div class="field" style="margin-top:4px">
+          <div class="field-label" style="margin-bottom:4px">Format de livraison *</div>
+          <select id="brand-format-livraison">
+            <option value="">Choisir...</option>
+            <option value="Mag">Mag</option>
+            <option value="Face Cam">Face Cam</option>
+            <option value="Desk">Desk</option>
+            <option value="YouTube">YouTube</option>
+          </select>
+        </div>
       </div>
       <div class="fg">
         <div class="field"><div class="field-label">Chef *</div>
@@ -466,6 +476,7 @@ const FORMATS_INTERNES = ['Interne'];
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
 const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
+const DB_CLIENTS_BRAND='67abbb5f-f6a6-4937-89e3-6c852c515a8e';
 const DB_TACHES='0241d8dc-00a1-461c-9efa-00eb7e5fac70';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage V1','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
@@ -552,7 +563,7 @@ async function loadSujets(){
     const[prod,comp,cli]=await Promise.all([
       api(`/databases/${DB_PROD}/query`,'POST',{sorts:[{timestamp:'created_time',direction:'descending'}]}),
       api(`/databases/${DB_COMP}/query`,'POST',{}),
-      api(`/databases/${DB_CLIENTS}/query`,'POST',{sorts:[{property:'Numéro',direction:'ascending'}]})
+      api(`/databases/${DB_CLIENTS_BRAND}/query`,'POST',{sorts:[{property:'Code',direction:'ascending'}]})
     ]);
     sujets=prod.results.map(parsePage);
     compteurs={};
@@ -568,8 +579,8 @@ async function loadSujets(){
       return{id:p.id,
         nom:pr.Client?.title?.[0]?.plain_text||'',
         code:pr.Code?.rich_text?.[0]?.plain_text||pr.Code?.text?.[0]?.plain_text||'',
-        numero:pr['Numéro']?.number??0,
-        derniereLettre:pr['Dernière lettre']?.rich_text?.[0]?.plain_text||pr['Dernière lettre']?.text?.[0]?.plain_text||''
+        derniereLettre:pr['Dernière lettre']?.rich_text?.[0]?.plain_text||pr['Dernière lettre']?.text?.[0]?.plain_text||'',
+        nbProjets:pr['Nb projets']?.number??0
       };
     });
     document.getElementById('cnt-all').textContent=sujets.length;
@@ -3133,12 +3144,15 @@ async function createSujet(){
 
   if(activeFmt==='Brand'){
     if(!brandMode){toast('Choisissez nouveau client ou déclinaison','err');return;}
+    const formatLivraison=document.getElementById('brand-format-livraison').value;
+    if(!formatLivraison){toast('Choisissez un format de livraison','err');_createEnCours=false;return;}
     const c=compteurs['Brand'];
     if(brandMode==='nouveau'){
       const nv=c.dernierNumero+1;
-      codeVal=`B${String(nv).padStart(2,'0')}`;
-      // Créer le sujet
-      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
+      const codeClient=`B${String(nv).padStart(2,'0')}`;
+      codeVal=codeClient+'A';
+      // Créer le sujet (premier projet du client)
+      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Sous-format':{select:{name:formatLivraison}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
       if(contactPrenom)props['Contact Prénom']={rich_text:[{text:{content:contactPrenom}}]};
@@ -3152,13 +3166,14 @@ async function createSujet(){
       const auteurBrand = currentUser?.nom || 'Inconnu';
       if(journ) await createNotif('nouveau_sujet', newPageBrand.id, codeVal, titre, journ, auteurBrand,
         `${auteurBrand} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
-      // Ajouter nouveau client dans DB_CLIENTS
+      // Ajouter nouveau client dans DB_CLIENTS_BRAND
       const nomClient=document.getElementById('brand-nom-client').value.trim()||titre;
-      await api('/pages','POST',{parent:{database_id:DB_CLIENTS},properties:{
+      await api('/pages','POST',{parent:{database_id:DB_CLIENTS_BRAND},properties:{
         'Client':{title:[{text:{content:nomClient}}]},
-        'Code':{rich_text:[{text:{content:codeVal}}]},
-        'Numéro':{number:nv},
-        'Dernière lettre':{rich_text:[]}
+        'Code':{rich_text:[{text:{content:codeClient}}]},
+        'Dernière lettre':{rich_text:[{text:{content:'A'}}]},
+        'Prochaine déclinaison':{rich_text:[{text:{content:codeClient+'B'}}]},
+        'Nb projets':{number:1}
       }});
     }else{
       // Déclinaison
@@ -3167,7 +3182,7 @@ async function createSujet(){
       const client=clients.find(c=>c.id===clientId);
       const prochainLettre=nextLetter(client.derniereLettre);
       codeVal=`${client.code}${prochainLettre}`;
-      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
+      const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:'Brand'}},'Sous-format':{select:{name:formatLivraison}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:'Instagram'}}};
       if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
       if(date)props['Date tournage J1']={date:{start:date}};
       if(contactPrenom)props['Contact Prénom']={rich_text:[{text:{content:contactPrenom}}]};
@@ -3179,8 +3194,12 @@ async function createSujet(){
       const auteurDecli = currentUser?.nom || 'Inconnu';
       if(journ) await createNotif('nouveau_sujet', newPageDecli.id, codeVal, titre, journ, auteurDecli,
         `${auteurDecli} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
-      // Mettre à jour dernière lettre du client
-      await api(`/pages/${client.id}`,'PATCH',{properties:{'Dernière lettre':{rich_text:[{text:{content:prochainLettre}}]}}});
+      // Mettre à jour le client dans DB_CLIENTS_BRAND
+      await api(`/pages/${client.id}`,'PATCH',{properties:{
+        'Dernière lettre':{rich_text:[{text:{content:prochainLettre}}]},
+        'Prochaine déclinaison':{rich_text:[{text:{content:client.code+nextLetter(prochainLettre)}}]},
+        'Nb projets':{number:(client.nbProjets||0)+1}
+      }});
     }
   }else{
     const c=compteurs[activeFmt];
@@ -4786,7 +4805,7 @@ async function appLoadData() {
     const [prod, comp, cli] = await Promise.all([
       api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}],page_size:100}),
       api('/databases/' + DB_COMP + '/query', 'POST', {}),
-      api('/databases/' + DB_CLIENTS + '/query', 'POST', {sorts:[{property:'Numéro',direction:'ascending'}]})
+      api('/databases/' + DB_CLIENTS_BRAND + '/query', 'POST', {sorts:[{property:'Code',direction:'ascending'}]})
     ]);
     sujets = prod.results.map(parsePage);
     sujetsArchives = [];
@@ -4804,8 +4823,8 @@ async function appLoadData() {
         id: p.id,
         nom: pr.Client?.title?.[0]?.plain_text || '',
         code: pr.Code?.rich_text?.[0]?.plain_text || pr.Code?.text?.[0]?.plain_text || '',
-        numero: pr['Numéro']?.number ?? 0,
-        derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || ''
+        derniereLettre: pr['Dernière lettre']?.rich_text?.[0]?.plain_text || pr['Dernière lettre']?.text?.[0]?.plain_text || '',
+        nbProjets: pr['Nb projets']?.number ?? 0
       };
     });
     // sujetsArchives chargées à la demande

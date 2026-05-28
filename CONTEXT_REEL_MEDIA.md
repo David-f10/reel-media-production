@@ -3,71 +3,64 @@
 ## 📝 Historique des modifs
 
 > Section maintenue automatiquement. Les modifs les plus récentes sont en haut.
-> Format : ### YYYY-MM-DD — Titre court / Liste de points
+> Format : ### YYYY-MM-DD — Titre court / Liste de points / Optionnel : raison
 
-### 2026-05-27 — Intégration Sentry (monitoring erreurs production)
-- **Objectif** : capturer côté serveur Sentry les erreurs JS qui surviennent chez les utilisateurs en production. Phase A (window.onerror + bandeau notion-banner) reste actif pour l'UX user ; Sentry tourne en arrière-plan pour le monitoring développeur.
-- **Type d'intégration** : Loader Script CDN (pas de npm). Le script `<script src="https://js-de.sentry-cdn.com/a555d2e77ba48da5ec408a38b6e95eec.min.js" crossorigin="anonymous"></script>` est inséré EN PREMIER dans le `<head>`, avant les CSS et autres scripts.
-- **Produits activés** : Error Monitoring uniquement (pas de Session Replay, Tracing, Logs, ni Application Metrics).
-- **Configuration runtime** (bloc `Sentry.onLoad()` au tout début du script JS) :
-  - `environment` : détecté auto (`preview`/`development`/`production` selon hostname)
-  - `release` : tagué dynamiquement `reel-media@YYYY-MM-DD`
-  - `beforeSend` : filtre les erreurs déjà gérées par Phase A (NetworkError, Failed to fetch, Load failed, timeout, aborted) + faux positifs navigateur (ResizeObserver loop limit) + messages vides
-- **Identification utilisateur** : `Sentry.setUser({id, username})` + `Sentry.setTag('role', ...)` à 3 endroits stratégiques :
-  - Login depuis session restaurée (localStorage `rm-user`)
-  - Login depuis form (succès auth Notion)
-  - `Sentry.setUser(null)` au logout
-- **Données envoyées** : id + prénom (currentUser.nom) + tag rôle. AUCUNE donnée sensible (pas d'email, pas de code, pas de contenu Notion).
-- **Compte Sentry** : organisation `rushup` sur sentry.io, projet `reel-media-production`, data storage EU (RGPD-friendly), plan trial 14 jours puis Developer gratuit auto (5k erreurs/mois, suffisant).
-- **Préservations** : Phase A 100% inchangée. Toutes les autres features intactes (Task Reminder, UX bordure, etc.).
-- `index.html` : 5018 → 5049 lignes (+31).
-
-### 2026-05-27 — Évolutions UX Tâches perso (stats, modification, toggle terminées)
-- Stats pills en haut (4 compteurs : 🔴 En retard / 🟠 Aujourd'hui / 🔵 À venir / ✓ Terminées aujourd'hui)
-- Modification d'une tâche : click sur titre → modale avec Titre + Date pré-remplis + bouton "Sauver"
-- Toggle "Afficher terminées" à droite des stats (OFF par défaut)
-- Nouvelles fonctions : `openModifierTache`, `sauverModifTache`, `toggleAfficherTerminees`
-- Variables : `afficherTerminees`, `tacheEditId`
-- Périmètre : Tâches PERSO uniquement
-
-### 2026-05-27 — UX Pastille priorité : bordure droite colorée sur toutes les vues
-- Remplacement de la pastille ronde par une bordure verticale droite 3px sur les cartes (Cartes, Par statut, Par journaliste)
-- Nouvelle colonne "Prio" (50px) avec point coloré 8x8px dans la vue Liste
-- Vue Calendrier non modifiée
-- Détection via `.includes()` pour résister aux variations d'encodage emoji
-
-### 2026-05-27 — Fix R2 : Pastille priorité (.includes au lieu de comparaison stricte)
-- Cause : comparaison stricte par clé d'objet `{'🔴 Haute': ...}[s.priorite]` échouait à cause d'encodage
-- Fix : `.includes()` pour matcher par contenu
-
-### 2026-05-27 — Régression 2 + Task Reminder V2 (refonte 2 systèmes)
-- **R2** : pastille couleur priorité sur cartes vue journaliste
-- **Task Reminder V2 — 2 systèmes distincts** :
-  - Système 1 — Tâches personnelles (sidebar privée), filtre Sujet lié vide
-  - Système 2 — Tâches de sujet (fiche détail partagée)
-  - Distinction : champ `Sujet lié` vide vs rempli
-- Base Notion `📋 Tâches` (DB_TACHES = `0241d8dc-00a1-461c-9efa-00eb7e5fac70`)
-
-### 2026-05-27 — Régression 1 : Liens multiples à la création d'une nouvelle idée
-- Variable `ideeRefs` séparée de `modalRefs`
-- Fonctions : `ajouterRefIdee()`, `refreshIdeeRefs()`
-
-### 2026-05-27 — Phase B PR1 : Extraction CSS vers fichiers séparés
-- `<style>` inline sorti vers 4 fichiers `/css/`
-- Nouveau `netlify.toml` avec cache-control
+### 2026-05-28 — Feature Brand : format de livraison + nouvelle base clients
+- **Nouvelle base 🏷️ Clients Brand** (`67abbb5f-f6a6-4937-89e3-6c852c515a8e`) : le chargement de `clients` bascule de l'ancienne base (`228c6efb`) vers la nouvelle. Ancienne base conservée (déclarée, plus queryée) — à nettoyer plus tard si confirmé inutile
+- Parsing clients aligné sur les champs de la nouvelle base : Client (title), Code (rich_text), Dernière lettre (rich_text), Nb projets (number). Helper `getCode()` ajouté
+- **Format de livraison** : nouveau select `#brand-format-livraison` (Mag/Face Cam/Desk/YouTube) dans `#brand-panel`. Stocké dans la propriété `Sous-format` de la carte — `Format` reste 'Brand' (préserve couleur ambre + filtre + affichage spécial). N'incrémente PAS les compteurs Mag/Face Cam/Desk/YouTube
+- **Fix bug nouveau client** : créait une carte `B54` (sans lettre) → crée maintenant `B54A` (client + 1er projet ensemble). Entrée client : Code=B54, Dernière lettre=A, Nb projets=1, Prochaine déclinaison=B54B
+- **Déclinaison** : carte `B04S`, compteur Brand non touché, client mis à jour (Dernière lettre, Prochaine déclinaison, Nb projets +1)
+- `nextLetter()` (gère Z→AA) et `getPrefixe()` (compteurs) inchangées
+- Préservé : Phase A, Sentry, Task Reminder, autres formats. Syntaxe JS validée (node --check). 5049→5068 lignes
 
 ### 2026-05-22 — Phase A : gestion d'erreur globale
-- `window.onerror` + `window.onunhandledrejection` + bandeau `#notion-banner` avec bouton "Réessayer"
+- `window.onerror` : capture des erreurs JS non gérées → toast user-friendly (TypeError/ReferenceError/SyntaxError mappés vers messages non-techniques)
+- `window.onunhandledrejection` : capture des promesses rejetées (await sans try/catch) → toast + déclenche bandeau Notion si erreur réseau
+- Bandeau `#notion-banner` placé en flex-item dans `.app-shell` (entre `<nav>` et `.app-body`, pas de sticky/z-index) : apparaît dès le 1er échec d'appel `/.netlify/functions/notion` (réseau/timeout/aborted), disparaît auto au prochain succès
+- Bouton "Réessayer" rejoue uniquement la dernière requête échouée (`_lastFailedCall`) ; listener lié en lazy dans `showNotionBanner()` avec garde anti double-binding
+- Garde de visibilité : bandeau supprimé si `#app-shell` est masqué (évite l'affichage par-dessus l'écran de login pendant `initLogin()`)
+- La fonction `api()` reste inchangée, on l'enveloppe par réassignation (`_apiOriginal`) — interception transparente succès/échec
+- Regex de détection réseau : `failed to fetch | networkerror | load failed | timeout | aborted` (pas de match sur codes HTTP 5xx pour éviter les faux positifs)
+- Debounce 3s anti-spam sur les toasts d'erreur globaux
+- Variables CSS réutilisées : `--red-dim`, `--red`, `--text`. Réutilise `toast()` existant et la classe `.nav-btn`
+
+### 2026-05-22 — Harmonisation sidebar bas
+- 3 boutons en bas de sidebar maintenant uniformes (même largeur, padding, border-radius, font)
+- **+ Nouveau sujet** : fond rouge plein (`var(--red)`)
+- **💡 Nouvelle idée** : fond amber plein (`var(--amber)`)
+- **👥 Gérer l'équipe** : fond `var(--bg2)` + bordure subtile (style atténué car action de gestion, pas de création)
+- Icônes alignées (largeur fixe 16px) pour que les textes commencent à la même position
+- Ligne user retravaillée : avatar 26px (au lieu de 24px), boutons 🔑 et ↩ regroupés à droite avec même style (bordure + padding 4px 7px), nom utilisateur tronque avec ellipsis si trop long
+
+### 2026-05-21 — Dashboard restructuré en 4 niveaux
+- N1 : KPIs **Vue globale** encadrés (bg2 + border + padding 24px) — mise en valeur du résumé
+- N2 : grid 2 colonnes `1fr 1fr` → **Alertes (8 visibles)** | **Activité récente**
+- N3 : **Activité mensuelle** + two-col Formats/Journaliste
+- N4 : two-col **Délais** | **Export stats**
+- Espacement vertical 28px entre chaque niveau
+- `max-width` supprimé du dashboard (pleine largeur disponible)
+- `main-content` padding ajusté à 24px 32px
+- `toggleDashAlertes()` ajouté — alertes pliables
+- Helpers ajoutés : `buildMoisSelect`, `buildAnneeSelect`, `exportStatsTxt`
+
+### 2026-05-21 — Ajout entrée Export stats dans sidebar
+- Nouvelle entrée 📊 **Export stats** dans la navigation (sous Archives)
+- Au clic : modal léger avec sélecteurs Mois + Année pré-remplis
+- Fonctions ajoutées : `ouvrirExportStats()`, `exportStatsFromModal()`
+- Le bloc Export stats du dashboard reste intact (double accès)
+
+### 2026-05-20 — Modal idée consultation corrigé
+- Padding interne corrigé : `padding:0 20px 20px`
+- Cohérence visuelle avec les modals "Nouveau sujet" et "Nouvelle idée"
 
 ---
 
 ## Infos projet
 - **URL** : reel-media-production.netlify.app
 - **GitHub** : David-f10/reel-media-production
-- **Fichier principal** : `index.html` (~5049 lignes)
-- **CSS** : 4 fichiers dans `/css/`
-- **Netlify Functions** : notion.js + login.js
-- **Monitoring** : Sentry (rushup.sentry.io, projet reel-media-production)
+- **Fichier principal** : index.html (fichier unique HTML/CSS/JS, ~4976 lignes, ~263 Ko)
+- **Netlify Functions** : netlify/functions/notion.js (proxy API Notion) + netlify/functions/login.js (auth)
 - **Langue de travail** : français
 
 ## Bases Notion
@@ -84,125 +77,128 @@
 | 📎 Références | 4ae84e174ee9473888eaa15112fcc6ee |
 | 📹 Versions | 3793eebb-2aeb-4d49-84ae-06d79cfb2704 |
 | 🎵 Musiques | d9d3579257bc49059e6cd683a8b02fef |
-| 📋 Tâches | 0241d8dc-00a1-461c-9efa-00eb7e5fac70 |
 
-## ⚠️ Règles d'or
-- `index.html` du project knowledge = SOURCE OFFICIELLE
-- Ne jamais repartir de zéro
-- Livrer `index.html` + `CONTEXT_REEL_MEDIA.md` à chaque modif
-- `EQUIPE_FALLBACK = []`
+## ⚠️ Règles d'or à respecter (ne jamais casser)
+- Le fichier `index.html` dans le project knowledge est **LA SOURCE OFFICIELLE À JOUR**
+- **Ne jamais repartir de zéro** — toujours modifier le fichier existant
+- **Toute modif** doit être livrée sous forme d'un fichier `index.html` complet à télécharger
+- **À chaque modif d'index.html**, livrer aussi un `CONTEXT_REEL_MEDIA.md` à jour (avec nouvelle entrée dans l'historique en haut)
+- `EQUIPE_FALLBACK = []` — ne JAMAIS remettre les codes en clair dans le HTML
 - `CHEF_PAR_DEFAUT = 'Benjamin'`
+- Les IDs des bases Notion ne changent pas après déplacement workspace
 - Communication en français
-- Claude Code part du main à jour via curl
-- Format prompts Claude Code : intention + emplacement, pas de code prescriptif
-- Privilégier `.includes()` plutôt qu'égalité stricte avec emojis
 
-## 🏗️ Architecture — Phase B — EN PAUSE
-- **PR1 ✅** : extraction CSS
-- **R1 ✅** : liens multiples idée
-- **R2 + Task Reminder V2 ✅**
-- **Fix R2 .includes ✅**
-- **UX Pastille bordure droite ✅**
-- **Évolutions Tâches perso ✅**
-- **Sentry ✅** : monitoring erreurs production
-- **PR 2-6** : EN PAUSE jusqu'à utilisation réelle avec journalistes
-
-## 🛡️ Robustesse / Monitoring (état complet)
-
-### Phase A — UX user (côté navigateur)
-- `window.onerror` + `window.onunhandledrejection` : capture erreurs JS
-- Toast user-friendly
-- Bandeau `#notion-banner` : apparaît dès le 1er échec API Notion, disparaît au prochain succès
-- Bouton "Réessayer" rejoue `_lastFailedCall`
-- Fonction `api()` enveloppée par `_apiOriginal`
-
-### Sentry — Monitoring dev (côté serveur Sentry)
-- Loader Script CDN auto-init, hash projet `a555d2e77ba48da5ec408a38b6e95eec`
-- Identification user (id + prénom + tag rôle) au login + session restaurée
-- Cleanup au logout
-- `beforeSend` filtre les erreurs réseau déjà gérées par Phase A (évite doublon Sentry)
-- Environnements distincts : preview / development / production
-- Release tagué par date pour grouper les erreurs
-
-### Robustesse API
-- Retry API 429/503 (3 tentatives, backoff exponentiel)
-- Guards anti-doubles soumissions (`_createEnCours`, `_creerDecliEnCours`)
-- Filtre `Archivé=false` + `page_size:100`
-- Archives chargées à la demande
-
-## État du code
+## État du code — corrections déjà appliquées
 
 ### 🔐 Sécurité / Authentification
-- `doLogin()` async via `/.netlify/functions/login`
-- `EQUIPE_FALLBACK = []`, session via localStorage `rm-user`
-- Modal "Changer mon code"
+- `doLogin()` async → appelle `/.netlify/functions/login` côté serveur (ligne ~2598)
+- `EQUIPE_FALLBACK = []` — aucun code en clair dans le HTML (ligne ~2554)
+- `login.js` lit les membres depuis Notion avec cache 1 minute
+- Modal "Changer mon code" (bouton 🔑 dans header)
+- `validerChangerCode()` vérifie l'ancien code via Function (ligne ~2675)
+- Session persistante via `localStorage.setItem('rm-user', ...)`
 
 ### 👥 Équipe
-- Brand : Victor (vic26), Louise (lou26), Arnaud C (arc26)
-- `renderEquipeList()` groupé par rôle
+- Victor (vic26), Louise (lou26), Arnaud C (arc26) — rôle Brand
+- `renderEquipeList()` groupé par rôle (Chef/Journaliste/Monteur/Brand)
+- `equippeAjouter()` crée dans Notion avec code auto (3 lettres + 26)
+- `equipeSupprimerJournaliste()` archive dans Notion
+- `confirmerAction()` toast de confirmation (pas de `confirm` natif)
+- Formulaire ajout : champ Nom + select Rôle + bouton
 
 ### 🎵 Musiques / PAD
-- Boutons 🎵/🔇 dans le step PAD
+- Boutons 🎵 Avec musique / 🔇 Sans musique dans le step PAD
+- `sansMusique` local défini dans `openDetail`
 - `padPret = capDeposee && (sansMusique || releveMusique)`
+- `ajouterMusiqueEtVerif()` ajoutée
+- `exporterReleve()` cherche aussi dans `sujetsArchives`
+- Step Musiques séparé supprimé
 
-### 🚦 Priorité (UX finalisée)
-- Indicateur visuel = bordure droite 3px sur cartes + colonne "Prio" dans Liste
-- Détection `.includes()` (résiste aux variations d'encodage emoji)
+### 🛡️ Robustesse
+- Retry API 429/503 (3 tentatives, backoff exponentiel)
+- Guard `_createEnCours` sur `createSujet`
+- Guard `_creerDecliEnCours` sur `creerDeclinaison`
+- Guard retours ouverts dans `ajouterVersion`
+- Filtre `Archivé=false` + `page_size:100`
+- Archives chargées à la demande (`async renderArchives`)
+
+### 🚦 Priorité
+- `priorite` dans `parsePage`
+- Select Priorité dans la fiche détail
+- Tri par priorité dans `renderJournaliste`
 
 ### 🔔 Notifications
-- `updStatut` : PAD→journaliste, Retours→journaliste, MontageV1→chef
+- `updStatut` : notifs PAD→journaliste, Retours→journaliste, MontageV1→chef
 - `toggleRetour` : notif chef quand retour corrigé
 
 ### ✏️ Pré-remplissage
 - `CHEF_PAR_DEFAUT = 'Benjamin'`
+- Chef auto-rempli selon rôle
 
-### ✅ Task Reminder (2 systèmes)
-- Système 1 — Tâches personnelles (sidebar `📋 Tâches`) : privées, badge rouge, stats pills, toggle terminées, modification au click
-- Système 2 — Tâches de sujet (fiche détail) : partagées, créateur=assigné par défaut
-- Distinction Notion : champ `Sujet lié`
+### 📊 Dashboard (4 niveaux avec 28px d'espace entre chaque)
+- **N1** : KPIs encadrés (bg2 + border + padding 24px) — "Vue globale"
+- **N2** : grid inline 1fr 1fr → Alertes (8 visibles) | Activité récente
+- **N3** : Activité mensuelle + two-col Formats/Journaliste
+- **N4** : two-col Délais | Export stats
+- `toggleDashAlertes()` — alertes pliables
+- `buildMoisSelect` / `buildAnneeSelect` / `exportStatsTxt`
+- `max-width` supprimé du dashboard (pleine largeur)
+- `main-content` padding:24px 32px
+
+### 🎛️ Sidebar (3 boutons harmonisés)
+Les 3 boutons en bas de sidebar ont le même format :
+- Même largeur (100%), même padding (`9px 14px`), même `border-radius` (6px)
+- Même `font-size` (12px) et `font-weight` (600)
+- Icônes alignées (largeur fixe 16px) pour que les textes commencent à la même position
+
+| Bouton | Style | Couleur |
+|--------|-------|---------|
+| **+ Nouveau sujet** | fond plein | `var(--red)` |
+| **💡 Nouvelle idée** | fond plein | `var(--amber)` |
+| **👥 Gérer l'équipe** | fond `bg2` + bordure subtile `border2` | (gris foncé) |
+| **📊 Export stats** | entrée menu (au-dessus, dans la liste de navigation) | — |
+
+**Ligne user (en bas de sidebar) :**
+- Avatar 26px (au lieu de 24px) pour mieux respirer
+- 🔑 (changer code) et ↩ (déconnexion) regroupés à droite avec même style (bordure + padding 4px 7px)
+- Nom utilisateur tronque proprement avec ellipsis si trop long
+
+`ouvrirExportStats()` + `exportStatsFromModal()` : modal léger avec sélecteurs mois/année.
 
 ### 🪟 UX divers
-- Modal "Nouvelle idée" : système de liens multiples (R1)
-- `ideeRefs` séparée de `modalRefs`
-- Bordure droite priorité (cohérence toutes vues)
+- Modal idée consultation : `padding:0 20px 20px`
+- Modal "Nouvelle idée" : padding cohérent avec les autres modals
 
 ## 🔧 Ce qui reste à faire
-1. **Tests journalistes en live** : étape suivante ! Observer leurs usages réels
-2. **Backup automatique** (en pause — à réactiver pour les tests journalistes)
-3. **Migration bases Notion** vers workspace Réel Média (attendre Arnaud)
-4. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1`
-5. **Notifications pour tâches de sujet** (à évaluer à l'usage)
-6. **Phase B PR2-6** (refonte modulaire ES6) — en pause longue durée
-
-## 🧪 Sentry — Comment tester après le merge
-1. Sur la prod (`reel-media-production.netlify.app`), login
-2. Ouvrir DevTools (Cmd+Option+I) → Console
-3. Taper : `throw new Error('Test Sentry depuis prod')`
-4. Aller sur `rushup.sentry.io` → Issues
-5. L'erreur doit apparaître dans la minute avec :
-   - Username (le journaliste loggé)
-   - Tag `role: ...`
-   - Environment `production`
-   - Release `reel-media@2026-05-27`
+1. **Backup automatique** (GitHub Actions, export Notion → JSON nightly)
+2. **Monitoring Sentry**
+3. **Migration bases Notion** vers workspace Réel Média (attendre invitation d'Arnaud)
+4. **Compteur Notion** : bug du formulaire `prop("Dernier numéro") + 1` qui reset à zéro — root cause à investiguer
 
 ## 📋 Workflow de modification
-1. David décrit la modif
-2. Claude lit `index.html` du project knowledge
-3. Claude rédige le prompt Claude Code (intention + emplacement)
-4. Claude Code part du main à jour via curl
-5. Claude vérifie programmatiquement
-6. Claude livre 2 fichiers : `index.html` + `CONTEXT_REEL_MEDIA.md`
-7. David push sur nouvelle branche, PR, test preview, merge
-8. David clique "Synchroniser maintenant"
+1. David décrit la modif voulue (en français, avec capture d'écran si possible)
+2. Claude lit le fichier `index.html` dans le project knowledge
+3. Claude effectue la modif
+4. **Claude livre DEUX fichiers** :
+   - `index.html` complet modifié
+   - `CONTEXT_REEL_MEDIA.md` mis à jour avec nouvelle entrée d'historique en haut
+5. David push les 2 fichiers sur GitHub `David-f10/reel-media-production`
+6. David clique "Synchroniser maintenant" dans le project knowledge
+7. Netlify déploie automatiquement le site
+8. David sauvegarde une copie en local (système de versions personnel)
 
-## 🎨 Variables CSS clés
-- `--red`, `--amber`, `--green`, `--blue`, `--purple` : couleurs principales
-- `--red-dim`, `--amber-dim`, `--green-dim`, `--blue-dim`, `--purple-dim` : variantes diluées (15% opacité)
-- `--bg2/3/4`, `--border/2`, `--text/2/3` : structure visuelle
+## 🎨 Variables CSS clés (pour cohérence visuelle)
+- `--red` : rouge principal (boutons primaires, alertes)
+- `--amber` : jaune ambre (idées, attention)
+- `--bg2` : fond secondaire (cartes, modals)
+- `--border` / `--border2` : bordures subtiles
+- `--text` / `--text2` / `--text3` : hiérarchie de texte (clair → atténué)
+- `--font` : police principale
+- `--mono` : police monospace (codes, IDs)
 
 ## 👥 Équipe (rôles)
-- **Chef** : Benjamin (par défaut), autres à compléter
+- **Chef** : Benjamin (chef principal par défaut), autres chefs à compléter
 - **Journalistes** : Augustin, Julien, Nico, Mathilde, Mickael, Juliette, etc.
 - **Brand** : Victor (vic26), Louise (lou26), Arnaud C (arc26)
-- **David** : développeur principal
-- **Arnaud** : responsable côté Réel Média
+- **David** : développeur principal de l'app
+- **Arnaud** : responsable côté Réel Média (gère la migration Notion à venir)
