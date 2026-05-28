@@ -13,6 +13,15 @@
 <link rel="stylesheet" href="/css/layout.css">
 <link rel="stylesheet" href="/css/components.css">
 <link rel="stylesheet" href="/css/views.css">
+<style>
+#login-grille .login-section{margin-bottom:14px}
+#login-grille .login-section:last-child{margin-bottom:0}
+.login-section-titre{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:7px}
+.login-grid{display:flex;flex-wrap:wrap;gap:6px}
+.login-personne{flex:1 1 auto;min-width:84px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px;font-family:var(--font);cursor:pointer;text-align:center;transition:all 0.15s}
+.login-personne:hover{border-color:var(--red);color:#fff}
+.login-personne.selected{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+</style>
 </head>
 <body>
 <!-- ÉCRAN DE CONNEXION -->
@@ -40,24 +49,9 @@
     <div style="display:flex;flex-direction:column;gap:12px">
       <div>
         <div class="field-label" style="margin-bottom:6px">Qui êtes-vous ?</div>
-        <select id="login-nom" style="width:100%" onchange="document.getElementById('login-code').value=''">
-          <option value="">Choisir...</option>
-          <option value="ben">Benjamin · Chef</option>
-          <option value="arn">Arnaud · Chef</option>
-          <option value="chl">Chloé · Chef</option>
-          <option value="jul">Julien · Journaliste</option>
-          <option value="aug">Augustin · Journaliste</option>
-          <option value="nic">Nico · Journaliste</option>
-          <option value="mic">Mickael · Journaliste</option>
-          <option value="jlt">Juliette · Journaliste</option>
-          <option value="mat">Mathilde · Journaliste</option>
-          <option value="lea">Léa · Journaliste</option>
-          <option value="elo">Éloise · Journaliste</option>
-          <option value="thi">Thierry · Monteur</option>
-          <option value="dav">David · Monteur</option>
-        </select>
+        <div id="login-grille"></div>
       </div>
-      <div>
+      <div id="login-code-wrap" style="display:none">
         <div class="field-label" style="margin-bottom:6px">Code d'accès</div>
         <input type="password" id="login-code" placeholder="Votre code personnel..." style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
@@ -2212,11 +2206,51 @@ async function toggleValidationSeq(id, type) {
 // Liste de secours si l'API est indisponible
 const EQUIPE_FALLBACK = []; // Codes gérés via Notion — ne pas remettre ici
 
+// Sections de la grille de login, dans l'ordre d'affichage
+const LOGIN_GROUPES = [
+  {titre:'Chefs',        match:r=>/chef/i.test(r)},
+  {titre:'Journalistes', match:r=>/journ/i.test(r)},
+  {titre:'Monteurs',     match:r=>/mont/i.test(r)},
+];
+// UUID Notion de la personne sélectionnée (transmis à doLogin)
+let selectedLoginId = '';
+
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
 function peuplerSelect(liste) {
-  const sel = document.getElementById('login-nom');
-  if(!sel) return;
-  sel.innerHTML = '<option value="">Choisir...</option>' +
-    liste.map(m => `<option value="${m.id}">${m.nom}${m.role?' · '+m.role:''}</option>`).join('');
+  const cont = document.getElementById('login-grille');
+  if(!cont) return;
+  selectedLoginId = '';
+  const codeWrap = document.getElementById('login-code-wrap');
+  if(codeWrap) codeWrap.style.display = 'none';
+  const codeInput = document.getElementById('login-code');
+  if(codeInput) codeInput.value = '';
+
+  const groupes = LOGIN_GROUPES.map(g => ({titre:g.titre, match:g.match, membres:[]}));
+  const autres = {titre:'Autres', membres:[]};
+  (liste||[]).forEach(m => {
+    const g = groupes.find(g => g.match(m.role||''));
+    (g||autres).membres.push(m);
+  });
+  const sections = [...groupes, autres].filter(g => g.membres.length);
+  cont.innerHTML = sections.map(g => {
+    const btns = g.membres
+      .slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr'))
+      .map(m=>`<button type="button" class="login-personne" data-id="${escapeHtml(m.id)}" onclick="selectLoginPersonne(this)">${escapeHtml(m.nom)}</button>`)
+      .join('');
+    return `<div class="login-section"><div class="login-section-titre">${escapeHtml(g.titre)}</div><div class="login-grid">${btns}</div></div>`;
+  }).join('');
+}
+
+function selectLoginPersonne(btn) {
+  selectedLoginId = btn.dataset.id;
+  document.querySelectorAll('#login-grille .login-personne.selected').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  const codeWrap = document.getElementById('login-code-wrap');
+  const codeInput = document.getElementById('login-code');
+  if(codeInput) codeInput.value = '';
+  if(codeWrap) codeWrap.style.display = '';
+  if(codeInput) codeInput.focus();
 }
 
 async function initLogin() {
@@ -2256,7 +2290,7 @@ async function initLogin() {
 }
 
 async function doLogin(){
-  const selId=document.getElementById('login-nom').value,code=document.getElementById('login-code').value.trim(),errEl=document.getElementById('login-error'),btn=document.querySelector('#login-screen button');
+  const selId=selectedLoginId,code=document.getElementById('login-code').value.trim(),errEl=document.getElementById('login-error'),btn=document.querySelector('#login-screen button');
   if(!selId){errEl.textContent='Choisissez votre nom';errEl.style.display='block';return;}
   if(!code){errEl.textContent="Entrez votre code d'accès";errEl.style.display='block';return;}
   try{
@@ -2351,6 +2385,10 @@ function doLogout() {
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app-shell').style.display = 'none';
   document.getElementById('login-code').value = '';
+  selectedLoginId = '';
+  document.querySelectorAll('#login-grille .login-personne.selected').forEach(b=>b.classList.remove('selected'));
+  const codeWrap = document.getElementById('login-code-wrap');
+  if(codeWrap) codeWrap.style.display = 'none';
 }
 
 // ─── COMMENTAIRES ───
