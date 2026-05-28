@@ -920,13 +920,13 @@ function openDetail(id, forcePadOpen=false){
     `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
     <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
       <label style="display:flex;align-items:center;gap:10px;cursor:${s.statut==='PAD'?'default':'pointer'};padding:10px;border-radius:8px;border:1px solid ${capDeposee?'var(--green)':'var(--border)'};background:${capDeposee?'var(--green-dim)':'var(--bg3)'}">
-        <input type="checkbox" ${capDeposee?'checked':''} ${s.statut==='PAD'?'disabled':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Cap d\u00e9pos\u00e9e','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.capDeposee=v;openDetail('${id}',true)})">
+        <input type="checkbox" ${capDeposee?'checked':''} ${s.statut==='PAD'?'disabled':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Cap d\u00e9pos\u00e9e','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.capDeposee=v;refreshDetail('${id}',true)})">
         <div>
           <div style="font-size:12px;font-weight:500;color:var(--text)">🖼️ Cap déposée</div>
           <div style="font-size:10px;color:var(--text3)">Miniature ${s.format==='YouTube'?'16x9':'9x16'} dans le dossier Drive</div>
         </div>
       </label>
-      ${s.sansMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span></div>` : s.releveMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${s.statut!=='PAD'?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div><button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">📄 Exporter le relevé</button>`:''}</div>` : `<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>openDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div>`}
+      ${s.sansMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span></div>` : s.releveMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${s.statut!=='PAD'?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div><button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">📄 Exporter le relevé</button>`:''}</div>` : `<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>refreshDetail('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div>`}
     </div>
     ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary"
       style="width:100%;background:${padPret?'var(--green)':'var(--bg4)'};border-color:${padPret?'var(--green)':'var(--border)'};color:${padPret?'#fff':'var(--text3)'};cursor:${padPret?'pointer':'not-allowed'}"
@@ -982,11 +982,11 @@ function openDetail(id, forcePadOpen=false){
         <span class="step-ttl">📌 Statut</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px">
-        <button onclick="upd('${id}','Statut','select','Brief / Idée').then(()=>{s.statut='Brief / Idée';renderCards();openDetail('${id}')})"
+        <button onclick="upd('${id}','Statut','select','Brief / Idée').then(()=>{s.statut='Brief / Idée';renderCards();refreshDetail('${id}')})"
           class="nav-btn ${s.statut!=='PAD'?'primary':''}" style="flex:1;font-size:12px">
           🔵 En cours
         </button>
-        <button onclick="upd('${id}','Statut','select','PAD').then(()=>{s.statut='PAD';renderCards();openDetail('${id}')})"
+        <button onclick="upd('${id}','Statut','select','PAD').then(()=>{s.statut='PAD';renderCards();refreshDetail('${id}')})"
           class="nav-btn" style="flex:1;font-size:12px;${s.statut==='PAD'?'background:var(--green);border-color:var(--green);color:#fff':''}">
           ✅ Validé
         </button>
@@ -1150,6 +1150,21 @@ function toggleStep(uid) {
   chev.classList.toggle('open', !isOpen);
 }
 
+// Rafraîchissement débouncé de la fiche détail après une action (Option 1)
+let _refreshDetailTimer = null;
+function refreshDetail(id, forcePadOpen=false){
+  const ov = document.getElementById('ov-detail');
+  if(!ov || !ov.classList.contains('open')) return; // fiche fermée → ne rien faire
+  clearTimeout(_refreshDetailTimer);
+  _refreshDetailTimer = setTimeout(() => {
+    const modal = ov.querySelector('.modal');
+    const scroll = modal ? modal.scrollTop : 0;
+    openDetail(id, forcePadOpen);
+    const modal2 = document.getElementById('ov-detail')?.querySelector('.modal');
+    if(modal2) modal2.scrollTop = scroll;
+  }, 300);
+}
+
 async function upd(id,field,type,value){
   try{
     let props={};
@@ -1182,6 +1197,8 @@ async function upd(id,field,type,value){
     toast('Sauvegardé','ok');
     // Transition automatique de statut
     await autoStatut(id, field, value);
+    // Rafraîchir la fiche détail (débouncé) pour refléter l'action
+    refreshDetail(id);
   }catch(e){toast('Erreur : '+e.message,'err');}
 }
 
@@ -2182,7 +2199,7 @@ async function toggleValidationSeq(id, type) {
       }
     }
   }
-  openDetail(id);
+  refreshDetail(id);
 }
 
 // ─── AUTHENTIFICATION ───
@@ -2887,7 +2904,7 @@ async function autoStatut(id, field, value){
     s.statut=newStatut;
     renderCards();
     const stepper=document.querySelector('.stepper');
-    if(stepper) openDetail(id);
+    if(stepper) refreshDetail(id);
 
     // ─── Notifications automatiques selon le nouveau statut ───
     const auteur = currentUser?.nom || '';
@@ -2910,7 +2927,7 @@ async function autoStatut(id, field, value){
 async function updStatut(id,statut){
   await upd(id,'Statut','sel',statut);
   const s=sujets.find(x=>x.id===id);if(s)s.statut=statut;
-  renderCards();openDetail(id);
+  renderCards();refreshDetail(id);
 }
 
 function selFmt(fmt,el){
