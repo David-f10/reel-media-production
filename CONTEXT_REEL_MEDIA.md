@@ -5,15 +5,6 @@
 > Section maintenue automatiquement. Les modifs les plus récentes sont en haut.
 > Format : ### YYYY-MM-DD — Titre court / Liste de points / Optionnel : raison
 
-### 2026-05-28 — Feature Brand : format de livraison + nouvelle base clients
-- **Nouvelle base 🏷️ Clients Brand** (`67abbb5f-f6a6-4937-89e3-6c852c515a8e`) : le chargement de `clients` bascule de l'ancienne base (`228c6efb`) vers la nouvelle. Ancienne base conservée (déclarée, plus queryée) — à nettoyer plus tard si confirmé inutile
-- Parsing clients aligné sur les champs de la nouvelle base : Client (title), Code (rich_text), Dernière lettre (rich_text), Nb projets (number). Helper `getCode()` ajouté
-- **Format de livraison** : nouveau select `#brand-format-livraison` (Mag/Face Cam/Desk/YouTube) dans `#brand-panel`. Stocké dans la propriété `Sous-format` de la carte — `Format` reste 'Brand' (préserve couleur ambre + filtre + affichage spécial). N'incrémente PAS les compteurs Mag/Face Cam/Desk/YouTube
-- **Fix bug nouveau client** : créait une carte `B54` (sans lettre) → crée maintenant `B54A` (client + 1er projet ensemble). Entrée client : Code=B54, Dernière lettre=A, Nb projets=1, Prochaine déclinaison=B54B
-- **Déclinaison** : carte `B04S`, compteur Brand non touché, client mis à jour (Dernière lettre, Prochaine déclinaison, Nb projets +1)
-- `nextLetter()` (gère Z→AA) et `getPrefixe()` (compteurs) inchangées
-- Préservé : Phase A, Sentry, Task Reminder, autres formats. Syntaxe JS validée (node --check). 5049→5068 lignes
-
 ### 2026-05-22 — Phase A : gestion d'erreur globale
 - `window.onerror` : capture des erreurs JS non gérées → toast user-friendly (TypeError/ReferenceError/SyntaxError mappés vers messages non-techniques)
 - `window.onunhandledrejection` : capture des promesses rejetées (await sans try/catch) → toast + déclenche bandeau Notion si erreur réseau
