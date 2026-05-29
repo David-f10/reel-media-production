@@ -2215,8 +2215,23 @@ const EQUIPE_FALLBACK = []; // Codes gérés via Notion — ne pas remettre ici
 function peuplerSelect(liste) {
   const sel = document.getElementById('login-nom');
   if(!sel) return;
-  sel.innerHTML = '<option value="">Choisir...</option>' +
-    liste.map(m => `<option value="${m.id}">${m.nom}${m.role?' · '+m.role:''}</option>`).join('');
+  const opt = m => `<option value="${m.id}">${m.nom}${m.role?' · '+m.role:''}</option>`;
+  const groupes = [
+    {role:'Chef',        label:'Chefs'},
+    {role:'Journaliste', label:'Journalistes'},
+    {role:'Monteur',     label:'Monteurs'},
+    {role:'Brand',       label:'Brand'},
+  ];
+  const connus = groupes.map(g => g.role);
+  let html = '<option value="">Choisir...</option>';
+  groupes.forEach(g => {
+    const membres = liste.filter(m => m.role === g.role);
+    if(!membres.length) return;
+    html += `<optgroup label="${g.label}">` + membres.map(opt).join('') + '</optgroup>';
+  });
+  const autres = liste.filter(m => !connus.includes(m.role));
+  if(autres.length) html += '<optgroup label="Autres">' + autres.map(opt).join('') + '</optgroup>';
+  sel.innerHTML = html;
 }
 
 async function initLogin() {
