@@ -318,7 +318,7 @@
     <div class="modal-hdr">
       <div>
         <div class="modal-code" id="d-code"></div>
-        <div class="modal-title" id="d-title" style="white-space:normal;overflow:visible;text-overflow:clip"></div>
+        <div class="modal-title" id="d-title"></div>
         <div class="modal-meta" id="d-meta"></div>
       </div>
       <button class="modal-close" onclick="closeOv('ov-detail')">×</button>
@@ -744,7 +744,7 @@ function openDetail(id, forcePadOpen=false){
   const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
   const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
   document.getElementById('d-code').innerHTML = `${s.code||'—'} · ${s.format}${sfSpan}${platSpan}`;
-  document.getElementById('d-title').innerHTML=`<input type="text" id="d-titre-input" value="${s.titre}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;font-family:var(--font);letter-spacing:-0.02em;width:100%;padding:2px 0" onblur="upd('${s.id}','Titre','titre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">` ;
+  document.getElementById('d-title').innerHTML=`<textarea id="d-titre-input" rows="1" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;font-family:var(--font);letter-spacing:-0.02em;width:100%;padding:2px 0;resize:none;overflow:hidden;line-height:1.3" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="upd('${s.id}','Titre','titre',this.value.trim())" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.blur()}">${escapeHtml(s.titre)}</textarea>`;
   document.getElementById('d-meta').textContent=`Chef : ${s.chef||'—'} · Journaliste : ${s.journaliste||'—'}${s.diffusion?' · Diffusion : '+fmtDate(s.diffusion):''}`;
   const hasTour=NEEDS_TOUR.includes(s.format)||(s.format==='Desk'&&s.sousFormat==='Prodige');
   const isInterne = s.format === 'Interne';
@@ -1128,6 +1128,8 @@ function openDetail(id, forcePadOpen=false){
   </div>`;
   document.getElementById('d-steps').innerHTML=html;
   openOv('ov-detail');
+  // Ajuster la hauteur du titre une fois la modale visible (sinon scrollHeight=0)
+  requestAnimationFrame(()=>{ const _ta=document.getElementById('d-titre-input'); if(_ta){ _ta.style.height='auto'; _ta.style.height=_ta.scrollHeight+'px'; } });
   // Charger les références
   setTimeout(()=>loadRefs(id,'refs-prod-'+id),100);
   // Charger les déclinaisons si YouTube
