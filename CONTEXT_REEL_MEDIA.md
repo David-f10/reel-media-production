@@ -7,93 +7,125 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
-### 2026-05-29 — Login : <select> natif groupé par rôle via <optgroup> (branche `login-optgroup`)
-index.html 5091 → **5106 lignes** (+15). Modif chirurgicale : UNE seule fonction réécrite.
+### 2026-05-29 — Brouillons retours internes + Triple validation Brand (branche `brouillons-triple-validation`)
+index.html 5106 → **5166 lignes** (+60). Grosse PR à 2 features, faite en **4 incréments
+vérifiés** (environnement Claude Code instable). Chaque incrément validé par le pilote
+avant le suivant.
 
-**Ce qui change**
-- Le <select id="login-nom"> natif d'origine est CONSERVÉ tel quel (HTML, comportement, look).
-- Seule la fonction peuplerSelect(liste) a été réécrite pour regrouper les options en
-  <optgroup> par rôle, dans l'ordre :
-    1. Chefs (rôle = "Chef")
-    2. Journalistes (rôle = "Journaliste")
-    3. Monteurs (rôle = "Monteur")
-    4. Brand (rôle = "Brand")
-    5. Autres (tout autre rôle ou rôle vide — généré seulement s'il y a au moins un membre)
-- Match EXACT sur m.role (identique à renderEquipeList de la page "👥 Gérer l'équipe").
-  Groupe vide non généré. <option> portent value=UUID Notion (transmis tel quel à doLogin).
-- Texte de chaque option : "Nom · Role" (conservé comme avant).
+**CHANGEMENT 1 — Brouillons sur retours internes (base 📋 Retours)**
+- Nouveau champ Notion "Brouillon" (checkbox) sur 📋 Retours, créé par le Master.
+- Concerne UNIQUEMENT les retours `Source="Équipe"`. Les retours `Source="Client"` gardent
+  leur logique inchangée.
+- Création d'un retour interne : `Brouillon=true` par défaut.
+- Affichage : contenu grisé (opacity 0.55) + label "BROUILLON" rouge + title au survol.
+  Boutons corrigé/impossible masqués tant qu'en brouillon.
+- Bouton "Valider tous les retours" : visible uniquement pour role="Chef" ET s'il existe au
+  moins un brouillon. PATCH Notion en bloc sur tous les retours Équipe de la carte.
+- Défense en profondeur : restriction Chef vérifiée côté UI (caché) ET côté handler
+  (`validerTousRetours` re-vérifie role).
+- Une fois validé, le retour n'est plus en brouillon → boutons corrigé/impossible réapparaissent,
+  monteur peut agir.
 
-**POURQUOI**
-- Le menu déroulant était mal organisé (rôles en vrac) et le scroll trop long quand on
-  l'ouvrait. Les tentatives "modernes" précédentes (grille de boutons, menu custom avec
-  avatars) n'ont pas convaincu visuellement et le menu custom buggait sur 2e sélection
-  (Cannot set properties of null sur #login-bar-content après logout). On revient au plus
-  simple, identique à la page Équipe.
+**CHANGEMENT 2 — Triple validation Brand (chaîne stricte)**
+- Champs Notion ajoutés sur 🎬 Suivi de Production par le Master :
+  - "Validation Brand" (checkbox) entre RM et Client
+  - "Contact Brand" (select : Arnaud C / Guillaume / Louise / Victor)
+- Workflow Brand UNIQUEMENT (format='Brand') :
+  1. Validation Édito (=validationRM) — libre, décochable
+  2. Validation Brand — disabled tant que RM=false, décochable. RESTRICTION role='Brand'
+     côté handler (toast "Réservé aux contacts Brand" sinon). Toast si contactBrand vide.
+  3. Validation Client — disabled tant que Brand=false. **DÉFINITIVE** (cliquet, toast
+     "Validation Client définitive" si reclic).
+- 3 boutons côte à côte dans la fiche détail Brand.
+- Pastille séquencier : 4 états (En attente → Édito validé → Brand validé → Validé client).
+- Nouveau select "Contact Brand" dans la fiche, visible UNIQUEMENT si format=Brand.
+  Options dynamiques (equipe filtré sur role='Brand'), option "— Aucun —".
+- 2 nouvelles notifs au Contact Brand (type 'validation' / ✅) :
+  - Édito coché → "Édito validé sur [code], à toi de valider"
+  - Client coché → "Le client a validé [code]"
+  Gardes : newVal=true, format=Brand, contactBrand non vide, contactBrand≠auteur.
+- Les notifs EXISTANTES au journaliste sont PRÉSERVÉES (on ajoute, on ne remplace pas).
+- AUTRES FORMATS NON TOUCHÉS : MAG, Face Cam, Desk, YouTube, Interne, Prodige → workflow
+  séquencier simple inchangé (le cas 'autre' du handler n'a pas bougé).
 
-**IMPORTANT — auth strictement intacte**
-- login.js NON modifié. doLogin NON modifié (lit document.getElementById('login-nom').value,
-  envoie {id, code} à /.netlify/functions/login).
-- initLogin NON modifié (appelle peuplerSelect(equipe) avec la même signature).
-- EQUIPE_FALLBACK reste = []. Source dynamique Notion (DB_EQUIPE) conservée.
-- Aucun nouveau JS, aucun listener, aucun composant custom. Zéro charge supplémentaire.
+**WORKFLOW : PR FAITE EN 4 INCRÉMENTS VÉRIFIÉS**
+- I1 (brouillons) : 5106 → 5132. Validé.
+- I2 (plomberie Brand : lecture + map upd) : 5132 → 5134. Validé.
+- I3 (UI triple validation) : 5134 → 5155. Validé.
+- I4 (notifs Contact Brand) : 5155 → 5166. Validé.
+Chaque incrément a passé : node --check OK, compteurs de préservation tous bons, périmètre
+strict respecté, fichier vérifié par le pilote avant feu vert pour l'incrément suivant.
 
-**Vérifs pilote OK** : login-nom=3 (HTML + doLogin + peuplerSelect) ; optgroup=2 (générés) ;
-EQUIPE_FALLBACK=[] ; DB_EQUIPE inchangé ; doLogin payload {id,code} préservé ; AUCUN résidu
-des tentatives précédentes (login-bar-content/select-bar/panel/selectLoginPersonne/
-loginInitiales/LOGIN_GROUPES/selectedLoginId tous à 0) ; node --check OK ; window.onerror=2 ;
-sentry-cdn=1 ; DB_CLIENTS_BRAND=6 ; acquis préservés (Montage V1=0, refreshUI=1, location.reload=0).
+**Vérifs pilote OK** : Brouillon=8 ; "Valider tous les retours"=1 ; validerTousRetours=2 ;
+validationBrand=11 ; contactBrand=8 ; "Réservé aux contacts Brand"=1 ; "Assignez d'abord
+un contact Brand"=1 ; "Validation Client définitive"=1 ; `validation:` dans NOTIF_ICONS=1 ;
+createNotif('validation'=2 ; createNotif('nouveau_sujet'=11 (notifs journaliste intactes) ;
+node --check OK ; window.onerror=2 ; sentry-cdn=1 ; DB_CLIENTS_BRAND=6 ; Montage V1=0 ;
+function refreshUI=1 ; location.reload=0 ; EQUIPE_FALLBACK=[]=1.
 
-**À tester en preview** (incognito + Cmd+Shift+R) :
-- Se connecter avec un VRAI compte (le tien) → auth doit marcher.
-- Ouvrir le menu → vérifier les groupes (Chefs / Journalistes / Monteurs / Brand) avec sous-
-  titres natifs (apparence dépend de l'OS : Mac/Windows/iPhone).
-- Se déconnecter, se reconnecter avec un autre compte → pas d'erreur console (le bug
-  innerHTML du menu custom n'existe plus).
-- Tester sur mobile.
+**À tester en preview** (incognito + Cmd+Shift+R) — checklist en 3 zones :
 
-> Note process : Claude Code a commité (fd8f13e) sur 'login-optgroup' mais n'a PAS pu pusher
-> (403 permissions). Fichier récupéré et vérifié manuellement par le pilote. À pousser sur
-> GitHub manuellement (upload web ou git push depuis poste autorisé).
->
-> ⚠️ Branches à supprimer sur GitHub : `login-grille` et `login-dropdown` (toutes deux
-> abandonnées, jamais mergées, plus utiles).
+🧪 BROUILLONS
+1. Journaliste écrit un retour interne sur une carte → "BROUILLON" rouge + grisé
+2. Un autre membre voit le brouillon avec son label
+3. Benjamin (chef) voit le bouton "Valider tous les retours"
+4. Journaliste sur la même carte → bouton invisible
+5. Benjamin clique → tous brouillons → validés, grisé/label disparaissent
+6. Boutons corrigé/impossible inactifs tant qu'en brouillon, réapparaissent une fois validés
+7. Retours Client jamais affectés par la pastille brouillon
 
-**Découverte de session : les "Brand"**
-- Arnaud C, Guillaume, Louise, Victor sont des contacts CLIENT/AGENCE Brand (rôle Notion =
-  "Brand"). Ils ont des fiches Équipe pour se connecter et consulter LEURS lives, mais ils
-  NE REÇOIVENT PAS de notifs. Le système notifs (loadNotifs/createNotif) est universel
-  côté code (filtre sur le nom du destinataire) — donc s'il fallait les notifier un jour,
-  rien à coder, juste à les ajouter comme destinataires côté Notion.
+🧪 TRIPLE VALIDATION BRAND
+8. Carte Brand → 3 boutons (Édito/Brand/Client) côte à côte
+9. Carte MAG/Face Cam/Desk/YouTube → 2 boutons d'avant (workflow inchangé)
+10. Brand : sans Édito, boutons Brand et Client disabled (clic silencieux)
+11. Coche Édito → Brand cliquable, Client toujours disabled
+12. Connecté Benjamin (chef) → clic Brand → toast "Réservé aux contacts Brand"
+13. Connecté Arnaud C (Brand), contactBrand vide → toast "Assignez d'abord un contact"
+14. Assigne Arnaud C → reclick Brand → ✅ coché
+15. Client devient cliquable → coche → c'est définitif (re-clic → toast "définitive")
+
+🧪 NOTIFS
+16. Vérifier que Arnaud C (Contact Brand) reçoit "Édito validé sur [code], à toi de valider"
+17. Vérifier qu'il reçoit aussi "Le client a validé [code]"
+18. Vérifier que le journaliste continue de recevoir SES notifs habituelles (rien retiré)
+
+🧪 RÉGRESSION
+19. Login marche encore (auth intacte)
+20. Création / édition cartes des autres formats : workflow normal
+21. Console JS propre (à part les 504/500 Notion ponctuels habituels)
+
+> Note process : Claude Code n'a pas pu pusher (403 permissions sur sa session). Fichier
+> récupéré manuellement et vérifié par le pilote. À pousser sur GitHub via interface web.
+> Branche cible : `brouillons-triple-validation`.
 
 ---
 
-### 2026-05-28 — Login : tentatives ABANDONNÉES
-- **`login-grille`** : grille de boutons groupée par rôle. Trop long, austère. Jamais mergée.
-- **`login-dropdown`** : menu custom avec avatars colorés. Charge plus de JS, et bug
-  innerHTML on null à la 2e sélection (cycle de vie). Jamais mergée.
-Les deux branches sont à supprimer de GitHub. Remplacées par `login-optgroup` (ci-dessus).
+### 📋 LISTE NOIRE — Bugs/améliorations pour la PROCHAINE PR
+À traiter dans une PR séparée après merge de brouillons-triple-validation :
+1. **Bug double V1** : Thierry (machine RAM saturée par After Effects) a réussi à créer 2 V1
+   en double-cliquant sur "Ajouter une version". Le verrou `_creerDecliEnCours` existe pour
+   les déclis (ligne ~1625) mais probablement pas pour les versions V1/V2/V3. À ajouter :
+   verrou + disabled UI pendant la requête + idéalement check serveur "pas de V1 récente".
+2. **Bug titre coupé dans la fiche détail** : la troncature 1-ligne s'applique aussi à la
+   modale détail (vu sur F645). À désactiver : dans la modale, le titre doit passer à la
+   ligne (white-space: normal sur le sélecteur de la fiche, pas sur les cartes).
+3. **Décli YouTube : choix Desk OU Face Cam** : actuellement le bouton "+ Créer une
+   déclinaison Desk" force Desk (l. 1056). Ajouter 2 boutons "+ Décli Desk" / "+ Décli
+   Face Cam". `creerDeclinaison` (l. 1626) accepte un 2e paramètre format. Titre de
+   section "📎 Déclinaisons" (sans "Desk").
 
 ---
 
-### 2026-05-28 — Renommage statut « Montage V1 » → « Montage » + PR Réactivité (branche `montage-reactivite`)
-index.html 5085 → 5091 lignes.
+### 2026-05-28 — Login : <select> natif groupé par rôle via <optgroup> (branche `login-optgroup`) MERGÉ
+index.html 5091 → 5106. Modif chirurgicale dans peuplerSelect. Groupes Chefs/Journalistes/
+Monteurs/Brand/Autres. Match exact m.role (identique à renderEquipeList). doLogin intact.
+Tentatives antérieures abandonnées : login-grille (grille de boutons), login-dropdown (menu
+custom buggé sur 2e sélection).
 
-**Étape A — Renommage statut (CODE + NOTION)**
-- Notion (Master) : option du select « Statut » renommée EN PLACE « Montage V1 » → « Montage »
-  (même ID interne, cartes migrées auto).
-- Code : 11 occurrences de la valeur 'Montage V1' → 'Montage'. Clé interne 'montage' inchangée.
-  Système de versions V1/V2/V3 INTACT.
-
-**Étape B — Réactivité (zéro rechargement perçu)**
-- LOT 1 : location.reload() du select Format supprimé.
-- LOT 2 : map de synchro locale d'upd() complétée (chef, journaliste, priorite, format,
-  versionClean, validationRM, validationClient, capDeposee, releveMusique, sansMusique).
-- LOT 3 : refreshUI(id, forcePadOpen) = appSetVue(currentVue) (local) si production +
-  refreshDetail (conservée, débounce 300ms). upd() + 9 handlers routés vers refreshUI.
-- LOT 4 : dashboard rafraîchi uniquement à la fermeture de la fiche (closeOv).
-- Confirmé EN PROD par David : "c'est très rapide".
-
----
+### 2026-05-28 — Renommage statut « Montage V1 » → « Montage » + PR Réactivité (branche `montage-reactivite`) MERGÉ
+index.html 5085 → 5091. Renommage statut (11 occurrences) + Réactivité (location.reload
+supprimé, map synchro upd() complétée, refreshUI = appSetVue + refreshDetail débouncé 300ms,
+dashboard rafraîchi à la fermeture). Confirmé EN PROD par David : "c'est très rapide".
 
 ═══════════════════════════════════════════════════════════════
 ## RÔLES (workflow à 3 chats)
@@ -102,8 +134,8 @@ index.html 5085 → 5091 lignes.
   validés + le CONTEXT mis à jour. NE code PAS, NE push PAS.
 - **CHAT MASTER** : opérations Notion via MCP. Un SEUL chat écrit dans Notion = le master.
 - **CLAUDE CODE** : exécute le code à partir des prompts du pilote. Ne pousse pas (403 perms).
-- **DAVID** : non-codeur. Colle les prompts, upload sur GitHub, teste preview, merge, clique
-  "Synchroniser maintenant". Langue : français.
+- **DAVID** : non-codeur. Colle les prompts, upload sur GitHub, teste preview, merge,
+  clique "Synchroniser maintenant". Langue : français.
 
 ## WORKFLOW STANDARD
 1. Pilote prépare un prompt précis (intention + emplacement, PAS de code prescriptif)
@@ -114,15 +146,27 @@ index.html 5085 → 5091 lignes.
 6. David crée une branche, upload, ouvre PR, teste preview Netlify (incognito + Cmd+Shift+R), merge si OK
 7. David clique "Synchroniser maintenant" sur le project knowledge
 
+## WORKFLOW SPÉCIAL : grosses PR / environnement Claude Code instable
+Découper en INCRÉMENTS VÉRIFIÉS (3 à 5 selon la taille). Pour chaque incrément :
+  a) périmètre strict défini en amont,
+  b) Claude Code livre uniquement cet incrément,
+  c) compteurs de préservation + node --check vérifiés par le pilote AVANT feu vert pour
+     l'incrément suivant.
+Bénéfice : si l'environnement plante, on n'a perdu qu'un incrément. Et le pilote peut
+détecter un dérapage à temps.
+
 ## RÈGLES D'OR
 - index.html dans le project knowledge = SOURCE OFFICIELLE ; toujours modifier l'existant
 - EQUIPE_FALLBACK = [] ; CHEF_PAR_DEFAUT = 'Benjamin'
 - Format prompts Claude Code : intention + emplacement, sans code JS/HTML prescriptif
 - À CHAQUE modif de code, livrer AUSSI le CONTEXT_REEL_MEDIA.md mis à jour
-- Sur fichiers sensibles (login.js, auth), JAMAIS merger sans vérification du pilote ET test
-  de connexion en preview
+- Sur fichiers sensibles (login.js, auth, validations), JAMAIS merger sans :
+  (a) vérification du pilote ET (b) test en preview
 - Quand on échoue sur un design, oser revenir au simple plutôt qu'empiler des fix
 - Ne jamais coller en clair des codes d'accès / secrets dans les chats
+- Si Claude Code dépasse 30 minutes sans livrer, vérifier son état avec un message STOP+statut
+- `git checkout` dans Claude Code peut donner une vieille version (HEAD désynchronisé du
+  raw GitHub). TOUJOURS partir d'un `curl` du raw GitHub main, jamais d'un git checkout.
 
 ═══════════════════════════════════════════════════════════════
 ## PROJET
@@ -134,25 +178,24 @@ index.html 5085 → 5091 lignes.
 - CSS : css/base.css, css/layout.css, css/components.css, css/views.css
   (⚠️ variables CSS dans css/base.css, pas dans index.html — vérifier via "var(--xxx)")
 - Monitoring : Sentry (org rushup, projet reel-media-production, data EU) — EN PROD
-- État du main : à mettre à jour selon merges. Branches livrées EN ATTENTE DE MERGE :
-  `montage-reactivite` (5091) puis `login-optgroup` (5106).
-- À supprimer sur GitHub : `login-grille`, `login-dropdown` (abandonnées).
+- État du main : 5106 lignes (post login-optgroup). Branche EN ATTENTE DE MERGE :
+  `brouillons-triple-validation` (5166 lignes).
 
 ## AUTHENTIFICATION (login)
-- login.js lit la base 👥 Équipe, trouve la personne par UUID, compare "Code acces" (rich_text).
-  Renvoie {ok, user:{id,nom,role}}.
-- Front : initLogin() charge l'équipe depuis Notion → peuplerSelect remplit le <select> natif
-  avec <optgroup> par rôle. Comptes = fiches Notion avec "Code acces" rempli. PAS de liste
-  de comptes en dur dans login.js.
-- Ajouter un utilisateur : le MASTER lui met "Code acces" + "Role" dans Équipe. Rien à coder.
+- login.js lit la base 👥 Équipe, trouve la personne par UUID, compare "Code acces"
+  (rich_text). Renvoie {ok, user:{id,nom,role}}.
+- Front : initLogin() charge l'équipe depuis Notion → <select> natif avec <optgroup>
+  par rôle. Comptes = fiches Notion avec "Code acces" rempli. PAS de liste de comptes dans
+  login.js.
+- Ajouter un utilisateur : le MASTER lui met "Code acces" + "Role" dans Équipe.
 
 ## NOTIFS — comment ça marche
-- loadNotifs filtre les notifs où "Destinataire" (rich_text) === currentUser.nom.
+- loadNotifs filtre les notifs où "Destinataire" === currentUser.nom.
 - createNotif prend un nom de destinataire en paramètre. Pas de whitelist.
-- Système universel : toute personne dans Équipe peut recevoir et voir ses notifs, à condition
-  que son NOM soit STRICTEMENT IDENTIQUE entre la base Équipe et le champ "Destinataire"
-  des notifs (attention aux espaces traînantes, variantes orthographiques).
-- Les Brand n'utilisent pas les notifs (consultation seule).
+- Système universel. Types dans NOTIF_ICONS : nouveau_sujet, v1/v2/v3_deposee, retour,
+  retour_corrige, commentaire, version_validee, validation (NOUVEAU ✅ 2026-05-29).
+- Les "Brand" reçoivent des notifs depuis la PR brouillons-triple-validation (Édito coché
+  + Client coché).
 
 ## BASES NOTION (IDs)
 | Base | ID |
@@ -169,28 +212,36 @@ index.html 5085 → 5091 lignes.
 | 📹 Versions | 3793eebb-2aeb-4d49-84ae-06d79cfb2704 |
 | 🎵 Musiques | d9d3579257bc49059e6cd683a8b02fef |
 | 💬 Commentaires | 45fda8a6-dfbc-42c1-a26f-de09c289037b |
-| 📋 Retours | 02880609-ee82-4acc-b239-d8aac9cae439 |
+| 📋 Retours | 02880609-ee82-4acc-b239-d8aac9cae439 (data source: 7817050d-ad51-45a3-bea2-6e6f7e2e0238) |
+
+## CHAMPS NOTION RÉCENTS (à connaître)
+- 📋 Retours : "Source" (Équipe/Client) + "Brouillon" (checkbox) ← Brouillon = NOUVEAU 2026-05-29
+- 🎬 Suivi de Production : "Validation Brand" (checkbox) + "Contact Brand" (select :
+  Arnaud C / Guillaume / Louise / Victor) ← NOUVEAUX 2026-05-29
 
 ═══════════════════════════════════════════════════════════════
 ## CE QUI EST EN PROD
 ═══════════════════════════════════════════════════════════════
-- ✅ Feature Brand ; Troncature titres + tooltips ; Kanban 220px
+- ✅ Feature Brand (base clients 67abbb5f, format livraison dans Sous-format, fix B54A)
+- ✅ Troncature titres 1 ligne + tooltips ; colonnes kanban 220px
 - ✅ Refresh fiche détail (refreshDetail, débounce 300ms)
 - ✅ Sentry ; Phase A (window.onerror + bandeau Notion)
-- ✅ Renommage Montage + Réactivité — confirmé rapide par David (à confirmer si déjà mergé)
+- ✅ Renommage Montage + Réactivité (confirmé rapide par David)
+- ✅ Login <select> groupé par rôle (optgroup)
 
-**EN ATTENTE DE MERGE** : `login-optgroup` (login <select> groupé par rôle).
+**EN ATTENTE DE MERGE** : `brouillons-triple-validation` (brouillons + triple validation Brand
++ Contact Brand + notifs validation).
 
 ═══════════════════════════════════════════════════════════════
-## EN ATTENTE / PLUS TARD (non prioritaire)
+## EN ATTENTE / PLUS TARD
 ═══════════════════════════════════════════════════════════════
-- À la 1re connexion d'un Brand : vérifier qu'il voit bien SES lives (Master à vérifier
-  côté Notion les associations "Client" sur les vidéos Brand).
+Voir "LISTE NOIRE" dans l'historique (bugs Thierry double-V1, titre coupé, décli YouTube).
+Aussi :
 - 3 cartes Brand sans Sous-format : B09W, B19E, B09U (côté master).
 - Backup automatique (GitHub Actions, export Notion nightly).
 - Intégration GitHub↔Sentry.
-- (Optionnel) Régénérer les codes d'accès des 5 nouveaux : ont circulé en clair dans un chat
-  Master le 2026-05-28. Pas critique mais hygiène.
+- (Optionnel) Régénérer les codes d'accès des 5 nouveaux + des 4 Brand (ont circulé en clair
+  dans des chats Master). Pas critique mais hygiène.
 - (Optionnel) Protéger la branche main (require PR + no force push).
 
 ═══════════════════════════════════════════════════════════════
@@ -203,9 +254,7 @@ index.html 5085 → 5091 lignes.
 - refreshUI(id, forcePadOpen) = appSetVue(currentVue) si production + refreshDetail(id) débouncé.
 - openDetail(id) lourde (~7 appels API) ; refreshDetail la ré-ouvre débouncé 300ms.
 - Login : <select> natif #login-nom avec <optgroup> par rôle. doLogin lit value du select.
-  peuplerSelect(equipe) génère les groupes (match exact m.role === 'Chef'/etc.).
-- Rôles canoniques (utilisés par renderEquipeList ET peuplerSelect) :
-    ['Chef', 'Journaliste', 'Monteur', 'Brand']
+- Rôles canoniques : ['Chef', 'Journaliste', 'Monteur', 'Brand']
 - Statuts (STATUS_ORDER) : Brief / Idée, Séquencier en cours, Séquencier validé, En tournage,
   Post-prod, Montage (ex « Montage V1 »), Retours, Validation chef, PAD.
 - Couleurs format : MAG bleu, Brand ambre, Face Cam rouge, Desk gris, YouTube vert.
@@ -214,3 +263,6 @@ index.html 5085 → 5091 lignes.
   Hervé Grandchamp, Anne Burlot.
 - Chefs : Benjamin (défaut), Arnaud, Chloé. Monteurs : Thierry, David.
 - Brand (contacts client) : Arnaud C, Guillaume, Louise, Victor.
+- Handler des validations : toggleValidationSeq(id, type) avec type∈{'RM','Brand','Client','autre'}.
+  Type 'Brand' = NOUVEAU. Type 'Client' modifié pour Brand uniquement (prérequis +
+  cliquet définitif). Type 'autre' = autres formats, inchangé.
