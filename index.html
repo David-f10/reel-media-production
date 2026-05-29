@@ -501,6 +501,12 @@ function getCode(pr){
   return'';
 }
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 async function api(endpoint,method='GET',body=null,_r=0){
   const opts={method,headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
@@ -646,6 +652,8 @@ function parsePage(p){
     contactTel:pr['Contact Tél']?.phone_number||'',
     validationRM:pr['Validation RM']?.checkbox||false,
     validationClient:pr['Validation Client']?.checkbox||false,
+    validationBrand:pr['Validation Brand']?.checkbox||false,
+    contactBrand:pr['Contact Brand']?.select?.name||'',
     priorite:pr['Priorité']?.select?.name||'',
     retoursOuverts:0};  // rempli après chargement
 }
@@ -802,6 +810,13 @@ function openDetail(id, forcePadOpen=false){
           ${tousNoms.map(j=>`<option ${s.journaliste===j?'selected':''}>${j}</option>`).join('')}
         </select>
       </div>
+      ${s.format==='Brand'?`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Contact Brand</span>
+        <select onchange="upd('${id}','Contact Brand','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
+          <option value="">— Aucun —</option>
+          ${equipe.filter(m=>m.role==='Brand').map(m=>`<option value="${escapeHtml(m.nom)}" ${s.contactBrand===m.nom?'selected':''}>${escapeHtml(m.nom)}</option>`).join('')}
+        </select>
+      </div>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text2)">Créé le</span>
         <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${createdFmt}</span>
@@ -847,7 +862,7 @@ function openDetail(id, forcePadOpen=false){
   `,activeStep==='brief'||s.notes);
   // Pill séquencier selon le format
   const seqPill = s.format==='Brand'
-    ? (s.validationClient?'p-green Validé client':(s.validationRM?'p-amber Validé RM':'p-gray En attente'))
+    ? (s.validationClient?'p-green Validé client':(s.validationBrand?'p-blue Brand validé':(s.validationRM?'p-amber Édito validé':'p-gray En attente')))
     : (s.seqValide?'p-green Validé':'p-amber En attente');
 
   html+=step('Séquencier', seqPill,
@@ -861,17 +876,23 @@ function openDetail(id, forcePadOpen=false){
       </div>
     </div>
     ${s.format==='Brand' ? `
-      <div style="display:flex;gap:8px;margin-bottom:4px">
+      <div style="display:flex;gap:8px;margin-bottom:4px;flex-wrap:wrap">
         <button onclick="toggleValidationSeq('${id}','RM')"
           class="nav-btn ${s.validationRM?'primary':''}"
-          style="flex:1;font-size:12px;${s.validationRM?'background:var(--green);border-color:var(--green)':''}">
-          ${s.validationRM?'✅':'⬜'} Validation Réel Média
+          style="flex:1;min-width:90px;font-size:12px;${s.validationRM?'background:var(--green);border-color:var(--green)':''}">
+          ${s.validationRM?'✅':'⬜'} Édito
+        </button>
+        <button onclick="toggleValidationSeq('${id}','Brand')"
+          class="nav-btn ${s.validationBrand?'primary':''}"
+          style="flex:1;min-width:90px;font-size:12px;${s.validationBrand?'background:var(--blue);border-color:var(--blue)':''};${!s.validationRM?'opacity:0.5;cursor:not-allowed':''}"
+          ${!s.validationRM?'disabled':''}>
+          ${s.validationBrand?'✅':'⬜'} Brand
         </button>
         <button onclick="toggleValidationSeq('${id}','Client')"
           class="nav-btn ${s.validationClient?'primary':''}"
-          style="flex:1;font-size:12px;${s.validationClient?'background:var(--blue);border-color:var(--blue)':''};${!s.validationRM?'opacity:0.5;cursor:not-allowed':''}"
-          ${!s.validationRM?'disabled':''}>
-          ${s.validationClient?'✅':'⬜'} Validation Client
+          style="flex:1;min-width:90px;font-size:12px;${s.validationClient?'background:var(--green);border-color:var(--green)':''};${!s.validationBrand?'opacity:0.5;cursor:not-allowed':''}"
+          ${!s.validationBrand?'disabled':''}>
+          ${s.validationClient?'✅':'⬜'} Client
         </button>
       </div>
     ` : `
@@ -1198,7 +1219,7 @@ async function upd(id,field,type,value){
     else if(type==='cb')props[field]={checkbox:value};
     await api(`/pages/${id}`,'PATCH',{properties:props});
     const s=sujets.find(x=>x.id===id);
-    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien sequencier':'lienSeq','Version validee':'versionValidee','Sous-format':'sousFormat','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion','Chef responsable':'chef','Journaliste':'journaliste','Priorité':'priorite','Format':'format','Version clean':'versionClean','Validation RM':'validationRM','Validation Client':'validationClient','Cap déposée':'capDeposee','Relevé musique':'releveMusique','Sans musique':'sansMusique'}[field];if(k)s[k]=value;}
+    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien sequencier':'lienSeq','Version validee':'versionValidee','Sous-format':'sousFormat','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion','Chef responsable':'chef','Journaliste':'journaliste','Priorité':'priorite','Format':'format','Version clean':'versionClean','Validation RM':'validationRM','Validation Client':'validationClient','Validation Brand':'validationBrand','Contact Brand':'contactBrand','Cap déposée':'capDeposee','Relevé musique':'releveMusique','Sans musique':'sansMusique'}[field];if(k)s[k]=value;}
     // Mise à jour locale
     toast('Sauvegardé','ok');
     // Transition automatique de statut
@@ -1219,7 +1240,8 @@ const NOTIF_ICONS = {
   retour: '📋',
   retour_corrige: '✅',
   commentaire: '💬',
-  version_validee: '✔️'
+  version_validee: '✔️',
+  validation: '✅'
 };
 
 async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message) {
@@ -1403,7 +1425,8 @@ async function submitRetour() {
         'Statut': {select:{name: 'Ouvert'}},
         'Auteur': {rich_text:[{text:{content: currentUser.nom}}]},
         'Sujet ID': {rich_text:[{text:{content: retourSujetId}}]},
-        'Sujet titre': {rich_text:[{text:{content: sujet?.titre||''}}]}
+        'Sujet titre': {rich_text:[{text:{content: sujet?.titre||''}}]},
+        'Brouillon': {checkbox: true}
       }
     });
     closeOv('ov-retour');
@@ -1440,7 +1463,8 @@ async function submitPlayerRetour(sujetId, version) {
         'Statut': {select:{name:'Ouvert'}},
         'Auteur': {rich_text:[{text:{content:currentUser.nom}}]},
         'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
-        'Sujet titre': {rich_text:[{text:{content:sujet?.titre||''}}]}
+        'Sujet titre': {rich_text:[{text:{content:sujet?.titre||''}}]},
+        'Brouillon': {checkbox: true}
       }
     });
     if(document.getElementById('player-desc')) document.getElementById('player-desc').value = '';
@@ -1867,7 +1891,12 @@ async function loadRetours(sujetId) {
       if(!byVersion[v]) byVersion[v] = [];
       byVersion[v].push(r);
     });
-    let html = '';
+    // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
+    const isChefUser = currentUser?.role === 'Chef';
+    const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
+    let html = (isChefUser && hasBrouillonEquipe)
+      ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:12px">Valider tous les retours</button></div>`
+      : '';
     Object.entries(byVersion).forEach(([version, items]) => {
       html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:var(--bg3);border-bottom:1px solid var(--border);position:sticky;top:0">${version} <span style="font-weight:400;opacity:0.6">${items.length} retour${items.length>1?'s':''}</span></div>`;
       items.forEach(r => {
@@ -1878,11 +1907,12 @@ async function loadRetours(sujetId) {
         const statut = pr.Statut?.select?.name || 'Ouvert';
         const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
         const source = pr.Source?.select?.name || 'Équipe';
+        const brouillon = source==='Équipe' && (pr.Brouillon?.checkbox||false);
         const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
         const corrige = statut === 'Corrigé';
         const impossible = statut === '⛔ Impossible';
-        html += `<div class="retour-row ${corrige||impossible?'corrige':''}" style="${impossible?'border-left:2px solid #ff6b35':''}">
-          <div style="flex:1;min-width:0">
+        html += `<div class="retour-row ${corrige||impossible?'corrige':''}" style="${impossible?'border-left:2px solid #ff6b35':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
+          <div style="flex:1;min-width:0${brouillon?';opacity:0.55':''}">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
               ${tc?`<span class="retour-tc">${tc}</span>`:''}
               ${cat?`<span class="retour-cat">${cat}</span>`:''}
@@ -1892,16 +1922,16 @@ async function loadRetours(sujetId) {
             </div>
             <div class="retour-desc">${corrige||impossible?'<s>'+desc+'</s>':desc}</div>
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
-            <div class="retour-meta">${auteur} · ${date}</div>
+            <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>
-          ${!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+          ${brouillon?'':(!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
             <div class="retour-check" onclick="toggleRetour('${r.id}','${sujetId}','Corrigé')" title="Marquer corrigé"
               onmouseover="this.style.borderColor='var(--green)';this.style.background='var(--green-dim)'"
               onmouseout="this.style.borderColor='var(--border2)';this.style.background='transparent'"></div>
             <div onclick="ouvrirImpossible('${r.id}','${sujetId}')" title="Impossible à réaliser"
               style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s"
               onmouseover="this.style.borderColor='#ff6b35'" onmouseout="this.style.borderColor='var(--border2)'">⛔</div>
-          </div>`:`${corrige?`<div class="retour-check done" onclick="toggleRetour('${r.id}','${sujetId}','Ouvert')" title="Réouvrir">✓</div>`:''}`}
+          </div>`:`${corrige?`<div class="retour-check done" onclick="toggleRetour('${r.id}','${sujetId}','Ouvert')" title="Réouvrir">✓</div>`:''}`)}
         </div>`;
       });
     });
@@ -1925,6 +1955,23 @@ async function toggleRetour(retourId, sujetId, newStatut) {
         await createNotif('retour_corrige',sujetId,s.code,s.titre,s.chef,currentUser.nom,`${currentUser.nom} a corrigé un retour sur ${s.code}`);
       loadNotifs();
     }
+  } catch(e) {
+    toast('Erreur : ' + e.message, 'err');
+  }
+}
+
+async function validerTousRetours(sujetId) {
+  if(currentUser?.role !== 'Chef') { toast('Réservé aux chefs','err'); return; }
+  try {
+    const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
+      filter: {property:'Sujet ID', rich_text:{equals:sujetId}}
+    });
+    const aValider = data.results.filter(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
+    for(const r of aValider) {
+      await api('/pages/' + r.id, 'PATCH', {properties:{'Brouillon':{checkbox:false}}});
+    }
+    toast(`${aValider.length} retour${aValider.length>1?'s':''} validé${aValider.length>1?'s':''}`,'ok');
+    loadRetours(sujetId);
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
@@ -2174,8 +2221,21 @@ async function toggleValidationSeq(id, type) {
         `${auteur} a validé le séquencier côté Réel Média — ${s.code} · ${s.titre}`);
       loadNotifs();
     }
+    if(newVal && s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
+      await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
+        `Édito validé sur ${s.code}, à toi de valider`);
+      loadNotifs();
+    }
+  } else if(type==='Brand') {
+    if(!s.validationRM) return; // bouton désactivé : garde silencieuse
+    if(!s.contactBrand) { toast("Assignez d'abord un contact Brand à cette carte",'err'); return; }
+    if(currentUser?.role !== 'Brand') { toast('Réservé aux contacts Brand','err'); return; }
+    const newVal = !s.validationBrand;
+    await upd(id,'Validation Brand','cb',newVal);
+    s.validationBrand = newVal;
   } else if(type==='Client') {
-    if(!s.validationRM) { toast("Validez d'abord Réel Média",'err'); return; }
+    if(!s.validationBrand) return; // bouton désactivé : garde silencieuse
+    if(s.validationClient) { toast('Validation Client définitive, pour corriger créez un nouveau retour','err'); return; }
     const newVal = !s.validationClient;
     await upd(id,'Validation Client','cb',newVal);
     s.validationClient = newVal;
@@ -2188,6 +2248,11 @@ async function toggleValidationSeq(id, type) {
       if(s.journaliste && s.journaliste !== auteur) {
         await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
           `✅ Séquencier validé client — ${s.code} · ${s.titre} · Tournage peut démarrer !`);
+        loadNotifs();
+      }
+      if(s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
+        await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
+          `Le client a validé ${s.code}`);
         loadNotifs();
       }
     }
@@ -2749,10 +2814,11 @@ async function loadPlayerRetours(sujetId, version) {
         const statut = pr.Statut?.select?.name || 'Ouvert';
         const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
         const source = pr.Source?.select?.name || 'Équipe';
+        const brouillon = source==='Équipe' && (pr.Brouillon?.checkbox||false);
         const date = new Date(r.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
         const corrige = statut === 'Corrigé';
         const impossible = statut === '⛔ Impossible';
-        const opacity = (!isActive || corrige || impossible) ? 'opacity:0.45;' : '';
+        const opacity = (!isActive || corrige || impossible || brouillon) ? 'opacity:0.45;' : '';
 
         html += `<div style="${opacity}display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1E1E2A;${impossible?'border-left:2px solid #ff6b35':''};transition:background 0.1s"
           onmouseover="this.style.background='#16161F'" onmouseout="this.style.background='transparent'">
@@ -2766,9 +2832,9 @@ async function loadPlayerRetours(sujetId, version) {
             </div>
             <div style="font-size:12px;color:#9898B0;line-height:1.5">${corrige?'<s>'+desc+'</s>':desc}</div>
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||''}</div>`:''}
-            <div style="font-size:10px;color:#5A5A70;margin-top:4px">${auteur} · ${date}</div>
+            <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>
-          ${!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+          ${brouillon?'':!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
             <div onclick="toggleRetourPlayer('${r.id}','${sujetId}','${version}')" title="Marquer corrigé"
               style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s;color:#1D9E75"
               onmouseover="this.style.borderColor='#1D9E75';this.style.background='rgba(29,158,117,0.1)'"
