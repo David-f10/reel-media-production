@@ -2081,9 +2081,6 @@ async function loadVersions(sujetId) {
             const vNum = parseInt(version.replace('V',''));
             const isLastVersion = vNum === maxVersionNum;
             const urlEsc = url.replace(/'/g,"\\'");
-            if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
-              class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
-              ✅ Version validée</button>`;
             if(nbRetours > 0) return `<button disabled
               class="nav-btn" style="font-size:11px;white-space:nowrap;background:var(--amber-dim);border-color:var(--amber);color:var(--amber);cursor:not-allowed;opacity:1">
               ⚠️ ${nbRetours} retour${nbRetours>1?'s':''} à corriger</button>`;
@@ -2091,15 +2088,26 @@ async function loadVersions(sujetId) {
               class="nav-btn" style="font-size:11px;white-space:nowrap;opacity:0.4;cursor:not-allowed">
               ⏭ Version dépassée</button>`;
             if(isBrand) {
-              const brandBtn = `<button onclick="toggleVersionValidationBrand('${v.id}','${sujetId}',${validationBrand})"
-                class="nav-btn ${validationBrand?'primary':''}" style="flex:1;font-size:11px;white-space:nowrap;${validationBrand?'background:var(--blue);border-color:var(--blue)':''}">
-                ${validationBrand?'✅':'⬜'} Validation Brand</button>`;
-              const finalBtn = `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}',${validationBrand})"
-                class="nav-btn" style="flex:1;font-size:11px;white-space:nowrap;${!validationBrand?'opacity:0.5;cursor:not-allowed':''}"
-                ${!validationBrand?'disabled':''}>
-                ⬜ Valider cette version</button>`;
-              return `<div style="display:flex;gap:6px;flex:1">${brandBtn}${finalBtn}</div>`;
+              const finalBtn = validee
+                ? `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
+                    class="nav-btn primary" style="flex:1;font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
+                    ✅ Version validée</button>`
+                : `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
+                    class="nav-btn" style="flex:1;font-size:11px;white-space:nowrap">
+                    ⬜ Valider cette version</button>`;
+              const brandBtn = validationBrand
+                ? `<button onclick="toggleVersionValidationBrand('${v.id}','${sujetId}',${validee},${validationBrand})"
+                    class="nav-btn primary" style="flex:1;font-size:11px;white-space:nowrap;background:var(--blue);border-color:var(--blue)">
+                    ✅ Validation Brand</button>`
+                : `<button onclick="toggleVersionValidationBrand('${v.id}','${sujetId}',${validee},${validationBrand})"
+                    class="nav-btn" style="flex:1;font-size:11px;white-space:nowrap;${!validee?'opacity:0.5;cursor:not-allowed':''}"
+                    ${!validee?'disabled':''}>
+                    ⬜ Validation Brand</button>`;
+              return `<div style="display:flex;gap:6px;flex:1">${finalBtn}${brandBtn}</div>`;
             }
+            if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
+              class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
+              ✅ Version validée</button>`;
             return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
               class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
@@ -2187,9 +2195,10 @@ async function updateVersionMonteur(versionId, sujetId, monteur) {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-async function toggleVersionValidationBrand(versionId, sujetId, wasValide) {
+async function toggleVersionValidationBrand(versionId, sujetId, wasValidee, wasValide) {
   const s = sujets.find(x=>x.id===sujetId);
   if(s?.format !== 'Brand') return;
+  if(!wasValidee) return; // garde silencieuse : la version doit d'abord être validée par le chef
   if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') {
     toast('Réservé aux contacts Brand ou aux chefs','err');
     return;
@@ -2202,10 +2211,8 @@ async function toggleVersionValidationBrand(versionId, sujetId, wasValide) {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, url, vValidationBrand=true) {
+async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, url) {
   const s = sujets.find(x=>x.id===sujetId);
-  // Garde silencieuse : sur Brand, on exige Validation Brand préalable (le bouton est déjà disabled)
-  if(s?.format === 'Brand' && !vValidationBrand) return;
   const newVal = !wasValidee;
   try {
     await api('/pages/'+versionId,'PATCH',{properties:{'Validée':{checkbox:newVal}}});
