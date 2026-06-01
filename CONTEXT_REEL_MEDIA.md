@@ -7,140 +7,183 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
-### 2026-06-01 — Centre d'aide intégré (branche `page-aide`)
-index.html 5287 → **5405 lignes** (+118). PR ciblée : 1 feature complète
-livrée d'une traite. Espace d'aide accessible depuis l'app pour guider 
-les utilisateurs (journalistes, chefs, brand, monteurs).
+### 2026-06-01 — Vue Calendrier enrichie (branche `calendrier-v2`)
+index.html 5405 → **5499 lignes** (+94). PR ciblée : 6 enrichissements + 
+prise en compte du J2 de tournage, livrée d'une traite.
 
-**Décisions produit** (validées avec Master en perspective produit) :
-- Master conseillait initialement "ne rien coder, faire une vidéo Loom"
-  car "personne ne lit les pages d'aide". David a tranché pour combiner
-  les 2 : centre d'aide intégré + presse (annonce externe).
-- Format : modale custom plein écran (max 800px × 85vh, scroll interne)
-- Accès : bouton "?" dans le header, à gauche de la cloche, même style
-- Structure : accordéon avec 5 sections (Master conseillait 4-5 ciblés,
-  on a fait 5 couvrant tout le périmètre de la plateforme)
-- Implémentation accordéon : `<details>`/`<summary>` natifs HTML 
-  (accessibilité gratuite, pas de JS d'état nécessaire)
-
-**Les 5 sections couvrent** :
-1. 🚪 Premiers pas (login + vues + premier pas)
-2. 🎬 Les cartes et leurs codes (M/B/F/D/Y, format codes)
-3. 👥 Mon rôle (4 sous-sections : Journaliste/Chef/Brand/Monteur)
-4. 💬 Retours vs Commentaires (avec astuce Brouillon pour chefs)
-5. 🔔 La cloche : quand c'est mon tour (types de notifs)
+**Décisions produit prises avant le code**
+- Architecture A : enrichir la vue Calendrier existante (vs créer une 
+  nouvelle vue dédiée). Garder une source de vérité unique.
+- Priorité métier (David) :
+  1. Studio réservé (éviter les conflits de réservation)
+  2. Tournages à venir (vue rapide de la semaine)
+  3. Charge globale (jours chargés vs vides)
+  4. Par journaliste (qui tourne quand)
+- Champ Notion "Lieu tournage" (Checkbox : true=Studio, false=Extérieur) 
+  existait déjà → pas besoin du Master.
+- Champ "Date tournage J2" existait aussi → ajouté au rendu calendrier.
 
 **Ce qui a été implémenté**
-- **Bouton "?"** dans header, style identique à la cloche, placé À GAUCHE
-  de la cloche (ordre : [?] [🔔])
-- **showHelpModal()** : nouvelle fonction qui construit et affiche la
-  modale
-- **Modale plein écran responsive** : overlay rgba(0,0,0,0.7), container
-  max 800px × 85vh, fond var(--bg2), border var(--border2), rl
-- **Accordéon natif** via `<details>`/`<summary>` : Section 1 ouverte
-  par défaut (attribut `open`), autres repliées
-- **Fermeture** : bouton ×, clic sur overlay externe, touche Échap
-- **Contenu statique** : tous les textes en dur, pas besoin d'escapeHtml,
-  pas d'injection possible
 
-**Compteur Brouillon** est passé de 10 à 11 : le mot apparaît une fois
-de plus dans le contenu de la section 4 du Centre d'aide ("un retour
-Source='Équipe' peut être en mode 'Brouillon'"). C'est du contenu d'aide
-légitime, aucun acquis fonctionnel n'a bougé.
+1. **Prise en compte du J2** : un sujet apparaît sur tourJ1 ET sur 
+   tourJ2 si tourJ2 existe. Label "J1"/"J2" affiché à côté du code 
+   uniquement si les 2 jours sont définis (sinon pas de label superflu).
+
+2. **Badge 🎬 STUDIO** : sur chaque événement où lieuTour=true, petit 
+   badge ambre 9px à côté du code, avec tooltip natif "Studio".
+
+3. **Fond ambre léger sur les jours studio** : 
+   `background:rgba(245,158,11,0.06)` sur les `<div class="cal-day">` 
+   ayant au moins 1 tournage studio. Le fond "today" reste prioritaire 
+   visuellement.
+
+4. **Toggle "Studio seulement"** : bouton à droite du compteur, change 
+   visuel (☐→✅) et classe (primary) au clic. Variable d'état 
+   `calStudioOnly`. Filtre les événements affichés ET le compteur.
+
+5. **Liste "Prochains tournages"** sous le calendrier : 7 prochains 
+   tournages chronologiquement, J1+J2 séparés si différents, format 
+   date "Demain mardi 2 juin" ou "Mercredi 3 juin", indicateur 🎬 Studio 
+   ou Extérieur, journaliste à la fin. Clic = openDetail. Cas vide 
+   géré ("Aucun tournage programmé"). IGNORE les filtres locaux 
+   (vue d'ensemble).
+
+6. **Compteur en haut du mois** : "X tournages ce mois-ci, dont Y en 
+   studio" (ou "Y tournages studio ce mois-ci" si filtre studio actif). 
+   Gestion du pluriel.
+
+7. **Filtre par journaliste** (dropdown) : généré dynamiquement depuis 
+   les journalistes ayant au moins un tournage dans le mois affiché 
+   (pas tous les journalistes existants). Tri locale-aware fr. Variable 
+   d'état `calFilterJournaliste`.
+
+**Architecture du code**
+- Variables d'état au top du fichier (lignes 3648-3652) avec les autres 
+  cal*.
+- Fonction `matchFilters(ev)` centralisée pour appliquer les 2 filtres 
+  (réutilisée pour compteur + rendu).
+- Helpers `calToggleStudio()` et `calSetJournaliste(v)` minimalistes 
+  (1 ligne chacune).
+- `escapeHtml` partout sur les valeurs utilisateur (XSS-safe).
+- `localeCompare` français pour le tri des journalistes.
 
 **Vérifs pilote OK**
-- 5405 lignes, node --check OK, toutes fonctions appelées définies
-- showHelpModal=2 (def + onclick) ✓
-- Centre d'aide=2 (title bouton + titre modale) ✓
-- Titres des 5 sections : tous présents 1 fois chacun ✓
-- Tous acquis features-brand-v2 + annuler-version + précédents intacts
+- 5499 lignes, node --check OK, toutes fonctions appelées définies
+- calStudioOnly=5 ✓
+- calFilterJournaliste=4 ✓
+- Studio seulement=1 ✓
+- Prochains tournages=1 ✓
+- Tous les journalistes=1 ✓
+- lieuTour=8 (anciens + 4 nouveaux usages) ✓
+- tourJ2=9 (anciens + 4 nouveaux usages calendrier) ✓
+- Tous acquis PR précédentes intacts (16 compteurs)
 - 7 compteurs de préservation tous intacts
 
 **À tester en preview** (incognito + Cmd+Shift+R) :
-1. Bouton "?" visible en haut à droite, à gauche de la cloche
-2. Clic → modale s'ouvre, fond assombri
-3. Section 1 "Premiers pas" déjà dépliée
-4. Clic sur titre de section → déplie/replie son contenu
-5. Bouton "×" → ferme la modale
-6. Clic en dehors de la modale → ferme la modale
-7. Touche Échap → ferme la modale
-8. Contenu lisible et cohérent avec ton rôle
-9. Console JS propre
 
-**Pour la "presse" (annonce externe)**
-Une fois la PR mergée, David peut envoyer un message à l'équipe
-(Slack/mail) qui reprend le même contenu pour aligner tout le monde
-sur le fonctionnement de la plateforme. Le contenu de la presse est
-identique aux 5 sections du Centre d'aide (= une seule source de vérité).
+🧪 BADGES & FOND
+1. Onglet Calendrier → événements ayant lieuTour=true affichent 🎬 
+   à côté du code
+2. Jours ayant au moins 1 tournage studio → fond ambre très léger
+3. Jour "today" garde son fond prioritaire
 
-Template suggéré (à ajuster par David) :
-- Tour d'horizon de l'outil
-- Explication des codes (M654, B41A, etc.)
-- Workflow par rôle
-- Différence Retours/Commentaires
-- Explication de la cloche
-- Mention du Centre d'aide pour référence permanente
+🧪 FILTRES
+4. Toggle "Studio seulement" → masque les non-studio, change ☐/✅, 
+   compteur s'adapte
+5. Filtre journaliste (dropdown) → ne montre que les tournages du 
+   journaliste sélectionné
+6. Changement de mois → filtres conservés
+7. Liste "Tous les journalistes" générée dynamiquement (seulement ceux 
+   ayant un tournage ce mois)
+
+🧪 COMPTEUR
+8. En haut : "X tournages ce mois-ci, dont Y en studio" sans filtre
+9. Avec filtre studio actif : "Y tournages studio ce mois-ci"
+10. Pluriel respecté (1 tournage vs 5 tournages)
+
+🧪 PROCHAINS TOURNAGES
+11. Sous le calendrier : liste des 7 prochains tournages (chronologique)
+12. Si demain : "Demain mardi 2 juin"
+13. Sinon : "Mercredi 3 juin"
+14. Indicateur 🎬 Studio (ambre) ou Extérieur
+15. Clic sur ligne → ouvre la fiche détail
+16. Cas "aucun tournage programmé" géré
+
+🧪 J2
+17. Un sujet ayant tourJ1=2026-06-02 ET tourJ2=2026-06-03 apparaît bien 
+    sur les 2 dates dans le calendrier
+18. Sur les 2 dates, label "J1" ou "J2" à côté du code
+19. Si seul tourJ1 défini : pas de label superflu (juste le code)
+20. Dans Prochains tournages, J1 et J2 listés séparément
+
+🧪 RÉGRESSION
+21. Autres vues (Cartes, Statut, Journaliste, Liste, Dashboard) 
+    fonctionnent normalement
+22. Tous les workflows précédents (validations, retours, etc.) intacts
+23. Console JS propre
+
+> Note process : Claude Code n'a pas pu pusher (403 perms). Fichier 
+> récupéré manuellement par David, à pousser sur GitHub via interface
+> web, branche `calendrier-v2`.
 
 ---
 
 ### 📋 LISTE NOIRE — Pour les prochaines PR
 Plus rien de critique en attente. Si besoin futur :
-- Amélioration UX de la cloche (Master a identifié que c'était la
-  friction n°1 : les gens ne comprennent pas quand c'est leur tour).
-  Pistes : message plus explicite "À TOI de [valider/corriger]",
-  badge plus visible sur cartes avec action attendue, filtre
-  "Mes actions à faire" dans le kanban.
+- Enrichissement Centre d'aide : section "Comment faire pour..." 
+  (FAQ d'actions concrètes : ajouter une version, créer une décli, etc.)
+- Amélioration UX de la cloche (Master a identifié friction n°1 : les 
+  gens ne comprennent pas quand c'est leur tour). Pistes : message plus 
+  explicite "À TOI de [valider/corriger]", filtre "Mes actions à faire" 
+  dans le kanban.
 - Backup automatique (GitHub Actions, export Notion nightly)
 - Intégration GitHub↔Sentry
 - (Optionnel) Régénérer les codes d'accès des 5 nouveaux + des 4 Brand
 - (Optionnel) Protéger la branche main (require PR + no force push)
 - 3 cartes Brand sans Sous-format : B09W, B19E, B09U (côté master)
 - (Optionnel) Bouton "Réactiver cette version" sur versions annulées
-- (Optionnel) Tour onboarding interactif au premier login (en plus du
-  centre d'aide)
+- (Optionnel) Tour onboarding interactif au premier login
+
+---
+
+### 2026-06-01 — Centre d'aide intégré (branche `page-aide`) MERGÉ
+index.html 5287 → 5405 (+118). Modale plein écran accessible via 
+bouton "?" dans le header (à gauche de la cloche). 5 sections en 
+accordéon natif `<details>`/`<summary>` : Premiers pas, Les cartes 
+et leurs codes, Mon rôle (Journaliste/Chef/Brand/Monteur), Retours 
+vs Commentaires, La cloche.
+
+Fonction `showHelpModal()`. Contenu statique, escapeHtml partout par 
+prudence. Bouton ×, clic overlay externe, touche Échap pour fermer.
 
 ---
 
 ### 2026-06-01 — Feature "Annuler cette version" (branche `annuler-version`) MERGÉ
-index.html 5233 → 5287 (+54). PR ciblée : 1 feature complète livrée 
-d'une traite (modale custom + bouton + handler + rendu badge), puis 
-nettoyage d'une fonction orpheline.
-
-Le champ "Statut" (Active/Annulée) existait déjà sur 📹 Versions (SELECT,
-pas checkbox). On l'a utilisé plutôt que créer un nouveau champ.
-
-Bonus durable : modale `showConfirmModal({title, message, confirmText, 
-confirmStyle, onConfirm})` réutilisable pour toutes les futures 
-confirmations.
+index.html 5233 → 5287 (+54). Bouton "❌ Annuler cette version" sur 
+cartes Brand après les 2 validations. Utilise le champ "Statut" 
+(Active/Annulée) déjà existant sur 📹 Versions. Modale custom 
+réutilisable `showConfirmModal()`. Notif au journaliste.
 
 ---
 
 ### 2026-06-01 — Features Brand v2 + UX + inversion ordre boutons (branche `features-brand-v2`) MERGÉ
-index.html 5184 → 5233 (+49). PR à 5 features + 1 ajustement ordre, 
-livrée en 5 incréments vérifiés + 1 correctif final.
+index.html 5184 → 5233 (+49). 5 features + 1 ajustement ordre.
 
-5 features : Validation Brand par version, "Valider tous les retours"
-dans lecteur, Décli YouTube Desk/Face Cam, alignement restriction Brand
-séquencier (Brand OU Chef), wording notifs précisé "séquencier de".
-
-Inversion d'ordre boutons après retour David : workflow réel = Chef
-valide d'abord (édito), Brand valide après (conformité). Ordre final
-sur cartes Brand : [Valider cette version] (gauche) → [Validation Brand]
-(droite, disabled tant que Valider pas cochée).
+Validation Brand par version, "Valider tous les retours" dans lecteur, 
+Décli YouTube Desk/Face Cam, alignement restriction Brand séquencier, 
+wording notifs "séquencier de", inversion ordre boutons (Chef valide 
+d'abord, Brand valide après).
 
 ---
 
 ### 2026-05-29 — 3 bugs UX (branche `fix-bugs-ux`) MERGÉ
-index.html 5172 → 5184 (+12). 3 bugs : double V1 Thierry (verrou 
-triple), titre tronqué (textarea auto-grow), Validation Client sans 
-restriction (garde Brand/Chef).
+index.html 5172 → 5184 (+12). Double V1 Thierry (verrou triple), 
+titre tronqué (textarea auto-grow), Validation Client sans restriction.
 
 ---
 
 ### 2026-05-29 — Brouillons retours internes + Triple validation Brand (branche `brouillons-triple-validation`) MERGÉ
-index.html 5106 → 5172 (+66). Brouillons sur retours Source='Équipe',
-triple validation Brand séquencier (Édito → Brand → Client), Contact 
-Brand, notifs Brand, helper escapeHtml.
+index.html 5106 → 5172 (+66).
 
 ---
 
@@ -172,9 +215,7 @@ Claude Code, et ramène leurs réponses au Pilote.
 7. David clique "Synchroniser maintenant" sur project knowledge
 
 ## WORKFLOW SPÉCIAL : grosses PR / environnement instable
-Découper en INCRÉMENTS VÉRIFIÉS (3 à 5). Chaque incrément : a) périmètre 
-strict, b) Claude Code livre, c) pilote vérifie compteurs + node --check + 
-fonctions appelées AVANT feu vert.
+Découper en INCRÉMENTS VÉRIFIÉS (3 à 5).
 
 ## WORKFLOW SPÉCIAL : décisions produit complexes
 Consulter Master en parallèle pour avoir un 2ème avis produit. Pilote
@@ -206,8 +247,8 @@ transmet, Master répond avec sa perspective. Pilote intègre.
 - Backend : netlify/functions/notion.js + netlify/functions/login.js
 - CSS : css/base.css, css/layout.css, css/components.css, css/views.css
 - Monitoring : Sentry (org rushup, projet reel-media-production, data EU)
-- État du main après merge annuler-version : 5287 lignes.
-- EN ATTENTE DE MERGE : `page-aide` (5405 lignes).
+- État du main après merge page-aide : 5405 lignes.
+- EN ATTENTE DE MERGE : `calendrier-v2` (5499 lignes).
 
 ## BASES NOTION (IDs)
 | Base | ID |
@@ -229,9 +270,10 @@ transmet, Master répond avec sa perspective. Pilote intègre.
 ## CHAMPS NOTION (à jour)
 - 📋 Retours : "Source" (Équipe/Client) + "Brouillon" (checkbox)
 - 🎬 Suivi de Production : "Validation Brand" (checkbox) + "Contact Brand"
-  (select : Arnaud C / Guillaume / Louise / Victor)
+  (select) + "Lieu tournage" (checkbox : Studio oui/non) + "Date 
+  tournage J1" (date) + "Date tournage J2" (date)
 - 📹 Versions : "Validation Brand" (checkbox) + "Statut" (select 
-  Active/Annulée, EXISTAIT DÉJÀ, utilisé pour Annuler version)
+  Active/Annulée, utilisé pour Annuler version)
 
 ═══════════════════════════════════════════════════════════════
 ## CE QUI EST EN PROD (après merge des PR mergées)
@@ -246,8 +288,10 @@ transmet, Master répond avec sa perspective. Pilote intègre.
 - ✅ Fix 3 bugs UX (double V1, titre textarea, restriction Client)
 - ✅ Features Brand v2 (5 features + inversion ordre boutons par version)
 - ✅ Annuler cette version + modale custom réutilisable
+- ✅ Centre d'aide intégré (showHelpModal, 5 sections accordéon)
 
-**EN ATTENTE DE MERGE** : `page-aide` (Centre d'aide intégré).
+**EN ATTENTE DE MERGE** : `calendrier-v2` (vue Calendrier enrichie 
+studio/J2/filtres/prochains).
 
 ═══════════════════════════════════════════════════════════════
 ## NOTES TECHNIQUES UTILES
@@ -288,8 +332,12 @@ transmet, Master répond avec sa perspective. Pilote intègre.
 - creerDeclinaison signature : (parentId, formatDecli='Desk').
 - Modale custom réutilisable : showConfirmModal({title, message, 
   confirmText='Confirmer', confirmStyle='primary', onConfirm}).
-- Centre d'aide : showHelpModal() — modale plein écran avec accordéon 
-  natif `<details>`/`<summary>` HTML, contenu statique 5 sections.
-- ORDRE chaîne validation version Brand : Valider cette version (Chef/édito) 
-  → Validation Brand (Brand/conformité client) → optionnellement Annuler 
-  cette version (Brand ou Chef).
+- Centre d'aide : showHelpModal() — modale plein écran accordéon 
+  natif `<details>`/`<summary>`.
+- Vue Calendrier : renderCalendrier() avec variables d'état au top 
+  (calMonth, calYear, calStudioOnly, calFilterJournaliste). Helpers 
+  calToggleStudio(), calSetJournaliste(v), calPrev(), calNext(). 
+  Lit s.tourJ1 + s.tourJ2 (label J1/J2 si les 2 définis), s.lieuTour 
+  (badge 🎬 + fond ambre + filtre studio), s.journaliste (filtre 
+  dropdown généré dynamiquement). Liste "Prochains tournages" sous 
+  le calendrier (7 max, IGNORE les filtres locaux pour vue d'ensemble).
