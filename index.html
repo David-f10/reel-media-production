@@ -1248,6 +1248,7 @@ const NOTIF_ICONS = {
   retour_corrige: '✅',
   commentaire: '💬',
   version_validee: '✔️',
+  version_annulee: '❌',
   validation: '✅'
 };
 
@@ -2044,13 +2045,18 @@ async function loadVersions(sujetId) {
       const monteur = pr.Monteur?.rich_text?.[0]?.plain_text || '';
       const validee = pr.Validée?.checkbox || false;
       const validationBrand = pr['Validation Brand']?.checkbox || false;
+      const versionStatut = pr.Statut?.select?.name || 'Active';
+      const annulee = versionStatut === 'Annulée';
 
       const date = new Date(v.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
       const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : (url.includes('youtube.com')||url.includes('youtu.be')) ? 'youtube' : null;
       const lienInvalide = url && !type;
-      return `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;${validee?'border-color:var(--green);background:var(--green-dim)':''}">
+      return `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;${validee&&!annulee?'border-color:var(--green);background:var(--green-dim)':''}${annulee?'opacity:0.45;filter:grayscale(0.6)':''}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${validee?'var(--green)':'var(--text)'}">${version}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${annulee?'var(--text3)':(validee?'var(--green)':'var(--text)')}">${version}</span>
+            ${annulee?`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--red);color:#fff;font-weight:600">❌ Annulée</span>`:''}
+          </div>
           <div style="display:flex;gap:6px;align-items:center">
             <span style="font-size:10px;color:var(--text3)">${date}</span>
 
@@ -2077,6 +2083,7 @@ async function loadVersions(sujetId) {
             </select>
           </div>
           ${(()=>{
+            if(annulee) return '';
             const nbRetours = retoursOuvertsByVersion[version]||0;
             const vNum = parseInt(version.replace('V',''));
             const isLastVersion = vNum === maxVersionNum;
@@ -2112,6 +2119,12 @@ async function loadVersions(sujetId) {
               class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
         </div>
+        ${isBrand && !annulee && validee && validationBrand ? `<div style="margin-top:8px">
+          <button onclick="annulerVersion('${v.id}','${sujetId}','${version}')"
+            class="nav-btn" style="width:100%;font-size:11px;background:var(--red);border-color:var(--red);color:#fff">
+            ❌ Annuler cette version
+          </button>
+        </div>` : ''}
       </div>`;
     }).join('');
   } catch(e) {
@@ -2238,17 +2251,58 @@ async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, 
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-async function toggleAnnuleeVersion(versionId, sujetId) {
+// Modale de confirmation réutilisable
+function showConfirmModal({title, message, confirmText='Confirmer', confirmStyle='primary', onConfirm}) {
+  const existing = document.getElementById('confirm-modal-custom');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'confirm-modal-custom';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  const dangerStyle = confirmStyle==='danger' ? 'background:var(--red);border-color:var(--red);color:#fff' : '';
+  overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:10px">${escapeHtml(title)}</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.5;white-space:pre-line">${escapeHtml(message)}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="confirm-modal-cancel" class="nav-btn" style="font-size:12px">Annuler</button>
+      <button id="confirm-modal-ok" class="nav-btn primary" style="font-size:12px;${dangerStyle}">${escapeHtml(confirmText)}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if(e.target === overlay) close(); });
+  document.getElementById('confirm-modal-cancel').addEventListener('click', close);
+  document.getElementById('confirm-modal-ok').addEventListener('click', async () => {
+    close();
+    if(typeof onConfirm === 'function') await onConfirm();
+  });
+}
+
+async function annulerVersion(versionId, sujetId, versionNum) {
   const s = sujets.find(x=>x.id===sujetId);
-  try {
-    // Lire le statut actuel depuis le DOM
-    const el = document.getElementById('versions-list-'+sujetId);
-    const isAnnulee = el?.querySelector(`[onclick*="${versionId}"][style*="Annuler"]`) !== null;
-    const newStatut = isAnnulee ? 'Active' : 'Annulée';
-    await api('/pages/'+versionId,'PATCH',{properties:{'Statut':{select:{name:newStatut}}}});
-    toast(newStatut === 'Annulée' ? 'Version annulée' : 'Version restaurée','ok');
-    loadVersions(sujetId);
-  } catch(e) { toast('Erreur : '+e.message,'err'); }
+  if(s?.format !== 'Brand') return;
+  if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') {
+    toast('Réservé aux contacts Brand ou aux chefs','err');
+    return;
+  }
+  showConfirmModal({
+    title: 'Annuler cette version ?',
+    message: `${s.titre || s.code} — ${versionNum}. Cette action :\n• marquera la version comme annulée (Statut='Annulée')\n• notifiera le journaliste qu'une nouvelle version est attendue\nCette action est définitive.`,
+    confirmText: "Confirmer l'annulation",
+    confirmStyle: 'danger',
+    onConfirm: async () => {
+      const auteur = currentUser?.nom || '';
+      try {
+        await api('/pages/'+versionId,'PATCH',{properties:{'Statut':{select:{name:'Annulée'}}}});
+        if(s.journaliste && s.journaliste !== auteur) {
+          await createNotif('version_annulee', sujetId, s.code, s.titre, s.journaliste, auteur,
+            `❌ ${versionNum} annulée sur ${s.code}, une nouvelle version est attendue`);
+          loadNotifs();
+        }
+        toast('Version annulée. Une notification a été envoyée au journaliste.','ok');
+        loadVersions(sujetId);
+      } catch(e) { toast('Erreur : '+e.message,'err'); }
+    }
+  });
 }
 
 async function supprimerVersion(versionId, sujetId) {
