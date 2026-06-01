@@ -744,7 +744,7 @@ function openDetail(id, forcePadOpen=false){
   const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
   const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
   document.getElementById('d-code').innerHTML = `${s.code||'—'} · ${s.format}${sfSpan}${platSpan}`;
-  document.getElementById('d-title').innerHTML=`<input type="text" id="d-titre-input" value="${s.titre}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;font-family:var(--font);letter-spacing:-0.02em;width:100%;padding:2px 0" onblur="upd('${s.id}','Titre','titre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">` ;
+  document.getElementById('d-title').innerHTML=`<textarea id="d-titre-input" rows="1" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:16px;font-weight:600;font-family:var(--font);letter-spacing:-0.02em;width:100%;padding:2px 0;resize:none;overflow:hidden;line-height:1.3" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="upd('${s.id}','Titre','titre',this.value.trim())" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.blur()}">${escapeHtml(s.titre)}</textarea>`;
   document.getElementById('d-meta').textContent=`Chef : ${s.chef||'—'} · Journaliste : ${s.journaliste||'—'}${s.diffusion?' · Diffusion : '+fmtDate(s.diffusion):''}`;
   const hasTour=NEEDS_TOUR.includes(s.format)||(s.format==='Desk'&&s.sousFormat==='Prodige');
   const isInterne = s.format === 'Interne';
@@ -927,7 +927,7 @@ function openDetail(id, forcePadOpen=false){
     `<div id="versions-list-${id}" style="margin-bottom:10px">
       <div style="font-size:11px;color:var(--text3)">Chargement...</div>
     </div>
-    <button onclick="ajouterVersion('${id}')"
+    <button id="btn-add-version-${id}" onclick="ajouterVersion('${id}')"
       class="nav-btn" style="width:100%;font-size:12px">
       + Ajouter une version
     </button>`,activeStep==='montage'||activeStep==='pad');
@@ -1128,6 +1128,8 @@ function openDetail(id, forcePadOpen=false){
   </div>`;
   document.getElementById('d-steps').innerHTML=html;
   openOv('ov-detail');
+  // Ajuster la hauteur du titre une fois la modale visible (sinon scrollHeight=0)
+  requestAnimationFrame(()=>{ const _ta=document.getElementById('d-titre-input'); if(_ta){ _ta.style.height='auto'; _ta.style.height=_ta.scrollHeight+'px'; } });
   // Charger les références
   setTimeout(()=>loadRefs(id,'refs-prod-'+id),100);
   // Charger les déclinaisons si YouTube
@@ -2089,14 +2091,17 @@ async function loadVersions(sujetId) {
   }
 }
 
-let ajouterVersionEnCours = false;
+let _creerVersionEnCours = false;
 async function ajouterVersion(sujetId) {
-  if(ajouterVersionEnCours) { toast('Création en cours, patientez...','err'); return; }
+  if(_creerVersionEnCours) { toast('Création en cours...','err'); return; }
   const countEl=document.getElementById('retours-count-'+sujetId);
   if(countEl?.textContent?.includes('ouvert')){toast('❌ Des retours sont encore ouverts — corrigez-les d\'abord','err');return;}
-  ajouterVersionEnCours = true;
   const s = sujets.find(x=>x.id===sujetId);
-  if(!s) { ajouterVersionEnCours = false; return; }
+  if(!s) return;
+  _creerVersionEnCours = true;
+  const btn = document.getElementById('btn-add-version-'+sujetId);
+  const btnLabel = btn ? btn.textContent : '';
+  if(btn) { btn.disabled = true; btn.textContent = 'Création...'; }
   // Calculer le prochain numéro depuis les versions existantes dans Notion
   const el = document.getElementById('versions-list-'+sujetId);
   // Compter les entrées visibles actuelles (titres V1, V2...)
@@ -2121,10 +2126,13 @@ async function ajouterVersion(sujetId) {
       s.statut = 'Montage';
       renderCards();
     }
-    ajouterVersionEnCours = false;
     loadVersions(sujetId);
     toast(`${versionNum} ajoutée`,'ok');
-  } catch(e) { ajouterVersionEnCours = false; toast('Erreur : '+e.message,'err'); }
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+  finally {
+    _creerVersionEnCours = false;
+    if(btn) { btn.disabled = false; btn.textContent = btnLabel; }
+  }
 }
 
 async function updateVersionUrl(versionId, sujetId, url) {
@@ -2235,6 +2243,10 @@ async function toggleValidationSeq(id, type) {
     s.validationBrand = newVal;
   } else if(type==='Client') {
     if(!s.validationBrand) return; // bouton désactivé : garde silencieuse
+    if(s.format==='Brand' && currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') {
+      toast('Réservé aux contacts Brand ou aux chefs','err');
+      return;
+    }
     if(s.validationClient) { toast('Validation Client définitive, pour corriger créez un nouveau retour','err'); return; }
     const newVal = !s.validationClient;
     await upd(id,'Validation Client','cb',newVal);
