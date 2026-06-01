@@ -1065,7 +1065,7 @@ function openDetail(id, forcePadOpen=false){
     html+=`<div class="step">
       <div class="step-hdr" onclick="toggleStep('decli-${id}')">
         <div style="display:flex;align-items:center;gap:8px">
-          <span class="step-ttl">📎 Déclinaisons Desk</span>
+          <span class="step-ttl">📎 Déclinaisons</span>
           <span class="pill p-gray" id="decli-count-${id}">Chargement...</span>
         </div>
         <span class="step-chevron" id="chev-decli-${id}">▼</span>
@@ -1074,9 +1074,14 @@ function openDetail(id, forcePadOpen=false){
         <div id="decli-list-${id}" style="margin-bottom:10px">
           <div style="font-size:11px;color:var(--text3)">Chargement...</div>
         </div>
-        <button onclick="creerDeclinaison('${id}')" class="nav-btn primary" style="width:100%;font-size:12px">
-          + Créer une déclinaison Desk
-        </button>
+        <div style="display:flex;gap:6px">
+          <button onclick="creerDeclinaison('${id}','Desk')" class="nav-btn primary" style="flex:1;font-size:12px">
+            + Décli Desk
+          </button>
+          <button onclick="creerDeclinaison('${id}','Face Cam')" class="nav-btn primary" style="flex:1;font-size:12px">
+            + Décli Face Cam
+          </button>
+        </div>
       </div>
     </div>`;
   }
@@ -1631,9 +1636,11 @@ async function loadDeclinaisons(sujetId) {
     }
     el.innerHTML = declis.map(d => {
       const dotCol = stColor(d.statut);
+      const fmtCol = FMT_COLORS[d.format]||'#888';
       return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openDetail('${d.id}')">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-family:var(--mono);font-size:11px;color:var(--text2)">${d.code||'—'}</span>
+          <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:${fmtCol}1A;color:${fmtCol};border:1px solid ${fmtCol}40">${d.format||'—'}</span>
           <span style="font-size:12px;color:var(--text)">${d.titre}</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
@@ -1649,11 +1656,11 @@ async function loadDeclinaisons(sujetId) {
 }
 
 let _creerDecliEnCours=false;
-async function creerDeclinaison(parentId){
+async function creerDeclinaison(parentId, formatDecli='Desk'){
   if(_creerDecliEnCours){toast('Création en cours...','err');return;}
   _creerDecliEnCours=true;
   const parent = sujets.find(s => s.id === parentId);
-  if(!parent) return;
+  if(!parent) { _creerDecliEnCours=false; return; }
   // Compter les déclinaisons existantes depuis Notion
   let numDecli = 1;
   try {
@@ -1666,20 +1673,20 @@ async function creerDeclinaison(parentId){
       .filter(n => n > 0);
     numDecli = nums.length > 0 ? Math.max(...nums) + 1 : 1;
   } catch(e) { console.warn('Erreur calcul décli:', e); }
-  // Récupérer le compteur Desk à jour
+  // Récupérer le compteur du format choisi à jour
   try {
     const compData = await api('/databases/'+DB_COMP+'/query','POST',{
-      filter:{property:'Format',title:{equals:'Desk'}}
+      filter:{property:'Format',title:{equals:formatDecli}}
     });
     if(compData.results.length > 0) {
       const pr = compData.results[0].properties;
       const prefixe = getPrefixe(pr);
       const dernierNum = pr['Dernier numéro']?.number ?? 0;
-      compteurs['Desk'] = {id:compData.results[0].id, prefixe, dernierNumero:dernierNum, prochainCode:`${prefixe}${dernierNum+1}`};
+      compteurs[formatDecli] = {id:compData.results[0].id, prefixe, dernierNumero:dernierNum, prochainCode:`${prefixe}${dernierNum+1}`};
     }
-  } catch(e) { console.warn('Erreur reload compteur Desk:', e); }
-  const c = compteurs['Desk'];
-  if(!c) { toast('Compteur Desk introuvable','err'); return; }
+  } catch(e) { console.warn('Erreur reload compteur '+formatDecli+':', e); }
+  const c = compteurs[formatDecli];
+  if(!c) { toast('Compteur '+formatDecli+' introuvable','err'); _creerDecliEnCours=false; return; }
   const codeVal = `${c.prefixe}${c.dernierNumero+1}`;
   const titreDecli = `${parent.titre} · Décli ${String(numDecli).padStart(2,'0')}`;
   try {
@@ -1687,7 +1694,7 @@ async function creerDeclinaison(parentId){
       parent:{database_id:DB_PROD},
       properties:{
         'Titre':{title:[{text:{content:titreDecli}}]},
-        'Format':{select:{name:'Desk'}},
+        'Format':{select:{name:formatDecli}},
         'Sous-format':{select:{name:'Décli'}},
         'Chef responsable':{select:{name:parent.chef||'Benjamin'}},
         'Journaliste':{select:{name:parent.journaliste||''}},
@@ -1705,7 +1712,7 @@ async function creerDeclinaison(parentId){
     // Ajouter à la liste locale
     const newSujet = parsePage(await api('/pages/'+newPage.id,'GET').catch(()=>({id:newPage.id,properties:{
       Titre:{title:[{text:{content:titreDecli}}]},
-      Format:{select:{name:'Desk'}},
+      Format:{select:{name:formatDecli}},
       'Chef responsable':{select:{name:parent.chef}},
       Journaliste:{select:{name:parent.journaliste}},
       Statut:{select:{name:'Brief / Idée'}},
@@ -1724,7 +1731,7 @@ async function creerDeclinaison(parentId){
     const auteur = currentUser?.nom || '';
     if(parent.journaliste && parent.journaliste !== auteur) {
       await createNotif('nouveau_sujet', newPage.id, codeVal, titreDecli, parent.journaliste, auteur,
-        `${auteur} a créé une déclinaison Desk : ${codeVal} — ${titreDecli}`);
+        `${auteur} a créé une déclinaison ${formatDecli} : ${codeVal} — ${titreDecli}`);
       loadNotifs();
     }
   } catch(e) { toast('Erreur : '+e.message,'err'); }
@@ -1983,6 +1990,8 @@ async function validerTousRetours(sujetId) {
 async function loadVersions(sujetId) {
   const el = document.getElementById('versions-list-'+sujetId);
   if(!el) return;
+  const sujetCourant = sujets.find(x=>x.id===sujetId);
+  const isBrand = sujetCourant?.format === 'Brand';
   el.innerHTML = '<div style="font-size:11px;color:var(--text3)">Chargement...</div>';
   try {
     // Charger les versions ET les retours en parallèle
@@ -2034,6 +2043,7 @@ async function loadVersions(sujetId) {
       const version = pr.Version?.rich_text?.[0]?.plain_text || `V${i+1}`;
       const monteur = pr.Monteur?.rich_text?.[0]?.plain_text || '';
       const validee = pr.Validée?.checkbox || false;
+      const validationBrand = pr['Validation Brand']?.checkbox || false;
 
       const date = new Date(v.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
       const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : (url.includes('youtube.com')||url.includes('youtu.be')) ? 'youtube' : null;
@@ -2070,16 +2080,35 @@ async function loadVersions(sujetId) {
             const nbRetours = retoursOuvertsByVersion[version]||0;
             const vNum = parseInt(version.replace('V',''));
             const isLastVersion = vNum === maxVersionNum;
-            if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
-              class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
-              ✅ Version validée</button>`;
+            const urlEsc = url.replace(/'/g,"\\'");
             if(nbRetours > 0) return `<button disabled
               class="nav-btn" style="font-size:11px;white-space:nowrap;background:var(--amber-dim);border-color:var(--amber);color:var(--amber);cursor:not-allowed;opacity:1">
               ⚠️ ${nbRetours} retour${nbRetours>1?'s':''} à corriger</button>`;
             if(!isLastVersion) return `<button disabled
               class="nav-btn" style="font-size:11px;white-space:nowrap;opacity:0.4;cursor:not-allowed">
               ⏭ Version dépassée</button>`;
-            return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${url.replace(/'/g,"\\'")}')"
+            if(isBrand) {
+              const finalBtn = validee
+                ? `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
+                    class="nav-btn primary" style="flex:1;font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
+                    ✅ Version validée</button>`
+                : `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
+                    class="nav-btn" style="flex:1;font-size:11px;white-space:nowrap">
+                    ⬜ Valider cette version</button>`;
+              const brandBtn = validationBrand
+                ? `<button onclick="toggleVersionValidationBrand('${v.id}','${sujetId}',${validee},${validationBrand})"
+                    class="nav-btn primary" style="flex:1;font-size:11px;white-space:nowrap;background:var(--blue);border-color:var(--blue)">
+                    ✅ Validation Brand</button>`
+                : `<button onclick="toggleVersionValidationBrand('${v.id}','${sujetId}',${validee},${validationBrand})"
+                    class="nav-btn" style="flex:1;font-size:11px;white-space:nowrap;${!validee?'opacity:0.5;cursor:not-allowed':''}"
+                    ${!validee?'disabled':''}>
+                    ⬜ Validation Brand</button>`;
+              return `<div style="display:flex;gap:6px;flex:1">${finalBtn}${brandBtn}</div>`;
+            }
+            if(validee) return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
+              class="nav-btn primary" style="font-size:11px;white-space:nowrap;background:var(--green);border-color:var(--green)">
+              ✅ Version validée</button>`;
+            return `<button onclick="toggleVersionValidee('${v.id}','${sujetId}','${version}',${validee},'${urlEsc}')"
               class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
         </div>
@@ -2166,6 +2195,22 @@ async function updateVersionMonteur(versionId, sujetId, monteur) {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
+async function toggleVersionValidationBrand(versionId, sujetId, wasValidee, wasValide) {
+  const s = sujets.find(x=>x.id===sujetId);
+  if(s?.format !== 'Brand') return;
+  if(!wasValidee) return; // garde silencieuse : la version doit d'abord être validée par le chef
+  if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') {
+    toast('Réservé aux contacts Brand ou aux chefs','err');
+    return;
+  }
+  const newVal = !wasValide;
+  try {
+    await api('/pages/'+versionId,'PATCH',{properties:{'Validation Brand':{checkbox:newVal}}});
+    loadVersions(sujetId);
+    toast(newVal ? '✅ Validation Brand' : 'Validation Brand retirée','ok');
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
 async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, url) {
   const s = sujets.find(x=>x.id===sujetId);
   const newVal = !wasValidee;
@@ -2231,13 +2276,13 @@ async function toggleValidationSeq(id, type) {
     }
     if(newVal && s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
       await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
-        `Édito validé sur ${s.code}, à toi de valider`);
+        `Édito validé sur le séquencier de ${s.code}, à toi de valider`);
       loadNotifs();
     }
   } else if(type==='Brand') {
     if(!s.validationRM) return; // bouton désactivé : garde silencieuse
     if(!s.contactBrand) { toast("Assignez d'abord un contact Brand à cette carte",'err'); return; }
-    if(currentUser?.role !== 'Brand') { toast('Réservé aux contacts Brand','err'); return; }
+    if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') { toast('Réservé aux contacts Brand ou aux chefs','err'); return; }
     const newVal = !s.validationBrand;
     await upd(id,'Validation Brand','cb',newVal);
     s.validationBrand = newVal;
@@ -2264,7 +2309,7 @@ async function toggleValidationSeq(id, type) {
       }
       if(s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
         await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
-          `Le client a validé ${s.code}`);
+          `Le client a validé le séquencier de ${s.code}`);
         loadNotifs();
       }
     }
@@ -2809,8 +2854,12 @@ async function loadPlayerRetours(sujetId, version) {
       if(!byVersion[v]) byVersion[v] = [];
       byVersion[v].push(r);
     });
-
-    let html = '';
+    // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
+    const isChefUser = currentUser?.role === 'Chef';
+    const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
+    let html = (isChefUser && hasBrouillonEquipe)
+      ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:11px">Valider tous les retours</button></div>`
+      : '';
     Object.entries(byVersion).forEach(([v, items]) => {
       const ouvertsV = items.filter(r => r.properties.Statut?.select?.name === 'Ouvert').length;
       const isActive = v === version;
