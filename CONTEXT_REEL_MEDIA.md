@@ -7,171 +7,126 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
-### 2026-06-01 — Feature "Annuler cette version" (branche `annuler-version`)
-index.html 5233 → **5287 lignes** (+54). PR ciblée : 1 feature complète
-livrée d'une traite (modale custom + bouton + handler + rendu badge),
-puis nettoyage d'une fonction orpheline.
+### 2026-06-01 — Centre d'aide intégré (branche `page-aide`)
+index.html 5287 → **5405 lignes** (+118). PR ciblée : 1 feature complète
+livrée d'une traite. Espace d'aide accessible depuis l'app pour guider 
+les utilisateurs (journalistes, chefs, brand, monteurs).
 
-**Décisions produit prises avant le code** (les 7 du Master + 1 pivot
-sur le champ Notion) :
-1. **Comportement Notion** : utiliser le champ "Statut" existant sur
-   📹 Versions (SELECT Active/Annulée) plutôt qu'un nouveau checkbox.
-   Sémantiquement plus propre, pas besoin du Master pour créer le champ,
-   pas d'état hybride.
-2. **Affichage versions annulées** : visibles + badge rouge "❌ Annulée"
-   + opacity 0.45 + filter grayscale(0.6) (atténuation douce, pas barré).
-3. **Notification** : au journaliste (Responsable de la version) UNIQUEMENT,
-   avec wording "❌ V2 annulée sur ${s.code}, une nouvelle version est
-   attendue". Auto-notif évitée (si auteur === journaliste).
-4. **Création nouvelle version** : manuelle classique via le bouton
-   "+ Ajouter une version" existant.
-5. **Texte du bouton** : "❌ Annuler cette version", rouge danger.
-6. **Confirmation** : modale custom réutilisable
-   `showConfirmModal({title, message, confirmText, confirmStyle, onConfirm})`.
-7. **Restriction rôle** : Brand OU Chef. Toast "Réservé aux contacts
-   Brand ou aux chefs" sinon.
+**Décisions produit** (validées avec Master en perspective produit) :
+- Master conseillait initialement "ne rien coder, faire une vidéo Loom"
+  car "personne ne lit les pages d'aide". David a tranché pour combiner
+  les 2 : centre d'aide intégré + presse (annonce externe).
+- Format : modale custom plein écran (max 800px × 85vh, scroll interne)
+- Accès : bouton "?" dans le header, à gauche de la cloche, même style
+- Structure : accordéon avec 5 sections (Master conseillait 4-5 ciblés,
+  on a fait 5 couvrant tout le périmètre de la plateforme)
+- Implémentation accordéon : `<details>`/`<summary>` natifs HTML 
+  (accessibilité gratuite, pas de JS d'état nécessaire)
+
+**Les 5 sections couvrent** :
+1. 🚪 Premiers pas (login + vues + premier pas)
+2. 🎬 Les cartes et leurs codes (M/B/F/D/Y, format codes)
+3. 👥 Mon rôle (4 sous-sections : Journaliste/Chef/Brand/Monteur)
+4. 💬 Retours vs Commentaires (avec astuce Brouillon pour chefs)
+5. 🔔 La cloche : quand c'est mon tour (types de notifs)
 
 **Ce qui a été implémenté**
-- **Lecture Statut** dans loadVersions : `pr.Statut?.select?.name || ''`
-  → `annulee = statut === 'Annulée'`. Versions sans Statut traitées
-  comme actives par défaut.
-- **Rendu annulée** : wrapper avec opacity 0.45 + grayscale 0.6, badge
-  rouge "❌ Annulée" à côté du numéro de version. Le lien vidéo + 
-  Responsable restent visibles pour le contexte historique.
-- **IIFE versions** : si annulee → retourne '' (pas de boutons de validation,
-  pas de bouton Annuler). La version est figée visuellement.
-- **Bouton "❌ Annuler cette version"** : visible UNIQUEMENT si
-  isBrand && !annulee && validee && validationBrand. Placé sur une 
-  nouvelle ligne sous les 2 boutons de validation, plein-largeur, 
-  rouge danger.
-- **Modale `showConfirmModal`** : overlay assombri (rgba(0,0,0,0.6)),
-  contenu sur fond var(--bg2) avec var(--border2) et var(--rl).
-  - 5 paramètres : title, message, confirmText='Confirmer', 
-    confirmStyle='primary', onConfirm
-  - confirmStyle:'danger' applique le rouge sur le bouton
-  - escapeHtml partout (XSS-safe)
-  - white-space:pre-line sur le message pour préserver les \n (puces •)
-  - Fermeture : clic overlay externe + bouton Annuler + après confirm
-- **Handler `annulerVersion(versionId, sujetId, versionNum)`** :
-  - Garde format : s?.format === 'Brand'
-  - Garde rôle : Brand OU Chef sinon toast d'erreur
-  - Modale custom avec message détaillé (effet de l'action)
-  - onConfirm : PATCH Statut='Annulée' → createNotif('version_annulee')
-    au journaliste (sauf auto-notif) → toast confirmation → loadVersions
-- **NOTIF_ICONS** : ajout `version_annulee: '❌'`
+- **Bouton "?"** dans header, style identique à la cloche, placé À GAUCHE
+  de la cloche (ordre : [?] [🔔])
+- **showHelpModal()** : nouvelle fonction qui construit et affiche la
+  modale
+- **Modale plein écran responsive** : overlay rgba(0,0,0,0.7), container
+  max 800px × 85vh, fond var(--bg2), border var(--border2), rl
+- **Accordéon natif** via `<details>`/`<summary>` : Section 1 ouverte
+  par défaut (attribut `open`), autres repliées
+- **Fermeture** : bouton ×, clic sur overlay externe, touche Échap
+- **Contenu statique** : tous les textes en dur, pas besoin d'escapeHtml,
+  pas d'injection possible
+
+**Compteur Brouillon** est passé de 10 à 11 : le mot apparaît une fois
+de plus dans le contenu de la section 4 du Centre d'aide ("un retour
+Source='Équipe' peut être en mode 'Brouillon'"). C'est du contenu d'aide
+légitime, aucun acquis fonctionnel n'a bougé.
 
 **Vérifs pilote OK**
-- 5287 lignes, node --check OK, toutes fonctions appelées définies
-- annulerVersion=2 (def + onclick) ✓
-- Annuler cette version=2 (titre modale + bouton) ✓
-- version_annulee=2 (NOTIF_ICONS + createNotif) ✓
-- showConfirmModal=2 (def + appel) ✓
-- "Réservé aux contacts Brand ou aux chefs"=4 (3 anciens + nouveau handler) ✓
-- toggleAnnuleeVersion=0 (fonction orpheline supprimée au nettoyage) ✓
-- Tous les acquis features-brand-v2 + fix-bugs-ux + brouillons-triple-
-  validation intacts
+- 5405 lignes, node --check OK, toutes fonctions appelées définies
+- showHelpModal=2 (def + onclick) ✓
+- Centre d'aide=2 (title bouton + titre modale) ✓
+- Titres des 5 sections : tous présents 1 fois chacun ✓
+- Tous acquis features-brand-v2 + annuler-version + précédents intacts
 - 7 compteurs de préservation tous intacts
 
-**Process notes**
-- Petit pivot sur la décision 1 : initialement on prévoyait un nouveau
-  checkbox "Annulée", mais le Master a clarifié que le champ "Statut"
-  (Active/Annulée) existait déjà sous forme SELECT. On a basculé pour
-  utiliser ce champ existant — plus propre métier + plus rapide.
-- Claude Code a livré la feature d'une traite (pas d'incréments), justifié
-  car 1 seule feature cohérente avec 6 sous-points reliés.
-- Au passage il a écrit une fonction orpheline `toggleAnnuleeVersion`
-  (jamais appelée), vestige d'une approche précédente. Détectée par
-  pilote, retirée au nettoyage.
-
 **À tester en preview** (incognito + Cmd+Shift+R) :
+1. Bouton "?" visible en haut à droite, à gauche de la cloche
+2. Clic → modale s'ouvre, fond assombri
+3. Section 1 "Premiers pas" déjà dépliée
+4. Clic sur titre de section → déplie/replie son contenu
+5. Bouton "×" → ferme la modale
+6. Clic en dehors de la modale → ferme la modale
+7. Touche Échap → ferme la modale
+8. Contenu lisible et cohérent avec ton rôle
+9. Console JS propre
 
-🧪 BOUTON ANNULER
-1. Carte Brand → Montage → version où "Valider cette version" ET 
-   "Validation Brand" sont déjà cochées → un 3e bouton "❌ Annuler 
-   cette version" apparaît en rouge sur une nouvelle ligne.
-2. Connecté en journaliste (Augustin) → clic sur "Annuler" → toast
-   "Réservé aux contacts Brand ou aux chefs".
-3. Connecté en Brand (Louise) ou Chef (Benjamin) → clic → modale 
-   custom s'affiche avec titre "Annuler cette version ?", message 
-   détaillé, 2 boutons "Annuler" (gris) et "Confirmer l'annulation" 
-   (rouge).
-4. Clic "Annuler" sur la modale → modale se ferme, rien ne se passe.
-5. Clic en dehors de la modale → modale se ferme, rien ne se passe.
-6. Clic "Confirmer l'annulation" → version passe en grisé (opacity 0.45)
-   avec badge "❌ Annulée" à côté du numéro, les boutons disparaissent.
-   Toast "Version annulée. Une notification a été envoyée au journaliste."
+**Pour la "presse" (annonce externe)**
+Une fois la PR mergée, David peut envoyer un message à l'équipe
+(Slack/mail) qui reprend le même contenu pour aligner tout le monde
+sur le fonctionnement de la plateforme. Le contenu de la presse est
+identique aux 5 sections du Centre d'aide (= une seule source de vérité).
 
-🧪 VISIBILITÉ DU BOUTON
-7. Version Brand SANS "Valider cette version" cochée → bouton Annuler
-   PAS visible.
-8. Version Brand SANS "Validation Brand" cochée → bouton Annuler PAS
-   visible.
-9. Version Brand déjà annulée → bouton Annuler PAS visible (la version
-   est figée).
-10. Carte non-Brand → bouton Annuler PAS visible.
-
-🧪 NOTIFICATION
-11. Après annulation, le journaliste/monteur (Responsable) doit avoir
-    une nouvelle notif "❌ V2 annulée sur ${s.code}, une nouvelle version
-    est attendue".
-12. Si le journaliste annule lui-même (cas où journaliste === chef),
-    pas d'auto-notif.
-
-🧪 CRÉATION NOUVELLE VERSION
-13. Après annulation, le journaliste peut cliquer sur "+ Ajouter une 
-    version" pour créer une V3 normalement. Le cycle complet recommence.
-
-🧪 RÉGRESSION
-14. Cartes MAG/Face Cam/Desk → workflow versions inchangé.
-15. Toutes les autres validations (séquencier, Brand version, etc.) 
-    inchangées.
-16. Console JS propre.
-
-> Note process : Claude Code n'a pas pu pusher (403 perms). Fichier 
-> récupéré manuellement par David, à pousser sur GitHub via interface
-> web, branche `annuler-version`.
+Template suggéré (à ajuster par David) :
+- Tour d'horizon de l'outil
+- Explication des codes (M654, B41A, etc.)
+- Workflow par rôle
+- Différence Retours/Commentaires
+- Explication de la cloche
+- Mention du Centre d'aide pour référence permanente
 
 ---
 
 ### 📋 LISTE NOIRE — Pour les prochaines PR
 Plus rien de critique en attente. Si besoin futur :
+- Amélioration UX de la cloche (Master a identifié que c'était la
+  friction n°1 : les gens ne comprennent pas quand c'est leur tour).
+  Pistes : message plus explicite "À TOI de [valider/corriger]",
+  badge plus visible sur cartes avec action attendue, filtre
+  "Mes actions à faire" dans le kanban.
 - Backup automatique (GitHub Actions, export Notion nightly)
 - Intégration GitHub↔Sentry
 - (Optionnel) Régénérer les codes d'accès des 5 nouveaux + des 4 Brand
 - (Optionnel) Protéger la branche main (require PR + no force push)
 - 3 cartes Brand sans Sous-format : B09W, B19E, B09U (côté master)
-- (Optionnel futur) Bouton "Réactiver cette version" sur versions annulées
-  si jamais besoin métier — la modale `showConfirmModal` est déjà 
-  réutilisable.
+- (Optionnel) Bouton "Réactiver cette version" sur versions annulées
+- (Optionnel) Tour onboarding interactif au premier login (en plus du
+  centre d'aide)
+
+---
+
+### 2026-06-01 — Feature "Annuler cette version" (branche `annuler-version`) MERGÉ
+index.html 5233 → 5287 (+54). PR ciblée : 1 feature complète livrée 
+d'une traite (modale custom + bouton + handler + rendu badge), puis 
+nettoyage d'une fonction orpheline.
+
+Le champ "Statut" (Active/Annulée) existait déjà sur 📹 Versions (SELECT,
+pas checkbox). On l'a utilisé plutôt que créer un nouveau champ.
+
+Bonus durable : modale `showConfirmModal({title, message, confirmText, 
+confirmStyle, onConfirm})` réutilisable pour toutes les futures 
+confirmations.
 
 ---
 
 ### 2026-06-01 — Features Brand v2 + UX + inversion ordre boutons (branche `features-brand-v2`) MERGÉ
 index.html 5184 → 5233 (+49). PR à 5 features + 1 ajustement ordre, 
-livrée en 5 incréments vérifiés + 1 correctif final (inversion ordre 
-des 2 boutons par version).
+livrée en 5 incréments vérifiés + 1 correctif final.
 
-**Features livrées** :
-1. **Validation Brand par version** sur cartes Brand : 2 boutons côte à
-   côte `[Valider cette version]` (gauche, 1er, garantie ÉDITO Chef) → 
-   `[Validation Brand]` (droite, 2e, garantie CONFORMITÉ CLIENT Brand,
-   disabled tant que Valider pas cochée).
-2. **"Valider tous les retours" dans le panneau lecteur** : bouton 
-   ajouté en tête de loadPlayerRetours, conditions identiques à 
-   loadRetours.
-3. **Décli YouTube : Desk OU Face Cam** : 2 boutons côte à côte 
-   "+ Décli Desk" / "+ Décli Face Cam", creerDeclinaison(parentId, 
-   formatDecli='Desk'), badge format coloré dans loadDeclinaisons.
-   BONUS : bug latent verrou _creerDecliEnCours libéré sur 2 returns 
-   précoces.
-4. **Alignement restriction Validation Brand séquencier** : 
-   toggleValidationSeq cas Brand passe à role='Brand' OU 'Chef'.
-5. **Wording notifs Brand précisé** : "Édito validé sur le séquencier 
-   de X", "Le client a validé le séquencier de X".
+5 features : Validation Brand par version, "Valider tous les retours"
+dans lecteur, Décli YouTube Desk/Face Cam, alignement restriction Brand
+séquencier (Brand OU Chef), wording notifs précisé "séquencier de".
 
-**Inversion d'ordre boutons (correctif final)** : initialement codé 
-Brand → Valider, corrigé après retour David sur workflow réel = Chef 
-valide d'abord (édito), Brand valide après (conformité).
+Inversion d'ordre boutons après retour David : workflow réel = Chef
+valide d'abord (édito), Brand valide après (conformité). Ordre final
+sur cartes Brand : [Valider cette version] (gauche) → [Validation Brand]
+(droite, disabled tant que Valider pas cochée).
 
 ---
 
@@ -196,11 +151,15 @@ Brand, notifs Brand, helper escapeHtml.
 ═══════════════════════════════════════════════════════════════
 - **CHAT PILOTE** : prépare prompts, vérifie livrables, livre fichiers 
   validés + CONTEXT mis à jour. NE code PAS, NE push PAS.
-- **CHAT MASTER** : opérations Notion via MCP. Un SEUL chat écrit dans 
-  Notion = le master.
+- **CHAT MASTER** : opérations Notion via MCP + 2ème avis produit. Un 
+  SEUL chat écrit dans Notion = le master.
 - **CLAUDE CODE** : exécute le code. Ne pousse pas (403 perms).
 - **DAVID** : non-codeur. Colle prompts, upload GitHub, teste preview, 
   merge, clique "Synchroniser maintenant". Langue : français.
+
+**Note importante** : aucun chat ne peut parler à un autre. David est
+le pont. Pilote rédige les messages que David transmet au Master ou à
+Claude Code, et ramène leurs réponses au Pilote.
 
 ## WORKFLOW STANDARD
 1. Pilote prépare prompt précis (intention + emplacement)
@@ -217,6 +176,11 @@ Découper en INCRÉMENTS VÉRIFIÉS (3 à 5). Chaque incrément : a) périmètre
 strict, b) Claude Code livre, c) pilote vérifie compteurs + node --check + 
 fonctions appelées AVANT feu vert.
 
+## WORKFLOW SPÉCIAL : décisions produit complexes
+Consulter Master en parallèle pour avoir un 2ème avis produit. Pilote
+rédige un message neutre listant les options et son avis, David le 
+transmet, Master répond avec sa perspective. Pilote intègre.
+
 ## RÈGLES D'OR
 - index.html dans project knowledge = SOURCE OFFICIELLE
 - EQUIPE_FALLBACK = [] ; CHEF_PAR_DEFAUT = 'Benjamin'
@@ -224,8 +188,7 @@ fonctions appelées AVANT feu vert.
 - À CHAQUE modif code, livrer AUSSI CONTEXT_REEL_MEDIA.md à jour
 - Sur fichiers sensibles, JAMAIS merger sans (a) vérif pilote, 
   (b) test preview, (c) console JS propre
-- ⚠️ node --check ne voit pas les fonctions non définies. Vérif manuelle 
-  des dépendances.
+- ⚠️ node --check ne voit pas les fonctions non définies.
 - ⚠️ TOUJOURS demander le fichier à Claude Code après une modif, 
   jamais valider sur rapport seul.
 - Ne jamais coller en clair des codes d'accès / secrets dans les chats
@@ -243,8 +206,8 @@ fonctions appelées AVANT feu vert.
 - Backend : netlify/functions/notion.js + netlify/functions/login.js
 - CSS : css/base.css, css/layout.css, css/components.css, css/views.css
 - Monitoring : Sentry (org rushup, projet reel-media-production, data EU)
-- État du main après merge features-brand-v2 : 5233 lignes.
-- EN ATTENTE DE MERGE : `annuler-version` (5287 lignes).
+- État du main après merge annuler-version : 5287 lignes.
+- EN ATTENTE DE MERGE : `page-aide` (5405 lignes).
 
 ## BASES NOTION (IDs)
 | Base | ID |
@@ -282,9 +245,9 @@ fonctions appelées AVANT feu vert.
   + Contact Brand + notifs validation
 - ✅ Fix 3 bugs UX (double V1, titre textarea, restriction Client)
 - ✅ Features Brand v2 (5 features + inversion ordre boutons par version)
+- ✅ Annuler cette version + modale custom réutilisable
 
-**EN ATTENTE DE MERGE** : `annuler-version` (feature Annuler cette 
-version + modale custom réutilisable).
+**EN ATTENTE DE MERGE** : `page-aide` (Centre d'aide intégré).
 
 ═══════════════════════════════════════════════════════════════
 ## NOTES TECHNIQUES UTILES
@@ -315,22 +278,18 @@ version + modale custom réutilisable).
 - Chefs : Benjamin (défaut), Arnaud, Chloé. Monteurs : Thierry, David.
 - Brand : Arnaud C, Guillaume, Louise, Victor.
 - Handler validations séquencier : toggleValidationSeq(id, type) avec 
-  type∈{'RM','Brand','Client','autre'}. Type 'Brand' restreint role 
-  'Brand' OU 'Chef'. Type 'Client' (Brand uniquement) restreint role 
-  'Brand' OU 'Chef', + cliquet définitif.
+  type∈{'RM','Brand','Client','autre'}.
 - Handler validation par version : toggleVersionValidationBrand(versionId, 
-  sujetId, wasValidee, wasValide) — triple garde format='Brand' + 
-  wasValidee + role 'Brand'/'Chef', PATCH direct, décochable.
+  sujetId, wasValidee, wasValide).
 - Handler annulation version : annulerVersion(versionId, sujetId, 
-  versionNum) — gardes format='Brand' + role 'Brand'/'Chef', modale 
-  custom de confirmation, PATCH Statut='Annulée', notif au journaliste.
+  versionNum).
 - toggleVersionValidee signature originale : (versionId, sujetId, 
-  versionNum, wasValidee, url). 1er maillon de la chaîne Brand.
-- creerDeclinaison signature : (parentId, formatDecli='Desk'). 
-  formatDecli ∈ {'Desk', 'Face Cam'}.
+  versionNum, wasValidee, url).
+- creerDeclinaison signature : (parentId, formatDecli='Desk').
 - Modale custom réutilisable : showConfirmModal({title, message, 
-  confirmText='Confirmer', confirmStyle='primary', onConfirm}). 
-  confirmStyle:'danger' applique le rouge. escapeHtml + white-space:pre-line.
+  confirmText='Confirmer', confirmStyle='primary', onConfirm}).
+- Centre d'aide : showHelpModal() — modale plein écran avec accordéon 
+  natif `<details>`/`<summary>` HTML, contenu statique 5 sections.
 - ORDRE chaîne validation version Brand : Valider cette version (Chef/édito) 
   → Validation Brand (Brand/conformité client) → optionnellement Annuler 
   cette version (Brand ou Chef).

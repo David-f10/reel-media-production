@@ -73,6 +73,7 @@
 <nav class="topnav">
   <div class="logo">Suivi de <span style="color:var(--text)">production</span></div>
   <div class="topnav-r" style="display:flex;align-items:center;gap:8px">
+    <button id="help-btn" onclick="showHelpModal()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:var(--r);cursor:pointer;font-size:16px;line-height:1;transition:all 0.15s" title="Centre d'aide">?</button>
     <div style="position:relative">
       <button id="notif-btn" onclick="toggleNotifs()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:var(--r);cursor:pointer;font-size:16px;line-height:1;transition:all 0.15s" title="Notifications">🔔</button>
       <div id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-family:var(--mono);font-weight:700;align-items:center;justify-content:center;pointer-events:none">0</div>
@@ -2275,6 +2276,123 @@ function showConfirmModal({title, message, confirmText='Confirmer', confirmStyle
     close();
     if(typeof onConfirm === 'function') await onConfirm();
   });
+}
+
+function showHelpModal() {
+  const existing = document.getElementById('help-modal');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'help-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  const sectionStyle = 'border:1px solid var(--border);border-radius:var(--r);background:var(--bg3);margin-bottom:10px;overflow:hidden';
+  const summaryStyle = 'cursor:pointer;padding:12px 14px;font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;justify-content:space-between;list-style:none;user-select:none';
+  const bodyStyle = 'padding:4px 16px 16px;font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-line';
+  overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);max-width:800px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+      <div style="font-size:16px;font-weight:600;color:var(--text)">Centre d'aide</div>
+      <button id="help-modal-close" class="nav-btn" style="font-size:14px;padding:4px 10px" title="Fermer">×</button>
+    </div>
+    <div style="padding:18px 20px;overflow-y:auto">
+      <details open style="${sectionStyle}">
+        <summary style="${summaryStyle}"><span>🚪 Premiers pas</span><span style="font-size:11px;color:var(--text3)">▼</span></summary>
+        <div style="${bodyStyle}">Bienvenue dans Réel Média Production, l'outil de suivi de productions vidéo et TV de l'équipe.
+
+Au démarrage :
+• Sélectionne ton nom et entre ton code d'accès
+• Tu arrives sur le kanban : la liste de tous les sujets en cours
+• 3 vues disponibles : Cartes (par défaut) / Par statut / Par journaliste
+• Clique sur une carte pour voir tous ses détails
+
+Si tu galères, demande à Benjamin, David ou un collègue. Tout le monde apprend par tâtonnement, c'est normal.</div>
+      </details>
+      <details style="${sectionStyle}">
+        <summary style="${summaryStyle}"><span>🎬 Les cartes et leurs codes</span><span style="font-size:11px;color:var(--text3)">▼</span></summary>
+        <div style="${bodyStyle}">Chaque sujet a un code unique de 4 caractères (ex : M654, B41A, F39B).
+
+La 1ère lettre indique le format :
+• M = MAG (magazine TV)
+• B = Brand (publicité ou contenu client)
+• F = Face Cam (interview face caméra)
+• D = Desk (plateau)
+• Y = YouTube (chaîne YouTube)
+
+Les 3 chiffres/lettres suivants sont l'ordre de création dans ce format. Tu n'as pas besoin de les retenir : ils sont générés automatiquement.
+
+Astuce : la couleur du badge code reflète aussi le format.</div>
+      </details>
+      <details style="${sectionStyle}">
+        <summary style="${summaryStyle}"><span>👥 Mon rôle</span><span style="font-size:11px;color:var(--text3)">▼</span></summary>
+        <div style="${bodyStyle}">Selon ton rôle, tu interviens à différents moments :
+
+📝 JOURNALISTE
+1. Tu écris ton séquencier (lien Google Doc)
+2. Tu attends que ton chef valide
+3. Tu tournes / tu montes
+4. Tu uploads ta V1 (lien Drive)
+5. Si retours → tu corriges → V2, V3...
+6. C'est terminé quand ton chef coche "Valider cette version"
+
+🎬 CHEF
+1. Tu valides les séquenciers (côté édito)
+2. Tu regardes les montages → tu valides chaque version
+3. Sur les cartes Brand : après ta validation, le Brand valide aussi
+4. Tu peux annuler une version validée pour demander des modifs
+5. La cloche t'alerte de tes actions à faire
+
+🏷️ BRAND (contacts clients)
+1. Tu es assigné comme Contact Brand sur les cartes Brand
+2. Tu valides le séquencier APRÈS le chef (conformité brief)
+3. Tu valides chaque version APRÈS le chef (conformité brief)
+4. Tu reçois une notif quand c'est ton tour d'agir
+
+✂️ MONTEUR
+1. Tu vois les cartes en montage qui te sont assignées
+2. Tu uploads les versions montées
+3. Si une version est annulée → tu en montes une nouvelle</div>
+      </details>
+      <details style="${sectionStyle}">
+        <summary style="${summaryStyle}"><span>💬 Retours vs Commentaires</span><span style="font-size:11px;color:var(--text3)">▼</span></summary>
+        <div style="${bodyStyle}">Deux endroits pour s'exprimer, à ne pas confondre :
+
+💬 COMMENTAIRES
+• Pour échanger, discuter, poser une question
+• Visible par tout le monde
+• Conversation libre
+
+📋 RETOURS
+• Pour pointer une modification précise demandée
+• Peut inclure un timecode (vidéo) ou une page (séquencier)
+• Sources : "Équipe" (interne) ou "Client" (externe)
+
+Astuce CHEFS : un retour Source="Équipe" peut être en mode "Brouillon", visible seulement par l'équipe. Quand tu es prêt à transmettre, clique sur "Valider tous les retours" pour les envoyer en bloc.</div>
+      </details>
+      <details style="${sectionStyle}">
+        <summary style="${summaryStyle}"><span>🔔 La cloche : quand c'est mon tour</span><span style="font-size:11px;color:var(--text3)">▼</span></summary>
+        <div style="${bodyStyle}">La cloche 🔔 en haut à droite t'alerte quand une action est attendue de toi (ou pour t'informer).
+
+Types de notifs :
+• 🆕 Nouveau sujet créé
+• 🎬 V1/V2/V3 déposée (le chef doit valider)
+• ✏️ Retour reçu (le journaliste doit corriger)
+• ✅ Retour corrigé (le chef doit revalider)
+• 💬 Commentaire posté
+• 🎯 Version validée
+• 📢 Édito validé sur le séquencier (toi de valider — Brand)
+• 📢 Client a validé le séquencier (info Brand)
+• ❌ Version annulée (le journaliste doit en refaire une nouvelle)
+
+Si tu ouvres une carte depuis une notif, elle se marque automatiquement comme lue.
+
+Si la cloche n'a pas de pastille rouge, c'est que tu es à jour 🎉</div>
+      </details>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onEsc); };
+  const onEsc = e => { if(e.key === 'Escape') close(); };
+  overlay.addEventListener('click', e => { if(e.target === overlay) close(); });
+  document.getElementById('help-modal-close').addEventListener('click', close);
+  document.addEventListener('keydown', onEsc);
 }
 
 async function annulerVersion(versionId, sujetId, versionNum) {
