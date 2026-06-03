@@ -1,6 +1,5 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Ce fichier permet à un nouveau chat de reprendre le rôle de PILOTE sans perdre le contexte.
 > Dernière mise à jour : 2026-06-03
 
 ═══════════════════════════════════════════════════════════════
@@ -100,7 +99,6 @@ est mergée sur main".
 - Q5 (clickNotif) : version défensive
 
 **Les 7 fix livrés**
-
 FIX A — Bouton × pour vider les dates (J1 / J2 / Diffusion)
 - Fonction réutilisable clearDate(id, field, btnEl)
 - Wrapper .date-wrap avec .date-clear
@@ -182,22 +180,20 @@ en réalité Select 2 options ("Studio"/"Extérieur").
 ═══════════════════════════════════════════════════════════════
 ## RÔLES (workflow à 3 chats)
 ═══════════════════════════════════════════════════════════════
-- **CHAT PILOTE** : prépare prompts, vérifie livrables, livre fichiers 
-  validés + CONTEXT mis à jour. NE code PAS, NE push PAS.
+- **CHAT PILOTE** : prépare prompts (en INTENTIONS, pas en code), 
+  vérifie livrables, livre fichiers + CONTEXT à jour.
 - **CHAT MASTER** : opérations Notion via MCP + 2e avis produit.
-- **CLAUDE CODE** : exécute le code. Ne pousse pas (403 perms). Peut 
-  proposer en mode ANALYSE sans coder.
+- **CLAUDE CODE** : exécute le code.
 - **DAVID** : non-codeur. Colle prompts, upload GitHub, teste preview, 
   merge, clique "Synchroniser maintenant". Langue : français.
 
 ## WORKFLOWS
 
 ### Standard
-1. Pilote prépare prompt précis (intention + emplacement, PAS DE CODE)
+1. Pilote prépare prompt précis en INTENTIONS (pas en code)
 2. Claude Code : curl raw GitHub main → analyse → code
 3. Claude Code livre fichier(s)
-4. David envoie au pilote → vérif (wc -l, grep, node --check, 
-   fonctions appelées, lecture diff)
+4. David envoie au pilote → vérif (wc -l, grep, node --check, code)
 5. Pilote livre fichiers + CONTEXT à jour
 6. David push GitHub, ouvre PR, teste preview Netlify, merge si OK
 7. David clique "Synchroniser maintenant" sur project knowledge
@@ -210,7 +206,7 @@ en 4 essais.** À reproduire systématiquement pour les sujets techniques.
 Si une décision pilote sur type de champ Notion est contredite par 
 ce que voit Claude Code, demander vérification au Master via Notion MCP.
 
-## RÈGLES D'OR
+## RÈGLES D'OR (mises à jour 03/06)
 - index.html dans project knowledge = SOURCE OFFICIELLE
 - EQUIPE_FALLBACK = [] ; CHEF_PAR_DEFAUT = 'Benjamin'
 - **PILOTE NE CODE PAS** : prompts en intentions, pas en code 
@@ -298,7 +294,6 @@ ce que voit Claude Code, demander vérification au Master via Notion MCP.
 - Vue active = appSetVue(currentVue), rendu LOCAL depuis `sujets`
 - refreshUI(id) = appSetVue(currentVue) + refreshDetail(id) débouncé
 - openDetail(id) lourde (~7 appels API)
-- Helper escapeHtml(s) : défense XSS
 - Verrous création : `_creerDecliEnCours` + `_creerVersionEnCours`
 - Login : <select> natif #login-nom avec <optgroup>
 - Rôles canoniques : ['Chef', 'Journaliste', 'Monteur', 'Brand']
