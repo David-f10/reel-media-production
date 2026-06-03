@@ -139,4 +139,10 @@
   .next-shoot-item>span:nth-child(3){grid-column:2;color:var(--text)}
   .next-shoot-item>span:nth-child(4){grid-column:1;font-size:11px}
   .next-shoot-item>span:nth-child(5){grid-column:2;font-size:11px;color:var(--text3)}
+  /* P5 — Activité récente compactée sur mobile */
+  .activite-item{padding:8px 12px;gap:8px;align-items:flex-start}
+  .activite-icon{font-size:14px;width:18px}
+  .activite-msg{font-size:11px;line-height:1.35}
+  .activite-msg>div:last-child{display:none}
+  .activite-heure{font-size:9px;align-self:flex-start;margin-top:2px}
 }

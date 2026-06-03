@@ -127,17 +127,21 @@
 }
 
 @media(max-width:700px){
-  .cards{grid-template-columns:1fr}
+  .cards{grid-template-columns:1fr;width:100%}
   .fg{grid-template-columns:1fr}
   /* Mobile cards */
-  .card{padding:12px}
+  .card{padding:12px;max-width:100%;min-width:0;overflow:hidden}
+  /* P2 — Cards : neutraliser le min-content des enfants */
+  .card>*{min-width:0;max-width:100%}
   /* Mobile modal */
   .modal{max-width:100%!important;max-height:100vh!important;border-radius:0!important;margin:0!important}
   .overlay{padding:0!important;align-items:flex-end!important}
   /* A — Padding réduit dans modale détail */
-  .modal-hdr{padding:14px 16px}
+  .modal-hdr{padding:14px 20px 14px 16px}
   .step-hdr{padding:12px 16px}
   .step-body{padding:0 16px 14px}
+  /* P3 — Bouton × tap-target conforme Apple HIG */
+  .modal-close{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
   /* C — Panneau notif attaché en haut, plein largeur */
   .notif-panel{
     top:52px;right:0;left:0;width:auto;max-height:300px;
@@ -145,4 +149,8 @@
   }
   /* B — Boutons validation Brand séquencier : tient sur une ligne même à 320px */
   .brand-seq-actions .nav-btn{min-width:0;flex-basis:30%}
+  /* P4 — Stepper : afficher uniquement le statut courant sur mobile */
+  .stepper{padding:8px 16px;justify-content:flex-start}
+  .stepper .st-btn:not(.cur){display:none}
+  .stepper .st-btn.cur{font-size:11px;padding:4px 10px}
 }
