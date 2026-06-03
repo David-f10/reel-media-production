@@ -149,4 +149,8 @@
   .player-modal-body{flex-direction:column!important}
   .player-modal-stage{flex:none!important;height:45vh;width:100%}
   .player-modal-panel{width:100%!important;flex:1!important;border-left:none!important;border-top:1px solid #1E1E2A;max-height:55vh}
+  /* FIX 2 — Calendrier : nav (titre mois + flèches) visible et compacte sur mobile */
+  .cal-nav{margin-bottom:10px;gap:8px;flex-wrap:nowrap}
+  .cal-nav .nav-btn{padding:6px 10px;font-size:14px;flex-shrink:0}
+  .cal-title{font-size:14px;text-align:center;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
