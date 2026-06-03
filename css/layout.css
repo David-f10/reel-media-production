@@ -198,18 +198,27 @@ nav{
     display:flex;flex-direction:row;padding:4px 8px;
     width:100%;align-items:center;justify-content:space-around;gap:8px;
   }
-  .sb-item{
+  /* D — Bottom-nav : limiter à 3 items principaux (Dashboard / Production / Idées) */
+  .sb-item{display:none!important}
+  .sb-item#nav-dashboard,.sb-item#nav-production,.sb-item#nav-idees{
+    display:flex!important;
     flex-direction:column;gap:3px;padding:6px 12px;
     font-size:10px;font-weight:500;border-radius:10px;width:auto;flex:1;
     justify-content:center;align-items:center;color:var(--text3);
-    transition:all 0.15s;
+    transition:all 0.15s;position:relative;
   }
   .sb-item.active{
     background:var(--red-dim);color:var(--red);
   }
   .sb-item:hover{background:var(--bg3);color:var(--text2)}
   .sb-icon{font-size:20px;width:auto}
-  .sb-badge{display:none}
+  /* D — Badges sur bottom-nav : pastille rouge positionnée en haut à droite de l'icône */
+  .sb-badge{
+    position:absolute;top:2px;left:50%;margin-left:6px;
+    font-size:8px;min-width:14px;height:14px;padding:0 4px;
+    border-radius:7px;display:flex;align-items:center;justify-content:center;
+    background:var(--red);color:#fff;font-weight:700;line-height:1;
+  }
   .app-shell{height:100dvh}
   .app-body{height:calc(100dvh - 52px - 60px)}
   .main-area{height:100%;overflow:hidden}

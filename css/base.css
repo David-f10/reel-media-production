@@ -10,3 +10,7 @@ select option{background:var(--bg3)}
 textarea{resize:vertical;min-height:70px;line-height:1.5}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+/* Mobile : éviter le zoom auto iOS Safari au focus d'un input <16px */
+@media(max-width:700px){
+  select,input[type=text],input[type=url],input[type=date],input[type=password],input[type=email],input[type=tel],textarea{font-size:16px}
+}

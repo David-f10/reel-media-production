@@ -81,7 +81,7 @@
     <button class="nav-btn" onclick="appLoadData()" style="padding:5px 10px" title="Actualiser">↻</button>
   </div>
   <!-- Panneau notifications -->
-  <div id="notif-panel" style="display:none;position:fixed;top:56px;right:16px;width:340px;max-height:480px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:500;overflow:hidden;flex-direction:column">
+  <div id="notif-panel" class="notif-panel" style="display:none">
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:13px;font-weight:600">Notifications</span>
       <button onclick="markAllRead()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">Tout marquer lu</button>
@@ -877,7 +877,7 @@ function openDetail(id, forcePadOpen=false){
       </div>
     </div>
     ${s.format==='Brand' ? `
-      <div style="display:flex;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+      <div class="brand-seq-actions" style="display:flex;gap:8px;margin-bottom:4px;flex-wrap:wrap">
         <button onclick="toggleValidationSeq('${id}','RM')"
           class="nav-btn ${s.validationRM?'primary':''}"
           style="flex:1;min-width:90px;font-size:12px;${s.validationRM?'background:var(--green);border-color:var(--green)':''}">
@@ -2075,7 +2075,7 @@ async function loadVersions(sujetId) {
           ${url ? `<button onclick="copierLienClient('${sujetId}','${version}','${url}')"
             style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:11px;flex-shrink:0">🔗</button>` : ''}
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div class="version-actions-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
             <select onchange="updateVersionMonteur('${v.id}','${sujetId}',this.value)" style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px">
@@ -3860,7 +3860,7 @@ function renderCalendrier(){
       const dateLabel=ev.date===demainKey?`Demain ${fmtJ(d).toLowerCase()}`:fmtJ(d);
       const lieu=s.lieuTour?'🎬 Studio':'Extérieur';
       const jourLbl=ev.jour?` ${ev.jour}`:'';
-      html+=`<li onclick="openDetail('${s.id}')" style="cursor:pointer;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      html+=`<li class="next-shoot-item" onclick="openDetail('${s.id}')" style="cursor:pointer;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span style="color:var(--text3);min-width:160px">${escapeHtml(dateLabel)}</span>
         <span style="color:var(--text);font-family:var(--mono);font-size:11px">${escapeHtml(s.code||'')}${jourLbl}</span>
         <span style="flex:1;color:var(--text)">${escapeHtml(s.titre||'')}</span>
