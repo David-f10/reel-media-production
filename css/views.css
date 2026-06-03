@@ -145,4 +145,8 @@
   .activite-msg{font-size:11px;line-height:1.35}
   .activite-msg>div:last-child{display:none}
   .activite-heure{font-size:9px;align-self:flex-start;margin-top:2px}
+  /* FIX F — Vue retours équipe (openPlayer) : layout colonne sur mobile, comme Review */
+  .player-modal-body{flex-direction:column!important}
+  .player-modal-stage{flex:none!important;height:45vh;width:100%}
+  .player-modal-panel{width:100%!important;flex:1!important;border-left:none!important;border-top:1px solid #1E1E2A;max-height:55vh}
 }

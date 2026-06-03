@@ -154,7 +154,7 @@
     <div class="sb-sep"></div>
 
     <!-- Filtres Production -->
-    <div id="sb-filters" style="display:none;padding-bottom:12px">
+    <div id="sb-filters" style="padding-bottom:12px">
       <div class="sb-section-label">Statut</div>
       <button class="sb-filter active" onclick="appFilter(null,null,this)"><span class="sb-dot" style="background:var(--text3)"></span>Tous</button>
       <button class="sb-filter" onclick="appFilter('s','Brief / Idée',this)"><span class="sb-dot" style="background:#555"></span>Brief / Idée</button>
@@ -691,6 +691,17 @@ function cardHTML(s){
 
 function stColor(s){return{'Brief / Idée':'#555','Séquencier en cours':'#378ADD','Séquencier validé':'#7F77DD','En tournage':'#EF9F27','Post-prod':'#EF9F27','Montage':'#1D9E75','Retours':'#e63946','Validation chef':'#7F77DD','PAD':'#1D9E75'}[s]||'#555';}
 function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});}
+function clearDate(id, field, btnEl){
+  const wrap = btnEl?.closest('.date-wrap');
+  const input = wrap?.querySelector('input[type=date]');
+  if(input) input.value = '';
+  if(btnEl) btnEl.style.display = 'none';
+  upd(id, field, 'date', '');
+}
+function setFiltersVisible(visible){
+  document.getElementById('sb-filters').classList.toggle('is-visible', visible);
+  document.querySelector('.main-area')?.classList.toggle('has-filters', visible);
+}
 function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');renderCards();}
 
 // Ouvre le modal APRÈS avoir rechargé les compteurs depuis Notion
@@ -906,8 +917,8 @@ function openDetail(id, forcePadOpen=false){
   `,activeStep==='seq');
   if(hasTour){html+=step('Tournage',s.tourJ1?'p-amber Planifié':'p-gray Non planifié',
     `<div class="fg">
-      <div class="field"><div class="field-label">Date J1</div><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"></div>
-      <div class="field"><div class="field-label">Date J2 (optionnel)</div><input type="date" value="${s.tourJ2}" onchange="upd('${id}','Date tournage J2','date',this.value)"></div>
+      <div class="field"><div class="field-label">Date J1</div><div class="date-wrap"><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"><button type="button" class="date-clear" onclick="clearDate('${id}','Date tournage J1',this)" title="Effacer" style="${s.tourJ1?'':'display:none'}">×</button></div></div>
+      <div class="field"><div class="field-label">Date J2 (optionnel)</div><div class="date-wrap"><input type="date" value="${s.tourJ2}" onchange="upd('${id}','Date tournage J2','date',this.value)"><button type="button" class="date-clear" onclick="clearDate('${id}','Date tournage J2',this)" title="Effacer" style="${s.tourJ2?'':'display:none'}">×</button></div></div>
     </div>
     <div class="field" style="margin-top:8px">
       <div class="field-label" style="margin-bottom:6px">Lieu</div>
@@ -946,7 +957,7 @@ function openDetail(id, forcePadOpen=false){
   const sansMusique = s.sansMusique;
   const padPret = capDeposee && (sansMusique || releveMusique);
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
-    `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"></div>
+    `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><div class="date-wrap"><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"><button type="button" class="date-clear" onclick="clearDate('${id}','Date de diffusion',this)" title="Effacer" style="${s.diffusion?'':'display:none'}">×</button></div></div>
     <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
       <label style="display:flex;align-items:center;gap:10px;cursor:${s.statut==='PAD'?'default':'pointer'};padding:10px;border-radius:8px;border:1px solid ${capDeposee?'var(--green)':'var(--border)'};background:${capDeposee?'var(--green-dim)':'var(--bg3)'}">
         <input type="checkbox" ${capDeposee?'checked':''} ${s.statut==='PAD'?'disabled':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Cap d\u00e9pos\u00e9e','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.capDeposee=v;refreshUI('${id}',true)})">
@@ -1368,8 +1379,9 @@ async function clickNotif(notifId, sujetId) {
   // Fermer panneau et ouvrir la fiche
   toggleNotifs(false);
   if(sujetId) {
-    navTo('production');
-    setTimeout(() => openDetail(sujetId), 300);
+    const alreadyProd = currentPage === 'production';
+    if(!alreadyProd) navTo('production');
+    setTimeout(() => openDetail(sujetId), alreadyProd ? 50 : 350);
   }
   loadNotifs();
 }
@@ -2902,6 +2914,11 @@ function getDriveFileId(url) {
   return m ? m[1] : '';
 }
 
+function toDlUrl(url) {
+  const id = getDriveFileId(url);
+  return id ? `https://drive.google.com/uc?export=download&id=${id}` : url;
+}
+
 function toEmbedUrl(url, type) {
   if(!url) return null;
   if(type === 'drive') {
@@ -2954,13 +2971,13 @@ function openPlayer(url, label, sujetId, version) {
         onmouseover="this.style.color='#F0F0F5'" onmouseout="this.style.color='#5A5A70'">×</button>
     </div>
     <!-- Layout -->
-    <div style="flex:1;display:flex;overflow:hidden">
+    <div class="player-modal-body" style="flex:1;display:flex;overflow:hidden">
       <!-- Player -->
-      <div style="flex:1;background:#000;position:relative">
+      <div class="player-modal-stage" style="flex:1;background:#000;position:relative">
         <iframe src="${embedUrl}" style="position:absolute;inset:0;width:100%;height:100%;border:none" allowfullscreen allow="autoplay; fullscreen"></iframe>
       </div>
       <!-- Panel retours -->
-      <div style="width:340px;flex-shrink:0;background:#0F0F1A;border-left:1px solid #1E1E2A;display:flex;flex-direction:column;overflow:hidden">
+      <div class="player-modal-panel" style="width:340px;flex-shrink:0;background:#0F0F1A;border-left:1px solid #1E1E2A;display:flex;flex-direction:column;overflow:hidden">
         <!-- Header panel -->
         <div style="padding:12px 16px;border-bottom:1px solid #1E1E2A;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
           <span style="font-size:12px;font-weight:600;color:#F0F0F5">📋 Retours équipe</span>
@@ -2996,6 +3013,9 @@ function openPlayer(url, label, sujetId, version) {
           <button onclick="submitPlayerRetour('${sujetId}','${version}')"
             style="width:100%;background:#E63946;border:none;color:#fff;padding:9px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500;transition:opacity 0.15s;font-family:-apple-system,sans-serif"
             onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer →</button>
+          ${url.includes('drive.google.com') ? `<a href="${toDlUrl(url)}" target="_blank"
+            style="display:flex;align-items:center;justify-content:center;width:100%;margin-top:6px;background:transparent;border:1px solid #2A2A3A;color:#9898B0;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;font-family:-apple-system,sans-serif;box-sizing:border-box"
+            onmouseover="this.style.color='#F0F0F5';this.style.borderColor='#5A5A70'" onmouseout="this.style.color='#9898B0';this.style.borderColor='#2A2A3A'">⬇ Télécharger</a>` : ''}
         </div>
       </div>
     </div>
@@ -5295,7 +5315,7 @@ function navTo(page) {
   if(nav) nav.classList.add('active');
 
   // Filtres + onglets — utiliser '' pour laisser le CSS reprendre la main (mobile : bandeau flex / desktop : block)
-  document.getElementById('sb-filters').style.display = isProd ? '' : 'none';
+  setFiltersVisible(isProd);
   document.getElementById('view-tabs').style.display = isProd ? 'flex' : 'none';
   if(!isProd) clearSearch();
 
@@ -5325,7 +5345,7 @@ function appRender() {
     document.getElementById('main-actions').innerHTML = `
       <button class="nav-btn primary" onclick="openNouvelleIdee()" style="font-size:11px;white-space:nowrap">+ Nouvelle idée</button>`;
     document.getElementById('view-tabs').style.display = 'none';
-    document.getElementById('sb-filters').style.display = 'none';
+    setFiltersVisible(false);
     clearSearch();
     loadIdees();
     return;
@@ -5335,7 +5355,7 @@ function appRender() {
     document.getElementById('main-actions').innerHTML = `
       <button class="nav-btn primary" onclick="openNouvelleTache()" style="font-size:11px;white-space:nowrap">+ Nouvelle tâche</button>`;
     document.getElementById('view-tabs').style.display = 'none';
-    document.getElementById('sb-filters').style.display = 'none';
+    setFiltersVisible(false);
     clearSearch();
     loadTachesPerso();
     return;
@@ -5344,7 +5364,7 @@ function appRender() {
     document.getElementById('breadcrumb').textContent = 'Archives';
     document.getElementById('main-actions').innerHTML = '';
     document.getElementById('view-tabs').style.display = 'none';
-    document.getElementById('sb-filters').style.display = 'none';
+    setFiltersVisible(false);
     renderArchives();
     return;
   }
