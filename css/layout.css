@@ -226,10 +226,11 @@ nav{
   /* FIX C — Bandeau filtres statuts : fixé sous les onglets, contrôlé par .is-visible (uniquement Production) */
   #sb-filters{display:none}
   #sb-filters.is-visible{
-    display:flex;position:fixed;top:calc(44px + 36px);left:0;right:0;z-index:9;
+    display:flex;position:fixed;left:0;right:0;z-index:9;
     flex-direction:row;align-items:center;gap:4px;
     overflow-x:auto;white-space:nowrap;scrollbar-width:none;
     padding:6px 12px;background:var(--bg);border-bottom:1px solid var(--border);
+    /* top défini dynamiquement par setFiltersVisible() en mesurant getBoundingClientRect des view-tabs */
   }
   #sb-filters.is-visible::-webkit-scrollbar{display:none}
   #sb-filters .sb-section-label{display:none!important}
