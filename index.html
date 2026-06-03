@@ -151,31 +151,6 @@
       </button>
     </div>
 
-    <div class="sb-sep"></div>
-
-    <!-- Filtres Production -->
-    <div id="sb-filters" style="padding-bottom:12px">
-      <div class="sb-section-label">Statut</div>
-      <button class="sb-filter active" onclick="appFilter(null,null,this)"><span class="sb-dot" style="background:var(--text3)"></span>Tous</button>
-      <button class="sb-filter" onclick="appFilter('s','Brief / Idée',this)"><span class="sb-dot" style="background:#555"></span>Brief / Idée</button>
-      <button class="sb-filter" onclick="appFilter('s','Séquencier en cours',this)"><span class="sb-dot" style="background:var(--blue)"></span>Séquencier</button>
-      <button class="sb-filter" onclick="appFilter('s','En tournage',this)"><span class="sb-dot" style="background:var(--amber)"></span>En tournage</button>
-      <button class="sb-filter" onclick="appFilter('s','Post-prod',this)"><span class="sb-dot" style="background:var(--amber)"></span>Post-prod</button>
-      <button class="sb-filter" onclick="appFilter('s','Montage',this)"><span class="sb-dot" style="background:var(--green)"></span>Montage</button>
-      <button class="sb-filter" onclick="appFilter('s','Retours',this)"><span class="sb-dot" style="background:var(--red)"></span>Retours</button>
-      <button class="sb-filter" onclick="appFilter('s','Validation chef',this)"><span class="sb-dot" style="background:var(--purple)"></span>Validation</button>
-      <button class="sb-filter" onclick="appFilter('s','PAD',this)"><span class="sb-dot" style="background:var(--green)"></span>PAD</button>
-
-      <div class="sb-section-label" style="margin-top:6px">Format</div>
-      <button class="sb-filter" onclick="appFilter('f','MAG',this)"><span class="sb-dot" style="background:#378ADD"></span>MAG</button>
-      <button class="sb-filter" onclick="appFilter('f','Brand',this)"><span class="sb-dot" style="background:#EF9F27"></span>Brand</button>
-      <button class="sb-filter" onclick="appFilter('f','Face Cam',this)"><span class="sb-dot" style="background:#e63946"></span>Face Cam</button>
-      <button class="sb-filter" onclick="appFilter('f','Desk',this)"><span class="sb-dot" style="background:#888780"></span>Desk</button>
-      <button class="sb-filter" onclick="appFilter('f','YouTube',this)"><span class="sb-dot" style="background:#1D9E75"></span>YouTube</button>
-      <button class="sb-filter" onclick="appFilter('f','Prodige',this)"><span class="sb-dot" style="background:#D4537E"></span>Prodige</button>
-      <button class="sb-filter" onclick="appFilter('f','Interne',this)"><span class="sb-dot" style="background:#5A5A70"></span>⚙️ Interne</button>
-    </div>
-
     <div class="sb-bottom">
       <div style="padding:8px 8px 0;display:flex;flex-direction:column;gap:6px">
         <button onclick="navTo('production');openNouveau()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
@@ -215,6 +190,25 @@
       <button class="vtab" id="tab-journaliste" onclick="appSetVue('journaliste')">👤 Par journaliste</button>
       <button class="vtab" id="tab-liste" onclick="appSetVue('liste')">☰ Liste</button>
       <button class="vtab" id="tab-calendrier" onclick="appSetVue('calendrier')">📅 Calendrier</button>
+    </div>
+    <!-- Filtres Production (bandeau horizontal sous les onglets) -->
+    <div id="sb-filters">
+      <button class="sb-filter active" onclick="appFilter(null,null,this)"><span class="sb-dot" style="background:var(--text3)"></span>Tous</button>
+      <button class="sb-filter" onclick="appFilter('s','Brief / Idée',this)"><span class="sb-dot" style="background:#555"></span>Brief / Idée</button>
+      <button class="sb-filter" onclick="appFilter('s','Séquencier en cours',this)"><span class="sb-dot" style="background:var(--blue)"></span>Séquencier</button>
+      <button class="sb-filter" onclick="appFilter('s','En tournage',this)"><span class="sb-dot" style="background:var(--amber)"></span>En tournage</button>
+      <button class="sb-filter" onclick="appFilter('s','Post-prod',this)"><span class="sb-dot" style="background:var(--amber)"></span>Post-prod</button>
+      <button class="sb-filter" onclick="appFilter('s','Montage',this)"><span class="sb-dot" style="background:var(--green)"></span>Montage</button>
+      <button class="sb-filter" onclick="appFilter('s','Retours',this)"><span class="sb-dot" style="background:var(--red)"></span>Retours</button>
+      <button class="sb-filter" onclick="appFilter('s','Validation chef',this)"><span class="sb-dot" style="background:var(--purple)"></span>Validation</button>
+      <button class="sb-filter" onclick="appFilter('s','PAD',this)"><span class="sb-dot" style="background:var(--green)"></span>PAD</button>
+      <button class="sb-filter" onclick="appFilter('f','MAG',this)"><span class="sb-dot" style="background:#378ADD"></span>MAG</button>
+      <button class="sb-filter" onclick="appFilter('f','Brand',this)"><span class="sb-dot" style="background:#EF9F27"></span>Brand</button>
+      <button class="sb-filter" onclick="appFilter('f','Face Cam',this)"><span class="sb-dot" style="background:#e63946"></span>Face Cam</button>
+      <button class="sb-filter" onclick="appFilter('f','Desk',this)"><span class="sb-dot" style="background:#888780"></span>Desk</button>
+      <button class="sb-filter" onclick="appFilter('f','YouTube',this)"><span class="sb-dot" style="background:#1D9E75"></span>YouTube</button>
+      <button class="sb-filter" onclick="appFilter('f','Prodige',this)"><span class="sb-dot" style="background:#D4537E"></span>Prodige</button>
+      <button class="sb-filter" onclick="appFilter('f','Interne',this)"><span class="sb-dot" style="background:#5A5A70"></span>⚙️ Interne</button>
     </div>
     <!-- Compteur résultats recherche -->
     <div id="search-count" style="display:none;padding:4px 24px;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0"></div>
@@ -699,8 +693,7 @@ function clearDate(id, field, btnEl){
   upd(id, field, 'date', '');
 }
 function setFiltersVisible(visible){
-  document.getElementById('sb-filters').classList.toggle('is-visible', visible);
-  document.querySelector('.main-area')?.classList.toggle('has-filters', visible);
+  document.getElementById('sb-filters')?.classList.toggle('is-visible', visible);
 }
 function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');renderCards();}
 
