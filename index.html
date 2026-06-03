@@ -908,6 +908,13 @@ function openDetail(id, forcePadOpen=false){
     `<div class="fg">
       <div class="field"><div class="field-label">Date J1</div><input type="date" value="${s.tourJ1}" onchange="upd('${id}','Date tournage J1','date',this.value)"></div>
       <div class="field"><div class="field-label">Date J2 (optionnel)</div><input type="date" value="${s.tourJ2}" onchange="upd('${id}','Date tournage J2','date',this.value)"></div>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <div class="field-label" style="margin-bottom:6px">Lieu</div>
+      <div style="display:flex;gap:6px">
+        <button type="button" class="fmt-opt ${s.lieuTour==='Studio'?'sel':''}" style="flex:1" onclick="setLieuTour('${id}','Studio')">🎬 Studio</button>
+        <button type="button" class="fmt-opt ${s.lieuTour==='Extérieur'?'sel':''}" style="flex:1" onclick="setLieuTour('${id}','Extérieur')">🌳 Extérieur</button>
+      </div>
     </div>`,activeStep==='tournage');}
   if(!isInterne) {
   html+=step('Post-prod · Stockage',s.stockage?`p-blue ${s.stockage}`:'p-gray Non défini',
@@ -2431,6 +2438,15 @@ async function supprimerVersion(versionId, sujetId) {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
+// ─── LIEU TOURNAGE ───
+async function setLieuTour(sujetId, valeur) {
+  const s = sujets.find(x=>x.id===sujetId);
+  if(!s) return;
+  // Toggle : recliquer le bouton sélectionné vide la valeur
+  const newVal = s.lieuTour === valeur ? '' : valeur;
+  await upd(sujetId, 'Lieu tournage', 'sel', newVal);
+}
+
 // ─── VALIDATION SÉQUENCIER ───
 async function toggleValidationSeq(id, type) {
   const s = sujets.find(x=>x.id===id);
@@ -3767,7 +3783,7 @@ function renderCalendrier(){
 
   // Appliquer les filtres locaux (studio + journaliste) à la vue mois
   const matchFilters=ev=>{
-    if(calStudioOnly && !ev.sujet.lieuTour) return false;
+    if(calStudioOnly && ev.sujet.lieuTour !== 'Studio') return false;
     if(calFilterJournaliste && ev.sujet.journaliste!==calFilterJournaliste) return false;
     return true;
   };
@@ -3776,7 +3792,7 @@ function renderCalendrier(){
   Object.values(evts).forEach(arr=>arr.forEach(ev=>{
     if(!matchFilters(ev)) return;
     totalMonth++;
-    if(ev.sujet.lieuTour) studioMonth++;
+    if(ev.sujet.lieuTour === 'Studio') studioMonth++;
   }));
   const compteurTxt=calStudioOnly
     ? `${totalMonth} tournage${totalMonth>1?'s':''} studio ce mois-ci`
@@ -3813,14 +3829,14 @@ function renderCalendrier(){
   for(let d=1;d<=lastDay.getDate();d++){
     const isToday=d===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();
     const dayEvents=(evts[d]||[]).filter(matchFilters);
-    const hasStudio=dayEvents.some(ev=>ev.sujet.lieuTour);
+    const hasStudio=dayEvents.some(ev=>ev.sujet.lieuTour==='Studio');
     const bg=(!isToday && hasStudio)?'background:rgba(245,158,11,0.06);':'';
     html+=`<div class="cal-day${isToday?' today':''}" style="${bg}"><div class="cal-day-num">${d}</div>`;
     dayEvents.forEach(ev=>{
       const s=ev.sujet;
       const col=FMT_COLORS[s.format]||'var(--red)';
       const jourLbl=ev.jour?`<span style="font-size:9px;color:var(--text3);margin-right:3px">${ev.jour}</span>`:'';
-      const studioBadge=s.lieuTour?`<span style="font-size:9px;color:var(--amber);margin-right:3px" title="Studio">🎬</span>`:'';
+      const studioBadge=s.lieuTour==='Studio'?`<span style="font-size:9px;color:var(--amber);margin-right:3px" title="Studio">🎬</span>`:'';
       html+=`<div class="cal-event" style="border-color:${col}" onclick="openDetail('${s.id}')" title="${escapeHtml(s.titre)}">${studioBadge}${escapeHtml(s.code||'')} ${jourLbl}${escapeHtml(s.titre)}</div>`;
     });
     html+='</div>';
@@ -3858,13 +3874,13 @@ function renderCalendrier(){
       const s=ev.sujet;
       const d=new Date(ev.date);
       const dateLabel=ev.date===demainKey?`Demain ${fmtJ(d).toLowerCase()}`:fmtJ(d);
-      const lieu=s.lieuTour?'🎬 Studio':'Extérieur';
+      const lieu=s.lieuTour==='Studio'?'🎬 Studio':(s.lieuTour==='Extérieur'?'🌳 Extérieur':'—');
       const jourLbl=ev.jour?` ${ev.jour}`:'';
       html+=`<li class="next-shoot-item" onclick="openDetail('${s.id}')" style="cursor:pointer;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <span style="color:var(--text3);min-width:160px">${escapeHtml(dateLabel)}</span>
         <span style="color:var(--text);font-family:var(--mono);font-size:11px">${escapeHtml(s.code||'')}${jourLbl}</span>
         <span style="flex:1;color:var(--text)">${escapeHtml(s.titre||'')}</span>
-        <span style="color:${s.lieuTour?'var(--amber)':'var(--text3)'}">${lieu}</span>
+        <span style="color:${s.lieuTour==='Studio'?'var(--amber)':'var(--text3)'}">${lieu}</span>
         <span style="color:var(--text3)">${escapeHtml(s.journaliste||'—')}</span>
       </li>`;
     });
@@ -5278,8 +5294,8 @@ function navTo(page) {
   const nav = document.getElementById('nav-' + page);
   if(nav) nav.classList.add('active');
 
-  // Filtres + onglets
-  document.getElementById('sb-filters').style.display = isProd ? 'block' : 'none';
+  // Filtres + onglets — utiliser '' pour laisser le CSS reprendre la main (mobile : bandeau flex / desktop : block)
+  document.getElementById('sb-filters').style.display = isProd ? '' : 'none';
   document.getElementById('view-tabs').style.display = isProd ? 'flex' : 'none';
   if(!isProd) clearSearch();
 
