@@ -7,8 +7,74 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
+### 2026-06-03 — Hotfix bandeau filtres mobile (sur la branche `mobile-polish-v3`)
+index.html 5535 → **5549 lignes** (+14). 1 CSS modifié (layout.css 250 lignes, +1 net).
+Hotfix appliqué à la PR mobile-polish-v3 AVANT merge, suite à 2 bugs détectés en preview sur iPhone.
+
+**BUG 1 — Bandeau filtres reste visible sur Idées/Tâches/Dashboard**
+Reproduction : ouvrir Production (bandeau apparaît), cliquer Idées 
+dans la bottom-nav → le bandeau reste visible alors qu'il devrait 
+disparaître. Le toggle classList.toggle('is-visible') ne suffisait pas, 
+probablement à cause d'un cache navigateur ou d'un sélecteur CSS résiduel.
+
+**BUG 2 — Bandeau filtres chevauche les onglets vue sur Production**
+Le top:calc(44px + 36px) = 80px était faux. Les vraies hauteurs mobile 
+sont 44px (topbar) + ~33-34px (view-tabs). Le bandeau se positionnait 
+par-dessus les onglets vue.
+
+**Décision pilote (option B "sécurité")**
+- Garder le DOM #sb-filters dans la sidebar (PAS de déplacement HTML)
+- Garder position:fixed (le bandeau fait partie de la sidebar mobile 
+  bottom-nav, fixed nécessaire pour le sortir du flux)
+- Robustifier le toggle pour bug 1
+- Positionner dynamiquement pour bug 2
+
+**Le fix livré**
+
+`setFiltersVisible(visible)` enrichie de 3 mécanismes redondants :
+1. classList.toggle('is-visible', visible) — déjà en place
+2. el.style.display = visible ? '' : 'none' — défense en profondeur 
+   contre tout CSS résiduel
+3. el.style.top = rect.bottom + 'px' — positionnement dynamique 
+   basé sur getBoundingClientRect des view-tabs (mobile uniquement)
+
+Reset el.style.top = '' quand non visible pour éviter style résiduel.
+
+CSS layout.css : suppression de top:calc(44px + 36px) hardcodé du bloc 
+#sb-filters.is-visible mobile, remplacé par commentaire indiquant que 
+le top est calculé en JS.
+
+**Avantages du positionnement dynamique**
+Le top est mesuré au moment de l'affichage → robuste face aux 
+variations de hauteur (zoom iOS, mode paysage, accessibility scaling). 
+Le bandeau suit toujours la vraie position des view-tabs.
+
+**Vérifs pilote OK**
+- 5549 lignes index.html, node --check OK
+- setFiltersVisible=5 (def + 4 appels) ✓
+- getBoundingClientRect=1 (nouveau) ✓
+- top:calc(44px=0 (hardcode retiré) ✓
+- Tous les compteurs PR v3 intacts (clearDate=4, toDlUrl=2, 
+  player-modal-body=1, player-modal-panel=1, has-filters=1, 
+  Télécharger=2, nav-taches=1 in layout.css)
+- Tous les acquis pre-v3 intacts (Brouillon=11, validationBrand=16, 
+  setLieuTour=3, etc.)
+- Tous les 7 compteurs préservation intacts
+
+**À tester en preview** (Cmd+Shift+R ou onglet privé)
+1. Ouvrir Production → bandeau visible JUSTE en-dessous des onglets vue 
+   (sans chevauchement)
+2. Cliquer Idées en bottom-nav → bandeau DISPARAÎT
+3. Cliquer Tâches → bandeau toujours caché
+4. Cliquer Dashboard → bandeau toujours caché
+5. Revenir Production → bandeau réapparaît au bon endroit
+6. Scroller dans Production → bandeau reste en haut (position:fixed)
+7. Mode paysage → bandeau s'adapte (getBoundingClientRect re-mesure)
+
+---
+
 ### 2026-06-03 — Mobile polish v3 : 5 fix UX iPhone + retours équipe mobile + bouton Télécharger (branche `mobile-polish-v3`)
-index.html 5515 → **5535 lignes** (+20). 3 CSS modifiés. Diff total ~88 lignes.
+index.html 5515 → 5535 lignes (+20). 3 CSS modifiés. Diff total ~88 lignes.
 PR cumule 7 fix dont 5 retours iPhone, 1 fix vue retours équipe et 1 nouvelle 
 feature bouton Télécharger.
 
@@ -27,201 +93,91 @@ est mergée sur main".
 
 **Décisions produit prises (5 questions tranchées)**
 - Q1 (clearDate confirm) : PAS de confirm
-- Q2 (clearDate scope) : UNIVERSEL desktop + mobile (pas que mobile)
-- Q3 (toggle filtres FIX C) : refactor via classList.toggle('is-visible') 
-  sur tous les emplacements, plus de hack !important
+- Q2 (clearDate scope) : UNIVERSEL desktop + mobile
+- Q3 (toggle filtres FIX C) : refactor via classList.toggle('is-visible')
 - Q4 (ordre bottom-nav) : ordre HTML conservé (Dashboard / Production / 
   Idées / Tâches)
-- Q5 (clickNotif) : version défensive (pas de re-navTo si déjà sur 
-  prod, délai adaptatif 50ms ou 350ms)
+- Q5 (clickNotif) : version défensive
 
 **Les 7 fix livrés**
 
 FIX A — Bouton × pour vider les dates (J1 / J2 / Diffusion)
-- Fonction réutilisable `clearDate(id, field, btnEl)` : vide l'input, 
-  masque le bouton, PATCH Notion null
-- Wrapper `.date-wrap` avec `.date-clear` (bouton × discret)
+- Fonction réutilisable clearDate(id, field, btnEl)
+- Wrapper .date-wrap avec .date-clear
 - Visible UNIVERSEL (desktop + mobile)
-- Bouton apparaît UNIQUEMENT si la date est définie (template 
-  conditionnel sur la valeur)
+- Bouton apparaît UNIQUEMENT si la date est définie
 - Pas de confirm
 
 FIX B — Bouton × visible quand on scroll mobile
-- `.modal-hdr` sur mobile : align-items:center (au lieu de flex-start), 
-  z-index:5, padding-right:max(20px, env(safe-area-inset-right)) pour 
-  respecter le notch iPhone en paysage
-- `.modal-close` sur mobile : fond léger rgba(255,255,255,0.06), 
-  border-radius:8px, color:var(--text), z-index:2 position:relative
+- align-items:center, z-index:5, safe-area-inset-right (notch iPhone)
+- Fond léger rgba(255,255,255,0.06) sur .modal-close
 
 FIX C — Bandeau filtres : restructure complète via classList
-- Helper `setFiltersVisible(visible)` qui toggle `.is-visible` sur 
-  #sb-filters ET `.has-filters` sur `.main-area`
-- 4 emplacements JS modifiés (lignes 5318, 5348, 5358, 5367) qui 
-  utilisent maintenant le helper au lieu de style.display
-- CSS mobile : `#sb-filters{display:none}` par défaut, 
-  `#sb-filters.is-visible{display:flex; position:fixed; ...}`
-- CSS desktop : pareil mais `display:block`
-- `.main-area.has-filters .main-content{padding-top:48px}` pour 
-  décaler le contenu sous le bandeau fixe
-- Plus de `!important` sur l'affichage : le JS contrôle propre via la 
-  classe
+- Helper setFiltersVisible(visible)
+- 4 emplacements JS modifiés (utilisent helper au lieu de style.display)
+- CSS mobile : display:none par défaut, display:flex avec .is-visible
+- ⚠️ HOTFIX du même jour : robustification supplémentaire (cf. entrée 
+  précédente "Hotfix bandeau filtres mobile")
 
 FIX D — Bottom-nav 4 items (ajout Tâches)
-- Whitelist CSS élargi : 
-  `.sb-item#nav-dashboard,.sb-item#nav-production,.sb-item#nav-idees,
-   .sb-item#nav-taches{display:flex!important;...}`
+- Whitelist CSS élargi
 - Ordre HTML conservé : Dashboard / Production / Idées / Tâches
-- Badge des Tâches s'affiche correctement
 
 FIX E — clickNotif défensive
-- Pas de re-navTo si on est déjà sur Production
-- Délai 50ms si déjà sur prod, 350ms si change de page
-- Robustification UX sans risque, code plus propre
+- Pas de re-navTo si déjà sur Production
+- Délai 50ms vs 350ms selon contexte
 
 FIX F — Layout retours équipe mobile
-- 3 classes hook ajoutées dans openPlayer : .player-modal-body, 
-  .player-modal-stage, .player-modal-panel
-- CSS mobile dans views.css : flex-direction:column sur 
-  .player-modal-body, lecteur 45vh en haut, panneau 55vh en bas
-- Desktop INCHANGÉ (2 colonnes 340px panneau / flex:1 lecteur)
-- Vue retours équipe sur mobile = même feeling que vue Review
+- 3 classes hook : .player-modal-body, .player-modal-stage, .player-modal-panel
+- CSS mobile : flex-direction:column, lecteur 45vh en haut, panneau 55vh
+- Desktop INCHANGÉ
 
 FIX G — Bouton Télécharger dans openPlayer
-- Nouvelle fonction `toDlUrl(url)` qui transforme un lien Drive 
-  /view en /uc?export=download&id={ID}
-- Bouton ⬇ Télécharger ajouté dans le formulaire openPlayer, sous 
-  le bouton "Envoyer →"
-- Visible UNIQUEMENT si l'URL contient 'drive.google.com' (garde)
-- Style inline cohérent avec openPlayer (palette #2A2A3A/#9898B0)
-- Hover effects en inline style (color/borderColor)
+- Fonction toDlUrl(url) — transformation /view en /uc?export=download
+- Bouton ⬇ Télécharger sous "Envoyer →"
+- Visible uniquement si URL Drive
 - Visible desktop ET mobile
-
-**Architecture des changements**
-- 3 nouvelles fonctions JS : `clearDate`, `setFiltersVisible`, `toDlUrl`
-- 4 nouvelles classes CSS : `.date-wrap`, `.date-clear`, `.has-filters` 
-  (sur main-area), `.is-visible` (sur #sb-filters)
-- 3 classes hook dans openPlayer : `.player-modal-body`, 
-  `.player-modal-stage`, `.player-modal-panel`
-- Border mobile : 700px (cohérent avec l'existant)
-- Toutes les classes mobile-polish v1 + v2 préservées
-
-**Vérifs pilote OK**
-- 5535 lignes index.html, node --check OK
-- clearDate=4 (def + 3 inputs date) ✓
-- setFiltersVisible=5 (def + 4 appels) ✓
-- toDlUrl=2 ✓
-- Télécharger=2 (bouton + commentaire JS existant) ✓
-- player-modal-body=1, player-modal-panel=1 ✓
-- has-filters=1, nav-taches=1 ✓
-- date-wrap=4, date-clear=2 ✓
-- Tous les acquis préservés (18 récents + 7 préservation)
-
-**À tester en preview** (incognito + Cmd+Shift+R)
-
-🧪 **TEST PRIORITAIRE iPhone**
-1. Ouvrir une carte avec dates → cliquer × pour vider J2 → date effacée
-2. Scroll dans une fiche détail longue → bouton × toujours visible
-3. Naviguer Dashboard → bandeau filtres INVISIBLE (pas affiché)
-4. Naviguer Production → bandeau filtres visible, scrollable, 
-   ne cache pas les onglets vue
-5. Naviguer Idées → bandeau filtres INVISIBLE
-6. Bottom-nav : 4 items (Dashboard / Production / Idées / Tâches) avec 
-   badges visibles
-7. Cliquer notif dans la cloche → ouvre la carte concernée rapidement
-8. Ouvrir une version vidéo (retours équipe) → mobile : lecteur en haut, 
-   retours en bas (comme Review)
-9. Vue retours équipe : bouton ⬇ Télécharger visible sous "Envoyer →" 
-   pour les fichiers Drive
-10. Cliquer Télécharger → ouvre le download direct Drive
-
-🧪 **TEST DESKTOP**
-11. Toutes les vues précédentes (Cartes, Statut, Journaliste, Liste, 
-    Calendrier) inchangées
-12. Vue retours équipe : 2 colonnes (lecteur + panneau retours) intactes
-13. Bouton Télécharger visible aussi en desktop
-14. Stepper : tous les statuts visibles
-15. Console JS propre
-
-> Note process : workflow PROPOSITION-CODE est maintenant LA méthode 
-> standard pour les sujets techniques complexes. 3 succès consécutifs 
-> (mobile-polish v1, v2, v3). À conserver.
->
-> Nouvelle règle d'or ajoutée : AVANT chaque PR, vérifier que la PR 
-> précédente est mergée sur main. Sinon Claude Code lira un état 
-> "stale" et basera son analyse dessus.
-
----
-
-### 📋 LISTE NOIRE — Pour les prochaines PR
-
-**Suite mobile potentielle**
-- PWA basique (manifest.json + service worker + icône installable) → 
-  prochaine étape après ce merge
-- Push notifications natives (Firebase Cloud Messaging + service worker 
-  + netlify function)
-
-**Autres**
-- Enrichissement Centre d'aide : section "Comment faire pour..." (FAQ)
-- Amélioration UX de la cloche (friction n°1 selon Master)
-- Backup automatique (GitHub Actions, export Notion nightly)
-- Intégration GitHub↔Sentry
-- Protéger la branche main (require PR + no force push)
-- 3 cartes Brand sans Sous-format : B09W, B19E, B09U (côté master)
-- (Optionnel) Bouton "Réactiver cette version" sur versions annulées
-- (Optionnel) Tour onboarding interactif au premier login
 
 ---
 
 ### 2026-06-03 — Mobile polish v2 + Feature Lieu tournage (branche `mobile-polish-v2`) MERGÉ
 index.html 5499 → 5515 (+16). 3 CSS modifiés. PR cumule 5 corrections 
-UX mobile (P1 filtres bandeau, P2 cards largeur, P3 modal-close, 
-P4 stepper, P5 activité) + 1 feature Lieu tournage (2 boutons radio 
-Studio/Extérieur dans fiche détail).
+UX mobile + 1 feature Lieu tournage (2 boutons radio Studio/Extérieur).
 
 Incident Notion résolu : David disait "Checkbox", Master a confirmé 
-en réalité Select 2 options ("Studio"/"Extérieur"). Décision finale : 
-2 boutons radio .fmt-opt.
+en réalité Select 2 options ("Studio"/"Extérieur").
 
 ---
 
 ### 2026-06-01 — Mobile responsive (branche `mobile-polish`) MERGÉ
-index.html 5499 lignes inchangé, 4 CSS modifiés. Diff ~75 lignes. 
-WORKFLOW PROPOSITION-CODE utilisé pour la 1ère fois. 8 améliorations.
+4 CSS modifiés. Diff ~75 lignes. WORKFLOW PROPOSITION-CODE 1ère fois. 
+8 améliorations.
 
 ---
 
 ### 2026-06-01 — Vue Calendrier enrichie (branche `calendrier-v2`) MERGÉ
-index.html 5405 → 5499 (+94). 6 enrichissements + J2.
++94 lignes. 6 enrichissements + J2.
 
 ---
 
 ### 2026-06-01 — Centre d'aide intégré (branche `page-aide`) MERGÉ
-index.html 5287 → 5405 (+118). Modale plein écran avec accordéon.
++118 lignes. Modale plein écran avec accordéon natif.
 
 ---
 
-### 2026-06-01 — Feature "Annuler cette version" (branche `annuler-version`) MERGÉ
-index.html 5233 → 5287 (+54). Utilise Statut Select Active/Annulée. 
-Modale showConfirmModal() réutilisable.
+### 2026-06-01 — Feature "Annuler cette version" MERGÉ
++54 lignes. Statut Select Active/Annulée + showConfirmModal réutilisable.
 
 ---
 
-### 2026-06-01 — Features Brand v2 + UX (branche `features-brand-v2`) MERGÉ
-index.html 5184 → 5233 (+49).
+### 2026-06-01 — Features Brand v2 + UX MERGÉ
++49 lignes.
 
 ---
 
-### 2026-05-29 — 3 bugs UX (branche `fix-bugs-ux`) MERGÉ
-index.html 5172 → 5184 (+12).
+### 2026-05-29 — 3 bugs UX + Brouillons retours + Triple validation Brand MERGÉ
 
----
-
-### 2026-05-29 — Brouillons retours + Triple validation Brand MERGÉ
-index.html 5106 → 5172 (+66).
-
----
-
-### 2026-05-28 — Login optgroup + Renommage Montage + Réactivité MERGÉS
+### 2026-05-28 — Login optgroup + Renommage Montage + Réactivité MERGÉ
 
 ═══════════════════════════════════════════════════════════════
 ## RÔLES (workflow à 3 chats)
@@ -247,36 +203,31 @@ index.html 5106 → 5172 (+66).
 7. David clique "Synchroniser maintenant" sur project knowledge
 
 ### Spécial — analyse de code complexe (workflow PROPOSITION-CODE) ⭐
-Demander à Claude Code une PROPOSITION avant de coder :
-- Diagnostic (points critiques dans le code)
-- Priorisation (impact vs effort)
-- Plan d'amélioration concret
-- Risques/pièges
-- Questions produit à trancher
-Le Pilote intègre cette analyse à la sienne. **3 succès en 3 essais.**
-À reproduire systématiquement pour les sujets techniques.
+Demander à Claude Code une PROPOSITION avant de coder. **4 succès 
+en 4 essais.** À reproduire systématiquement pour les sujets techniques.
 
 ### Spécial — vérification donnée Notion ⭐
 Si une décision pilote sur type de champ Notion est contredite par 
-ce que voit Claude Code dans le code, NE PAS coder. Demander 
-vérification au Master via Notion MCP.
+ce que voit Claude Code, demander vérification au Master via Notion MCP.
 
 ## RÈGLES D'OR
 - index.html dans project knowledge = SOURCE OFFICIELLE
 - EQUIPE_FALLBACK = [] ; CHEF_PAR_DEFAUT = 'Benjamin'
 - **PILOTE NE CODE PAS** : prompts en intentions, pas en code 
-  (sinon biais Claude Code + risque de bug)
+  (sinon biais Claude Code + risque de bug + code parfois non copiable 
+  si mal formaté dans markdown imbriqué)
 - À CHAQUE modif code, livrer AUSSI CONTEXT_REEL_MEDIA.md à jour
 - Sur fichiers sensibles, JAMAIS merger sans (a) vérif pilote, 
   (b) test preview, (c) console JS propre
 - ⚠️ node --check ne voit pas les fonctions non définies
 - ⚠️ TOUJOURS demander le fichier à Claude Code après une modif
-- Ne jamais coller en clair des codes d'accès / secrets
 - TOUJOURS curl raw GitHub
 - Ne JAMAIS pointer Claude Code vers une branche non encore poussée
 - ⚠️ AVANT chaque PR : vérifier que la PR précédente est MERGÉE sur 
-  main (sinon Claude Code lira un état "stale" et basera son analyse 
-  dessus)
+  main (sinon Claude Code lira un état "stale")
+- Sur un sticky/fixed qui peut se comporter mal, **mesurer 
+  dynamiquement** via getBoundingClientRect est souvent plus robuste 
+  que hardcoder en CSS (cf. hotfix bandeau filtres)
 
 ═══════════════════════════════════════════════════════════════
 ## PROJET
@@ -288,7 +239,8 @@ vérification au Master via Notion MCP.
 - Backend : netlify/functions/notion.js + netlify/functions/login.js
 - Monitoring : Sentry (org rushup, EU)
 - État du main après merge mobile-polish-v2 : 5515 lignes
-- EN ATTENTE DE MERGE : `mobile-polish-v3` (5535 lignes + 3 CSS modifiés)
+- EN ATTENTE DE MERGE : `mobile-polish-v3` + hotfix (5549 lignes 
+  + 3 CSS modifiés)
 
 ## BASES NOTION (IDs)
 | Base | ID |
@@ -313,8 +265,8 @@ vérification au Master via Notion MCP.
   - "Validation Brand" (Checkbox)
   - "Contact Brand" (Select : Arnaud C / Guillaume / Louise / Victor)
   - "Lieu tournage" (Select : "Studio" / "Extérieur")
-  - "Date tournage J1" (date) + "Date tournage J2" (date)
-  - "Date de diffusion" (date) — peut être vidée depuis mobile-polish-v3
+  - "Date tournage J1" (date) + "Date tournage J2" (date) 
+    + "Date de diffusion" (date) — vidable depuis mobile-polish-v3
   - "Statut" contient "Montage" (pas "Montage V1")
 - 📹 Versions : "Validation Brand" (Checkbox) + "Statut" (Select 
   Active/Annulée)
@@ -322,20 +274,18 @@ vérification au Master via Notion MCP.
 ═══════════════════════════════════════════════════════════════
 ## CE QUI EST EN PROD
 ═══════════════════════════════════════════════════════════════
-- ✅ Feature Brand ; Troncature titres ; Kanban 220px
-- ✅ Refresh fiche détail ; Sentry ; Phase A
-- ✅ Renommage Montage + Réactivité ; Login optgroup
-- ✅ Brouillons retours internes + Triple validation Brand séquencier
-- ✅ Fix 3 bugs UX (double V1, titre textarea, restriction Client)
-- ✅ Features Brand v2 (5 features + inversion ordre boutons)
-- ✅ Annuler cette version + modale custom réutilisable
-- ✅ Centre d'aide intégré (showHelpModal)
-- ✅ Vue Calendrier enrichie (studio, prochains tournages, filtres, J2)
-- ✅ Mobile responsive (8 améliorations)
-- ✅ Mobile polish v2 (5 corrections UX + Feature Lieu tournage)
+- ✅ Feature Brand, Troncature, Kanban 220px
+- ✅ Renommage Montage + Réactivité, Login optgroup
+- ✅ Brouillons retours + Triple validation Brand
+- ✅ 3 bugs UX, Features Brand v2 (5)
+- ✅ Annuler version + showConfirmModal
+- ✅ Centre d'aide intégré
+- ✅ Vue Calendrier enrichie
+- ✅ Mobile responsive (8 amélio)
+- ✅ Mobile polish v2 (5 UX + Feature Lieu tournage)
 
-**EN ATTENTE DE MERGE** : `mobile-polish-v3` (5 fix UX iPhone + 
-retours équipe mobile + bouton Télécharger)
+**EN ATTENTE DE MERGE** : `mobile-polish-v3` + hotfix bandeau filtres 
+(5549 lignes index.html + 3 CSS modifiés)
 
 ═══════════════════════════════════════════════════════════════
 ## NOTES TECHNIQUES UTILES
@@ -345,8 +295,6 @@ retours équipe mobile + bouton Télécharger)
 - ⚠️ node --check ne voit pas les fonctions non définies
 - ⚠️ Inputs avec font-size < 16px déclenchent zoom auto iOS Safari → 
   base.css mobile force 16px
-- ⚠️ Styles inline dans index.html → impossibles à override par CSS 
-  @media. Externaliser en classe si besoin mobile.
 - Vue active = appSetVue(currentVue), rendu LOCAL depuis `sujets`
 - refreshUI(id) = appSetVue(currentVue) + refreshDetail(id) débouncé
 - openDetail(id) lourde (~7 appels API)
@@ -366,26 +314,23 @@ retours équipe mobile + bouton Télécharger)
 - Modale custom : showConfirmModal({title, message, confirmText, 
   confirmStyle, onConfirm})
 - Centre d'aide : showHelpModal() — accordéon natif <details>/<summary>
-- Calendrier : variables d'état top (calMonth/Year/StudioOnly/FilterJournaliste). 
-  Lit s.tourJ1 + s.tourJ2, s.lieuTour === 'Studio' (string strict)
-- Lieu tournage : Select Notion 2 options "Studio"/"Extérieur". UI : 
-  2 boutons .fmt-opt dans step Tournage, handler setLieuTour réutilise 
-  upd() (toggle inclus)
+- Calendrier : variables d'état top (calMonth/Year/StudioOnly/FilterJournaliste)
+- Lieu tournage : Select Notion 2 options "Studio"/"Extérieur"
 - **Mobile (≤700px)** : bottom-nav 4 items (Dashboard/Production/
   Idées/Tâches) avec pastilles, panneau notif full-width, modale 
-  détail padding réduit, bouton × tap-target 44px avec fond léger 
-  (FIX B), inputs font-size:16px (anti zoom iOS), filtres statuts en 
-  bandeau horizontal (position:fixed via .is-visible UNIQUEMENT sur 
-  Production, helper setFiltersVisible), stepper masqué sauf .cur, 
-  activité Dashboard compactée, kanban scroll-snap, versions en 
-  colonne, vue retours équipe en colonne (lecteur en haut)
+  détail padding réduit, bouton × tap-target 44px avec fond léger, 
+  inputs font-size:16px, **filtres statuts en bandeau horizontal 
+  position:fixed avec top calculé en JS via getBoundingClientRect 
+  (uniquement Production)**, stepper masqué sauf .cur, activité 
+  Dashboard compactée, kanban scroll-snap, versions en colonne, 
+  vue retours équipe en colonne (lecteur en haut)
 - **Vider une date** : bouton × dans .date-wrap (universel desktop + 
-  mobile). Fonction clearDate(id, field, btnEl) vide l'input + PATCH 
-  Notion null. Bouton visible uniquement si date définie.
+  mobile). Fonction clearDate(id, field, btnEl).
 - **Bouton Télécharger** : dans openPlayer (vue retours équipe), 
-  visible si URL Drive. Fonction toDlUrl(url) transforme /view en 
-  /uc?export=download&id={ID}. Style inline cohérent avec openPlayer.
+  visible si URL Drive. Fonction toDlUrl(url).
 - **clickNotif** : pas de re-navTo si déjà sur prod (50ms vs 350ms).
-- **#sb-filters** : toggle propre via classList.toggle('is-visible'). 
-  Sur mobile, position:fixed avec .has-filters sur .main-area pour 
-  gérer le padding-top du contenu.
+- **#sb-filters mobile** : toggle propre via setFiltersVisible() avec 
+  3 mécanismes redondants (classList + style.display + style.top 
+  calculé en JS). Le top est mesuré dynamiquement via 
+  getBoundingClientRect() pour éviter les calc CSS qui sont fragiles 
+  face aux variations de hauteur (zoom, paysage, accessibility).

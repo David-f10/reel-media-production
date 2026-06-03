@@ -699,8 +699,22 @@ function clearDate(id, field, btnEl){
   upd(id, field, 'date', '');
 }
 function setFiltersVisible(visible){
-  document.getElementById('sb-filters').classList.toggle('is-visible', visible);
+  const el = document.getElementById('sb-filters');
+  if(!el) return;
+  el.classList.toggle('is-visible', visible);
   document.querySelector('.main-area')?.classList.toggle('has-filters', visible);
+  // BUG 1 — défense en profondeur : forcer aussi style.display (échappe à tout CSS résiduel)
+  el.style.display = visible ? '' : 'none';
+  // BUG 2 — positionnement dynamique sous les view-tabs (uniquement mobile)
+  if(visible && window.innerWidth <= 700){
+    const tabs = document.getElementById('view-tabs');
+    if(tabs){
+      const rect = tabs.getBoundingClientRect();
+      el.style.top = rect.bottom + 'px';
+    }
+  } else {
+    el.style.top = '';
+  }
 }
 function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');renderCards();}
 
