@@ -6,6 +6,22 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
+### 2026-06-04 — Correctif PWA : safe-area sur la modale lecteur/retours (branche `pwa-install`)
+css/views.css 156 → **160 lignes** (+4). Aucun autre fichier touché.
+
+**CONTEXTE**
+Après test de la PWA installée sur iPhone 14 (iOS 26.5) : tout fonctionne en plein écran (icône bleu marine, splash, .topnav décalée correctement). MAIS sur la vue retours/lecteur (overlay `#video-player-modal` ouvert par `openPlayer`), le header du haut (code carte + label version + bouton Dossier + ×) était masqué par la barre de statut iPhone (heure, réseau, batterie). Cette vue est en position:fixed;inset:0 et n'a pas de .topnav, donc la règle safe-area de la PR1 ne la couvrait pas.
+
+**LE FIX**
+- Ajout en fin de css/views.css (hors @media) : `#video-player-modal{padding-top:env(safe-area-inset-top)}`.
+- `#video-player-modal` = ID unique créé/supprimé dynamiquement par `openPlayer` (index.html ~2958). Décale tout le contenu de la modale (header + body) d'un seul bloc sous la barre de statut.
+- Pas de double décalage (header et player-modal-body n'ont pas de safe-area propre). En navigateur classique, env(safe-area-inset-top)=0 → rendu inchangé.
+
+**VÉRIF PILOTE (OK)** : 160 lignes, règle unique (pas de doublon), acquis views.css préservés (player-modal-*, cal-nav, flex-wrap:nowrap, next-shoot-item, activite-item). Aucune autre vue affectée.
+
+**À POUSSER (David)** : css/views.css sur la branche `pwa-install`. Re-tester la vue retours/lecteur sur iPhone (désinstaller+réinstaller la PWA pour vider le cache) → le header ne doit plus être masqué par l'heure/batterie. Puis merger `pwa-install` dans `main`.
+
+
 ### 2026-06-04 — PWA PR 1 « pwa-install » : app installable + plein écran (branche `pwa-install` depuis `main`)
 index.html 5528 → **5546 lignes** (+18). layout.css : +1 règle (safe-area). 2 fichiers créés : `manifest.json`, `sw.js`. 5 icônes ajoutées à la racine.
 
