@@ -242,3 +242,6 @@ nav{
   #sb-filters.is-visible{padding:6px 12px;gap:4px}
   #sb-filters .sb-filter{padding:5px 10px}
 }
+/* PWA — safe-area iOS standalone (status-bar black-translucent).
+   En navigateur classique, env(safe-area-inset-top) vaut 0 : rendu inchangé. */
+.topnav{padding-top:env(safe-area-inset-top);height:calc(52px + env(safe-area-inset-top))}
