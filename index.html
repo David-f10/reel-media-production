@@ -1279,21 +1279,16 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
   }
   console.log('Envoi notif:', {type, destinataire, auteur, message});
   try {
-    const result = await api('/pages', 'POST', {
-      parent: {database_id: '4398775b-c11f-4d73-99c4-9fc31c33ce8b'},
-      properties: {
-        'Message': {title: [{text:{content: message}}]},
-        'Type': {select:{name: type}},
-        'Destinataire': {rich_text:[{text:{content: destinataire}}]},
-        'Auteur': {rich_text:[{text:{content: auteur || ''}}]},
-        'Sujet ID': {rich_text:[{text:{content: sujetId}}]},
-        'Sujet code': {rich_text:[{text:{content: sujetCode || ''}}]},
-        'Sujet titre': {rich_text:[{text:{content: sujetTitre || ''}}]},
-        'Lu': {checkbox: false}
-      }
+    // /.netlify/functions/notify crée la page Notion ET déclenche le push Web aux devices abonnés.
+    const res = await fetch('/.netlify/functions/notify', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message})
     });
-    console.log('Notif créée avec succès:', result?.id);
-  } catch(e) { 
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    console.log('Notif créée:', data.notifId, '/ pushed:', data.pushed);
+  } catch(e) {
     console.error('Notif échouée:', e.message, {type, destinataire, message});
   }
 }
@@ -1305,6 +1300,65 @@ async function requestNotifPermission() {
   if(Notification.permission === 'denied') return false;
   const perm = await Notification.requestPermission();
   return perm === 'granted';
+}
+
+// ─── PUSH (web push instantané, app fermée) ───
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for(let i=0; i<raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+async function subscribePush(){
+  try {
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+    if(Notification.permission !== 'granted') return false;
+    if(!currentUser || !currentUser.nom) return false;
+    // Code d'accès requis côté serveur pour sécuriser l'abonnement
+    const code = localStorage.getItem('rm-code') || '';
+    if(!code) { console.warn('Push subscribe: code absent en localStorage'); return false; }
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      const cfg = await fetch('/.netlify/functions/push-config').then(r => r.json()).catch(() => null);
+      if(!cfg || !cfg.publicKey) { console.warn('Push: clé publique VAPID indisponible'); return false; }
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(cfg.publicKey)
+      });
+    }
+    const res = await fetch('/.netlify/functions/push-subscribe', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: currentUser.id, code, subscription: sub.toJSON()})
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.ok) { console.warn('Push subscribe rejected:', data.error); return false; }
+    console.log('Push subscribed, devices:', data.devices);
+    return true;
+  } catch(e){ console.warn('subscribePush error:', e.message); return false; }
+}
+
+async function unsubscribePush(nom){
+  try {
+    if(!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(!sub) return;
+    const endpoint = sub.endpoint;
+    await sub.unsubscribe().catch(() => {});
+    if(nom && endpoint){
+      await fetch('/.netlify/functions/push-unsubscribe', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({nom, endpoint})
+      }).catch(() => {});
+    }
+  } catch(e){ console.warn('unsubscribePush error:', e.message); }
 }
 
 // Envoyer une notification navigateur (fonctionne même onglet inactif)
@@ -2602,7 +2656,7 @@ async function doLogin(){
     const res=await fetch('/.netlify/functions/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:selId,code})});
     const data=await res.json();
     if(!data.ok){errEl.textContent=data.error||'Code incorrect';errEl.style.display='block';if(btn)btn.textContent='Accéder →';return;}
-    currentUser=data.user;localStorage.setItem('rm-user',JSON.stringify(currentUser));errEl.style.display='none';
+    currentUser=data.user;localStorage.setItem('rm-user',JSON.stringify(currentUser));localStorage.setItem('rm-code',code);errEl.style.display='none';
     if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser({id:currentUser.id,username:currentUser.nom});Sentry.setTag('role',currentUser.role||'inconnu');}
     showApp();
   }catch(e){errEl.textContent='Service indisponible — réessayez';errEl.style.display='block';}
@@ -2616,15 +2670,33 @@ function showApp() {
   const initials = currentUser.nom.substring(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
   document.getElementById('user-name').textContent = currentUser.nom;
-  // Demander permission notifs navigateur
-  requestNotifPermission();
+  // Demander permission notifs + s'abonner au push (best-effort, ne bloque pas le chargement)
+  requestNotifPermission().then(granted => { if(granted) subscribePush(); });
   // Charger les données
   appLoadData().then(() => {
-    navTo('dashboard');
+    // Si la page a été ouverte via /?sujet=X (clic sur une push), ouvrir directement la fiche
+    const params = new URLSearchParams(location.search);
+    const sujetParam = params.get('sujet');
+    if(sujetParam) {
+      navTo('production');
+      setTimeout(() => openDetail(sujetParam), 200);
+    } else {
+      navTo('dashboard');
+    }
     loadNotifs();
     loadTachesBadgeSilent();
     // Rafraîchir les notifs toutes les 60 secondes
     setInterval(loadNotifs, 60000);
+  });
+}
+
+// Réagir aux messages du Service Worker (clic sur push quand l'app est déjà ouverte)
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', ev => {
+    if(ev.data?.action === 'open-sujet' && ev.data.sujetId){
+      navTo('production');
+      setTimeout(() => openDetail(ev.data.sujetId), 200);
+    }
   });
 }
 
@@ -2683,8 +2755,12 @@ async function validerChangerCode() {
 }
 
 function doLogout() {
+  // Désabonner le device avant de purger l'identité (best-effort, non-bloquant)
+  const oldNom = currentUser?.nom;
+  if(oldNom) unsubscribePush(oldNom);
   if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser(null);}
   localStorage.removeItem('rm-user');
+  localStorage.removeItem('rm-code');
   currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app-shell').style.display = 'none';
