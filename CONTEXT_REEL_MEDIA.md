@@ -1,10 +1,44 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-06-03
+> Dernière mise à jour : 2026-06-04
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-06-04 — PWA PR 1 « pwa-install » : app installable + plein écran (branche `pwa-install` depuis `main`)
+index.html 5528 → **5546 lignes** (+18). layout.css : +1 règle (safe-area). 2 fichiers créés : `manifest.json`, `sw.js`. 5 icônes ajoutées à la racine.
+
+**CONTEXTE**
+Démarrage de la transformation en PWA complète. Objectif final (validé) : notifications push instantanées « app fermée », gratuites (0€), délai 2-3s. Découpé en 2 PR :
+- PR 1 (celle-ci) : rendre l'app installable sur l'écran d'accueil iPhone/Android, plein écran, + service worker minimal (prérequis du push).
+- PR 2 (à venir) : cache de la coquille + offline + push Web (VAPID, Netlify Blobs, fonction notify.js).
+
+**CE QUI A ÉTÉ FAIT (PR 1)**
+- `manifest.json` créé à la racine : name « Réel Média Production », short_name « Réel Média », start_url `/?source=pwa`, scope `/`, display standalone, orientation portrait, lang fr, theme_color + background_color `#001349` (bleu marine officiel du logo), 3 icônes (192 any, 512 any, maskable 512).
+- `<head>` index.html : viewport enrichi de `viewport-fit=cover` (pas de doublon) + 7 balises PWA (manifest, theme-color, apple-mobile-web-app-capable/status-bar-style black-translucent/title, apple-touch-icon, favicon-32).
+- `sw.js` créé à la racine : version minimale, `SW_VERSION='2026-06-04-1'`, install→skipWaiting, activate→clients.claim, fetch en passthrough (NE CACHE RIEN — le cache vient en PR 2). Présent pour rendre l'app installable et pour recevoir le push en PR 2.
+- Script inline avant `</body>` : enregistrement défensif du SW (if 'serviceWorker' in navigator).
+- `css/layout.css` : règle finale `.topnav{padding-top:env(safe-area-inset-top);height:calc(52px + env(safe-area-inset-top))}`. En navigateur classique safe-area=0 → rendu inchangé. Effet uniquement en PWA installée iOS (barre sous la Dynamic Island).
+
+**ICÔNES (à la racine du repo)** : `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (180×180), `icon-maskable-512.png`, `favicon-32.png`. Générées depuis le logo officiel SVG « RM Avatar » (fond bleu marine #001349, texte blanc, accent rouge #ff451a).
+
+**VÉRIFICATIONS PILOTE (toutes OK)**
+- 5546 lignes (= 5528 +18). head valide (1 head, 1 viewport, 1 body). node --check OK (sw.js + scripts inline).
+- Préservation acquis : setFiltersVisible=5, getBoundingClientRect=0, has-filters=0, clearDate=4, toDlUrl=2, player-modal-body=1, validationBrand=16, DB_CLIENTS_BRAND=6, refreshUI=1, createNotif=27. EQUIPE_FALLBACK=[] et CHEF_PAR_DEFAUT='Benjamin' intacts.
+- manifest.json JSON valide. layout.css : safe-area sans impact desktop.
+
+**À POUSSER (David)** : 5 icônes (racine) + manifest.json + sw.js + index.html + css/layout.css, sur branche `pwa-install` depuis `main`.
+**TEST iPhone (14, iOS 26.5)** : Safari → Partager → Sur l'écran d'accueil → lancer depuis l'icône → plein écran + splash bleu marine. Vérifier topnav non mangée par la Dynamic Island. Web Inspector : SW en état « activated », pas d'erreur « SW register failed ».
+
+**PLAN PWA VALIDÉ (architecture push, pour PR 2)**
+- Déclencheur : `createNotif` (centralisée, 27 call sites) cessera d'appeler le proxy générique et appellera une nouvelle fonction `notify.js` qui (1) crée la page Notion comme aujourd'hui puis (2) envoie le push Web VAPID aux subscriptions du destinataire.
+- Stockage subscriptions : Netlify Blobs (gratuit, ~50ms), 1 entrée par utilisateur = liste de devices.
+- Clés VAPID : à générer 1 fois (`npx web-push generate-vapid-keys`), à mettre en variables d'env Netlify (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT).
+- Sécurité subscribe : exiger le code d'accès (re-vérif comme login.js) pour éviter qu'on s'enregistre sous le nom d'un autre.
+- Fallback : iOS < 16.4 ou permission refusée → polling existant 60s. (Note : iPhone de test = 14 / iOS 26.5, push pleinement supporté.)
+- Web Push complet = 0€ (free tier Netlify, Notion sans webhook nécessaire). Délai médian 2-3s.
+
 
 ### 2026-06-03 — Refonte FIX C bandeau filtres + Fix Calendrier mobile (toujours sur branche `mobile-polish-v3`)
 index.html 5549 → **5528 lignes** (-21, simplification massive de setFiltersVisible). 
