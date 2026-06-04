@@ -1,0 +1,32 @@
+{
+  "name": "Réel Média Production",
+  "short_name": "Réel Média",
+  "description": "Suivi de productions vidéo et TV de l'équipe Réel Média",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "fr",
+  "theme_color": "#001349",
+  "background_color": "#001349",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

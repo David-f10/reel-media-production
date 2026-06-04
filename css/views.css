@@ -154,3 +154,7 @@
   .cal-nav .nav-btn{padding:6px 10px;font-size:14px;flex-shrink:0}
   .cal-title{font-size:14px;text-align:center;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
+/* PWA — safe-area iOS standalone : décale le contenu de la modale lecteur sous la barre de statut.
+   #video-player-modal est position:fixed;inset:0 et n'a pas de .topnav.
+   En navigateur classique, env(safe-area-inset-top) vaut 0 : rendu inchangé. */
+#video-player-modal{padding-top:env(safe-area-inset-top)}
