@@ -6,6 +6,26 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
+### 2026-06-05 — Correctif push : configuration explicite de Netlify Blobs (branche `pwa-push`)
+4 fichiers : `_blobs.js` (nouveau helper) + `notify.js`, `push-subscribe.js`, `push-unsubscribe.js` (modifiés).
+
+**PROBLÈME DÉTECTÉ AU TEST**
+La notif Notion se créait bien (cloche OK) mais le push n'arrivait jamais sur l'iPhone. Logs de `notify` : "Push skipped: The environment has not been configured to use Netlify Blobs. To use it manually, supply the following properties when creating a store: siteID, token". Les clés VAPID fonctionnaient (push-config renvoyait bien la clé publique). Seul l'accès Netlify Blobs était cassé : `getStore('push-subs')` n'arrivait pas à s'auto-configurer dans le contexte de déploiement.
+
+**LE FIX**
+- Nouveau helper `netlify/functions/_blobs.js` : `getPushStore()` qui fait `getStore({ name: 'push-subs', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN })`. Lève une erreur claire si une variable manque.
+- Les 3 fonctions (notify, push-subscribe, push-unsubscribe) importent `getPushStore` depuis `./_blobs` au lieu de `getStore` direct. Comportement inchangé (dédup endpoint, nettoyage 410/404).
+- siteID et token jamais en dur, uniquement process.env.
+
+**NOUVELLES VARIABLES NETLIFY CRÉÉES PAR DAVID** (en plus des 3 VAPID) :
+- `NETLIFY_SITE_ID` (All scopes, Same value) = Site ID trouvé dans Site configuration → Project details.
+- `NETLIFY_BLOBS_TOKEN` (All scopes, Same value) = Personal Access Token Netlify (avatar → User settings → Applications → Personal access tokens → New access token, No expiration), commence par nfp_.
+
+**VÉRIF PILOTE (OK)** : node --check sur les 4 fichiers, aucun hardcode, les 3 fonctions utilisent getPushStore(), plus aucun getStore direct.
+
+**À FAIRE PAR DAVID** : pousser les 4 fichiers sur pwa-push (netlify/functions/). Re-tester : déclencher une notif (autre user → retour sur ta carte), app fermée → le push doit arriver en 2-3s. Vérifier logs notify : plus de "Push skipped", et "pushed:1". Si OK → merger pwa-push dans main (FIN de la PR2 PWA).
+
+
 ### 2026-06-04 — PWA PR 2 « pwa-push » : cache de la coquille + push instantané « app fermée » (branche `pwa-push`)
 index.html 5528 → **5622 lignes** (+94). sw.js 20 → **149 lignes**. package.json +2 deps. 5 fonctions Netlify créées + offline.html. 9 fichiers au total.
 
