@@ -4,7 +4,7 @@
 // Stockage : Netlify Blobs, store "push-subs", clé = nom du membre.
 // Format de la valeur : array de subscriptions (multi-device).
 
-const { getStore } = require('@netlify/blobs');
+const { getPushStore } = require('./_blobs');
 const { verifyUser } = require('./_auth');
 
 exports.handler = async (event) => {
@@ -38,7 +38,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore('push-subs');
+    const store = getPushStore();
     const existing = (await store.get(nom, { type: 'json' })) || [];
     // Déduplication par endpoint
     const filtered = existing.filter(s => s && s.endpoint !== subscription.endpoint);

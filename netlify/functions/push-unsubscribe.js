@@ -4,7 +4,7 @@
 // Pas d'exigence d'auth code ici : on retire uniquement par endpoint connu —
 // c'est un nettoyage volontaire de device, pas une action privilégiée.
 
-const { getStore } = require('@netlify/blobs');
+const { getPushStore } = require('./_blobs');
 
 exports.handler = async (event) => {
   const headers = {
@@ -27,7 +27,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore('push-subs');
+    const store = getPushStore();
     const existing = (await store.get(nom, { type: 'json' })) || [];
     const filtered = existing.filter(s => s && s.endpoint !== endpoint);
     if (filtered.length === 0) {

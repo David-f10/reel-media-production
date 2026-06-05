@@ -12,7 +12,7 @@
 //   4. Retour { ok:true, notifId, pushed:N }
 
 const webpush = require('web-push');
-const { getStore } = require('@netlify/blobs');
+const { getPushStore } = require('./_blobs');
 
 const DB_NOTIFS = '4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 
@@ -57,7 +57,7 @@ async function createNotionNotif({ type, sujetId, sujetCode, sujetTitre, destina
 
 async function sendPushes(destinataire, payload) {
   if (!destinataire) return 0;
-  const store = getStore('push-subs');
+  const store = getPushStore();
   const subs = (await store.get(destinataire, { type: 'json' })) || [];
   if (!subs.length) return 0;
 
