@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hors ligne — Réel Média</title>
+<meta name="theme-color" content="#001349">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    min-height:100vh;min-height:100dvh;
+    background:#001349;color:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:32px 24px;padding-top:max(32px,env(safe-area-inset-top));
+  }
+  .wrap{max-width:420px;text-align:center}
+  .icon{font-size:48px;margin-bottom:20px;opacity:0.9}
+  h1{font-size:22px;font-weight:600;margin-bottom:12px;letter-spacing:-0.02em}
+  p{font-size:14px;color:#9aa6c4;line-height:1.6;margin-bottom:24px}
+  button{
+    background:#ff451a;border:none;color:#fff;
+    padding:12px 24px;border-radius:8px;font-size:14px;font-weight:500;
+    cursor:pointer;font-family:inherit;
+  }
+  button:hover{opacity:0.9}
+  .tag{font-size:11px;color:#5f6d8c;margin-top:32px;font-family:'SF Mono',monospace}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="icon">📡</div>
+    <h1>Pas de connexion</h1>
+    <p>Les données Notion ne sont pas disponibles hors ligne. Vérifie ta connexion réseau, puis réessaie.</p>
+    <button onclick="location.reload()">Réessayer</button>
+    <div class="tag">Réel Média Production</div>
+  </div>
+</body>
+</html>

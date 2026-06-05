@@ -6,6 +6,62 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
+### 2026-06-05 — Correctif push : configuration explicite de Netlify Blobs (branche `pwa-push`)
+4 fichiers : `_blobs.js` (nouveau helper) + `notify.js`, `push-subscribe.js`, `push-unsubscribe.js` (modifiés).
+
+**PROBLÈME DÉTECTÉ AU TEST**
+La notif Notion se créait bien (cloche OK) mais le push n'arrivait jamais sur l'iPhone. Logs de `notify` : "Push skipped: The environment has not been configured to use Netlify Blobs. To use it manually, supply the following properties when creating a store: siteID, token". Les clés VAPID fonctionnaient (push-config renvoyait bien la clé publique). Seul l'accès Netlify Blobs était cassé : `getStore('push-subs')` n'arrivait pas à s'auto-configurer dans le contexte de déploiement.
+
+**LE FIX**
+- Nouveau helper `netlify/functions/_blobs.js` : `getPushStore()` qui fait `getStore({ name: 'push-subs', siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN })`. Lève une erreur claire si une variable manque.
+- Les 3 fonctions (notify, push-subscribe, push-unsubscribe) importent `getPushStore` depuis `./_blobs` au lieu de `getStore` direct. Comportement inchangé (dédup endpoint, nettoyage 410/404).
+- siteID et token jamais en dur, uniquement process.env.
+
+**NOUVELLES VARIABLES NETLIFY CRÉÉES PAR DAVID** (en plus des 3 VAPID) :
+- `NETLIFY_SITE_ID` (All scopes, Same value) = Site ID trouvé dans Site configuration → Project details.
+- `NETLIFY_BLOBS_TOKEN` (All scopes, Same value) = Personal Access Token Netlify (avatar → User settings → Applications → Personal access tokens → New access token, No expiration), commence par nfp_.
+
+**VÉRIF PILOTE (OK)** : node --check sur les 4 fichiers, aucun hardcode, les 3 fonctions utilisent getPushStore(), plus aucun getStore direct.
+
+**À FAIRE PAR DAVID** : pousser les 4 fichiers sur pwa-push (netlify/functions/). Re-tester : déclencher une notif (autre user → retour sur ta carte), app fermée → le push doit arriver en 2-3s. Vérifier logs notify : plus de "Push skipped", et "pushed:1". Si OK → merger pwa-push dans main (FIN de la PR2 PWA).
+
+
+### 2026-06-04 — PWA PR 2 « pwa-push » : cache de la coquille + push instantané « app fermée » (branche `pwa-push`)
+index.html 5528 → **5622 lignes** (+94). sw.js 20 → **149 lignes**. package.json +2 deps. 5 fonctions Netlify créées + offline.html. 9 fichiers au total.
+
+**CONTEXTE / BESOIN**
+Cœur du projet : l'équipe bosse sur ordi mais rate les notifs → le téléphone doit FORCER la notif, même app complètement fermée, en quelques secondes. Push Web gratuit (0€), déclenché au moment de l'écriture serveur (pas de surveillance Notion). Rattachement device→personne par IDENTITÉ DE CONNEXION (currentUser), pas mail ni tel. Chacun a sa propre identité sur ordi ET tel. TOUS les types de notif déclenchent un push.
+
+**PRÉ-REQUIS FAITS PAR DAVID (avant cette PR)**
+- Node.js v24.16.0 installé (installeur .pkg nodejs.org).
+- Clés VAPID générées via `npx web-push generate-vapid-keys`.
+- 3 variables Netlify créées (Site config → Environment variables, toutes "All scopes · Same value", NON cochées secret car cocher secret force le mode scopes/contextes spécifiques compliqué) : VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT = mailto:david@rushup.io. Variables existantes préservées (NOTION_TOKEN, GOOGLE_SERVICE_ACCOUNT).
+- Branche pwa-push créée depuis main (PR1 pwa-install déjà mergée).
+
+**ARCHITECTURE LIVRÉE (9 fichiers)**
+- `package.json` : + web-push ^3.6.7 + @netlify/blobs ^8.1.0 (googleapis préservé).
+- `netlify/functions/_auth.js` : module partagé verifyUser(id,code) via base Équipe, cache 60s (préfixe _ = non exposé comme function).
+- `netlify/functions/push-config.js` : renvoie VAPID_PUBLIC_KEY au client.
+- `netlify/functions/push-subscribe.js` : POST {id,code,subscription}, SÉCURISÉ via verifyUser (401 si invalide), stocke dans Netlify Blobs store "push-subs" clé=nom, multi-device dédupliqué par endpoint.
+- `netlify/functions/push-unsubscribe.js` : POST {nom,endpoint}, retire le device (pas d'auth code, nettoyage volontaire).
+- `netlify/functions/notify.js` : POST {type,sujetId,sujetCode,sujetTitre,destinataire,auteur,message} → (1) crée la page Notion base Notifications 4398775b (champs vérifiés par le Master : Message title, Type select, Destinataire/Auteur/Sujet ID/Sujet code/Sujet titre en text=rich_text, Lu checkbox — casse "Sujet code"/"Sujet titre" en minuscule confirmée), (2) garde-fou destinataire===auteur skip, (3) push VAPID à chaque device, retire subs 410/404. Push best-effort (notif Notion créée même si push échoue).
+- `sw.js` étendu : SW_VERSION 2026-06-04-2. Cache : functions=network-only (fraîcheur Notion critique), HTML=network-first+fallback offline.html, CSS=stale-while-revalidate, icons/manifest=cache-first, CDN=cache-first opaque. Handlers push + notificationclick (ouvre /?sujet=X ou postMessage open-sujet).
+- `offline.html` (racine) : page hors-ligne fond #001349.
+- `index.html` : createNotif migrée vers /.netlify/functions/notify (1 seul endroit, 27 call sites). Helpers subscribePush/unsubscribePush/urlBase64ToUint8Array. showApp demande permission+subscribe. doLogin stocke rm-code. doLogout unsubscribe. Gestion ?sujet=X au démarrage + listener serviceWorker open-sujet.
+
+**VÉRIF PILOTE (OK)** : clé privée jamais en dur (process.env uniquement). node --check OK sur les 6 JS. 5622 lignes, createNotif 27 call sites intacts. Acquis préservés (setFiltersVisible=5, getBoundingClientRect=0, has-filters=0, clearDate=4, validationBrand=16, DB_CLIENTS_BRAND=6, refreshUI=1, annulerVersion=2, showHelpModal=2, EQUIPE_FALLBACK=[], CHEF_PAR_DEFAUT='Benjamin'). Schéma base Notifications confirmé compatible par le Master.
+
+**⚠️ NOMMAGE FICHIERS FONCTIONS** : sur GitHub, créer avec le tiret — `push-config.js`, `push-subscribe.js`, `push-unsubscribe.js` (Claude Code les livre parfois sans tiret). index.html les appelle avec tiret.
+
+**À FAIRE PAR DAVID APRÈS PUSH**
+1. Vérifier build Netlify : logs "added 2 packages" (web-push + @netlify/blobs).
+2. IMPORTANT : tous les users doivent se DÉCONNECTER puis RECONNECTER une fois après déploiement (rm-code n'existait pas avant → sans lui subscribePush retourne false silencieusement).
+3. Désinstaller/réinstaller PWA depuis Safari, login, accepter permission notifs, vérifier logs push-subscribe {ok:true}, tester push app fermée (cible 2-3s).
+4. SW_VERSION à incrémenter manuellement à chaque futur déploiement.
+
+**QUESTIONS OUVERTES (faible risque)** : rm-code en localStorage (durcissable via token court) ; push-unsubscribe sans auth (endpoint déjà secret).
+
+
 ### 2026-06-04 — Correctif PWA : safe-area sur la modale lecteur/retours (branche `pwa-install`)
 css/views.css 156 → **160 lignes** (+4). Aucun autre fichier touché.
 
