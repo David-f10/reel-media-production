@@ -283,7 +283,7 @@
         <div class="field"><div class="field-label">Chef *</div>
           <select id="n-chef"><option value="">Choisir...</option><option>Benjamin</option><option>Arnaud</option><option>Chloé</option></select></div>
         <div class="field"><div class="field-label">Journaliste *</div>
-          <select id="n-journ" onchange="handleJournalisteChange(this)"><option value="">Choisir...</option><option>Julien</option><option>Augustin</option><option>Nico</option><option>Mickael</option><option>Juliette</option><option>Mathilde</option><option>Léa</option><option>Éloise</option><option value="__nouveau__">+ Nouvelle personne...</option></select>
+          <select id="n-journ" onchange="handleJournalisteChange(this)"></select>
           <input type="text" id="n-journ-nouveau" placeholder="Nom de la nouvelle personne" style="display:none;margin-top:6px"></div>
       </div>
       <div class="field"><div class="field-label">Date de tournage <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><input type="date" id="n-date"></div>
@@ -460,6 +460,19 @@ if (typeof Sentry !== 'undefined' && Sentry.onLoad) {
         if (/NetworkError|Failed to fetch|Load failed|timeout|aborted/i.test(msg)) return null;
         if (/ResizeObserver loop limit/i.test(msg)) return null;
         if (!msg) return null;
+        // Anonymisation : retire le jeton éphémère (?t=...) de l'URL des events
+        try {
+          if (event.request && typeof event.request.url === 'string') {
+            event.request.url = event.request.url.replace(/([?&])t=[^&]*/g, '$1t=REDACTED');
+          }
+          if (Array.isArray(event.breadcrumbs)) {
+            event.breadcrumbs.forEach(function(b){
+              if (b && b.data && typeof b.data.url === 'string') {
+                b.data.url = b.data.url.replace(/([?&])t=[^&]*/g, '$1t=REDACTED');
+              }
+            });
+          }
+        } catch(_) {}
         return event;
       }
     });
@@ -724,7 +737,8 @@ async function openNouveau(){
   const isChef=currentUser&&chefs.includes(currentUser.nom);
   document.getElementById('n-chef').value=isChef?currentUser.nom:CHEF_PAR_DEFAUT;
   const isJournaliste=currentUser&&!chefs.includes(currentUser.nom);
-  document.getElementById('n-journ').value=isJournaliste?currentUser.nom:'';
+  // Reconstruit le menu Journaliste depuis l'équipe Notion à chaque ouverture du formulaire
+  refreshJournMonteursSelects(isJournaliste ? currentUser.nom : '');
   document.getElementById('n-brief').value='';
   document.getElementById('n-date').value='';
   const cp = document.getElementById('n-contact-panel');
@@ -782,7 +796,13 @@ function openDetail(id, forcePadOpen=false){
   // Step Informations création
   const createdFmt = s.created ? new Date(s.created).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
   const lastEditedFmt = s.lastEdited ? new Date(s.lastEdited).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
-  const tousNoms=['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David',...journalistes.filter(j=>!['Benjamin','Arnaud','Chloé','Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'].includes(j))];
+  // Liste dynamique Journalistes + Monteurs depuis `equipe` (Notion).
+  // Garde-fou : si la valeur courante n'est plus dans la liste, on l'ajoute pour ne pas écraser l'assignation.
+  const tousNoms = (() => {
+    const noms = journMonteursNoms();
+    if(s.journaliste && !noms.includes(s.journaliste)) noms.push(s.journaliste);
+    return noms;
+  })();
   const sfOptions = s.format==='Face Cam' ? ['Classic','Vrai ou Faux'] : s.format==='Desk' ? ['Standard','Prodige','Décli'] : [];
   html+=step('Informations','p-gray Fiche',
     `<div style="display:flex;flex-direction:column;gap:0">
@@ -2110,7 +2130,8 @@ async function loadVersions(sujetId) {
       el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</div>';
       return;
     }
-    const tousLesNoms = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Thierry','David'];
+    // Liste dynamique Journalistes + Monteurs depuis `equipe` (Notion).
+    const tousLesNoms = journMonteursNoms();
     el.innerHTML = versions.map((v,i) => {
       const pr = v.properties;
       const url = pr['Titre']?.title?.[0]?.plain_text || '';
@@ -2154,7 +2175,7 @@ async function loadVersions(sujetId) {
             <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
             <select onchange="updateVersionMonteur('${v.id}','${sujetId}',this.value)" style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px">
               <option value="">Choisir...</option>
-              ${tousLesNoms.map(n=>`<option ${monteur===n?'selected':''}>${n}</option>`).join('')}
+              ${(monteur && !tousLesNoms.includes(monteur) ? [...tousLesNoms, monteur] : tousLesNoms).map(n=>`<option ${monteur===n?'selected':''}>${n}</option>`).join('')}
             </select>
           </div>
           ${(()=>{
@@ -2632,6 +2653,44 @@ async function initLogin() {
   } catch(e) {
     console.warn('Notion indisponible, liste locale utilisée:', e.message);
   }
+  // Auto-login via jeton éphémère (?t=...) — chargement déclenché depuis la PWA pour ouvrir
+  // la vue lecteur dans le navigateur. Le jeton est consommé une seule fois côté serveur.
+  try {
+    const params = new URLSearchParams(location.search);
+    const tokenParam = params.get('t');
+    if(tokenParam) {
+      try {
+        const res = await fetch('/.netlify/functions/auth-token-consume', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ token: tokenParam })
+        });
+        const data = await res.json().catch(() => ({}));
+        if(res.ok && data.ok && data.user) {
+          currentUser = data.user;
+          // On pose rm-user mais PAS rm-code : la session Safari ne connaîtra pas le code
+          // (donc pas de push possible côté Safari, ce qui est accepté).
+          localStorage.setItem('rm-user', JSON.stringify(currentUser));
+          if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser({id:currentUser.id,username:currentUser.nom});Sentry.setTag('role',currentUser.role||'inconnu');}
+          // Nettoyer l'URL : retirer 't' uniquement, conserver les autres params (action/v/l/s/ver)
+          const clean = new URLSearchParams(location.search);
+          clean.delete('t');
+          const cleanQuery = clean.toString();
+          history.replaceState({}, '', location.pathname + (cleanQuery ? '?' + cleanQuery : ''));
+          showApp();
+          return;
+        } else {
+          // Jeton refusé : on nettoie l'URL et on tombe sur le flow normal
+          history.replaceState({}, '', location.pathname);
+          if(typeof toast === 'function') toast('Lien expiré, reconnecte-toi', 'err');
+        }
+      } catch(e) {
+        // Erreur réseau : on tombe sur le flow normal (rm-user existant ou écran login)
+        history.replaceState({}, '', location.pathname);
+      }
+    }
+  } catch(e) {}
+
   // Vérifier session existante
   const saved = localStorage.getItem('rm-user');
   if(saved) {
@@ -2674,10 +2733,21 @@ function showApp() {
   requestNotifPermission().then(granted => { if(granted) subscribePush(); });
   // Charger les données
   appLoadData().then(() => {
-    // Si la page a été ouverte via /?sujet=X (clic sur une push), ouvrir directement la fiche
     const params = new URLSearchParams(location.search);
     const sujetParam = params.get('sujet');
-    if(sujetParam) {
+    const action = params.get('action');
+    // Routage 1 : action=player → ouvre directement la vue lecteur (deep link auto-login)
+    if(action === 'player') {
+      const v = params.get('v');
+      const l = params.get('l') || '';
+      const s = params.get('s') || '';
+      const ver = params.get('ver') || '';
+      navTo('production');
+      if(v) setTimeout(() => openPlayer(v, l, s, ver), 200);
+      // Nettoyer l'URL : on a consommé les params player
+      history.replaceState({}, '', location.pathname);
+    } else if(sujetParam) {
+      // Routage 2 : ?sujet=X (clic sur une push) → fiche détail
       navTo('production');
       setTimeout(() => openDetail(sujetParam), 200);
     } else {
@@ -2904,7 +2974,7 @@ async function equippeAjouter() {
       }
     });
     equipe.push({id: newPage.id, nom, code, role});
-    addJournalisteToSelects(nom);
+    refreshJournMonteursSelects();
     input.value = '';
     renderEquipeList();
     toast(`✅ ${nom} ajouté·e — code : ${code}`, 'ok');
@@ -2922,36 +2992,38 @@ async function equipeSupprimerJournaliste(nom) {
     catch(e) { toast('Erreur : ' + e.message, 'err'); return; }
   }
   equipe = equipe.filter(m => m.nom !== nom);
-  removeJournaliste(nom);
+  refreshJournMonteursSelects();
   renderEquipeList();
   toast(`${nom} retiré·e de l'équipe`, 'ok');
 }
 
-// ─── GESTION JOURNALISTES DYNAMIQUES ───
-// Liste maître des journalistes (mise à jour dynamiquement)
-let journalistes = ['Julien','Augustin','Nico','Mickael','Juliette','Mathilde','Léa','Éloise','Victor','Louise','Arnaud C'];
-
-function addJournalisteToSelects(nom) {
-  if(!nom || journalistes.includes(nom)) return;
-  journalistes.push(nom);
-  refreshJournalistesSelects();
+// ─── GESTION JOURNALISTES & MONTEURS DYNAMIQUES ───
+// Source unique de vérité : la variable globale `equipe`, chargée depuis Notion au démarrage.
+function journMonteursNoms() {
+  return equipe
+    .filter(m => m.role === 'Journaliste' || m.role === 'Monteur')
+    .map(m => m.nom)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
-function removeJournaliste(nom) {
-  journalistes = journalistes.filter(j => j !== nom);
-  refreshJournalistesSelects();
+// Reconstruit #n-journ depuis `equipe`. Préserve currentNom comme valeur sélectionnée.
+// Si currentNom n'est plus dans la liste filtrée, on l'ajoute pour ne pas perdre une assignation.
+function refreshJournMonteursSelects(currentNom) {
+  const sel = document.getElementById('n-journ');
+  if(!sel) return;
+  const noms = journMonteursNoms();
+  if(currentNom && !noms.includes(currentNom)) noms.push(currentNom);
+  sel.innerHTML = '<option value="">Choisir...</option>' +
+    noms.map(j => `<option value="${j}"${currentNom === j ? ' selected' : ''}>${j}</option>`).join('') +
+    '<option value="__nouveau__">+ Nouvelle personne...</option>';
 }
 
-function refreshJournalistesSelects() {
-  // Met à jour tous les selects journaliste dans la page
-  const selects = document.querySelectorAll('#n-journ, select[data-type="journaliste"]');
-  selects.forEach(sel => {
-    const currentVal = sel.value;
-    sel.innerHTML = '<option value="">Choisir...</option>' +
-      journalistes.map(j => `<option value="${j}"${currentVal===j?' selected':''}>${j}</option>`).join('') +
-      '<option value="__nouveau__">+ Nouvelle personne...</option>';
-  });
-}
+// ─── ALIAS de compatibilité ───
+let journalistes = [];
+function addJournalisteToSelects(nom) { refreshJournMonteursSelects(); }
+function removeJournaliste(nom) { refreshJournMonteursSelects(); }
+function refreshJournalistesSelects() { refreshJournMonteursSelects(); }
 
 // ─── PLAYER VIDÉO ───
 let activePlayer = null;
@@ -2974,6 +3046,12 @@ function openDriveFolderSync(url) {
   if(!fileId) return;
   const folderUrl = drivefolderCache[fileId] || `https://drive.google.com/file/d/${fileId}/view`;
   window.open(folderUrl, '_blank');
+}
+
+// Détection PWA standalone : combine display-mode (Chrome/Safari moderne) et navigator.standalone (iOS Safari).
+function isPWAStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
 }
 
 function detectVideoType(url) {
@@ -3017,12 +3095,67 @@ function toEmbedUrl(url, type) {
   return null;
 }
 
+// PWA + Drive : ouvre la vue lecteur dans le navigateur via un jeton d'auto-login éphémère.
+// - window.open('about:blank') synchrone pour préserver l'autorisation popup,
+// - puis fetch /.netlify/functions/auth-token-create avec {id, code} (jamais transmis dans l'URL ensuite),
+// - redirige l'onglet vide sur /?t=<jeton>&action=player&v=...&l=...&s=...&ver=...
+// - en cas d'échec : ferme l'onglet et affiche un toast dans la PWA.
+async function openPlayerInBrowser(url, label, sujetId, version) {
+  // 1) Onglet vide synchrone (préserve user-activation pour popup blocker)
+  const newWin = window.open('about:blank', '_blank');
+  if(!newWin) {
+    if(typeof toast === 'function') toast('Le navigateur a bloqué l\'ouverture', 'err');
+    return;
+  }
+  // 2) Identité courante
+  const id = currentUser?.id;
+  const code = localStorage.getItem('rm-code') || '';
+  if(!id || !code) {
+    // Fallback : ouvrir Drive directement, sans auto-login (l'utilisateur verra l'écran de login s'il a besoin de la PWA)
+    try { newWin.location = url; } catch(e) {}
+    if(typeof toast === 'function') toast('Reconnecte-toi pour activer l\'ouverture dans Safari','err');
+    return;
+  }
+  try {
+    const res = await fetch('/.netlify/functions/auth-token-create', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ id, code })
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.ok || !data.token) {
+      newWin.close();
+      if(typeof toast === 'function') toast('Lien d\'auto-login refusé','err');
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set('t', data.token);
+    params.set('action', 'player');
+    params.set('v', url);
+    params.set('l', label || '');
+    params.set('s', sujetId || '');
+    params.set('ver', version || '');
+    const target = location.origin + location.pathname + '?' + params.toString();
+    newWin.location = target;
+  } catch(e) {
+    try { newWin.close(); } catch(_) {}
+    if(typeof toast === 'function') toast('Réseau indisponible — réessaie','err');
+  }
+}
+
 function openPlayer(url, label, sujetId, version) {
   const existing = document.getElementById('video-player-modal');
   if(existing) existing.remove();
 
   const type = detectVideoType(url);
   const embedUrl = toEmbedUrl(url, type);
+
+  // Déviation PWA + Drive : la vue lecteur (vidéo + retours) est ouverte dans le navigateur,
+  // où la session Google de l'utilisateur est active. Auto-login via jeton éphémère.
+  // Cas exclusif : type==='drive' ET PWA standalone. Hors de ce cas, comportement actuel inchangé.
+  if(type === 'drive' && isPWAStandalone()) {
+    return openPlayerInBrowser(url, label, sujetId, version);
+  }
 
   if(!embedUrl) {
     window.open(url, '_blank');
