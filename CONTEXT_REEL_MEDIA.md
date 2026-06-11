@@ -1,10 +1,76 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-06-04
+> Dernière mise à jour : 2026-06-05
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-06-05 — Lecture vidéo Drive en PWA via auto-login par jeton éphémère (branche `journ-monteurs-dynamiques`, empilé sur le fix journalistes)
+index.html 5637 → **5755 lignes**. 4 fichiers : index.html (modifié), netlify/functions/_blobs.js (étendu), auth-token-create.js + auth-token-consume.js (nouveaux). Aucune modif CSS, Notion, ni login.js.
+
+⚠️ NOTE WORKFLOW : la branche `journ-monteurs-dynamiques` n'avait jamais été commitée (le fix journalistes était livré mais pas commité). Claude Code a donc REFAIT le fix journalistes (Phase 1) PUIS empilé la vidéo PWA (Phase 2) sur la même branche. Les DEUX travaux sont sur cette branche, non commités, en attente de validation.
+
+**PROBLÈME**
+Les versions vidéo sont des fichiers Google Drive en partage "Restreint". L'iframe Drive `/preview` a besoin de la session Google de l'utilisateur (cookies). En PWA installée (Safari standalone surtout), les cookies sont isolés → erreur Google 400, la vidéo ne s'affiche pas. En navigateur classique, ça marche (la session Google passe). Confirmé par David : fichier B19E V2 = "Restreint". Toute l'équipe a accès au Drive avec son propre compte Google.
+
+**PISTES ÉCARTÉES (analyses Claude Code + recherches pilote)**
+- Rendre les vidéos publiques : REFUSÉ par David (confidentialité montages clients).
+- `<video>` HTML5 direct sur URL Drive : même problème de cookies + blocage gros fichiers (>100 Mo). Enterré.
+- Se connecter une fois à Google dans la PWA : IMPASSE. Le partitionnement des cookies tiers (Safari ITP) empêche l'iframe Drive de voir la session top-level. Storage Access API non exploitable (c'est à Google de l'appeler, pas nous). Confirmé par 2 sources + Claude Code.
+- Proxy serveur (streamer le binaire via Netlify + Service Account) : faisable mais ~19€/mois (dépassement bande passante), discipline ops (partage SA), risque de saccades. Mis de côté.
+- OAuth utilisateur + blob : pas de streaming (téléchargement complet avant lecture), RAM élevée. Écarté.
+
+**DÉCISION DE DAVID** : le streaming fluide prime sur "rester dans l'app". Il accepte que la vue s'ouvre dans le navigateur. Il veut que ce soit transparent (pas de reconnexion). Comme la session app (rm-user en localStorage) est ISOLÉE entre PWA et navigateur Safari, ouvrir la vue dans le navigateur reposait le problème de connexion à l'app → résolu par auto-login via jeton éphémère.
+
+**SOLUTION RETENUE (vue complète vidéo + retours dans le navigateur, auto-login sûr)**
+- En PWA standalone, à l'ouverture d'une version Drive (`type==='drive' && isPWAStandalone()`), on ouvre toute la vue lecteur dans le navigateur externe.
+- Auto-login SÛR : la PWA demande un jeton éphémère à `auth-token-create` (envoi {id, code} en POST, jamais dans l'URL), met le jeton dans l'URL `/?t=...&action=player&v=...&l=...&s=...&ver=...`, ouvre le navigateur dessus. Le navigateur consomme le jeton via `auth-token-consume` (usage unique, suppression atomique), pose `rm-user` (PAS `rm-code`), nettoie l'URL, et route vers openPlayer.
+- Jeton = aléatoire 256 bits (crypto.randomBytes), TTL **120s**, stocké dans Netlify Blobs (store "auth-tokens", réutilise les variables NETLIFY_SITE_ID + NETLIFY_BLOBS_TOKEN existantes). Usage unique strict.
+- Hors PWA (navigateur classique) : comportement INCHANGÉ (iframe interne).
+- Vimeo/YouTube/Frame.io NON affectés (déviation uniquement pour Drive).
+
+**DÉCISIONS VALIDÉES** : TTL 120s · jamais le code dans l'URL · session Safari sans rm-code (donc sans push côté Safari = accepté, Safari = "second écran") · hook Sentry beforeSend pour masquer `t`.
+
+**LIMITES ASSUMÉES (dites à David, acceptées)**
+- Basculement PWA→navigateur VISIBLE (on ne peut pas l'ouvrir invisiblement dans la PWA).
+- Retour dans la PWA MANUEL (clic icône) — impossible à automatiser. Mais comme la vue complète (vidéo + retours) est dans le navigateur, l'utilisateur n'a pas besoin de revenir tout de suite.
+- Latence 3-7s (clic → vidéo lisible) dont cold start Netlify 0,8-2s.
+- Fenêtre de quelques secondes où le jeton est dans l'URL/logs avant consommation → acceptable car usage unique + TTL court.
+
+**VÉRIF PILOTE (OK)** : node --check sur les 4 fichiers OK · condition déviation = `if(type === 'drive' && isPWAStandalone())` (exclusive) · 0 occurrence du code dans les params URL · rm-code jamais posé côté Safari (commentaire explicite) · Phase 1 préservée (journMonteursNoms=4, refreshJournMonteursSelects=7) · createNotif=27 · EQUIPE_FALLBACK=[]=1 · CHEF_PAR_DEFAUT présent.
+
+**À FAIRE PAR DAVID** : feu vert Claude Code pour commiter (Phase 1 + Phase 2 ensemble) sur `journ-monteurs-dynamiques` → push les 4 fichiers → PR → tester en preview : (1) journalistes+monteurs dans les 3 menus + sync ajout/suppression ; (2) en PWA, clic ▶ sur version Drive → ouvre Safari, auto-login, vue lecteur ; URL sans `?t=` après chargement ; (3) hors PWA → iframe interne inchangée ; (4) jeton expiré (attendre >2 min) → écran login + toast. Variables Netlify Blobs déjà en place (rien à créer).
+
+**RESTE EN SUSPENS (non tranché)** : choix approche A vs B pour le comportement exact (ici on a fait : déviation directe en PWA, pas de bouble iframe+bouton). Si jamais l'auto-login pose souci à l'usage, fallback = bouton "ouvrir navigateur" simple.
+
+
+### 2026-06-05 — Listes Journaliste/Monteur dynamiques depuis Notion (branche `journ-monteurs-dynamiques`)
+index.html 5622 → **5637 lignes** (+15). Aucune modif CSS, Notion ni serveur. Fix 100 % code front.
+
+**PROBLÈME**
+Au moment de choisir un journaliste sur les cartes (formulaire "Nouveau sujet", fiche détail d'un sujet, sélecteur "Responsable" d'une version de montage), tous les membres de l'équipe n'apparaissaient pas. Le login affichait pourtant bien tout le monde. Cause : ces 3 sélecteurs étaient remplis par des **listes de prénoms écrites EN DUR** dans le code (8 à 13 noms figés), jamais reliées à la variable `equipe` (chargée depuis Notion au démarrage). Conséquence : les nouveaux membres (Alice Guionnet, Romain Canault, Camille, Hervé Grandchamp, Anne Burlot, etc.) n'étaient pas proposés, et il fallait modifier le code à chaque ajout/suppression.
+
+**BESOIN PRINCIPAL EXPRIMÉ PAR DAVID**
+"Dès que j'ajoute ou supprime un journaliste (via la modale Gérer l'équipe), il doit se retrouver / disparaître PARTOUT, automatiquement, sans toucher au code."
+
+**LE FIX**
+- Nouveau helper `journMonteursNoms()` : retourne `equipe.filter(role==='Journaliste'||role==='Monteur')`, noms triés alpha (localeCompare 'fr'). `equipe` devient la **source unique de vérité**.
+- Nouveau `refreshJournMonteursSelects(currentNom)` : reconstruit le `<select #n-journ>` depuis `equipe`, préserve la valeur courante (l'ajoute si absente pour ne jamais perdre une assignation).
+- Les 3 sélecteurs lisent désormais `journMonteursNoms()` au moment de leur affichage :
+  - `#n-journ` (formulaire Nouveau sujet) : reconstruit dans `openNouveau` (HTML statique vidé, ligne 286).
+  - "Journaliste" fiche détail (ex-`tousNoms`, ligne ~789) : IIFE depuis `journMonteursNoms()` + garde-fou sur `s.journaliste`.
+  - "Responsable" version (ex-`tousLesNoms`, ligne ~2121) : `journMonteursNoms()` + garde-fou sur le `monteur` courant par version.
+- Sync immédiate : `equippeAjouter` et `equipeSupprimerJournaliste` appellent maintenant `refreshJournMonteursSelects()` (en plus du `equipe.push`/`filter` déjà présent). Ajout/suppression via "Gérer l'équipe" → reflété tout de suite dans les menus.
+- Garde-fou anti-perte de données : si une carte a un journaliste assigné qui n'est plus dans la liste filtrée, la valeur reste affichée et sélectionnée (jamais écrasée).
+- Ancien système neutralisé : tableau `journalistes` (11 noms en dur) → `let journalistes = []` (conservé vide, défensif). Les 3 anciennes fonctions (`addJournalisteToSelects`/`removeJournaliste`/`refreshJournalistesSelects`) deviennent des alias inertes qui délèguent au nouveau système.
+
+**VÉRIF PILOTE (OK)** : node --check OK ; CHEF_PAR_DEFAUT='Benjamin'=1 ; EQUIPE_FALLBACK=[]=1 ; createNotif=27 (identique main) ; 0 occurrence des anciennes listes en dur (`let journalistes=['Julien'…]`, `tousLesNoms=['Julien'…]`, `tousNoms=['Benjamin'…]`, HTML statique `<option>Julien…`) ; acquis préservés (annulerVersion=2, showHelpModal=2, showConfirmModal=2, validationBrand=16, DB_CLIENTS_BRAND=6, refreshUI=1, location.reload=0).
+
+**LIMITE CONNUE (signalée, non bloquante)** : si on ouvre "Nouveau sujet" AVANT la fin du chargement de `equipe` (connexion ultra-lente), le menu est momentanément vide (Choisir… + Nouvelle personne). Pas de fallback offline pour cette liste (cohérent avec le main historique). Se règle en rouvrant le formulaire.
+
+**À FAIRE PAR DAVID** : feu vert à Claude Code pour commiter sur `journ-monteurs-dynamiques` → push → PR → tester en preview (vérifier que tous les journalistes+monteurs apparaissent dans les 3 menus, et qu'un ajout/suppression via "Gérer l'équipe" se reflète tout de suite) → merger si OK.
+
 
 ### 2026-06-05 — Correctif push : configuration explicite de Netlify Blobs (branche `pwa-push`)
 4 fichiers : `_blobs.js` (nouveau helper) + `notify.js`, `push-subscribe.js`, `push-unsubscribe.js` (modifiés).
@@ -394,11 +460,20 @@ branche `mobile-polish-v3` (5528 lignes index.html + 2 CSS modifiés)
   En tournage, Post-prod, Montage, Retours, Validation chef, PAD
 - Couleurs format : MAG bleu, Brand ambre, Face Cam rouge, Desk gris, 
   YouTube vert
-- Journalistes : Julien, Augustin, Nico, Mickael, Juliette, Mathilde, 
-  Léa, Sophie L., Éloise, Juliette B, David, Enrique C, Benjamin, 
-  Alice Guionnet, Romain Canault, Camille, Hervé Grandchamp, Anne Burlot
-- Chefs : Benjamin (défaut), Arnaud, Chloé. Monteurs : Thierry, David
-- Brand : Arnaud C, Guillaume, Louise, Victor
+- ⚠️ ÉQUIPE = source unique de vérité Notion (base 👥 Équipe). Depuis 
+  le 2026-06-05, les 3 menus de choix du journaliste (Nouveau sujet, 
+  fiche détail, Responsable version) sont construits dynamiquement via 
+  `journMonteursNoms()` = `equipe.filter(role Journaliste|Monteur)`. 
+  NE PLUS jamais coder de liste de prénoms en dur : tout ajout/suppression 
+  se fait dans Notion (ou via la modale "Gérer l'équipe") et se propage 
+  automatiquement partout.
+- Membres connus (indicatif, la vérité reste Notion) :
+  - Chefs : Benjamin (défaut), Arnaud, Chloé
+  - Monteurs : Thierry, David
+  - Journalistes : Julien, Augustin, Nico, Mickael, Juliette, Mathilde, 
+    Léa, Éloise, Alice Guionnet, Romain Canault, Camille, 
+    Hervé Grandchamp, Anne Burlot
+  - Brand (Contact Brand) : Arnaud C, Guillaume, Louise, Victor
 
 - **Mobile (≤700px)** : bottom-nav 4 items (Dashboard/Production/
   Idées/Tâches) avec pastilles, panneau notif full-width, modale 

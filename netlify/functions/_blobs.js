@@ -16,4 +16,15 @@ function getPushStore() {
   return getStore({ name: 'push-subs', siteID, token });
 }
 
-module.exports = { getPushStore };
+// Store des jetons éphémères d'auto-login (ouverture d'une vue lecteur depuis la PWA vers le navigateur).
+// Clé = jeton aléatoire base64url ; valeur = { user, createdAt, expiresAt } ; usage unique strict.
+function getAuthTokenStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (!siteID || !token) {
+    throw new Error('Netlify Blobs non configuré : NETLIFY_SITE_ID et NETLIFY_BLOBS_TOKEN requis');
+  }
+  return getStore({ name: 'auth-tokens', siteID, token });
+}
+
+module.exports = { getPushStore, getAuthTokenStore };
