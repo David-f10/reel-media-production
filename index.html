@@ -3027,25 +3027,45 @@ function refreshJournalistesSelects() { refreshJournMonteursSelects(); }
 
 // ─── PLAYER VIDÉO ───
 let activePlayer = null;
-const drivefolderCache = {};
+const drivefolderCache = {};   // fileId -> vraie folderUrl UNIQUEMENT (jamais de fallback)
+const drivefolderPending = {}; // fileId -> Promise de résolution en cours (anti-doublon)
+
+// Résolution unique et partagée du dossier parent : renvoie la folderUrl ou null.
+// Succès -> mis en cache. Échec (réseau, 500, folderUrl null) -> rien de mémorisé,
+// une nouvelle tentative reste possible au prochain prefetch/clic.
+function resolveDriveFolder(fileId) {
+  if(drivefolderCache[fileId]) return Promise.resolve(drivefolderCache[fileId]);
+  if(drivefolderPending[fileId]) return drivefolderPending[fileId];
+  drivefolderPending[fileId] = fetch(`/.netlify/functions/drive?fileId=${fileId}`)
+    .then(res => res.json())
+    .then(data => {
+      if(data.folderUrl) drivefolderCache[fileId] = data.folderUrl;
+      return data.folderUrl || null;
+    })
+    .catch(() => null)
+    .finally(() => { delete drivefolderPending[fileId]; });
+  return drivefolderPending[fileId];
+}
 
 async function prefetchDriveFolder(url) {
   const fileId = getDriveFileId(url);
-  if(!fileId || drivefolderCache[fileId]) return;
-  // Mettre un fallback immédiatement pour éviter les appels répétés
-  drivefolderCache[fileId] = `https://drive.google.com/file/d/${fileId}/view`;
-  try {
-    const res = await fetch(`/.netlify/functions/drive?fileId=${fileId}`);
-    const data = await res.json();
-    if(data.folderUrl) drivefolderCache[fileId] = data.folderUrl;
-  } catch(e) {}
+  if(fileId) resolveDriveFolder(fileId);
 }
 
 function openDriveFolderSync(url) {
   const fileId = getDriveFileId(url);
-  if(!fileId) return;
-  const folderUrl = drivefolderCache[fileId] || `https://drive.google.com/file/d/${fileId}/view`;
-  window.open(folderUrl, '_blank');
+  if(!fileId) { if(url) window.open(url, '_blank'); return; }
+  // Déjà résolu -> ouverture directe du dossier.
+  if(drivefolderCache[fileId]) { window.open(drivefolderCache[fileId], '_blank'); return; }
+  // Sinon : onglet ouvert SUR le geste utilisateur (anti-popup), redirigé après résolution.
+  // Le fichier /view est le dernier recours AU CLIC, jamais une valeur mise en cache.
+  const fileView = `https://drive.google.com/file/d/${fileId}/view`;
+  const win = window.open('', '_blank');
+  resolveDriveFolder(fileId).then(folderUrl => {
+    const target = folderUrl || fileView;
+    if(win && !win.closed) win.location = target;
+    else window.open(target, '_blank');
+  });
 }
 
 // Détection PWA standalone : combine display-mode (Chrome/Safari moderne) et navigator.standalone (iOS Safari).
@@ -3065,7 +3085,11 @@ function detectVideoType(url) {
 
 // Ouvrir le dossier parent Drive via l'API
 function getDriveFileId(url) {
-  const m = url ? url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) : null;
+  if(!url) return '';
+  let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if(m) return m[1];
+  // Format alternatif : drive.google.com/open?id=XXX (ou tout paramètre id=)
+  m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
   return m ? m[1] : '';
 }
 
@@ -3187,6 +3211,9 @@ function openPlayer(url, label, sujetId, version) {
     return openPlayerInBrowser(url, label, sujetId, version);
   }
 
+  // Pré-résoudre le dossier parent pour le bouton Dossier du header
+  if(type === 'drive') prefetchDriveFolder(url);
+
   if(!embedUrl) {
     window.open(url, '_blank');
     return;
@@ -3205,7 +3232,7 @@ function openPlayer(url, label, sujetId, version) {
         <span style="font-family:monospace;font-size:11px;color:#E63946;background:rgba(230,57,70,0.12);padding:2px 7px;border-radius:4px">${s?.code||''}</span>
         <span style="font-size:12px;color:#9898B0">${label}</span>
       </div>
-        ${url.includes('drive.google.com') ? '<a href="https://drive.google.com/file/d/'+getDriveFileId(url)+'/view" target="_blank" style="font-size:11px;color:#9898B0;text-decoration:none;border:1px solid #2A2A3A;padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px">📁 Dossier</a>' : ''}
+        ${url.includes('drive.google.com') ? '<a href="#" onclick="event.preventDefault();openDriveFolderSync(\''+url+'\')" style="font-size:11px;color:#9898B0;text-decoration:none;border:1px solid #2A2A3A;padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px">📁 Dossier</a>' : ''}
       <button onclick="document.getElementById('video-player-modal').remove()"
         style="background:none;border:1px solid #2A2A3A;color:#5A5A70;cursor:pointer;font-size:16px;padding:3px 10px;border-radius:6px;line-height:1.4;transition:all 0.15s"
         onmouseover="this.style.color='#F0F0F5'" onmouseout="this.style.color='#5A5A70'">×</button>
