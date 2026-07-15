@@ -6,6 +6,26 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
+### 2026-07-15 — Fix bouton « Dossier » : cache 3 états + 3 boutons cohérents (branche `fix-dossier`, par-dessus le merge téléchargement)
+1 seul fichier : `index.html` (5785 → **5812 lignes**, +27). `drive.js` INTOUCHÉ (reste readonly). Empilé sur main après merge PR #31 (téléchargement).
+
+**DIAGNOSTIC (tests à l'appui, 2 lectures indépendantes)**
+Le bouton « Dossier » d'une version ouvrait le FICHIER au lieu du DOSSIER PARENT. Tests sur la fonction serveur `drive?fileId=…` : une vidéo vue du SA renvoie bien `{folderUrl:…}` (serveur OK), une vidéo NON partagée avec le SA renvoie `{error:"File not found"}`. Donc `drive.js` n'est PAS en cause. Deux vrais bugs identifiés côté FRONT dans le cache : (1) RACE — le fallback fichier était écrit dans le cache AVANT l'appel serveur, un clic pendant l'appel ouvrait le fichier ; (2) ÉCHEC VERROUILLÉ — un seul raté (réseau, 500, folderUrl null) laissait le fallback en cache et le garde `if(cache) return` bloquait tout retry de la session. Cause dominante des symptômes = partage Drive incomplet (même racine que le 403 téléchargement) ; le fix front règle le comportement, pas l'accès.
+
+**LA CORRECTION (index.html uniquement, 5 points)**
+- `getDriveFileId` reconnaît aussi le format `open?id=XXX` (avant : seulement `/file/d/ID` ; les autres URL rendaient le bouton muet).
+- Cache 3 états : `drivefolderCache` (vraies folderUrl UNIQUEMENT) + `drivefolderPending` (Promises en cours, anti-doublon) + fonction centrale `resolveDriveFolder(fileId)`. Succès → mis en cache ; échec → RIEN mémorisé (catch→null, finally supprime le pending) → retry possible. Plus jamais de fallback stocké en cache.
+- `openDriveFolderSync` : si résolu → ouvre le dossier directement ; sinon → onglet ouvert sur le geste utilisateur (anti-popup) puis redirigé vers le dossier, ou vers le fichier `/view` en DERNIER RECOURS au clic (jamais en cache).
+- `openPlayer` déclenche `prefetchDriveFolder(url)` à l'ouverture (type drive), placé APRÈS la déviation PWA (celle-ci reste prioritaire et intacte → lecture PWA non affectée).
+- Bouton « 📁 Dossier » du header lecteur (~ligne 3235) rebranché sur `openDriveFolderSync` (avant : lien statique en dur vers le fichier, n'avait JAMAIS ouvert le dossier). Les 3 boutons Dossier (fiche détail, liste versions, header lecteur) se comportent désormais pareil. Note : changement de comportement assumé pour le bouton lecteur (décision produit de David).
+
+**VÉRIF PILOTE (OK)**
+node --check + JS inline valide. index.html 5812 lignes (5785 +27). Acquis intacts : createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, validationBrand=16, DB_CLIENTS_BRAND=6, CHEF_PAR_DEFAUT='Benjamin', EQUIPE_FALLBACK=[]. Téléchargement NON touché : telechargerVersion=2, openPlayerInBrowser=2, isPWAStandalone=3. Nouveaux : resolveDriveFolder=3, drivefolderPending=5, drivefolderCache=4. 2 écarts de compteurs signalés par Claude Code élucidés et bénins (openDriveFolderSync=5 dont 1 commentaire ligne 1186 ; prefetchDriveFolder=4 = 3→4 correct). Déviation PWA vérifiée AVANT le prefetch. drive.js non modifié (appel GET readonly inchangé).
+
+**À FAIRE PAR DAVID**
+Monter la branche `fix-dossier` (1 fichier : index.html) + ce CONTEXT → PR → tester en preview : les 3 boutons 📁 ouvrent le dossier parent (sur une vidéo VUE du SA) ; clic très rapide après ouverture d'une fiche → onglet bref puis dossier (course corrigée) ; couper le réseau, cliquer (fichier en dernier recours), rétablir, re-cliquer → dossier revient (verrou levé). RAPPEL : sur une vidéo non partagée avec le SA, le bouton retombe légitimement sur le fichier — c'est un souci de PARTAGE, pas de code (réglé par le partage Drive au SA, cf. entrée téléchargement / geste d'Arnaud).
+
+
 ### 2026-07-15 — Téléchargement direct des vidéos Drive via permission éphémère (piste B)
 5 fichiers : `netlify/functions/drive-download.js` (NOUVEAU), `netlify/functions/drive-permsweep.js` (NOUVEAU, Scheduled), `netlify/functions/_blobs.js` (ÉTENDU), `index.html` (5755 → **5785 lignes**, +30), `netlify.toml` (ajout schedule). Aucune modif CSS, Notion, login.js. `drive.js` inchangé (reste readonly).
 
@@ -514,6 +534,15 @@ branche `mobile-polish-v3` (5528 lignes index.html + 2 CSS modifiés)
   (lecteur 45vh haut, panneau 55vh bas)
 - **Vider une date** : bouton × dans .date-wrap. Fonction 
   clearDate(id, field, btnEl).
+- **Bouton Dossier** (depuis 2026-07-15) : 3 boutons (fiche détail,
+  liste versions, header lecteur) tous branchés sur openDriveFolderSync.
+  Cache 3 états : drivefolderCache (vraies folderUrl only) +
+  drivefolderPending (Promises) + resolveDriveFolder centralisée. Échec
+  jamais mémorisé (retry possible). Clic : dossier si résolu, sinon onglet
+  sûr redirigé, fichier /view en dernier recours. openPlayer prefetch à
+  l'ouverture (après déviation PWA). Une vidéo non vue du SA → retombe sur
+  le fichier (souci de partage, pas de code). drive.js inchangé (readonly,
+  résout le parent via files.get fields=parents).
 - **Bouton Télécharger** : fonction `telechargerVersion(fileId, btnEl)`
   (depuis 2026-07-15, remplace l'ancien toDlUrl direct devenu 403 en
   multi-compte). PWA standalone → navigateur externe (/view). Session
