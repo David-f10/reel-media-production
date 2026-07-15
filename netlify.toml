@@ -5,6 +5,11 @@
 [build.environment]
   NODE_VERSION = "18"
 
+# Filet de sécurité téléchargement : referme toute permission Drive "anyone" restée
+# ouverte (registre Blobs drive-open-perms + rattrapage), toutes les 10 minutes.
+[functions."drive-permsweep"]
+  schedule = "*/10 * * * *"
+
 [[headers]]
   for = "/css/*"
   [headers.values]
