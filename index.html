@@ -92,7 +92,7 @@
   <div id="notif-panel" class="notif-panel" style="display:none">
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:13px;font-weight:600">Notifications</span>
-      <button onclick="markAllRead()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">Tout marquer lu</button>
+      <button id="mark-all-btn" onclick="markAllRead()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">Tout marquer lu</button>
     </div>
     <div id="notif-list" style="overflow-y:auto;max-height:400px;padding:6px 0">
       <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Chargement...</div>
@@ -578,6 +578,26 @@ api = async function(endpoint, method, body, _r){
     throw e;
   }
 };
+
+// Query Notion paginé : enchaîne les pages via start_cursor jusqu'à has_more=false
+// et renvoie { results: [...toutes les pages] } — même forme de lecture qu'un query
+// simple, les call sites continuent de lire .results. Chaque page est une invocation
+// Netlify distincte (aucun enjeu de timeout serveur) et passe par api() (retry 429/503,
+// bandeau Notion). Garde-fou à 50 pages (5000 éléments).
+async function apiQueryAll(endpoint, body = {}) {
+  const all = [];
+  let cursor = null, pages = 0;
+  do {
+    const q = {...body, page_size: 100};
+    if(cursor) q.start_cursor = cursor;
+    const page = await api(endpoint, 'POST', q);
+    all.push(...(page.results || []));
+    cursor = page.has_more ? page.next_cursor : null;
+    pages++;
+  } while(cursor && pages < 50);
+  if(cursor) console.warn('apiQueryAll: garde-fou 50 pages atteint sur', endpoint);
+  return { results: all };
+}
 
 async function loadSujets(){
   document.getElementById('cards-wrap').innerHTML='<div class="loading"><div class="spin"></div></div>';
@@ -1463,18 +1483,28 @@ async function clickNotif(notifId, sujetId) {
 
 async function markAllRead() {
   if(!currentUser) return;
+  // Feedback léger pendant l'opération (lots séquentiels = quelques secondes)
+  const btn = document.getElementById('mark-all-btn');
+  const oldLabel = btn ? btn.textContent : '';
+  if(btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
-      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
-      page_size: 100
+    const data = await apiQueryAll('/databases/' + DB_NOTIFS + '/query', {
+      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}}
     });
     // Filtrer les non lus côté JS
     const nonLus = data.results.filter(n => !n.properties.Lu?.checkbox);
-    await Promise.all(nonLus.map(n =>
-      api('/pages/' + n.id, 'PATCH', {properties:{'Lu':{checkbox:true}}})
-    ));
+    // Écritures par lots séquentiels de 3 (rate-limit Notion ~3 req/s ; le retry
+    // 429 de api() reste le filet). Plus de Promise.all illimité.
+    for(let i = 0; i < nonLus.length; i += 3) {
+      await Promise.all(nonLus.slice(i, i + 3).map(n =>
+        api('/pages/' + n.id, 'PATCH', {properties:{'Lu':{checkbox:true}}})
+      ));
+    }
     loadNotifs();
   } catch(e) {}
+  finally {
+    if(btn) { btn.disabled = false; btn.textContent = oldLabel; }
+  }
 }
 
 function toggleNotifs(force) {
@@ -2914,9 +2944,8 @@ async function postComment(sujetId) {
 async function loadRetoursBadges() {
   if(!currentUser) return;
   try {
-    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
-      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
-      page_size: 100
+    const data = await apiQueryAll('/databases/' + DB_NOTIFS + '/query', {
+      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}}
     });
     const counts = {};
     data.results.forEach(n => {
@@ -4591,7 +4620,7 @@ async function loadIdees() {
   const mc = document.getElementById('main-content');
   mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
   try {
-    const data = await api('/databases/'+DB_IDEES+'/query','POST',{
+    const data = await apiQueryAll('/databases/'+DB_IDEES+'/query',{
       sorts:[{timestamp:'created_time',direction:'descending'}]
     });
     idees = data.results.map(p => {
@@ -4962,14 +4991,13 @@ async function loadTachesPerso() {
   const mc = document.getElementById('main-content');
   mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
   try {
-    const data = await api('/databases/' + DB_TACHES + '/query', 'POST', {
+    const data = await apiQueryAll('/databases/' + DB_TACHES + '/query', {
       filter: {and: [
         {property: 'Archivé', checkbox: {equals: false}},
         {property: 'Assigné', rich_text: {equals: currentUser.nom}},
         {property: 'Sujet lié', rich_text: {is_empty: true}}
       ]},
-      sorts: [{property: 'Date échéance', direction: 'ascending'}],
-      page_size: 100
+      sorts: [{property: 'Date échéance', direction: 'ascending'}]
     });
     taches = data.results.map(parseTache);
     updateBadgeTaches();
@@ -4982,14 +5010,13 @@ async function loadTachesPerso() {
 async function loadTachesBadgeSilent() {
   if (!currentUser) return;
   try {
-    const data = await api('/databases/' + DB_TACHES + '/query', 'POST', {
+    const data = await apiQueryAll('/databases/' + DB_TACHES + '/query', {
       filter: {and: [
         {property: 'Archivé', checkbox: {equals: false}},
         {property: 'Assigné', rich_text: {equals: currentUser.nom}},
         {property: 'Sujet lié', rich_text: {is_empty: true}}
       ]},
-      sorts: [{property: 'Date échéance', direction: 'ascending'}],
-      page_size: 100
+      sorts: [{property: 'Date échéance', direction: 'ascending'}]
     });
     taches = data.results.map(parseTache);
     updateBadgeTaches();
@@ -5200,13 +5227,12 @@ async function loadTachesSujet(sujetId) {
   const countEl = document.getElementById('taches-count-' + sujetId);
   if (!listEl) return;
   try {
-    const data = await api('/databases/' + DB_TACHES + '/query', 'POST', {
+    const data = await apiQueryAll('/databases/' + DB_TACHES + '/query', {
       filter: {and: [
         {property: 'Archivé', checkbox: {equals: false}},
         {property: 'Sujet lié', rich_text: {equals: sujetId}}
       ]},
-      sorts: [{property: 'Date échéance', direction: 'ascending'}],
-      page_size: 100
+      sorts: [{property: 'Date échéance', direction: 'ascending'}]
     });
     const items = data.results.map(parseTache);
     const aFaire = items.filter(t => t.statut === 'À faire').length;
@@ -5308,7 +5334,7 @@ async function renderArchives() {
   if(!sujetsArchives.length) {
     mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
     try {
-      const data = await api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:true}},sorts:[{timestamp:'last_edited_time',direction:'descending'}],page_size:100});
+      const data = await apiQueryAll('/databases/' + DB_PROD + '/query', {filter:{property:'Archivé',checkbox:{equals:true}},sorts:[{timestamp:'last_edited_time',direction:'descending'}]});
       sujetsArchives = data.results.map(parsePage);
     } catch(e) { mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`; return; }
   }
@@ -5537,7 +5563,7 @@ let currentVue = 'cards';
 async function appLoadData() {
   try {
     const [prod, comp, cli] = await Promise.all([
-      api('/databases/' + DB_PROD + '/query', 'POST', {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}],page_size:100}),
+      apiQueryAll('/databases/' + DB_PROD + '/query', {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}]}),
       api('/databases/' + DB_COMP + '/query', 'POST', {}),
       api('/databases/' + DB_CLIENTS_BRAND + '/query', 'POST', {sorts:[{property:'Code',direction:'ascending'}]})
     ]);

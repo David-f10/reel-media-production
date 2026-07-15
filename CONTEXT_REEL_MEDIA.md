@@ -6,6 +6,27 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
+### 2026-07-15 — Fix pagination Notion : helper apiQueryAll (branche `fix-pagination`, par-dessus Dossier)
+1 seul fichier : `index.html` (5812 → **5838 lignes**, +26). `notion.js` INTOUCHÉ (reste proxy passif). Empilé sur main après merge PR #32 (Dossier).
+
+**BUG (diagnostic Master + Pilote + Claude Code)**
+David ne voyait qu'~5 cartes MAG sur 21 (M649-M669). Cause : l'API Notion renvoie max 100 résultats par query. La base a dépassé 100 cartes (68 Desk D1144-D1211 ajoutées le 15/07). Le front ne paginait JAMAIS (0 occurrence has_more/next_cursor/start_cursor dans index.html) : appLoadData faisait 1 seul query page_size:100, tri created_time DESC → les 68 Desk récentes remplissaient les 100 premiers résultats et éjectaient les MAG de mai hors de la fenêtre (jamais chargées, invisibles dans toutes les vues). notion.js relaie bien has_more/next_cursor mais le front les ignorait. Cartes présentes dans Notion, juste non rapatriées.
+
+**LA CORRECTION (index.html uniquement)**
+- Helper `apiQueryAll(endpoint, body)` : enchaîne les pages via start_cursor jusqu'à has_more=false, concatène, renvoie `{results:[...tous]}` (même forme de lecture qu'un query simple → call sites inchangés dans leur lecture .results). Passe par api() donc hérite du retry 429/503 + bandeau Phase A. Garde-fou 50 pages (5000 items) avec console.warn. Chaque page = 1 invocation Netlify distincte → PAS d'enjeu timeout 10s (raison du choix front vs serveur).
+- 8 call sites basculés sur apiQueryAll (page_size retiré du body, filtres/tris inchangés) : appLoadData (DB_PROD actives — le bug), vue Archives (DB_PROD archivées), loadIdees (DB_IDEES), loadTachesPerso + loadTachesBadgeSilent + loadTachesSujet (DB_TACHES), loadRetoursBadges + markAllRead (DB_NOTIFS).
+- markAllRead : écritures par lots SÉQUENTIELS de 3 PATCH (fini le Promise.all illimité, respecte rate-limit Notion ~3 req/s) + feedback bouton "Tout marquer lu" (id mark-all-btn : désactivé + "…" pendant l'op, rétabli en finally).
+- NON touché : filtres notifs inchangés (PAS de Lu=false ajouté — décision David : fix pagination pur, filtrage des lues reste côté JS). Sites hors périmètre gardés en page_size:100/50/20 : loadNotifs (20), queries par sujet (déclinaisons, versions+retours), activité dashboard (50), DB_COMP/DB_CLIENTS_BRAND/DB_EQUIPE (cardinalité < 100).
+
+**VÉRIF PILOTE (OK)**
+node --check + JS inline valide. index.html 5838 lignes. apiQueryAll=10 (déf + console.warn + 8 call sites, tous vérifiés sur les bonnes DB). Aucun Lu=false (les 2 'Lu' sont des écritures PATCH checkbox:true, pas des filtres). markAllRead : lots de 3 confirmés, feedback bouton OK (mark-all-btn=2). 5 page_size restants = helper + 4 sites hors périmètre voulus. Acquis TOUS intacts : createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, validationBrand=16, DB_CLIENTS_BRAND=6, CHEF_PAR_DEFAUT='Benjamin', EQUIPE_FALLBACK=[], + fixes précédents non affectés (telechargerVersion=2, resolveDriveFolder=3, drivefolderPending=5, openDriveFolderSync=5, prefetchDriveFolder=4, isPWAStandalone=3, openPlayerInBrowser=2). cnt-all se corrige seul (lit sujets.length).
+
+**À FAIRE PAR DAVID**
+Monter la branche `fix-pagination` (1 fichier index.html) + ce CONTEXT → PR → tester en preview : les 21 MAG visibles + cnt-all ≥ 168 ; vue Archives complète ; Idées/Tâches inchangées à l'œil ; "Tout marquer lu" avec plusieurs non-lues → bouton "…" quelques secondes puis tout passe lu ; onglet Network : 2 appels DB_PROD au chargement au lieu d'1 (~400ms de plus, masqué par le spinner).
+
+**EN SUSPENS — chantier UX vue Cartes/Liste (PAS ENCORE FAIT)** : avec >150 cartes, la vue devient chargée. David gêné par 3 choses : cartes terminées/PAD qui s'accumulent, trop de cartes actives simultanées, difficulté à retrouver une carte précise. Approche pressentie (à faire en PROPOSITION après ce fix) : masquer les terminées par défaut (bouton "afficher terminées" comme sur les tâches) + s'appuyer sur filtres/regroupements existants (vue Par statut, Par journaliste) + barre de recherche (code/titre). PAS de pagination à pages (mal adaptée à l'usage). À traiter comme un chantier UX distinct.
+
+
 ### 2026-07-15 — Fix bouton « Dossier » : cache 3 états + 3 boutons cohérents (branche `fix-dossier`, par-dessus le merge téléchargement)
 1 seul fichier : `index.html` (5785 → **5812 lignes**, +27). `drive.js` INTOUCHÉ (reste readonly). Empilé sur main après merge PR #31 (téléchargement).
 
