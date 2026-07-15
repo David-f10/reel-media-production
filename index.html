@@ -3069,9 +3069,39 @@ function getDriveFileId(url) {
   return m ? m[1] : '';
 }
 
-function toDlUrl(url) {
-  const id = getDriveFileId(url);
-  return id ? `https://drive.google.com/uc?export=download&id=${id}` : url;
+// Téléchargement direct d'une version Drive via permission éphémère côté serveur.
+// Le lien uc?export=download historique est mort (Google épingle le mauvais compte
+// en multi-compte → 403) : on passe par /.netlify/functions/drive-download qui ouvre,
+// génère le lien public et referme aussitôt. Repli : page Drive /view.
+async function telechargerVersion(fileId, btnEl) {
+  const viewUrl = 'https://drive.google.com/file/d/' + fileId + '/view';
+  // PWA standalone : session isolée (cohérent avec la lecture) → navigateur externe.
+  if(typeof isPWAStandalone === 'function' && isPWAStandalone()) { window.open(viewUrl, '_blank'); return; }
+  const code = localStorage.getItem('rm-code') || '';
+  // Session sans code (ex: vue lecteur ouverte via jeton d'auto-login) : repli page Drive.
+  if(!code || !currentUser) { window.open(viewUrl, '_blank'); return; }
+  const oldLabel = btnEl ? btnEl.textContent : '';
+  if(btnEl) { btnEl.textContent = 'Préparation…'; btnEl.style.pointerEvents = 'none'; }
+  try {
+    const res = await fetch('/.netlify/functions/drive-download', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: currentUser.id, code, fileId})
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    const a = document.createElement('a');
+    a.href = data.downloadUrl;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('Téléchargement lancé');
+  } catch(e) {
+    toast('Téléchargement direct indisponible : ' + e.message, 'err');
+    window.open(viewUrl, '_blank');
+  } finally {
+    if(btnEl) { btnEl.textContent = oldLabel; btnEl.style.pointerEvents = ''; }
+  }
 }
 
 function toEmbedUrl(url, type) {
@@ -3223,7 +3253,7 @@ function openPlayer(url, label, sujetId, version) {
           <button onclick="submitPlayerRetour('${sujetId}','${version}')"
             style="width:100%;background:#E63946;border:none;color:#fff;padding:9px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500;transition:opacity 0.15s;font-family:-apple-system,sans-serif"
             onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer →</button>
-          ${url.includes('drive.google.com') ? `<a href="${toDlUrl(url)}" target="_blank"
+          ${url.includes('drive.google.com') ? `<a href="#" onclick="event.preventDefault();telechargerVersion('${getDriveFileId(url)}', this)"
             style="display:flex;align-items:center;justify-content:center;width:100%;margin-top:6px;background:transparent;border:1px solid #2A2A3A;color:#9898B0;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;font-family:-apple-system,sans-serif;box-sizing:border-box"
             onmouseover="this.style.color='#F0F0F5';this.style.borderColor='#5A5A70'" onmouseout="this.style.color='#9898B0';this.style.borderColor='#2A2A3A'">⬇ Télécharger</a>` : ''}
         </div>

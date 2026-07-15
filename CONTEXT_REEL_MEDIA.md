@@ -1,10 +1,40 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-06-05
+> Dernière mise à jour : 2026-07-15
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-15 — Téléchargement direct des vidéos Drive via permission éphémère (piste B)
+5 fichiers : `netlify/functions/drive-download.js` (NOUVEAU), `netlify/functions/drive-permsweep.js` (NOUVEAU, Scheduled), `netlify/functions/_blobs.js` (ÉTENDU), `index.html` (5755 → **5785 lignes**, +30), `netlify.toml` (ajout schedule). Aucune modif CSS, Notion, login.js. `drive.js` inchangé (reste readonly).
+
+**PROBLÈME**
+Le bouton « Télécharger » d'une version renvoyait un 403 Google. Cause : vidéos Drive « Restreint » + utilisateurs multi-comptes Google → Google épingle le mauvais compte (authuser). Durcissement côté Google, code `toDlUrl` inchangé depuis le 3 juin. La lecture (réglée par PR #30) fonctionnait ; seul le téléchargement restait cassé. Toutes les pistes de lien direct sans proxy sont mortes en multi-compte (403), rendre public en permanent = REFUSÉ (confidentialité clients), Solution A (files.download via SA) = INTERNAL 500 systématique côté Google.
+
+**LA SOLUTION (piste B, validée par spike sur RM_GALLIA_HAPS_SAFETY 140 Mo)**
+Au clic, le serveur (Service Account, scope drive complet) rend le fichier temporairement public, génère un lien de téléchargement public (`drive.usercontent.google.com/download?id=...&export=download&confirm=t`), puis re-privatise immédiatement. Fenêtre publique ≈ quelques centaines de ms (le lien reste valide quelques minutes après révocation, le temps de télécharger). Message antivirus Google sur fichiers >100 Mo = NORMAL (pas une erreur).
+- `drive-download.js` (NOUVEAU) : POST {id, code, fileId} → verifyUser (401 si invalide, JAMAIS ouvert à tous) → pré-contrôle canShare (403 explicite si SA ne peut pas partager) → permissions.create(anyone, reader) → **écriture registre Blobs AVANT toute suite** → downloadUrl → révocation immédiate + sortie du registre. Constante IMMEDIATE_REVOKE=true (repli false si preview montre que le lien ne survit pas à la révocation → c'est alors le sweep qui referme). downloadUrl jamais loggé.
+- `drive-permsweep.js` (NOUVEAU, Scheduled `*/10 * * * *`) : filet de sécurité. Couche 1 = révoque les entrées du registre « drive-open-perms » plus vieilles que TTL 5 min (n'existent que si drive-download a planté avant sa révocation). Couche 2 = rattrapage best-effort via files.list `visibility='anyoneWithLink'`, bornée à 100, ne fait jamais échouer la couche 1. Logs = compteurs uniquement, jamais d'URL ni de nom de fichier.
+- `_blobs.js` (ÉTENDU) : ajout de `getDriveOpenPermsStore()` (store « drive-open-perms »). getPushStore + getAuthTokenStore inchangés.
+- `index.html` : fonction `telechargerVersion(fileId, btnEl)`. PWA standalone → navigateur externe (session isolée, cohérent avec la lecture). Session sans code/user → repli page Drive /view. Sinon → POST drive-download avec {id, code (rm-code), fileId} → déclenche le téléchargement via `<a download>` + toast ; repli /view en cas d'erreur. fileId via getDriveFileId existant.
+- `netlify.toml` : `[functions."drive-permsweep"] schedule = "*/10 * * * *"`.
+
+**VÉRIF PILOTE (OK)**
+node --check sur les 3 fonctions + JS inline index.html (270k chars) valide. index.html 5785 lignes (5755 +30, cohérent). Compteurs préservés : CHEF_PAR_DEFAUT='Benjamin'=1, EQUIPE_FALLBACK=[]=1 (avec garde), createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, showHelpModal=2, showConfirmModal=2, validationBrand=16, DB_CLIENTS_BRAND=6. Sécurité serveur : verifyUser obligatoire AVANT toute action Drive (401 sinon) ; registre écrit AVANT révocation (rattrapage sweep si crash) ; scope `auth/drive` limité aux 2 nouvelles fonctions ; câblage front↔back cohérent (mêmes params id/code/fileId).
+
+**À FAIRE PAR DAVID / OPS**
+- Déployer les 2 fonctions sous leurs noms AVEC TIRETS : `netlify/functions/drive-download.js` et `netlify/functions/drive-permsweep.js` (les uploads sans tiret ne sont qu'une contrainte d'upload ; sinon le front appelle une fonction inexistante et le schedule ne matche rien).
+- MÉNAGE URGENT : supprimer du repo `drivedownloadtest.js` et `drivepermtest.js` (fonctions de test sans sécurité, encore en prod sur main — drivepermtest peut rendre des fichiers publics).
+- Faire partager par **Arnaud** (proprio) le dossier racine de prod Drive avec `reelmedia-drive@reelmedia-prod.iam.gserviceaccount.com` en **ÉDITEUR**. Dernière pièce : sans ça, ne marche que sur les fichiers déjà partagés avec le SA. David n'a pas les droits sur ce dossier.
+- Déployer sur une branche, tester en preview avant merge. Puis nettoyer.
+
+**POINTS D'ATTENTION**
+- Concurrence : 2 téléchargements simultanés du même fichier → la révocation de l'un pourrait couper l'autre (rare). À surveiller à l'usage.
+- Scope drive complet donne au SA le droit de modifier les partages (nécessaire pour piste B) — assumé.
+
+**RESTE EN SUSPENS (autres sujets)** : bouton « Dossier » d'une version ouvre le FICHIER au lieu du DOSSIER PARENT (régression Drive, à reprendre) · écrans noirs de lecture ponctuels selon le compte Google actif (multi-compte, non prioritaire) · Phase B sécurité (expiration session) · Phase C (CORS/rate-limiting) · backup nightly Notion→JSON · rename « Montage V1→Montage ».
+
 
 ### 2026-06-05 — Lecture vidéo Drive en PWA via auto-login par jeton éphémère (branche `journ-monteurs-dynamiques`, empilé sur le fix journalistes)
 index.html 5637 → **5755 lignes**. 4 fichiers : index.html (modifié), netlify/functions/_blobs.js (étendu), auth-token-create.js + auth-token-consume.js (nouveaux). Aucune modif CSS, Notion, ni login.js.
@@ -484,8 +514,16 @@ branche `mobile-polish-v3` (5528 lignes index.html + 2 CSS modifiés)
   (lecteur 45vh haut, panneau 55vh bas)
 - **Vider une date** : bouton × dans .date-wrap. Fonction 
   clearDate(id, field, btnEl).
-- **Bouton Télécharger** : dans openPlayer si URL Drive. Fonction 
-  toDlUrl(url) transforme /view en /uc?export=download.
+- **Bouton Télécharger** : fonction `telechargerVersion(fileId, btnEl)`
+  (depuis 2026-07-15, remplace l'ancien toDlUrl direct devenu 403 en
+  multi-compte). PWA standalone → navigateur externe (/view). Session
+  sans code/user → repli /view. Sinon → POST /.netlify/functions/
+  drive-download {id, code, fileId} qui ouvre une permission anyone
+  éphémère côté SA, renvoie downloadUrl public, referme aussitôt ;
+  déclenchement via <a download>, repli /view si erreur. Filet :
+  drive-permsweep (Scheduled 10 min) referme toute permission restée
+  ouverte. Prérequis ops : dossier prod partagé au SA en Éditeur.
+  (Ancien toDlUrl toujours présent mais plus utilisé pour ce bouton.)
 - **clickNotif** : pas de re-navTo si déjà sur prod (50ms vs 350ms).
 - **#sb-filters** : déplacé hors sidebar, dans .main-area juste après 
   view-tabs. Toggle 1 ligne : `classList.toggle('is-visible', visible)`.

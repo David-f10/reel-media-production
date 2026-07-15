@@ -27,4 +27,16 @@ function getAuthTokenStore() {
   return getStore({ name: 'auth-tokens', siteID, token });
 }
 
-module.exports = { getPushStore, getAuthTokenStore };
+// Registre des permissions Drive "anyone" ouvertes pour le téléchargement direct.
+// Clé = fileId ; valeur = { fileId, permissionId, openedAt } ; entrée retirée après
+// révocation réussie. Le balayeur drive-permsweep révoque toute entrée trop ancienne.
+function getDriveOpenPermsStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (!siteID || !token) {
+    throw new Error('Netlify Blobs non configuré : NETLIFY_SITE_ID et NETLIFY_BLOBS_TOKEN requis');
+  }
+  return getStore({ name: 'drive-open-perms', siteID, token });
+}
+
+module.exports = { getPushStore, getAuthTokenStore, getDriveOpenPermsStore };
