@@ -1,10 +1,43 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-15
+> Dernière mise à jour : 2026-07-16
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-16 — ✅ VALIDÉ EN PROD : téléchargement app + bouton Dossier (partage Arnaud fait)
+Aucune modif de code — note de validation. Arnaud a partagé les dossiers de prod avec le Service Account `reelmedia-drive@reelmedia-prod.iam.gserviceaccount.com` en **CONTRIBUTEUR** (Drive partagé) — ce niveau SUFFIT (pas besoin de Gestionnaire de contenu).
+- TÉLÉCHARGEMENT (piste B) testé OK sur B09Y_PLEINE_MER (490 Mo) : lien `drive.usercontent.google.com/download?...&confirm=t`, plus de blocage authuser= (le fichier est rendu public le temps du DL). L'écran Google « impossible de lancer l'analyse antivirus (fichier trop volumineux) → Télécharger quand même » est NORMAL pour tout fichier >100 Mo (signe de succès, pas une erreur).
+- BOUTON DOSSIER testé OK : ouvre bien le dossier parent (drive/folders/...), plus le fichier.
+- Les erreurs console « Framing/CSP frame-ancestors » et 429 sont du bruit Google (multi-compte/rate-limit), pas des bugs de l'app.
+
+### 2026-07-16 — Chantier 1 : téléchargement client sur review.html (branche `chantier1-review`)
+4 fichiers : `netlify/functions/_drive.js` (NOUVEAU), `netlify/functions/drive-download-review.js` (NOUVEAU), `netlify/functions/drive-download.js` (REFACTORÉ, contrat inchangé), `review.html` (662 → **694 lignes**, +32). index.html et notion.js INTOUCHÉS.
+
+**PROBLÈME**
+Le bouton Télécharger de review.html (page client externe) utilisait encore l'ancien toDlUrl mort → URL authuser= → 403 multi-compte. La piste B n'y avait jamais été portée. Le lecteur interne (index.html/telechargerVersion) marchait déjà.
+
+**LA CORRECTION (chantier 1 d'un plan de 3 ; chantiers 2 et 3 REPORTÉS)**
+- `_drive.js` (helper non exposé) : extrait la mécanique commune piste B (jeton SA, appels Drive, préflight canShare, permission anyone, registre drive-open-perms en write-ahead, lien confirm=t, révocation immédiate). Fonction `openEphemeralDownload(fileId)` utilisée par les 2 portiers. IMMEDIATE_REVOKE vit ici désormais.
+- `drive-download.js` : REFACTORÉ pour déléguer à _drive.js. Contrat + comportement STRICTEMENT identiques (POST, {id,code,fileId}, verifyUser→401, mêmes statuts/réponses). L'app ne voit aucune différence.
+- `drive-download-review.js` (NOUVEAU portier client) : POST {sujetCode, fileId}, PAS de verifyUser (client externe sans compte). Sécurité = cohérence Notion : interroge DB_PROD (Code=sujetCode) en direct via NOTION_TOKEN, re-dérive les fileId depuis Lien V1/V2/V3, refuse (403) tout fileId hors sujet, 404 si sujet introuvable. Ne fait jamais confiance au ?url= client. Réutilise registre + révocation + sweep via le helper. downloadUrl jamais loggé.
+- `review.html` : toDlUrl supprimé, fonction telechargerReview (POST drive-download-review → <a> programmatique → toast), repli page Drive /view en cas d'erreur, feedback bouton « Préparation… ». Parcours client inchangé : 1 clic.
+
+**VÉRIF PILOTE (OK)**
+node --check sur les 3 fonctions + JS inline review.html. drive-download.js : contrat identique confirmé (aucune régression app). _drive.js : write-ahead OK (registre écrit AVANT révocation → sweep rattrape si crash), downloadUrl jamais loggé (1 seul console.warn, sans URL). Portier review : contrôle Notion présent (403 hors sujet, 404 sujet introuvable), bon ID DB_PROD 01a8dc7d..., Notion en direct (pas via proxy), pas de verifyUser (normal). review.html : 0 toDlUrl, bouton câblé sur telechargerReview, repli /view. index.html + notion.js absents du diff.
+
+**À FAIRE PAR DAVID**
+Monter branche `chantier1-review` (4 fichiers, noms à tirets pour les 2 fonctions + _drive.js dans netlify/functions/) + ce CONTEXT → PR → preview. TEST NON-RÉGRESSION PRIORITAIRE : le bouton Télécharger du LECTEUR INTERNE doit marcher exactement comme avant (c'est le refactor drive-download à surveiller). Puis : téléchargement depuis un lien review client (sans 403), même en navigation privée / mauvais compte Google. Puis sécurité portier : fileId d'un autre sujet → 403 ; code bidon → 404. Puis merge.
+
+**REPORTÉ (décision David) — chantiers 2 et 3 de la sécurisation review, à décider plus tard**
+- Chantier 2 : token de review (dégradation douce, anciens liens préservés, TTL ~90j, store Blobs review-tokens) + traçabilité validation (préfixe token dans la notif). Protégerait mieux la page SANS changer le parcours client.
+- Chantier 3 : durcissement fin de notion.js (liste blanche : query/create sur les 13 bases connues, GET/PATCH pages, reste → 403). Le proxy est actuellement OUVERT à tous. LE plus risqué (tuyau central de TOUTE l'app) → déploiement en 2 temps (observation qui logge ce qui serait bloqué → enforcement après logs propres).
+- ⚠️ IMPORTANT : le chantier 1 est NEUTRE côté sécurité — la page review reste non protégée (n'importe qui avec le lien peut lire le sujet, écrire des retours, VALIDER une version, créer des notifs __chef__ ; proxy notion.js ouvert). La vraie protection = chantiers 2+3.
+
+**IDÉE À CREUSER (pas commencée) — séquenciers collaboratifs**
+David envisage un « Google Docs / Notion » dans l'app pour que les journalistes écrivent les séquenciers et Benjamin corrige (avec trace des corrections). Reco Pilote : NE PAS recoder un éditeur collaboratif temps réel (trop lourd, fragile, contre la priorité stabilité) → brancher sur Notion qui fait tout ça nativement (écriture riche, commentaires, historique, multi-utilisateur). Option pressentie : bouton « Ouvrir le séquencier » depuis la carte du sujet → page Notion liée. À cadrer avec Master (produit + Notion). Sujet mis en pause à la demande de David, à reprendre.
+
 
 ### 2026-07-15 — Fix pagination Notion : helper apiQueryAll (branche `fix-pagination`, par-dessus Dossier)
 1 seul fichier : `index.html` (5812 → **5838 lignes**, +26). `notion.js` INTOUCHÉ (reste proxy passif). Empilé sur main après merge PR #32 (Dossier).

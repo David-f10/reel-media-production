@@ -361,12 +361,43 @@ function toEmbedUrl(url) {
   return url;
 }
 
-function toDlUrl(url) {
-  if(url.includes('drive.google.com')) {
-    const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if(m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
+function getDriveFileId(url) {
+  if(!url) return '';
+  let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if(m) return m[1];
+  m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  return m ? m[1] : '';
+}
+
+// Téléchargement direct via permission éphémère (même mécanique que l'app interne).
+// Le serveur vérifie que le fichier appartient bien au sujet (Lien V1/V2/V3).
+// Repli en cas d'erreur : page Drive /view (téléchargement depuis l'interface Drive).
+async function telechargerReview(url, btnEl) {
+  const fileId = getDriveFileId(url);
+  if(!fileId) { if(url) window.open(url, '_blank'); return; }
+  const viewUrl = 'https://drive.google.com/file/d/' + fileId + '/view';
+  const oldLabel = btnEl ? btnEl.textContent : '';
+  if(btnEl) { btnEl.textContent = 'Préparation…'; btnEl.style.pointerEvents = 'none'; }
+  try {
+    const res = await fetch('/.netlify/functions/drive-download-review', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sujetCode, fileId})
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok || !data.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    const a = document.createElement('a');
+    a.href = data.downloadUrl;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('Téléchargement lancé');
+  } catch(e) {
+    toast('Téléchargement indisponible — ouverture de Drive');
+    window.open(viewUrl, '_blank');
+  } finally {
+    if(btnEl) { btnEl.textContent = oldLabel; btnEl.style.pointerEvents = ''; }
   }
-  return url;
 }
 
 async function identifier() {
@@ -437,9 +468,10 @@ function chargerPlayer(version) {
   } else {
     wrap.innerHTML = `<div class="player-placeholder"><span style="font-size:32px">🔗</span><a href="${url}" target="_blank" style="color:var(--red)">Ouvrir dans un nouvel onglet →</a></div>`;
   }
-  // Bouton téléchargement
+  // Bouton téléchargement (permission éphémère côté serveur, plus de lien uc mort)
   const dlBtn = document.getElementById('btn-dl');
-  dlBtn.href = toDlUrl(url);
+  dlBtn.href = '#';
+  dlBtn.onclick = (e) => { e.preventDefault(); telechargerReview(url, dlBtn); };
   dlBtn.style.display = url.includes('drive.google.com') ? 'flex' : 'none';
 }
 
