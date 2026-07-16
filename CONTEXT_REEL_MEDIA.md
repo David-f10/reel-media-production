@@ -1,10 +1,33 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-16
+> Dernière mise à jour : 2026-07-16 (UX cartes + sidebar)
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-16 — UX vue Cartes compactes + catégories sidebar (branche `ux-cartes-sidebar`)
+3 fichiers : `index.html` (5849 → **5881 lignes**, +32), `css/components.css` (+24), `css/layout.css` (+8). Aucune fonction serveur, aucune autre vue touchée. (S7+S8 + 2 ajustements colonnes/badge intégrés dans la même branche.)
+
+**S7 — CARTES COMPACTES (vue Cartes)**
+Les cartes de la vue Cartes étaient trop grandes (~140px, ~5 par écran). Rendues compactes (~78px, ~10-12 par écran) en gardant TOUTES les infos (code, format, corbeille, titre, journaliste, statut, dates, barre progression, badge retours). Réorganisation : journaliste + statut sur une seule ligne (statut prioritaire, nom tronqué en ellipsis si besoin).
+- Scoping SÛR : modificateur `card--c` appliqué UNIQUEMENT aux 2 gabarits de la vue Cartes (cardHTML + cardHTMLHighlight). La classe `.card` standard N'EST PAS modifiée → vue Idées (qui utilise .card seul) intacte.
+- Corbeille : `@media (hover:hover) and (pointer:fine)` → discrète au survol sur desktop, TOUJOURS visible en tactile.
+
+**S8 — CATÉGORIES DANS LA SIDEBAR**
+Ajout sous "Production" de sous-entrées cliquables (#sb-cats) : MAG, Brand, Face Cam, Desk, YouTube (formats réellement présents), avec pastille couleur (FMT_COLORS) + compteur. renderSidebarCats calcule les compteurs côté client depuis `sujets` (zéro appel réseau). sbCatClick → appFilter('f', fmt, pill) via data-fmt sur les pilules → MÊME chemin qu'un clic pilule (cohérence pilules↔sidebar dans les 2 sens : renderSidebarCats rappelé dans appFilter + appLoadData + appRender). Desktop-only (sidebar masquée en mobile ; les pilules restent le chemin mobile). Vérifié : ces catégories n'existaient PAS dans la sidebar avant (ce qui ressemblait à ça = les pilules de filtre).
+
+**AJUSTEMENTS (même branche, empilés sur S7+S8)**
+- Colonnes vue Cartes adaptatives : `.cards--c` = repeat(auto-fill, minmax(300px,1fr)) scopé à la vue Cartes (les 3 conteneurs cardHTML/cardHTMLHighlight) → ~5 colonnes grand écran, 4 laptop, 1 mobile (override `@media max-width:700px`). `.cards` historique (minmax 270px) intacte → Idées non affectées.
+- Badge notif déplacé : avant sur une ligne EN BAS (rallongeait la carte → toute la rangée de la grille prenait cette hauteur). Maintenant CHIFFRE SEUL (`🔔 N`) à côté du code EN HAUT, dans les 2 gabarits à l'identique, ancien bloc bas supprimé → toutes les cartes même hauteur avec/sans notif. Badge visible aussi en recherche active.
+
+**ABANDONNÉ (décision David)** : S3 sections repliables par statut dans la vue Cartes → redondant avec les filtres/pilules existants et la vue Par statut. Testé en maquette, écarté.
+**REPORTÉ** : S1 (masquer PAD par défaut), S2 (colonnes Kanban plafonnées pour le déséquilibre de la vue Par statut), S6 (archivage assisté des PAD de +30j — touche aux DONNÉES Notion → chantier séparé prudent, confirmation + lots séquentiels). Cause racine du volume : les sujets livrés (PAD) ne sortent jamais des vues tant que "Archivé" n'est pas coché à la main.
+
+**VÉRIF PILOTE (OK)** : node --check. card--c=2 (les 2 gabarits), .card standard intacte (Idées OK), corbeille @media hover, S8 branché sur appFilter + compteurs depuis sujets + synchro 2 sens, data-fmt=8. Compteurs préservés : createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, validationBrand=16, DB_CLIENTS_BRAND=6, apiQueryAll=10, telechargerVersion=2, resolveDriveFolder=3, isPWAStandalone=3, openDriveFolderSync=5, CHEF_PAR_DEFAUT='Benjamin', EQUIPE_FALLBACK=[]. Autres vues (kanban, dashboard, liste, calendrier, Idées, Archives) non touchées.
+
+**À FAIRE DAVID** : branche `ux-cartes-sidebar` (index.html + css/components.css + css/layout.css) → PR → preview : vue Cartes compacte (10-12 cartes visibles, corbeille au survol desktop + visible tactile, toutes infos présentes) ; sidebar avec catégories + compteurs, clic = filtre (synchro avec les pilules) ; VÉRIFIER VUE IDÉES NON CASSÉE (seul risque : partage classe .card) ; autres vues inchangées. Merge.
+
 
 ### 2026-07-16 — Téléchargement en nouvel onglet réutilisé (branche `dl-nouvel-onglet`)
 2 fichiers : `index.html` (5838 → **5849 lignes**, +11), `review.html` (694 → **705 lignes**, +11). Fonctions serveur, notion.js, bouton Dossier INTOUCHÉS.
