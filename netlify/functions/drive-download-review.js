@@ -1,13 +1,20 @@
 // netlify/functions/drive-download-review.js
 // Téléchargement direct depuis la page review.html (client externe, SANS compte app).
 // Portier REVIEW : pas de verifyUser — la sécurité repose sur la cohérence Notion :
-// le serveur RE-DÉRIVE lui-même les fileId depuis les propriétés Lien V1/V2/V3 du
-// sujet portant le code fourni. Un fileId hors de cette liste → 403. On ne fait
-// jamais confiance au ?url= de la page.
+// le serveur RE-DÉRIVE lui-même les fileId autorisés depuis l'UNION des deux
+// systèmes de stockage des versions, et refuse tout fileId hors de cette liste.
+// On ne fait jamais confiance au ?url= de la page.
+//
+//   Source A : propriétés Lien V1/V2/V3 (url) du sujet (base 🎬 Suivi de Production)
+//              — alimentées par la vue tableau de production.
+//   Source B : pages de la base 📹 Versions dont Sujet ID = l'id de page du sujet,
+//              Titre (title) = l'URL Drive — alimentées par la fiche détail.
+//              Versions Annulées INCLUSES (un client peut retélécharger une
+//              version qu'on lui a déjà montrée) : pas de filtre Statut.
 //
 // POST { sujetCode, fileId }
 //   → 404 si aucun sujet ne porte ce code
-//   → 403 si le fileId ne correspond à aucun Lien V1/V2/V3 du sujet
+//   → 403 si le fileId n'apparaît NI en source A NI en source B
 //   → sinon mécanique piste B via _drive.js (registre + révocation immédiate +
 //     rattrapage drive-permsweep, identiques au portier app)
 //   → { ok:true, downloadUrl, revoked, file } — le downloadUrl n'est JAMAIS loggé.
@@ -18,31 +25,58 @@
 const { openEphemeralDownload, extractFileId } = require('./_drive');
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
+const DB_VERSIONS = '3793eebb-2aeb-4d49-84ae-06d79cfb2704';
 
-// Renvoie la liste des fileId des Lien V1/V2/V3 du sujet, ou null si sujet introuvable.
-async function fileIdsDuSujet(sujetCode) {
+// Helper interne : POST /databases/{id}/query avec NOTION_TOKEN.
+async function notionQuery(databaseId, body) {
   const token = process.env.NOTION_TOKEN;
   if (!token) throw new Error('NOTION_TOKEN manquant');
-  const res = await fetch(`https://api.notion.com/v1/databases/${DB_PROD}/query`, {
+  const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Notion-Version': '2022-06-28',
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      filter: { property: 'Code', rich_text: { equals: sujetCode } },
-      page_size: 5
-    })
+    body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error('Notion query: HTTP ' + res.status);
-  const data = await res.json();
+  return res.json();
+}
+
+// fileIds autorisés = UNION source A ∪ source B. Renvoie null si sujet introuvable.
+async function fileIdsDuSujet(sujetCode) {
+  // ── Source A : le sujet (fournit aussi son id de page pour la source B) ──
+  const data = await notionQuery(DB_PROD, {
+    filter: { property: 'Code', rich_text: { equals: sujetCode } },
+    page_size: 5
+  });
   const page = data.results && data.results[0];
   if (!page) return null;
   const pr = page.properties;
-  return ['Lien V1', 'Lien V2', 'Lien V3']
+  const ids = ['Lien V1', 'Lien V2', 'Lien V3']
     .map(k => extractFileId(pr[k]?.url || ''))
     .filter(Boolean);
+
+  // ── Source B : pages 📹 Versions liées au sujet (Annulées incluses) ──
+  // Pagination triviale bornée (5 × 100 versions — jamais atteint en pratique).
+  let cursor = null, pages = 0;
+  do {
+    const body = { filter: { property: 'Sujet ID', rich_text: { equals: page.id } }, page_size: 100 };
+    if (cursor) body.start_cursor = cursor;
+    const vData = await notionQuery(DB_VERSIONS, body);
+    for (const v of vData.results || []) {
+      // Titre est une propriété title : concaténer TOUS les fragments plain_text
+      // (Notion peut découper une URL longue en plusieurs fragments).
+      const titre = (v.properties?.Titre?.title || []).map(t => t.plain_text || '').join('');
+      const fid = extractFileId(titre);
+      if (fid) ids.push(fid);
+    }
+    cursor = vData.has_more ? vData.next_cursor : null;
+    pages++;
+  } while (cursor && pages < 5);
+
+  return ids;
 }
 
 exports.handler = async (event) => {
@@ -67,7 +101,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants (sujetCode, fileId)' }) };
   }
 
-  // ── Contrôle de cohérence Notion : le fileId doit appartenir au sujet ──
+  // ── Contrôle de cohérence Notion : le fileId doit appartenir au sujet (A ∪ B) ──
   let ids;
   try { ids = await fileIdsDuSujet(sujetCode); }
   catch (e) {
