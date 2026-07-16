@@ -7,7 +7,7 @@
 ═══════════════════════════════════════════════════════════════
 
 ### 2026-07-16 — UX vue Cartes compactes + catégories sidebar (branche `ux-cartes-sidebar`)
-3 fichiers : `index.html` (5849 → **5876 lignes**, +27), `css/components.css` (+17), `css/layout.css` (+8). Aucune fonction serveur, aucune autre vue touchée.
+3 fichiers : `index.html` (5849 → **5881 lignes**, +32), `css/components.css` (+24), `css/layout.css` (+8). Aucune fonction serveur, aucune autre vue touchée. (S7+S8 + 2 ajustements colonnes/badge intégrés dans la même branche.)
 
 **S7 — CARTES COMPACTES (vue Cartes)**
 Les cartes de la vue Cartes étaient trop grandes (~140px, ~5 par écran). Rendues compactes (~78px, ~10-12 par écran) en gardant TOUTES les infos (code, format, corbeille, titre, journaliste, statut, dates, barre progression, badge retours). Réorganisation : journaliste + statut sur une seule ligne (statut prioritaire, nom tronqué en ellipsis si besoin).
@@ -16,6 +16,10 @@ Les cartes de la vue Cartes étaient trop grandes (~140px, ~5 par écran). Rendu
 
 **S8 — CATÉGORIES DANS LA SIDEBAR**
 Ajout sous "Production" de sous-entrées cliquables (#sb-cats) : MAG, Brand, Face Cam, Desk, YouTube (formats réellement présents), avec pastille couleur (FMT_COLORS) + compteur. renderSidebarCats calcule les compteurs côté client depuis `sujets` (zéro appel réseau). sbCatClick → appFilter('f', fmt, pill) via data-fmt sur les pilules → MÊME chemin qu'un clic pilule (cohérence pilules↔sidebar dans les 2 sens : renderSidebarCats rappelé dans appFilter + appLoadData + appRender). Desktop-only (sidebar masquée en mobile ; les pilules restent le chemin mobile). Vérifié : ces catégories n'existaient PAS dans la sidebar avant (ce qui ressemblait à ça = les pilules de filtre).
+
+**AJUSTEMENTS (même branche, empilés sur S7+S8)**
+- Colonnes vue Cartes adaptatives : `.cards--c` = repeat(auto-fill, minmax(300px,1fr)) scopé à la vue Cartes (les 3 conteneurs cardHTML/cardHTMLHighlight) → ~5 colonnes grand écran, 4 laptop, 1 mobile (override `@media max-width:700px`). `.cards` historique (minmax 270px) intacte → Idées non affectées.
+- Badge notif déplacé : avant sur une ligne EN BAS (rallongeait la carte → toute la rangée de la grille prenait cette hauteur). Maintenant CHIFFRE SEUL (`🔔 N`) à côté du code EN HAUT, dans les 2 gabarits à l'identique, ancien bloc bas supprimé → toutes les cartes même hauteur avec/sans notif. Badge visible aussi en recherche active.
 
 **ABANDONNÉ (décision David)** : S3 sections repliables par statut dans la vue Cartes → redondant avec les filtres/pilules existants et la vue Par statut. Testé en maquette, écarté.
 **REPORTÉ** : S1 (masquer PAD par défaut), S2 (colonnes Kanban plafonnées pour le déséquilibre de la vue Par statut), S6 (archivage assisté des PAD de +30j — touche aux DONNÉES Notion → chantier séparé prudent, confirmation + lots séquentiels). Cause racine du volume : les sujets livrés (PAD) ne sortent jamais des vues tant que "Archivé" n'est pas coché à la main.

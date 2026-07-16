@@ -701,7 +701,7 @@ function renderCards(){
   if(curFilter.t==='s'&&curFilter.v)list=list.filter(s=>s.statut===curFilter.v);
   if(curFilter.t==='f'&&curFilter.v)list=list.filter(s=>s.format===curFilter.v);
   if(!list.length){document.getElementById('cards-wrap').innerHTML='<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';return;}
-  document.getElementById('cards-wrap').innerHTML='<div class="cards">'+list.map(cardHTML).join('')+'</div>';
+  document.getElementById('cards-wrap').innerHTML='<div class="cards cards--c">'+list.map(cardHTML).join('')+'</div>';
 }
 
 function cardHTML(s){
@@ -712,7 +712,10 @@ function cardHTML(s){
   const priCol=s.priorite.includes('Haute')?'var(--red)':s.priorite.includes('Normale')?'var(--amber)':s.priorite.includes('Basse')?'var(--green)':'';
   return`<div class="card card--c" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
-      <span class="card-code">${s.code||'—'}</span>
+      <span style="display:flex;align-items:center;gap:5px">
+        <span class="card-code">${s.code||'—'}</span>
+        ${s.retoursOuverts>0?`<span style="font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span>`:''}
+      </span>
       <div style="display:flex;align-items:center;gap:4px">
         <span class="card-fmt" style="color:${col}">${s.format||'—'}${s.sousFormat?(' · '+(s.sousFormat==='Décli'?'Décli '+(s.declinaisonNum||'?'):s.sousFormat)):''}</span>
         <button class="card-del" onclick="event.stopPropagation();deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" title="Supprimer">🗑</button>
@@ -721,7 +724,6 @@ function cardHTML(s){
     <div class="card-title" title="${s.titre.replace(/"/g,'&quot;')}">${s.titre}</div>
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${s.journaliste||'Non attribué'}${s.chef?` · ${s.chef}`:''}</span><span style="flex:1"></span><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
     <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
-    ${s.retoursOuverts>0?`<div style="display:flex;justify-content:flex-end;margin-top:4px"><span style="font-size:10px;background:var(--red);color:#fff;padding:2px 8px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span></div>`:''}
   </div>`;
 }
 
@@ -5805,9 +5807,9 @@ function renderCards() {
   }
   // Highlight dans les cartes si recherche active
   if(searchQuery) {
-    cw.innerHTML = '<div class="cards">' + list.map(s => cardHTMLHighlight(s, searchQuery)).join('') + '</div>';
+    cw.innerHTML = '<div class="cards cards--c">' + list.map(s => cardHTMLHighlight(s, searchQuery)).join('') + '</div>';
   } else {
-    cw.innerHTML = '<div class="cards">' + list.map(cardHTML).join('') + '</div>';
+    cw.innerHTML = '<div class="cards cards--c">' + list.map(cardHTML).join('') + '</div>';
   }
 }
 
@@ -5819,7 +5821,10 @@ function cardHTMLHighlight(s, q) {
   const priCol=s.priorite.includes('Haute')?'var(--red)':s.priorite.includes('Normale')?'var(--amber)':s.priorite.includes('Basse')?'var(--green)':'';
   return`<div class="card card--c" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
-      <span class="card-code">${highlightText(s.code||'—',q)}</span>
+      <span style="display:flex;align-items:center;gap:5px">
+        <span class="card-code">${highlightText(s.code||'—',q)}</span>
+        ${s.retoursOuverts>0?`<span style="font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span>`:''}
+      </span>
       <div style="display:flex;align-items:center;gap:6px">
         <span class="card-fmt" style="color:${col}">${s.format||'—'}</span>
         ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
