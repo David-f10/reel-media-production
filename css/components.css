@@ -162,3 +162,20 @@
 .date-wrap input[type=date]{flex:1;padding-right:30px}
 .date-wrap .date-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:4px}
 .date-wrap .date-clear:hover{background:var(--bg4);color:var(--text)}
+
+/* ── Carte compacte (vue Cartes uniquement — la vue Idées garde .card standard) ── */
+.card--c{padding:8px 10px}
+.card--c .card-hdr{margin-bottom:4px}
+.card--c .card-title{font-size:12px;margin-bottom:5px}
+.card--c .card-meta{margin-bottom:5px;gap:5px;min-width:0}
+.card--c .card-j{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card--c .stxt{font-size:10.5px;white-space:nowrap}
+.card--c .av{width:15px;height:15px;font-size:8px}
+.card--c .prog{height:1.5px}
+.card-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0;line-height:1}
+/* Corbeille : discrète au survol sur desktop, TOUJOURS visible en tactile
+   (hover:hover + pointer:fine = appareils à souris uniquement) */
+@media (hover:hover) and (pointer:fine){
+  .card--c .card-del{opacity:0;transition:opacity 0.12s}
+  .card--c:hover .card-del{opacity:1}
+}

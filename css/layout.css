@@ -245,3 +245,11 @@ nav{
 /* PWA — safe-area iOS standalone (status-bar black-translucent).
    En navigateur classique, env(safe-area-inset-top) vaut 0 : rendu inchangé. */
 .topnav{padding-top:env(safe-area-inset-top);height:calc(52px + env(safe-area-inset-top))}
+
+/* ── Catégories sidebar (sous Production, desktop — la sidebar est masquée en mobile) ── */
+#sb-cats{display:flex;flex-direction:column;padding:0 0 4px}
+.sb-cat{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;color:var(--text2);font-size:11px;font-family:var(--font);padding:4px 16px 4px 38px;cursor:pointer;border-radius:var(--r);transition:background 0.12s}
+.sb-cat:hover{background:var(--bg3)}
+.sb-cat.active{background:var(--bg3);color:var(--text)}
+.sb-cat .sb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sb-cat .sb-badge{font-family:var(--mono);font-size:10px;background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3)}
