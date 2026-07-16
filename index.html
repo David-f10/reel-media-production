@@ -3135,6 +3135,10 @@ async function telechargerVersion(fileId, btnEl) {
   if(!code || !currentUser) { window.open(viewUrl, '_blank'); return; }
   const oldLabel = btnEl ? btnEl.textContent : '';
   if(btnEl) { btnEl.textContent = 'Préparation…'; btnEl.style.pointerEvents = 'none'; }
+  // Onglet nommé ouvert AU CLIC (geste utilisateur → pas bloqué par l'anti-popup),
+  // rempli après le POST. La page courante (carte + vidéo) reste intacte, et les
+  // téléchargements successifs réutilisent le même onglet 'rm-download'.
+  const win = window.open('', 'rm-download');
   try {
     const res = await fetch('/.netlify/functions/drive-download', {
       method: 'POST',
@@ -3143,15 +3147,22 @@ async function telechargerVersion(fileId, btnEl) {
     });
     const data = await res.json().catch(() => ({}));
     if(!res.ok || !data.ok) throw new Error(data.error || 'HTTP ' + res.status);
-    const a = document.createElement('a');
-    a.href = data.downloadUrl;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    if(win && !win.closed) win.location = data.downloadUrl;
+    else {
+      // Secours si l'utilisateur a fermé l'onglet pendant la préparation.
+      const a = document.createElement('a');
+      a.href = data.downloadUrl;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
     toast('Téléchargement lancé');
   } catch(e) {
     toast('Téléchargement direct indisponible : ' + e.message, 'err');
-    window.open(viewUrl, '_blank');
+    // Repli page Drive : réutilise l'onglet déjà ouvert (pas de 2e fenêtre).
+    if(win && !win.closed) win.location = viewUrl;
+    else window.open(viewUrl, '_blank');
   } finally {
     if(btnEl) { btnEl.textContent = oldLabel; btnEl.style.pointerEvents = ''; }
   }
