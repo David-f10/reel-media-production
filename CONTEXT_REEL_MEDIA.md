@@ -6,13 +6,32 @@
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
+### 2026-07-16 — Téléchargement en nouvel onglet réutilisé (branche `dl-nouvel-onglet`)
+2 fichiers : `index.html` (5838 → **5849 lignes**, +11), `review.html` (694 → **705 lignes**, +11). Fonctions serveur, notion.js, bouton Dossier INTOUCHÉS.
+
+**PROBLÈME**
+Au clic sur Télécharger (les DEUX pages : lecteur interne + review client), le lien se déclenchait dans la MÊME fenêtre. Sur les gros fichiers (>100 Mo, toujours le cas ici : vidéos 100-500 Mo), Google impose son écran interstitiel « Télécharger quand même » (drive.usercontent.google.com) qui REMPLAÇAIT la page → au retour, la carte + la vidéo étaient perdues, l'app devait se recharger entièrement.
+
+**PISTES EXPLORÉES (panorama Claude Code) — pourquoi le nouvel onglet**
+Impossible de supprimer l'interstitiel Google de façon fiable/sûre : l'afficher dans une iframe de l'app = bloqué (CSP frame-ancestors Google) ; `<a download>` cross-origin = ignoré ; fetch+blob sur usercontent = bloqué CORS ; params confirm/uuid = fragile non documenté. La SEULE porte « zéro interstitiel » = API Drive alt=media via jeton SA (fetch→blob), mais : blob 500 Mo risqué sur mobile + le jeton SA donne accès en lecture à TOUT ce que voit le SA → INUTILISABLE côté client externe (un client lirait les vidéos des autres). Réservé à l'app interne, en réserve pour plus tard si l'interstitiel agace vraiment. Proxy streaming Netlify = exclu (500 Mo × équipe = dépassement bande passante + coût). Donc PISTE 1 retenue = nouvel onglet.
+
+**LA CORRECTION**
+Patron anti-popup (même que le bouton Dossier) sur telechargerVersion (index.html) ET telechargerReview (review.html) : `const win = window.open('', 'rm-download')` ouvert AU CLIC (avant le fetch → pas bloqué par l'anti-popup), rempli après le POST (`win.location = downloadUrl`). L'onglet NOMMÉ 'rm-download' est RÉUTILISÉ pour les téléchargements successifs (pas d'empilement). Secours `<a target="_blank">` si l'utilisateur a fermé l'onglet pendant « Préparation… ». Repli erreur : réutilise l'onglet (`win.location = viewUrl`). La page courante (carte + vidéo / vidéo + retours) reste intacte ; l'interstitiel Google vit dans l'onglet séparé.
+
+**VÉRIF PILOTE (OK)**
+node --check les 2 pages. Patron rm-download au clic confirmé sur les 2 fonctions (rm-download=2 par fichier). Cas PWA intact (garde isPWAStandalone AVANT l'ouverture de l'onglet → aucun onglet fantôme). Repli /view réutilise l'onglet. Compteurs TOUS préservés : telechargerVersion=2, isPWAStandalone=3, openPlayerInBrowser=2, resolveDriveFolder=3, openDriveFolderSync=5, drivefolderPending=5, prefetchDriveFolder=4, createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, validationBrand=16, DB_CLIENTS_BRAND=6, apiQueryAll=10, CHEF_PAR_DEFAUT='Benjamin', EQUIPE_FALLBACK=[]. Seuls index.html + review.html modifiés.
+
+**EN RÉSERVE (décision plus tard)** : piste 3-API (fetch alt=media via jeton SA éphémère, barre de progression, garde-fou taille/mobile) pour « zéro interstitiel » CÔTÉ APP INTERNE UNIQUEMENT (jamais côté client externe pour raison de sécurité). À décider sur retour d'usage réel.
+
 ### 2026-07-16 — ✅ VALIDÉ EN PROD : téléchargement app + bouton Dossier (partage Arnaud fait)
 Aucune modif de code — note de validation. Arnaud a partagé les dossiers de prod avec le Service Account `reelmedia-drive@reelmedia-prod.iam.gserviceaccount.com` en **CONTRIBUTEUR** (Drive partagé) — ce niveau SUFFIT (pas besoin de Gestionnaire de contenu).
 - TÉLÉCHARGEMENT (piste B) testé OK sur B09Y_PLEINE_MER (490 Mo) : lien `drive.usercontent.google.com/download?...&confirm=t`, plus de blocage authuser= (le fichier est rendu public le temps du DL). L'écran Google « impossible de lancer l'analyse antivirus (fichier trop volumineux) → Télécharger quand même » est NORMAL pour tout fichier >100 Mo (signe de succès, pas une erreur).
 - BOUTON DOSSIER testé OK : ouvre bien le dossier parent (drive/folders/...), plus le fichier.
 - Les erreurs console « Framing/CSP frame-ancestors » et 429 sont du bruit Google (multi-compte/rate-limit), pas des bugs de l'app.
 
-### 2026-07-16 — Chantier 1 : téléchargement client sur review.html (branche `chantier1-review`)
+### 2026-07-16 — Chantier 1 : téléchargement client sur review.html (branche `chantier1-review`, mergé PR #34)
+> NOTE : le portier a d'abord renvoyé 403 en test (il ne vérifiait l'appartenance du fileId que dans Lien V1/V2/V3 du sujet = système A, alors que les vidéos vivent dans la base 📹 Versions = système B). CORRIGÉ avant merge : drive-download-review.js vérifie désormais l'UNION des 2 sources (Lien V1/V2/V3 du sujet ∪ Titre des pages 📹 Versions dont Sujet ID = id du sujet, versions Annulées incluses). DB_VERSIONS='3793eebb-2aeb-4d49-84ae-06d79cfb2704'. Testé OK sur B09Y. 2 requêtes Notion par téléchargement.
+
 4 fichiers : `netlify/functions/_drive.js` (NOUVEAU), `netlify/functions/drive-download-review.js` (NOUVEAU), `netlify/functions/drive-download.js` (REFACTORÉ, contrat inchangé), `review.html` (662 → **694 lignes**, +32). index.html et notion.js INTOUCHÉS.
 
 **PROBLÈME**
