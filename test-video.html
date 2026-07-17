@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spike vidéo — test lecture/seek</title>
+<style>
+  body { margin: 0; padding: 20px; background: #08080F; color: #F0F0F5; font-family: -apple-system, sans-serif; }
+  h1 { font-size: 15px; }
+  .row { display: flex; gap: 8px; margin: 14px 0; }
+  input { flex: 1; padding: 9px 10px; background: #16161F; border: 1px solid #2A2A3A; color: #F0F0F5; border-radius: 6px; font-size: 12px; }
+  button { padding: 9px 16px; background: #E63946; border: none; color: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  video { width: 100%; max-height: 62vh; background: #000; border-radius: 8px; }
+  #stats { font-family: ui-monospace, monospace; font-size: 12px; color: #9898B0; margin-top: 10px; line-height: 1.7; }
+  .ok { color: #1D9E75; } .err { color: #E63946; }
+</style>
+</head>
+<body>
+<h1>🎬 Spike vidéo — lecture + seek via URL usercontent</h1>
+<p style="font-size:12px;color:#9898B0">Coller le <code>streamUrl</code> renvoyé par videospiketest, puis Charger.
+Vérifier : démarrage, seek avant/arrière (y compris saut vers la fin), pause/reprise.</p>
+<div class="row">
+  <input id="src" type="text" placeholder="https://drive.usercontent.google.com/download?id=...&export=download&confirm=t">
+  <button onclick="charger()">Charger</button>
+</div>
+<video id="v" controls playsinline preload="metadata"></video>
+<div id="stats">En attente d'une URL…</div>
+
+<script>
+const v = document.getElementById('v');
+const stats = document.getElementById('stats');
+let t0 = 0;
+
+function fmt(s) {
+  if(!isFinite(s)) return '—';
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+function charger() {
+  const url = document.getElementById('src').value.trim();
+  if(!url) return;
+  t0 = performance.now();
+  stats.innerHTML = 'Chargement…';
+  v.src = url;
+  v.play().catch(() => {}); // l'autoplay peut être refusé : lecture manuelle OK
+}
+
+v.addEventListener('loadedmetadata', () => {
+  const ms = Math.round(performance.now() - t0);
+  stats.innerHTML = '<span class="ok">✔ Métadonnées en ' + ms + ' ms</span> · durée ' + fmt(v.duration) +
+    (v.seekable.length ? ' · seekable 0 → ' + fmt(v.seekable.end(v.seekable.length - 1)) : ' · <span class="err">seekable VIDE</span>');
+});
+v.addEventListener('canplay', () => { stats.innerHTML += '<br><span class="ok">✔ canplay</span>'; });
+v.addEventListener('timeupdate', () => {
+  const line = 'position ' + fmt(v.currentTime) + ' / ' + fmt(v.duration);
+  const old = stats.innerHTML.split('<br>position')[0];
+  stats.innerHTML = old + '<br>position ' + line.slice(9);
+});
+v.addEventListener('seeking', () => { stats.innerHTML += '<br>… seek vers ' + fmt(v.currentTime); });
+v.addEventListener('seeked', () => { stats.innerHTML += ' <span class="ok">✔ seeked</span>'; });
+v.addEventListener('error', () => {
+  const codes = {1:'ABORTED',2:'NETWORK',3:'DECODE',4:'SRC_NOT_SUPPORTED'};
+  stats.innerHTML += '<br><span class="err">✖ Erreur ' + (codes[v.error && v.error.code] || '?') +
+    '</span> (permission fermée ? URL invalide ? format non supporté ?)';
+});
+</script>
+</body>
+</html>
