@@ -224,6 +224,9 @@
     <div id="search-count" style="display:none;padding:4px 24px;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0"></div>
     <!-- Bandeau rafraîchissement : visible uniquement si changement détecté PENDANT une édition -->
     <div id="refresh-banner" onclick="appliquerFresh(_freshEnAttente)" style="display:none;padding:5px 24px;font-size:11px;color:var(--text);background:var(--bg3);border-bottom:1px solid var(--border);cursor:pointer;flex-shrink:0;text-align:center">🔄 Des modifications ont été faites par l'équipe — <strong>Actualiser</strong></div>
+    <!-- Bandeau version : une nouvelle version de l'APP est en prod (≠ bandeau données ci-dessus).
+         Passif : rien ne se passe sans clic volontaire. Reste affiché jusqu'au reload. -->
+    <div id="version-banner" onclick="location.reload()" style="display:none;padding:5px 24px;font-size:11px;color:#fff;background:var(--red);cursor:pointer;flex-shrink:0;text-align:center">🚀 Nouvelle version de l'app disponible — <strong>Recharger</strong></div>
     <!-- Contenu -->
     <div class="main-content" id="main-content">
       <div class="loading"><div class="spin"></div></div>
@@ -2804,8 +2807,31 @@ function empreinte(list) {
 function showRefreshBanner() { const b = document.getElementById('refresh-banner'); if(b) b.style.display = 'block'; }
 function hideRefreshBanner() { const b = document.getElementById('refresh-banner'); if(b) b.style.display = 'none'; }
 
+// ── Contrôle de version de l'app (ETag d'index.html — aucun fichier ni constante à
+//    maintenir, et le HEAD contourne le service worker par construction : il n'intercepte
+//    que les GET). Bandeau passif : reload uniquement au clic volontaire. ──
+let _appEtag = null;      // baseline : l'ETag de la version qui tourne
+let _lastVerCheck = 0;
+
+async function checkAppVersion() {
+  const now = Date.now();
+  if(now - _lastVerCheck < 5 * 60 * 1000) return;  // au plus 1 contrôle / 5 min
+  _lastVerCheck = now;
+  try {
+    const res = await fetch('/index.html', {method: 'HEAD', cache: 'no-store'});
+    const etag = res.headers.get('etag');
+    if(!etag) return;                                  // pas d'ETag → contrôle impossible, silencieux
+    if(_appEtag === null) { _appEtag = etag; return; } // 1er passage = baseline
+    if(etag !== _appEtag) {
+      const b = document.getElementById('version-banner');
+      if(b) b.style.display = 'block';
+    }
+  } catch(e) { /* silencieux : réessai au prochain passage */ }
+}
+
 async function autoRefreshTick() {
   if(document.hidden || _autoRefreshBusy || !currentUser) return;
+  checkAppVersion(); // contrôle version app (fire-and-forget, throttlé 5 min en interne)
   _autoRefreshBusy = true;
   try {
     const prod = await apiQueryAll('/databases/' + DB_PROD + '/query',
@@ -2858,6 +2884,8 @@ function showApp() {
   document.getElementById('user-name').textContent = currentUser.nom;
   // Demander permission notifs + s'abonner au push (best-effort, ne bloque pas le chargement)
   requestNotifPermission().then(granted => { if(granted) subscribePush(); });
+  // Baseline du contrôle de version dès le démarrage (avant le premier tick)
+  checkAppVersion();
   // Charger les données
   appLoadData().then(() => {
     const params = new URLSearchParams(location.search);
