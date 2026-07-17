@@ -1,10 +1,31 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-17 (favicon review + deep link fiche)
+> Dernière mise à jour : 2026-07-17 (bandeau nouvelle version)
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-17 — Contrôle de version + bandeau « Recharger » (branche `version-banner`)
+1 fichier : `index.html` (5994 → **6022 lignes**, +28). **sw.js NON touché** (le mécanisme le contourne par construction). Précédé d'un AUDIT du cache PWA (voir "Cache PWA" en bas).
+
+**POURQUOI**
+Audit cache PWA : le piège "PWA figée" N'EXISTE PAS (index.html servi network-first + JS inline → un merge est reçu au prochain lancement, sans rien faire). MAIS un vrai cas restait : quelqu'un qui laisse la PWA ouverte en permanence des jours sans la relancer tourne sur du CODE périmé (avec des données fraîches via le tick — 2 mondes distincts). C'est le comportement attendu des 10 journalistes. Ce chantier couvre ce cas SANS toucher sw.js.
+
+**LA SOLUTION (ETag, zéro maintenance — décision David)**
+- `checkAppVersion()` : `fetch('/index.html', {method:'HEAD', cache:'no-store'})`, lit l'en-tête `etag`. 1er passage = baseline (`_appEtag`) ; ETag différent ensuite → une nouvelle version est en prod. Throttle interne : au plus 1 contrôle / 5 min (`_lastVerCheck`). Silencieux si pas d'ETag ou erreur réseau.
+- **Pourquoi ETag et pas version.json/constante** : la discipline "incrémenter à chaque déploiement" a DÉJÀ échoué (SW_VERSION figé depuis juin malgré ~10 déploiements). L'ETag Netlify change AUTOMATIQUEMENT à chaque déploiement modifiant index.html → RIEN à faire au déploiement, jamais d'oubli possible. Bonus : le HEAD contourne sw.js par construction (le SW n'intercepte que les GET), et un version.json serait figé par le SW (route .json = cache-first) → piège évité.
+- Greffé sur `autoRefreshTick` (1 ligne, fire-and-forget, non attendu → ne ralentit pas le refresh des données). PAS de nouveau timer → hérite pause onglet-caché + nettoyage logout. Baseline amorcée dans showApp() au démarrage.
+- `#version-banner` (masqué par défaut) : DISTINCT du `#refresh-banner` (données). Rouge (`var(--red)`, texte blanc), "🚀 Nouvelle version de l'app disponible — Recharger", onclick `location.reload()`. Placé juste sous #refresh-banner. Les 2 bandeaux coexistent.
+- **DÉCISION David : bandeau, PAS de rechargement auto** (contrôle total à l'utilisateur, jamais forcé, aucun risque de perte de saisie). Le bandeau s'affiche même pendant une saisie (totalement passif : rien sans clic volontaire), pas de logique de masquage (plus simple = plus robuste), reste jusqu'au reload.
+
+**VÉRIF PILOTE (OK)**
+node --check. sw.js non touché (absent du diff). checkAppVersion = HEAD /index.html + etag + throttle 5 min. Greffé sur le tick (aucun nouveau setInterval : seuls les 2 existants notifs+autoRefresh). Baseline dans showApp. 2 bandeaux distincts (couleur/texte/action séparés). Rafraîchissement auto données intact (autoRefreshTick 3, empreinte 2, editionEnCours 2, appliquerFresh 3). Compteurs préservés : createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, validationBrand=16, DB_CLIENTS_BRAND=6, apiQueryAll=11, telechargerVersion=2, resolveDriveFolder=3, isPWAStandalone=3, renderSidebarCats=5, copierLienFiche=2, CHEF_PAR_DEFAUT='Benjamin', EQUIPE_FALLBACK=[]. Nouveaux : checkAppVersion=3, _appEtag=3, version-banner=2.
+
+**À FAIRE DAVID** : branche `version-banner` (index.html) → PR → preview. TEST : se connecter, laisser tourner ≥1 tick ; pousser un changement d'index.html sur la même branche (redéploiement) → dans ~5-6 min le bandeau rouge apparaît sans rien interrompre ; clic "Recharger" → nouvelle version, bandeau disparu. Vérifier : onglet caché → aucun HEAD dans Network ; ETag présent sur /index.html (HEAD 200 avec en-tête etag). Merge.
+
+**⚠️ RÈGLE D'OR (toujours valable)** : toute future modification de sw.js = bump de SW_VERSION obligatoire dans le même commit. sw.js est le fichier le plus risqué (mal fait = app cassée hors-ligne / 10 users bloqués) → chantier isolé, testé Safari+Chrome. Chantier reporté : passer les CSS en network-first dans sw.js (évite le décalage d'1 session sur les CSS après déploiement) — seul dans sa PR, avec bump SW_VERSION.
+
 
 ### 2026-07-17 — Favicon review + deep link vers une fiche (branche `deeplink-favicon`)
 2 fichiers : `review.html` (705 → **707 lignes**, +2), `index.html` (5961 → **5994 lignes**, +33). Aucune fonction serveur. sw.js/cache PWA NON touché (chantier séparé).
