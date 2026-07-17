@@ -1,10 +1,30 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-17 (rafraîchissement auto multi-utilisateur)
+> Dernière mise à jour : 2026-07-17 (favicon review + deep link fiche)
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-17 — Favicon review + deep link vers une fiche (branche `deeplink-favicon`)
+2 fichiers : `review.html` (705 → **707 lignes**, +2), `index.html` (5961 → **5994 lignes**, +33). Aucune fonction serveur. sw.js/cache PWA NON touché (chantier séparé).
+
+**A. FAVICON review.html**
+La page review client affichait le globe générique dans l'onglet (pas le logo Réel Média). Ajout des 2 balises favicon de index.html dans le <head> de review.html (après <title>) : `<link rel="apple-touch-icon" href="/apple-touch-icon.png">` + `<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">`. Fichiers existants à la racine, chemins absolus valides depuis review.html.
+
+**B. DEEP LINK VERS UNE FICHE (usage ÉQUIPE, index.html seul)**
+Depuis une fiche sujet ouverte, un bouton copie un lien partageable (Slack/WhatsApp) à un membre de l'équipe ; au clic, après login, la fiche s'ouvre directement.
+- DÉCOUVERTE : le routage `?sujet=` existait DÉJÀ dans showApp (hérité du clic sur notif push, dans le .then() de appLoadData → timing login déjà bon : après login ET données chargées). Chantier = durcir l'existant + ajouter le bouton, pas créer.
+- Format d'URL : `/?sujet=<id Notion>` — id UNIQUEMENT (décision David ①). PAS de tolérance au code : l'unicité du code B09Y n'est pas garantie (bug audit n°1), un lien par code pourrait ouvrir le mauvais sujet. openDetail travaille déjà par id.
+- Résolution : `sujets.find(x => x.id === sujetParam)`. Trouvé → navTo('production') + openDetail. Introuvable (supprimé/archivé/faute) → `toast('Sujet introuvable ou archivé','err')` + navTo('dashboard'). JAMAIS de blocage (tout dans le .then du chargement réussi ; sans param, chemin strictement inchangé = else navTo dashboard).
+- `history.replaceState` après consommation du ?sujet= (décision David ②) → F5 ne rouvre plus la fiche.
+- Bouton "🔗 Copier le lien" (#d-copylink) dans le HEADER du modal #ov-detail uniquement (groupé à droite, à gauche de la croix) → jamais sur les cartes. copierLienFiche(this) : lien = origin+pathname+'?sujet='+_detailSujetId → clipboard + toast "Lien de la fiche copié 🔗" + libellé "Copié ✓" 1,5s, repli toast(lien) si presse-papier refusé. Globale `_detailSujetId` posée en tête d'openDetail.
+
+**VÉRIF PILOTE (OK)**
+node --check les 2 pages. Favicon = 2 balises vers fichiers existants (identiques index.html). Deep link : id-only confirmé, erreur→toast+dashboard, replaceState après ouverture, démarrage sans param strictement inchangé (else navTo dashboard intact), bouton dans le header modal seulement. sw.js et rafraîchissement auto INTOUCHÉS (autoRefreshTick=3, editionEnCours=2, empreinte=2, appliquerFresh=3 — le modal ouvert reste couvert par la garde .overlay.open). Compteurs préservés : createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, validationBrand=16, DB_CLIENTS_BRAND=6, apiQueryAll=11, telechargerVersion=2, resolveDriveFolder=3, isPWAStandalone=3, renderSidebarCats=5, CHEF_PAR_DEFAUT='Benjamin', EQUIPE_FALLBACK=[]. Nouveaux : copierLienFiche=2, _detailSujetId=4, d-copylink=1.
+
+**À FAIRE DAVID** : branche `deeplink-favicon` (review.html + index.html) → PR → preview. TESTS : onglet review → logo Réel Média (vider cache si besoin) ; fiche ouverte → bouton 🔗 → "Copié ✓" + toast → coller le lien dans un autre navigateur → login → la fiche s'ouvre seule + URL propre ; F5 → dashboard normal ; id bidon → toast "Sujet introuvable" + dashboard ; sans param → comme avant ; clic notif push → fiche comme avant. Merge.
+
 
 ### 2026-07-17 — Rafraîchissement automatique multi-utilisateur (avant partage aux ~10 journalistes)
 1 fichier : `index.html` (5881 → **5961 lignes**, +80). Aucune fonction serveur. Précédé d'un AUDIT multi-utilisateur complet (voir plus bas).

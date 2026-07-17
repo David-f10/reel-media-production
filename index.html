@@ -328,7 +328,11 @@
         <div class="modal-title" id="d-title"></div>
         <div class="modal-meta" id="d-meta"></div>
       </div>
-      <button class="modal-close" onclick="closeOv('ov-detail')">×</button>
+      <div style="display:flex;align-items:flex-start;gap:8px;flex-shrink:0">
+        <button id="d-copylink" onclick="copierLienFiche(this)" title="Copier le lien de cette fiche"
+          style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;padding:5px 10px;border-radius:var(--r);white-space:nowrap;font-family:var(--font)">🔗 Copier le lien</button>
+        <button class="modal-close" onclick="closeOv('ov-detail')">×</button>
+      </div>
     </div>
     <div id="d-steps"></div>
   </div>
@@ -792,6 +796,7 @@ async function openNouveau(){
 
 function openDetail(id, forcePadOpen=false){
   const s=sujets.find(x=>x.id===id);if(!s)return;
+  _detailSujetId = id;
   const sfLabel = s.sousFormat === 'Décli' ? 'Décli '+(s.declinaisonNum||'?') : s.sousFormat;
   const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
   const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
@@ -1245,6 +1250,25 @@ function toggleStep(uid) {
 
 // Rafraîchissement débouncé de la fiche détail après une action (Option 1)
 let _refreshDetailTimer = null;
+// ── Deep link fiche : lien partageable à l'équipe (/?sujet=<id Notion>) ──
+let _detailSujetId = null;
+
+async function copierLienFiche(btnEl) {
+  if(!_detailSujetId) return;
+  const lien = location.origin + location.pathname + '?sujet=' + _detailSujetId;
+  try {
+    await navigator.clipboard.writeText(lien);
+    toast('Lien de la fiche copié 🔗');
+  } catch(e) {
+    toast(lien); // repli : afficher le lien si le presse-papier est refusé
+  }
+  if(btnEl) {
+    const old = btnEl.textContent;
+    btnEl.textContent = 'Copié ✓';
+    setTimeout(() => { btnEl.textContent = old; }, 1500);
+  }
+}
+
 function refreshDetail(id, forcePadOpen=false){
   const ov = document.getElementById('ov-detail');
   if(!ov || !ov.classList.contains('open')) return; // fiche fermée → ne rien faire
@@ -2850,9 +2874,18 @@ function showApp() {
       // Nettoyer l'URL : on a consommé les params player
       history.replaceState({}, '', location.pathname);
     } else if(sujetParam) {
-      // Routage 2 : ?sujet=X (clic sur une push) → fiche détail
-      navTo('production');
-      setTimeout(() => openDetail(sujetParam), 200);
+      // Routage 2 : ?sujet=<id Notion> (clic sur une push, ou deep link partagé à l'équipe)
+      const cible = sujets.find(x => x.id === sujetParam);
+      if(cible) {
+        navTo('production');
+        setTimeout(() => openDetail(sujetParam), 200);
+      } else {
+        // Sujet supprimé/archivé/inconnu : démarrage normal, message discret, jamais de blocage
+        toast('Sujet introuvable ou archivé', 'err');
+        navTo('dashboard');
+      }
+      // Nettoyer l'URL : le param est consommé (F5 ne rouvrira pas la fiche)
+      history.replaceState({}, '', location.pathname);
     } else {
       navTo('dashboard');
     }
