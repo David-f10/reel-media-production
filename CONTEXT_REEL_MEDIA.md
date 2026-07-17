@@ -1,10 +1,40 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-16 (UX cartes + sidebar)
+> Dernière mise à jour : 2026-07-17 (rafraîchissement auto multi-utilisateur)
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-17 — Rafraîchissement automatique multi-utilisateur (avant partage aux ~10 journalistes)
+1 fichier : `index.html` (5881 → **5961 lignes**, +80). Aucune fonction serveur. Précédé d'un AUDIT multi-utilisateur complet (voir plus bas).
+
+**POURQUOI**
+L'app va passer à ~10 personnes simultanées. Audit Claude Code : le risque d'ÉCRASEMENT de données est quasi nul (chaque action PATCH un champ ISOLÉ, pas la page entière → 2 personnes sur la même carte mais champs différents = pas de conflit). MAIS point bloquant : quand Benjamin a une vue/carte ouverte et qu'un journaliste modifie la même donnée, Benjamin ne voit RIEN tant qu'il ne recharge pas (aucun refresh auto). Ce chantier corrige ça.
+
+**LA SOLUTION (stratégie validée)**
+- Timer unique `_autoRefreshTimer` créé dans showApp() (clearInterval défensif avant → pas de cumul), intervalle **60s** (choisi vs 45s pour ménager le quota Netlify d'invocations de fonctions). Listener visibilitychange → tick immédiat throttlé (1/15s). Nettoyé dans doLogout().
+- `autoRefreshTick` : garde (document.hidden || busy || !currentUser) → **pause quand l'onglet est caché**. apiQueryAll DB_PROD (Archivé=false), parsePage. Puis diff via `empreinte()`.
+- **PIÈGE ÉVITÉ (badges 🔔)** : `empreinte(list)` = JSON.stringify en EXCLUANT retoursOuverts (car parsePage l'initialise à 0 et les badges le remplissent APRÈS côté client via loadRetoursBadges ; sans exclusion, le diff serait TOUJOURS "changé" et le refresh EFFACERAIT les badges). `appliquerFresh` recopie les retoursOuverts actuels par id dans les données fraîches avant de remplacer `sujets`.
+- Diff égal → return, zéro re-render, zéro scroll touché (cas majoritaire). Diff différent + `editionEnCours()` → bandeau, zéro re-render. Sinon → appliquerFresh (mise à jour douce).
+- `editionEnCours()` = activeElement INPUT/TEXTAREA/SELECT, OU `.overlay.open` présent (fiche détail ov-detail, création ov-new, retour, confirmation, équipe…), OU #video-player-modal présent. La saisie est SACRÉE : tant qu'un seul est vrai → mode bandeau, aucun re-render.
+- `appliquerFresh` : préserve scrollTop de #main-content + scrollLeft du kanban, re-render via le chemin EXISTANT (appSetVue/appRenderDashboard), met à jour cnt-all + renderSidebarCats.
+- Bandeau #refresh-banner (masqué par défaut) : n'apparaît QUE si (changement détecté ET édition en cours). "Des modifications ont été faites par l'équipe — Actualiser". Clic → appliquerFresh(_freshEnAttente). **PAS d'auto-application au blur** (décision David : bandeau au clic, prévisible, rien ne bouge sans action). Le tick suivant ré-applique tout seul dès que l'édition est finie (45-60s de latence max).
+- BONUS embarqués : pause onglet-caché AUSSI sur le polling notifs existant (loadNotifs ne tourne plus si onglet masqué) ; timer notifs préexistant désormais nettoyé au logout (petit bug corrigé).
+
+**VÉRIF PILOTE (OK)**
+node --check. empreinte exclut bien retoursOuverts + recopie des badges dans appliquerFresh (badges préservés). editionEnCours exhaustive. Timer unique créé showApp + clearInterval défensif + nettoyé logout (les 2 timers). Pause onglet-caché sur autoRefreshTick ET loadNotifs. Intervalle 60000 (0 occurrence 45000). Scroll préservé (scrollTop main-content + scrollLeft kanban). Compteurs : hausses attendues apiQueryAll 10→11 (appel du tick l.2787) et renderSidebarCats 4→5 (appel appliquerFresh l.2806) — vérifiées, pas des régressions. Acquis intacts : createNotif=27, journMonteursNoms=4, refreshJournMonteursSelects=7, annulerVersion=2, validationBrand=16, DB_CLIENTS_BRAND=6, telechargerVersion=2, resolveDriveFolder=3, isPWAStandalone=3, CHEF_PAR_DEFAUT='Benjamin', EQUIPE_FALLBACK=[].
+
+**CHARGE / QUOTA (point d'attention)**
+Rate-limit Notion : large marge (~0,85 req/s à 10 users vs limite ~3). MAIS quota Netlify (invocations de fonctions, 125k/mois en Free) : ~3 invocations/tick chiffre vite à 10 users. Mitigations déjà embarquées : 60s + pause onglet-caché sur les 2 pollings. Optimisation en réserve si le quota se tend : "delta last_edited_time" (1 requête/tick au lieu de 3).
+
+**À FAIRE DAVID** : brancher (index.html) → PR → preview. TESTS : ouvrir 2 sessions (2 comptes/navigateurs), modifier une carte dans l'une → l'autre doit refléter le changement sous ~60s SANS recharger ; pendant une saisie (retour, édition champ, fiche ouverte) dans l'une, modif dans l'autre → bandeau "Actualiser" apparaît, rien ne bouge tant qu'on n'a pas cliqué ; badges 🔔 ne clignotent/disparaissent PAS ; scroll ne saute pas ; onglet en arrière-plan → pas de requêtes (vérifier Network). Merge.
+
+**AUDIT MULTI-UTILISATEUR — RESTE À FAIRE (après ce chantier)**
+- Notifs : 2 angles morts. (1) PWA fermée = pas de push (les notifs ne partent que si l'app est ouverte quelque part). (2) cas de perte/duplication selon synchro. À robustifier plus tard.
+- Cache PWA / service worker (point 8, à auditer séparément) : quand une nouvelle version est mergée, les 10 users voient-ils la MAJ ou restent bloqués sur une version en cache ? Risque de 10 personnes sur des versions différentes. À vérifier AVANT/juste après le partage.
+- Rate-limit / quota Netlify : surveiller à l'usage réel.
+
 
 ### 2026-07-16 — UX vue Cartes compactes + catégories sidebar (branche `ux-cartes-sidebar`)
 3 fichiers : `index.html` (5849 → **5881 lignes**, +32), `css/components.css` (+24), `css/layout.css` (+8). Aucune fonction serveur, aucune autre vue touchée. (S7+S8 + 2 ajustements colonnes/badge intégrés dans la même branche.)
