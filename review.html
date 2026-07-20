@@ -461,6 +461,19 @@ async function telechargerReview(url, btnEl) {
   // rempli après le POST. La page review (vidéo + retours) reste intacte, et les
   // téléchargements successifs réutilisent le même onglet 'rm-download'.
   const win = window.open('', 'rm-download');
+
+  // Ouvrir (ou réutiliser) la session de visionnage AVANT le téléchargement : la
+  // permission reste ouverte pendant toute la séquence humaine (chargement de
+  // l'onglet + écran antivirus >100 Mo + clic "Télécharger quand même"), puis se
+  // referme par la mécanique existante (close/sweep). Session déjà vivante →
+  // reused, aucun doublon. On utilise viewSessionPost + demarrerHeartbeat
+  // DIRECTEMENT (pas lancerVisionnage) : userStarted n'est PAS posé par un simple
+  // téléchargement — la vignette ▶ reste affichée aux changements de version.
+  try {
+    const s = await viewSessionPost('open', fileId);
+    if(s.ok) demarrerHeartbeat(fileId);
+  } catch(e) { /* repli silencieux : on tente le téléchargement quand même */ }
+
   try {
     const res = await fetch('/.netlify/functions/drive-download-review', {
       method: 'POST',
