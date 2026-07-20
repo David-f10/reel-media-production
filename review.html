@@ -371,6 +371,83 @@ function getDriveFileId(url) {
   return m ? m[1] : '';
 }
 
+// ── Session de visionnage (permission éphémère côté serveur) ──
+// La permission ne s'ouvre QU'AU GESTE (protection scanners de mail) : premier clic ▶.
+// Après ce premier lancement, changer de version relance directement (userStarted).
+let _viewSession = { fileId: null, timer: null, userStarted: false };
+
+async function viewSessionPost(action, fileId) {
+  const res = await fetch('/.netlify/functions/drive-view-session', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action, sujetCode, fileId})
+  });
+  return res.json().catch(() => ({}));
+}
+
+// Détection Safari/iOS : sur iOS TOUS les navigateurs utilisent WebKit (Chrome iOS
+// = "CriOS") → la détection iOS les attrape tous. iPadOS 13+ se présente comme
+// "MacIntel" mais avec écran tactile (maxTouchPoints). Safari desktop = "Safari"
+// sans les marqueurs Chrome/Edge/Opera.
+function isSafariOuIOS() {
+  const ua = navigator.userAgent;
+  const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const safariDesktop = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR/.test(ua);
+  return iOS || safariDesktop;
+}
+
+function injecterIframe(fileId) {
+  const wrap = document.getElementById('player-wrap');
+  wrap.innerHTML = `<iframe class="player-iframe" src="https://drive.google.com/file/d/${fileId}/preview" allowfullscreen allow="autoplay; fullscreen"></iframe>`;
+}
+
+async function lancerVisionnage(fileId, btnEl) {
+  if(btnEl) { btnEl.textContent = 'Ouverture…'; btnEl.disabled = true; }
+  _viewSession.userStarted = true; // prouvé humain : les changements de version relanceront directement
+  let ok = false;
+  try { const data = await viewSessionPost('open', fileId); ok = !!data.ok; } catch(e) {}
+  // REPLI : même si l'open échoue (serveur, portier), on injecte l'iframe = comportement
+  // historique (cookies du visiteur). Jamais pire qu'avant.
+  injecterIframe(fileId);
+  if(ok) demarrerHeartbeat(fileId);
+}
+
+function demarrerHeartbeat(fileId) {
+  stopViewSession(false);
+  _viewSession.fileId = fileId;
+  _viewSession.timer = setInterval(async () => {
+    if(document.hidden) return; // pause onglet caché
+    try {
+      const data = await viewSessionPost('heartbeat', fileId);
+      if(data.ok && data.alive === false) await viewSessionPost('open', fileId); // ré-open silencieux
+    } catch(e) {} // silencieux : nouveau tick dans 60 s
+  }, 60000);
+}
+
+function stopViewSession(envoyerClose) {
+  if(_viewSession.timer) { clearInterval(_viewSession.timer); _viewSession.timer = null; }
+  if(envoyerClose && _viewSession.fileId) {
+    // Best-effort (sendBeacon) : close n'est JAMAIS une révocation directe côté serveur
+    // (multi-spectateurs) — le balayeur refermera quand plus aucun heartbeat.
+    navigator.sendBeacon('/.netlify/functions/drive-view-session',
+      JSON.stringify({action:'close', sujetCode, fileId: _viewSession.fileId}));
+  }
+  _viewSession.fileId = null;
+}
+
+window.addEventListener('pagehide', () => {
+  stopViewSession(true);
+  _viewSession.userStarted = false;
+});
+document.addEventListener('visibilitychange', () => {
+  // Retour d'onglet : heartbeat immédiat (ré-open si la session est morte pendant l'absence)
+  if(!document.hidden && _viewSession.fileId) {
+    viewSessionPost('heartbeat', _viewSession.fileId)
+      .then(d => { if(d.ok && d.alive === false) viewSessionPost('open', _viewSession.fileId); })
+      .catch(() => {});
+  }
+});
+
 // Téléchargement direct via permission éphémère (même mécanique que l'app interne).
 // Le serveur vérifie que le fichier appartient bien au sujet (Lien V1/V2/V3).
 // Repli en cas d'erreur : page Drive /view (téléchargement depuis l'interface Drive).
@@ -474,12 +551,36 @@ function buildVersionTabs() {
 function chargerPlayer(version) {
   const vData = versionsDisponibles.find(v=>v.v===version);
   const url = vData?.url || videoUrl;
-  const embedUrl = toEmbedUrl(url);
   const wrap = document.getElementById('player-wrap');
-  if(embedUrl) {
-    wrap.innerHTML = `<iframe class="player-iframe" src="${embedUrl}" allowfullscreen allow="autoplay; fullscreen"></iframe>`;
+  const fileId = getDriveFileId(url);
+  stopViewSession(true); // changement de version : close (best-effort) + arrêt du heartbeat
+
+  if(url.includes('drive.google.com') && fileId) {
+    if(isSafariOuIOS()) {
+      // Le player Google intégré exige un compte sur WebKit → message + Télécharger en repli
+      wrap.innerHTML = `<div class="player-placeholder" style="text-align:center;padding:24px">
+        <span style="font-size:32px">🎬</span>
+        <p style="color:var(--text);margin:10px 0 4px;font-size:14px">Pour visionner la vidéo, ouvrez ce lien avec <strong>Chrome sur ordinateur</strong>.</p>
+        <p style="color:var(--text2);font-size:12px;margin:0">Vous pouvez aussi la télécharger avec le bouton ci-dessous.</p>
+      </div>`;
+    } else if(_viewSession.userStarted) {
+      // Déjà prouvé humain (premier ▶ cliqué) : auto-lancement au changement de version
+      lancerVisionnage(fileId, null);
+    } else {
+      // Premier affichage : la permission ne s'ouvre QU'AU CLIC (protection scanners)
+      wrap.innerHTML = `<div class="player-placeholder" style="cursor:pointer;text-align:center" onclick="lancerVisionnage('${fileId}', this.querySelector('button'))">
+        <span style="font-size:40px">🎬</span>
+        <div><button style="background:var(--red);border:none;color:#fff;padding:12px 28px;border-radius:8px;font-size:14px;cursor:pointer;font-family:var(--font);margin-top:10px">▶ Lancer la vidéo</button></div>
+      </div>`;
+    }
   } else {
-    wrap.innerHTML = `<div class="player-placeholder"><span style="font-size:32px">🔗</span><a href="${url}" target="_blank" style="color:var(--red)">Ouvrir dans un nouvel onglet →</a></div>`;
+    // Non-Drive (Vimeo, Frame.io…) : comportement historique strictement inchangé
+    const embedUrl = toEmbedUrl(url);
+    if(embedUrl) {
+      wrap.innerHTML = `<iframe class="player-iframe" src="${embedUrl}" allowfullscreen allow="autoplay; fullscreen"></iframe>`;
+    } else {
+      wrap.innerHTML = `<div class="player-placeholder"><span style="font-size:32px">🔗</span><a href="${url}" target="_blank" style="color:var(--red)">Ouvrir dans un nouvel onglet →</a></div>`;
+    }
   }
   // Bouton téléchargement (permission éphémère côté serveur, plus de lien uc mort)
   const dlBtn = document.getElementById('btn-dl');
