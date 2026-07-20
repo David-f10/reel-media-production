@@ -1,10 +1,56 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-17 (bandeau nouvelle version)
+> Dernière mise à jour : 2026-07-20 (visionnage + téléchargement client externe)
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-20 — VISIONNAGE + TÉLÉCHARGEMENT CLIENT EXTERNE (gros chantier, 4 livraisons)
+Le client externe qui reçoit un lien review peut désormais **VOIR** et **TÉLÉCHARGER** la vidéo sans compte Google et sans partage d'email. `index.html` JAMAIS touché.
+
+**LE PROBLÈME**
+Vidéos Drive en "Restreint" → un client sans accès tombait sur l'écran de connexion Google. Ni visionnage ni téléchargement possibles. (Le téléchargement semblait marcher : en réalité les testeurs avaient leurs propres droits Drive, la permission éphémère était décorative pour eux — bug masqué depuis le premier jour.)
+
+**CE QUI A ÉTÉ ÉCARTÉ (tests réels, pas des suppositions)**
+- **SPIKE `<video>` HTML5** sur URL usercontent (branche jetable, PR fermée sans merge) → **403 : Google refuse de streamer**, même avec permission "anyone" fraîchement ouverte, même sur Chrome. Voie morte. Le spike a économisé tout le chantier bâti dessus.
+- **Vimeo** (~15€/mois, zéro code car l'app lit déjà les liens Vimeo) → écarté par David au profit du 0€.
+- **Partage manuel des emails clients** → refusé (manuel + trou Safari).
+- **Version A manuelle** (rendre la vidéo publique à la main) → impossible : le balayeur la referme en 10 min.
+
+**CE QUI MARCHE (validé par test manuel)** : l'iframe **`/preview`** (lecteur natif Google) LIT une vidéo passée en "anyone with link" chez un visiteur non connecté → **OK Chrome desktop** (lecture + seek). **Safari/iOS = écran de connexion** (ITP cookies tiers, NON corrigeable). David assume ce trou : **ses clients sont sur ordinateur**.
+
+**ARCHITECTURE — SESSION DE VISIONNAGE (3 étapes, balayeur en dernier)**
+Principe : le Service Account (contributeur) ouvre la permission "anyone" **au clic du client**, l'iframe /preview affiche, révocation par session + heartbeat + TTL + sweep. **Confirmé en prod sur une vidéo dont David n'est PAS propriétaire** (D1206) → le SA ouvre bien la permission sur toutes les vidéos du dossier.
+
+- **Étape 1 (PR #41)** — `drive-view-session.js` (nouveau, 122 l.) + `_drive.js` (217 l.) + `drive-download-review.js` (148 l., +1 ligne export `fileIdsDuSujet`).
+  POST {action:'open'|'heartbeat'|'close', sujetCode, fileId}. Portier A∪B réutilisé. open → réutilise si session vivante (`reused:true`), sinon crée permission + entrée registre. heartbeat → `lastSeen=now`, refuse au-delà du cap. close → **antidate `lastSeen`, ne révoque JAMAIS** (multi-spectateurs). **FAIL-CLOSED** : throw AVANT toute création si Blobs KO.
+  **SOURCE UNIQUE** : `isViewAlive` + `VIEW_IDLE_TTL_MS` (3 min) + `VIEW_MAX_SESSION_MS` (3h) définis et **exportés** depuis `_drive.js` → l'étape 3 importe les mêmes (divergence impossible).
+  **COHABITATION** : `openEphemeralDownload` réutilise la permission si session vivante (`revoked:false`, ni création ni révocation) ; sinon cycle 0,3s **strictement inchangé**. Vit dans `_drive.js` → `drive-download.js` et `index.html` intouchés.
+- **Étape 2 (PR #42)** — `review.html` (707 → 808 l.).
+  **PROTECTION SCANNERS** : vignette "▶ Lancer la vidéo" — la permission ne s'ouvre **QU'AU CLIC**. Un scanner Gmail/Outlook qui pré-charge la page n'ouvre rien. `lancerVisionnage` → open → `injecterIframe` (/preview) → heartbeat 60s (pause si onglet caché, ré-open si `alive:false`) → close par `sendBeacon` sur pagehide. `visibilitychange` → heartbeat immédiat au retour d'onglet.
+  **AUTO-LANCEMENT** au changement de version après le premier ▶ (drapeau `_viewSession.userStarted`, remis à false au pagehide) — décision David : une fois prouvé humain, pas de second clic.
+  **MESSAGE SAFARI/iOS** (`isSafariOuIOS()` : iOS + Safari desktop + piège iPadOS via `maxTouchPoints`) → "ouvrez avec Chrome sur ordinateur, ou téléchargez". **REPLI** : si open échoue → iframe injectée quand même (jamais pire qu'avant).
+- **Étape 3 (branche `view-session-etape3`)** — `drive-permsweep.js` SEUL (133 → 168 l.). LE FICHIER LE PLUS SENSIBLE.
+  Couche 1 **type-aware** : entrée `view` → épargner si `isViewAlive` (+ ajout à l'ensemble `vivantes`), sinon révoquer + purger. Entrée **sans type = download → règle 5 min STRICTEMENT inchangée**. Couche 2 : `files.list visibility='anyoneWithLink'` → épargner `vivantes`, révoquer le reste (**catch-all orphelines préservé**). **CEINTURE ANTI-COURSE** : relecture fraîche du registre avant chaque révocation (une session ouverte pendant le passage n'est pas coupée). **FAIL-CLOSED** : registre KO → `vivantes` vide → tout révoqué. Constantes IMPORTÉES de `_drive.js` (0 redéfinition). Rollback = revert d'un fichier.
+- **Complément (branche `dl-session`)** — `review.html` (808 → 821 l.).
+  Le bouton **⬇ ouvre AUSSI une session** avant de télécharger → le téléchargement marche même **sans avoir cliqué ▶**. `window.open('', 'rm-download')` reste **AVANT tout await** (anti-popup). Utilise `viewSessionPost` + `demarrerHeartbeat` **directement, pas `lancerVisionnage`** → `userStarted` non posé par un simple téléchargement (la vignette ▶ reste cohérente). Repli si open échoue. **Bonus : le téléchargement Safari/iOS (leur repli) fonctionne désormais aussi.**
+
+**TRIPLE GARDE-FOU (100% serveur, indépendant du client)**
+① silence de heartbeat > 3 min → révocation ≤13 min · ② cap dur 3h appliqué même si les heartbeats continuent (`isViewAlive` intègre `expiresAt`) · ③ couche 2 catch-all ≤10 min. Pire cas absolu borné à ~3h10.
+
+**MULTI-CLIENTS** : N clients sur la même vidéo = **UNE permission partagée** (réutilisation), refermée quand le **DERNIER** spectateur est parti. Fermer un onglet ne coupe pas les autres.
+
+**COMPROMIS SÉCURITÉ ASSUMÉ (David)** : la vidéo est exposée "anyone with link" pendant le visionnage (minutes) au lieu de 0,3s. Argument validé : **la page review donne DÉJÀ accès au contenu complet** (bouton Télécharger légitime) → pas de risque nouveau. Ne concerne QUE les fichiers vidéo Drive pendant un visionnage — ni l'app interne, ni les données Notion.
+
+**VÉRIFS PILOTE (toutes OK)** : node --check sur tous les fichiers. Constantes importées (0 redéfinition). Fail-closed avant toute création. Cohabitation download (cycle 0,3s intact hors session). Anti-popup (`window.open` avant tout await). `userStarted` non posé par le téléchargement. Couche 2 catch-all + ceinture anti-course. Aucune URL loggée. `index.html` et `drive-download.js` JAMAIS touchés.
+
+**TESTS RÉELS VALIDÉS EN PROD (navigation privée = client externe)** : ▶ → vidéo lit + seek ✅ · vidéo dont David n'est PAS propriétaire ✅ · ▶ puis ⬇ → téléchargement ✅ · ⬇ SANS ▶ → téléchargement ✅.
+
+**RESTE À VÉRIFIER** : session > 15 min sans coupure (validation étape 3 — si des coupures persistent, le sweep n'épargne pas correctement). Fermeture brutale → révocation ≤13 min. Orpheline → ≤10 min.
+
+**⚠️ RÈGLE** : `drive-permsweep.js` = sécurité de TOUS les fichiers Drive. Toute modif future → chantier isolé, seul dans sa PR, plan de test dédié.
+
 
 ### 2026-07-17 — Contrôle de version + bandeau « Recharger » (branche `version-banner`)
 1 fichier : `index.html` (5994 → **6022 lignes**, +28). **sw.js NON touché** (le mécanisme le contourne par construction). Précédé d'un AUDIT du cache PWA (voir "Cache PWA" en bas).
@@ -72,6 +118,18 @@ Rate-limit Notion : large marge (~0,85 req/s à 10 users vs limite ~3). MAIS quo
 **À FAIRE DAVID** : brancher (index.html) → PR → preview. TESTS : ouvrir 2 sessions (2 comptes/navigateurs), modifier une carte dans l'une → l'autre doit refléter le changement sous ~60s SANS recharger ; pendant une saisie (retour, édition champ, fiche ouverte) dans l'une, modif dans l'autre → bandeau "Actualiser" apparaît, rien ne bouge tant qu'on n'a pas cliqué ; badges 🔔 ne clignotent/disparaissent PAS ; scroll ne saute pas ; onglet en arrière-plan → pas de requêtes (vérifier Network). Merge.
 
 **AUDIT MULTI-UTILISATEUR — RESTE À FAIRE (après ce chantier)**
+
+**⚠️ RETOUR D'USAGE RÉEL (20/07) — 2 CHANTIERS DÉCIDÉS, NON ENCORE LANCÉS**
+1. **BANDEAU DE RAFRAÎCHISSEMENT TROP BAVARD** (irritant quotidien de David). Le bandeau "Actualiser" se déclenche dès qu'un champ change **n'importe où** dans la base (empreinte GLOBALE) → bruit permanent qu'on finit par ignorer. Et après avoir cliqué "Actualiser", David **perd ses repères** (re-render complet) — au point d'avoir refait des modifs par confusion (aucune donnée perdue, vérifié).
+   **DÉCISION PRODUIT VALIDÉE** : passer d'une empreinte globale à un **diff PAR SUJET**.
+   • Changement sur un sujet que je ne regarde pas → **application SILENCIEUSE** (cas majoritaire, aucun bandeau).
+   • Fiche ouverte en **LECTURE seule** + modifiée → **silence aussi** (regarder ≠ modifier — précision David).
+   • Bandeau UNIQUEMENT si je suis **en train de toucher** la fiche que quelqu'un modifie (vrai risque de conflit).
+   • `editionEnCours` reste la garde absolue (ne jamais interrompre une saisie).
+   À creuser aussi : pourquoi la désorientation malgré `scrollTop` restauré (cartes qui changent de place au tri ? survol/focus perdus ?) → piste : ne re-rendre que les cartes réellement modifiées. index.html seul.
+2. **PRÉSENCE — "qui regarde la même fiche"** (idée David, intéressée). Afficher "Benjamin regarde aussi cette fiche" façon Google Docs. Chantier à part entière (mécanisme de présence + quota Netlify). **Synergie** : réutiliserait le même patron que le heartbeat du visionnage — à cadrer APRÈS, avec l'expérience acquise.
+
+**AUTRES SUJETS EN ATTENTE**
 - Notifs : 2 angles morts. (1) PWA fermée = pas de push (les notifs ne partent que si l'app est ouverte quelque part). (2) cas de perte/duplication selon synchro. À robustifier plus tard.
 - Cache PWA / service worker (point 8, à auditer séparément) : quand une nouvelle version est mergée, les 10 users voient-ils la MAJ ou restent bloqués sur une version en cache ? Risque de 10 personnes sur des versions différentes. À vérifier AVANT/juste après le partage.
 - Rate-limit / quota Netlify : surveiller à l'usage réel.
