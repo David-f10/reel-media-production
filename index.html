@@ -341,7 +341,7 @@
       </div>
     </div>
     <!-- Conflit d'édition : ce sujet vient d'être modifié par quelqu'un d'autre PENDANT une saisie ici -->
-    <div id="d-conflit" onclick="rechargerFiche()" style="display:none;padding:6px 14px;font-size:11px;background:var(--amber);color:#111;cursor:pointer;border-radius:var(--r);margin:0 0 8px;text-align:center">⚠️ Cette fiche vient d'être modifiée par quelqu'un d'autre — <strong>Recharger la fiche</strong></div>
+    <div id="d-conflit" onclick="rechargerFiche()" style="display:none;padding:12px 16px;font-size:13px;font-weight:600;background:var(--amber);color:#111;cursor:pointer;border-radius:var(--r);margin:0 0 10px;text-align:center;line-height:1.4"></div>
     <div id="d-steps"></div>
   </div>
 </div>
@@ -806,6 +806,8 @@ function openDetail(id, forcePadOpen=false){
   const s=sujets.find(x=>x.id===id);if(!s)return;
   _detailSujetId = id;
   masquerConflitFiche(); // nouvelle fiche (ou rechargement) = nouveau contexte
+  demarrerPollingFiche();       // polling ciblé 18 s tant que la fiche est ouverte (stop d'abord — jamais de cumul)
+  relireFicheOuverte();         // (b) fire-and-forget : ne jamais ouvrir sur du périmé (anti-boucle 5 s intégré)
   const sfLabel = s.sousFormat === 'Décli' ? 'Décli '+(s.declinaisonNum||'?') : s.sousFormat;
   const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
   const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
@@ -2876,11 +2878,80 @@ function flasherMaj(ids) {
   });
 }
 
-function montrerConflitFiche() { const b = document.getElementById('d-conflit'); if(b) b.style.display = 'block'; }
+// Conflit d'édition : bloc ambre bien visible + toast UNE FOIS par épisode.
+// `res` (optionnel) : {statutAvant, statutApres} pour contextualiser le message.
+function montrerConflitFiche(res) {
+  const statutChange = res && res.statutApres && res.statutApres !== res.statutAvant;
+  const msg = statutChange
+    ? '⚠️ Ce sujet vient de passer en « ' + res.statutApres + ' » par quelqu\'un d\'autre — cliquer pour recharger la fiche'
+    : '⚠️ Cette fiche vient d\'être modifiée par quelqu\'un d\'autre — cliquer pour recharger la fiche';
+  const b = document.getElementById('d-conflit');
+  if(b) { b.textContent = msg; b.style.display = 'block'; }
+  if(!_conflitSignale) {
+    toast(statutChange
+      ? '⚠️ Ce sujet vient de passer en « ' + res.statutApres + ' » par quelqu\'un d\'autre'
+      : '⚠️ Cette fiche vient d\'être modifiée par quelqu\'un d\'autre', 'err');
+    _conflitSignale = true;
+  }
+}
 function masquerConflitFiche() { const b = document.getElementById('d-conflit'); if(b) b.style.display = 'none'; }
 function rechargerFiche() {
   masquerConflitFiche();
+  _conflitSignale = false; // nouvel épisode possible après rechargement
   if(_detailSujetId) refreshDetail(_detailSujetId); // la fiche seule, jamais la vue derrière
+}
+
+// ── Fraîcheur de la fiche ouverte (lot 1) ──
+let _ficheTimer = null, _conflitSignale = false, _derniereRelecture = { id: null, t: 0 };
+
+// Relit UNE page Notion et l'intègre au cache local (jamais de re-render de la
+// grille ici — le calme de la v2 est conservé, le tick global 60 s s'en charge).
+async function relireSujet(id) {
+  if(!id) return {changed:false};
+  try {
+    const page = await api('/pages/' + id, 'GET');
+    const idx = sujets.findIndex(s => s.id === id);
+    if(idx === -1 || page.archived) return {changed:false}; // archivé/inconnu : le tick global gérera
+    const frais = parsePage(page);
+    if(empreinteSujet(frais) === empreinteSujet(sujets[idx])) return {changed:false};
+    const statutAvant = sujets[idx].statut, statutApres = frais.statut;
+    frais.retoursOuverts = sujets[idx].retoursOuverts; // badge 🔔 préservé
+    sujets[idx] = frais;
+    return {changed:true, statutAvant, statutApres};
+  } catch(e) { return {changed:false}; } // silencieux : le prochain passage réessaiera
+}
+
+// (b) Relecture à l'ouverture de la fiche — anti-boucle : refreshDetail repasse par
+// openDetail, on ne relit pas deux fois le même sujet en moins de 5 s.
+async function relireFicheOuverte() {
+  const id = _detailSujetId;
+  if(!id) return;
+  const now = Date.now();
+  if(_derniereRelecture.id === id && (now - _derniereRelecture.t) < 5000) return;
+  _derniereRelecture = { id, t: now };
+  const res = await relireSujet(id);
+  if(!res.changed || _detailSujetId !== id) return;
+  if(ficheEnEdition(id)) montrerConflitFiche(res);
+  else refreshDetail(id);
+}
+
+// (g) Polling ciblé : tant qu'une fiche est ouverte, relire CETTE page toutes les 18 s.
+function demarrerPollingFiche() {
+  stopPollingFiche();
+  _ficheTimer = setInterval(fichePollTick, 18000);
+}
+function stopPollingFiche() {
+  if(_ficheTimer) { clearInterval(_ficheTimer); _ficheTimer = null; }
+  _conflitSignale = false;
+}
+async function fichePollTick() {
+  if(document.hidden || !currentUser) return; // pause onglet caché, comme le reste
+  const ov = document.getElementById('ov-detail');
+  if(!_detailSujetId || !ov || !ov.classList.contains('open')) { stopPollingFiche(); return; } // ceinture anti-fuite
+  const res = await relireSujet(_detailSujetId);
+  if(!res.changed) return;
+  if(ficheEnEdition(_detailSujetId)) montrerConflitFiche(res); // fiche et saisie INTACTES
+  else refreshDetail(_detailSujetId);                          // lecture seule : convergence ≤ 20 s
 }
 
 // ── Contrôle de version de l'app (ETag d'index.html — aucun fichier ni constante à
@@ -2924,6 +2995,7 @@ async function autoRefreshTick() {
 
     // ── 1. TOUJOURS : appliquer les données en mémoire ──
     const visiblesAvant = idsVisibles(sujets); // AVANT remplacement (un sujet qui SORT du filtre doit disparaître)
+    const ancienStatutFiche = _detailSujetId ? (sujets.find(s => s.id === _detailSujetId) || {}).statut : null;
     // Recopier les badges 🔔 actuels (remplis par loadRetoursBadges) dans les données fraîches
     const badges = {}; sujets.forEach(s => badges[s.id] = s.retoursOuverts);
     sujets = fresh.map(s => ({...s, retoursOuverts: badges[s.id] || 0}));
@@ -2933,7 +3005,8 @@ async function autoRefreshTick() {
 
     // ── 2. La FICHE ouverte, si son sujet a changé ──
     if(_detailSujetId && (diff.modifies.includes(_detailSujetId) || diff.supprimes.includes(_detailSujetId))) {
-      if(ficheEnEdition(_detailSujetId)) montrerConflitFiche();   // en cours d'édition : on ne touche RIEN
+      const nouveauStatutFiche = (sujets.find(s => s.id === _detailSujetId) || {}).statut;
+      if(ficheEnEdition(_detailSujetId)) montrerConflitFiche({statutAvant: ancienStatutFiche, statutApres: nouveauStatutFiche}); // en cours d'édition : on ne touche RIEN
       else refreshDetail(_detailSujetId);                          // lecture seule : maj discrète (débouncé, scroll conservé)
     }
 
@@ -2950,9 +3023,11 @@ async function autoRefreshTick() {
   finally { _autoRefreshBusy = false; }
 }
 
-// Onglet redevenu visible → tick immédiat (throttlé à 1/15s)
+// Onglet redevenu visible → tick immédiat (throttlé à 1/15s) + relecture de la fiche ouverte
 document.addEventListener('visibilitychange', () => {
   if(document.hidden || !currentUser) return;
+  const ovDetail = document.getElementById('ov-detail');
+  if(ovDetail && ovDetail.classList.contains('open') && _detailSujetId) fichePollTick();
   const now = Date.now();
   if(now - _lastVisTick < 15000) return;
   _lastVisTick = now;
@@ -3081,6 +3156,7 @@ function doLogout() {
   // Arrêter les timers de polling (notifs + rafraîchissement auto)
   if(_notifsTimer) { clearInterval(_notifsTimer); _notifsTimer = null; }
   if(_autoRefreshTimer) { clearInterval(_autoRefreshTimer); _autoRefreshTimer = null; }
+  stopPollingFiche();
   _renderDiffere = false;
   // Désabonner le device avant de purger l'identité (best-effort, non-bloquant)
   const oldNom = currentUser?.nom;
@@ -4177,7 +4253,7 @@ function deleteSujet(id, titre){
 }
 
 function openOv(id){document.getElementById(id).classList.add('open');}
-function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;if(id==='ov-detail'&&currentPage==='dashboard')appRenderDashboard();}
+function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;if(id==='ov-detail'){stopPollingFiche();if(currentPage==='dashboard')appRenderDashboard();}}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
 
