@@ -25,6 +25,20 @@ const { getDriveOpenPermsStore } = require('./_blobs');
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const IMMEDIATE_REVOKE = true;
 
+// ── Sessions de visionnage (review client) ──
+// Registre drive-open-perms, clé = fileId. Deux formes d'entrées :
+//   download (rétro-compatible, SANS type) : { fileId, permissionId, openedAt }
+//   view : { fileId, permissionId, openedAt, lastSeen, expiresAt, type:'view' }
+// Constantes et prédicat exportés : SOURCE UNIQUE — l'étape sweep importera les mêmes.
+const VIEW_IDLE_TTL_MS = 3 * 60 * 1000;         // 3 min sans heartbeat = session morte
+const VIEW_MAX_SESSION_MS = 3 * 60 * 60 * 1000; // cap dur : 3 h par session
+
+function isViewAlive(entry, now) {
+  return !!(entry && entry.type === 'view' && entry.permissionId
+    && (now - (entry.lastSeen || 0)) < VIEW_IDLE_TTL_MS
+    && now < (entry.expiresAt || 0));
+}
+
 function extractFileId(raw) {
   if (!raw) return '';
   const m = raw.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
@@ -86,6 +100,18 @@ async function openEphemeralDownload(fileId) {
   }
 
   try {
+    // ── Cohabitation : si une session de visionnage vivante possède la permission,
+    // la réutiliser telle quelle — ni création ni révocation (on ne coupe jamais
+    // un spectateur pour un téléchargement). Sinon : cycle 0,3 s strictement inchangé.
+    const nowCohab = Date.now();
+    const existing = await store.get(fileId, { type: 'json' }).catch(() => null);
+    if (isViewAlive(existing, nowCohab)) {
+      const file = await gapi(sa.token, 'GET',
+        `/files/${fileId}?fields=id,name,size,mimeType&supportsAllDrives=true`, 'metadata');
+      const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+      return { downloadUrl, revoked: false, file, saEmail: sa.saEmail };
+    }
+
     // ── Pré-contrôle : accès + droit de partage ──
     const file = await gapi(sa.token, 'GET',
       `/files/${fileId}?fields=id,name,size,mimeType,capabilities(canShare)&supportsAllDrives=true`, 'metadata');
@@ -129,4 +155,63 @@ async function openEphemeralDownload(fileId) {
   }
 }
 
-module.exports = { openEphemeralDownload, extractFileId, getSA, gapi, IMMEDIATE_REVOKE };
+// Session de visionnage : permission SANS révocation immédiate + entrée registre typée.
+// Réutilise la session vivante si elle existe (une seule permission par fichier —
+// la permission 'anyone' est de toute façon un singleton par fichier côté Drive).
+// FAIL-CLOSED : toute indisponibilité du registre jette AVANT la moindre création.
+async function openViewingPermission(fileId) {
+  let sa;
+  try { sa = await getSA(); }
+  catch (e) { e.step = 'auth-sa'; throw e; }
+
+  let store;
+  try { store = getDriveOpenPermsStore(); }
+  catch (e) {
+    const err = new Error('Registre indisponible : ' + e.message);
+    err.step = 'registre';
+    err.saEmail = sa.saEmail;
+    throw err;
+  }
+
+  try {
+    const now = Date.now();
+    const existing = await store.get(fileId, { type: 'json' }).catch(() => null);
+    if (isViewAlive(existing, now)) {
+      existing.lastSeen = now;
+      await store.setJSON(fileId, existing);
+      return { permissionId: existing.permissionId, reused: true, expiresAt: existing.expiresAt };
+    }
+
+    // ── Pré-contrôle : accès + droit de partage (même règle que le download) ──
+    const file = await gapi(sa.token, 'GET',
+      `/files/${fileId}?fields=id,name,size,mimeType,capabilities(canShare)&supportsAllDrives=true`, 'metadata');
+    if (file.capabilities && file.capabilities.canShare === false) {
+      const err = new Error('Fichier non partageable par le compte de service — partager le dossier des vidéos avec ' +
+        sa.saEmail + ' en tant qu’Éditeur.');
+      err.step = 'preflight-canshare';
+      err.httpStatus = 403;
+      err.saEmail = sa.saEmail;
+      throw err;
+    }
+
+    const perm = await gapi(sa.token, 'POST',
+      `/files/${fileId}/permissions?supportsAllDrives=true`, 'permission-create',
+      { type: 'anyone', role: 'reader' });
+
+    const entry = {
+      fileId, permissionId: perm.id, openedAt: now, lastSeen: now,
+      expiresAt: now + VIEW_MAX_SESSION_MS, type: 'view'
+    };
+    await store.setJSON(fileId, entry);
+
+    return { permissionId: perm.id, reused: false, expiresAt: entry.expiresAt };
+  } catch (e) {
+    if (!e.saEmail) e.saEmail = sa.saEmail;
+    throw e;
+  }
+}
+
+module.exports = {
+  openEphemeralDownload, openViewingPermission, extractFileId, getSA, gapi,
+  IMMEDIATE_REVOKE, isViewAlive, VIEW_IDLE_TTL_MS, VIEW_MAX_SESSION_MS
+};
