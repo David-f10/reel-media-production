@@ -12,6 +12,11 @@
 <meta name="apple-mobile-web-app-title" content="Réel Média">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<style>
+/* Halo discret sur les cartes/lignes fraîchement mises à jour par le rafraîchissement auto */
+@keyframes majflash { 0% { box-shadow: 0 0 0 2px #EF9F27; background-color: rgba(239,159,39,.10); } 100% { box-shadow: none; } }
+.maj-flash { animation: majflash 1.5s ease-out; }
+</style>
 <script
   src="https://js-de.sentry-cdn.com/a555d2e77ba48da5ec408a38b6e95eec.min.js"
   crossorigin="anonymous"
@@ -222,9 +227,7 @@
     </div>
     <!-- Compteur résultats recherche -->
     <div id="search-count" style="display:none;padding:4px 24px;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0"></div>
-    <!-- Bandeau rafraîchissement : visible uniquement si changement détecté PENDANT une édition -->
-    <div id="refresh-banner" onclick="appliquerFresh(_freshEnAttente)" style="display:none;padding:5px 24px;font-size:11px;color:var(--text);background:var(--bg3);border-bottom:1px solid var(--border);cursor:pointer;flex-shrink:0;text-align:center">🔄 Des modifications ont été faites par l'équipe — <strong>Actualiser</strong></div>
-    <!-- Bandeau version : une nouvelle version de l'APP est en prod (≠ bandeau données ci-dessus).
+    <!-- Bandeau version : une nouvelle version de l'APP est en prod.
          Passif : rien ne se passe sans clic volontaire. Reste affiché jusqu'au reload. -->
     <div id="version-banner" onclick="location.reload()" style="display:none;padding:5px 24px;font-size:11px;color:#fff;background:var(--red);cursor:pointer;flex-shrink:0;text-align:center">🚀 Nouvelle version de l'app disponible — <strong>Recharger</strong></div>
     <!-- Contenu -->
@@ -337,6 +340,8 @@
         <button class="modal-close" onclick="closeOv('ov-detail')">×</button>
       </div>
     </div>
+    <!-- Conflit d'édition : ce sujet vient d'être modifié par quelqu'un d'autre PENDANT une saisie ici -->
+    <div id="d-conflit" onclick="rechargerFiche()" style="display:none;padding:6px 14px;font-size:11px;background:var(--amber);color:#111;cursor:pointer;border-radius:var(--r);margin:0 0 8px;text-align:center">⚠️ Cette fiche vient d'être modifiée par quelqu'un d'autre — <strong>Recharger la fiche</strong></div>
     <div id="d-steps"></div>
   </div>
 </div>
@@ -800,6 +805,7 @@ async function openNouveau(){
 function openDetail(id, forcePadOpen=false){
   const s=sujets.find(x=>x.id===id);if(!s)return;
   _detailSujetId = id;
+  masquerConflitFiche(); // nouvelle fiche (ou rechargement) = nouveau contexte
   const sfLabel = s.sousFormat === 'Décli' ? 'Décli '+(s.declinaisonNum||'?') : s.sousFormat;
   const sfSpan = sfLabel ? ` <span style="color:var(--amber);font-size:10px">${sfLabel}</span>` : '';
   const platSpan = s.plateforme ? ` · ${s.plateforme}` : '';
@@ -2784,8 +2790,30 @@ async function doLogin(){
   if(btn)btn.textContent='Accéder →';
 }
 
-// ── Rafraîchissement automatique (silencieux, onglet visible, saisie sacrée) ──
-let _autoRefreshTimer = null, _notifsTimer = null, _autoRefreshBusy = false, _freshEnAttente = null, _lastVisTick = 0;
+// ── Rafraîchissement automatique v2 (diff par sujet, application silencieuse,
+//    conflit signalé DANS la fiche — saisie toujours sacrée) ──
+let _autoRefreshTimer = null, _notifsTimer = null, _autoRefreshBusy = false, _lastVisTick = 0;
+let _renderDiffere = false;        // rendu sauté par la garde absolue → rattrapé au tick suivant
+let _detailLastInteraction = 0;    // dernière interaction avec la fiche (hystérésis 30 s)
+
+// Toute interaction avec la fiche (focus d'un champ, frappe, changement) entretient
+// le timestamp — comble les micro-fenêtres sans focus entre deux champs.
+(function(){
+  const ov = document.getElementById('ov-detail');
+  if(!ov) return;
+  ['focusin','input','change'].forEach(ev =>
+    ov.addEventListener(ev, () => { _detailLastInteraction = Date.now(); }));
+})();
+
+// « Je suis en train de TOUCHER cette fiche » (≠ simplement la regarder) :
+// fiche ouverte sur ce sujet ET (focus dans un de ses champs OU interaction < 30 s).
+function ficheEnEdition(id) {
+  const ov = document.getElementById('ov-detail');
+  if(!id || !ov || !ov.classList.contains('open') || _detailSujetId !== id) return false;
+  const ae = document.activeElement;
+  const focusDansFiche = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ov.contains(ae);
+  return focusDansFiche || (Date.now() - _detailLastInteraction) < 30000;
+}
 
 // Une saisie est en cours si : un champ a le focus (modèle onblur de l'app),
 // une modale/overlay est ouverte (fiche détail incluse), ou la vue lecteur est ouverte.
@@ -2797,15 +2825,63 @@ function editionEnCours() {
   return false;
 }
 
-// Empreinte de comparaison : retoursOuverts est EXCLU (rempli côté client par les
-// badges après coup — l'inclure rendrait le diff toujours "changé" et l'application
-// des données fraîches effacerait les badges 🔔).
-function empreinte(list) {
-  return JSON.stringify(list.map(s => { const {retoursOuverts, ...rest} = s; return rest; }));
+// Empreinte PAR SUJET : retoursOuverts est EXCLU (rempli côté client par les badges
+// après coup — l'inclure rendrait le diff toujours "changé" et l'application des
+// données fraîches effacerait les badges 🔔).
+function empreinteSujet(s) { const {retoursOuverts, ...rest} = s; return JSON.stringify(rest); }
+
+function diffSujets(anciens, nouveaux) {
+  const avant = new Map(anciens.map(s => [s.id, empreinteSujet(s)]));
+  const apres = new Map(nouveaux.map(s => [s.id, empreinteSujet(s)]));
+  const modifies = [], ajoutes = [], supprimes = [];
+  for(const [id, emp] of apres) {
+    if(!avant.has(id)) ajoutes.push(id);
+    else if(avant.get(id) !== emp) modifies.push(id);
+  }
+  for(const id of avant.keys()) if(!apres.has(id)) supprimes.push(id);
+  return { modifies, ajoutes, supprimes };
 }
 
-function showRefreshBanner() { const b = document.getElementById('refresh-banner'); if(b) b.style.display = 'block'; }
-function hideRefreshBanner() { const b = document.getElementById('refresh-banner'); if(b) b.style.display = 'none'; }
+// Ids visibles selon la page + le filtre courant + la recherche (mêmes prédicats
+// que les rendus). Sert à ne re-rendre QUE si la vue affichée est concernée.
+function idsVisibles(list) {
+  if(currentPage !== 'production') return new Set();
+  let l = list;
+  if(curFilter && curFilter.t === 's' && curFilter.v) l = l.filter(s => s.statut === curFilter.v);
+  if(curFilter && curFilter.t === 'f' && curFilter.v) l = l.filter(s => s.format === curFilter.v);
+  return new Set(applySearch(l).map(s => s.id));
+}
+
+// Re-render de la vue courante avec préservation du scroll (vertical + kanban horizontal).
+function renderVueAvecScroll() {
+  const mc = document.getElementById('main-content');
+  const st = mc ? mc.scrollTop : 0;
+  const kb = mc ? mc.querySelector('.vue-kanban') : null;
+  const sl = kb ? kb.scrollLeft : 0;
+  if(currentPage === 'production') appSetVue(currentVue);
+  else if(currentPage === 'dashboard') appRenderDashboard();
+  if(mc) mc.scrollTop = st;
+  const kb2 = mc ? mc.querySelector('.vue-kanban') : null;
+  if(kb2) kb2.scrollLeft = sl;
+}
+
+// Halo discret sur les éléments fraîchement mis à jour (cartes/lignes/cartes kanban :
+// tous portent l'id du sujet dans leur onclick — zéro modification des gabarits).
+function flasherMaj(ids) {
+  ids.forEach(id => {
+    const el = document.querySelector('#main-content [onclick*="' + id + '"]');
+    if(!el) return;
+    el.classList.add('maj-flash');
+    setTimeout(() => el.classList.remove('maj-flash'), 1600);
+  });
+}
+
+function montrerConflitFiche() { const b = document.getElementById('d-conflit'); if(b) b.style.display = 'block'; }
+function masquerConflitFiche() { const b = document.getElementById('d-conflit'); if(b) b.style.display = 'none'; }
+function rechargerFiche() {
+  masquerConflitFiche();
+  if(_detailSujetId) refreshDetail(_detailSujetId); // la fiche seule, jamais la vue derrière
+}
 
 // ── Contrôle de version de l'app (ETag d'index.html — aucun fichier ni constante à
 //    maintenir, et le HEAD contourne le service worker par construction : il n'intercepte
@@ -2837,33 +2913,41 @@ async function autoRefreshTick() {
     const prod = await apiQueryAll('/databases/' + DB_PROD + '/query',
       {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}]});
     const fresh = prod.results.map(parsePage);
-    if(empreinte(fresh) === empreinte(sujets)) { _freshEnAttente = null; hideRefreshBanner(); return; }
-    if(editionEnCours()) { _freshEnAttente = fresh; showRefreshBanner(); return; }
-    appliquerFresh(fresh);
+    const diff = diffSujets(sujets, fresh);
+    const rien = !diff.modifies.length && !diff.ajoutes.length && !diff.supprimes.length;
+
+    if(rien) {
+      // Rattrapage d'un rendu différé par la garde absolue au tick précédent
+      if(_renderDiffere && !editionEnCours()) { renderVueAvecScroll(); _renderDiffere = false; }
+      return;
+    }
+
+    // ── 1. TOUJOURS : appliquer les données en mémoire ──
+    const visiblesAvant = idsVisibles(sujets); // AVANT remplacement (un sujet qui SORT du filtre doit disparaître)
+    // Recopier les badges 🔔 actuels (remplis par loadRetoursBadges) dans les données fraîches
+    const badges = {}; sujets.forEach(s => badges[s.id] = s.retoursOuverts);
+    sujets = fresh.map(s => ({...s, retoursOuverts: badges[s.id] || 0}));
+    const cntAll = document.getElementById('cnt-all');
+    if(cntAll) cntAll.textContent = sujets.length;
+    renderSidebarCats();
+
+    // ── 2. La FICHE ouverte, si son sujet a changé ──
+    if(_detailSujetId && (diff.modifies.includes(_detailSujetId) || diff.supprimes.includes(_detailSujetId))) {
+      if(ficheEnEdition(_detailSujetId)) montrerConflitFiche();   // en cours d'édition : on ne touche RIEN
+      else refreshDetail(_detailSujetId);                          // lecture seule : maj discrète (débouncé, scroll conservé)
+    }
+
+    // ── 3. La VUE : re-render SEULEMENT si concernée, hors garde absolue ──
+    const ids = [...diff.modifies, ...diff.ajoutes, ...diff.supprimes];
+    const visiblesApres = idsVisibles(sujets);
+    const concerne = ids.some(id => visiblesAvant.has(id) || visiblesApres.has(id));
+    if(!concerne && currentPage !== 'dashboard') return;           // zéro repaint (cas majoritaire)
+    if(editionEnCours()) { _renderDiffere = true; return; }        // garde absolue : rattrapé au tick suivant
+    renderVueAvecScroll();
+    _renderDiffere = false;
+    flasherMaj(diff.modifies.concat(diff.ajoutes));
   } catch(e) { /* silencieux : le prochain tick réessaiera */ }
   finally { _autoRefreshBusy = false; }
-}
-
-function appliquerFresh(fresh) {
-  if(!fresh) { hideRefreshBanner(); return; }
-  // Recopier les badges 🔔 actuels (remplis par loadRetoursBadges) dans les données fraîches
-  const badges = {}; sujets.forEach(s => badges[s.id] = s.retoursOuverts);
-  sujets = fresh.map(s => ({...s, retoursOuverts: badges[s.id] || 0}));
-  _freshEnAttente = null;
-  hideRefreshBanner();
-  const cntAll = document.getElementById('cnt-all');
-  if(cntAll) cntAll.textContent = sujets.length;
-  renderSidebarCats();
-  // Re-render doux : uniquement les pages qui affichent `sujets`, scroll préservé
-  const mc = document.getElementById('main-content');
-  const st = mc ? mc.scrollTop : 0;
-  const kb = mc ? mc.querySelector('.vue-kanban') : null;
-  const sl = kb ? kb.scrollLeft : 0;
-  if(currentPage === 'production') appSetVue(currentVue);
-  else if(currentPage === 'dashboard') appRenderDashboard();
-  if(mc) mc.scrollTop = st;
-  const kb2 = mc ? mc.querySelector('.vue-kanban') : null;
-  if(kb2) kb2.scrollLeft = sl;
 }
 
 // Onglet redevenu visible → tick immédiat (throttlé à 1/15s)
@@ -2997,8 +3081,7 @@ function doLogout() {
   // Arrêter les timers de polling (notifs + rafraîchissement auto)
   if(_notifsTimer) { clearInterval(_notifsTimer); _notifsTimer = null; }
   if(_autoRefreshTimer) { clearInterval(_autoRefreshTimer); _autoRefreshTimer = null; }
-  hideRefreshBanner();
-  _freshEnAttente = null;
+  _renderDiffere = false;
   // Désabonner le device avant de purger l'identité (best-effort, non-bloquant)
   const oldNom = currentUser?.nom;
   if(oldNom) unsubscribePush(oldNom);
