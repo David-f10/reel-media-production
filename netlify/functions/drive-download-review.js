@@ -79,6 +79,9 @@ async function fileIdsDuSujet(sujetCode) {
   return ids;
 }
 
+// Réutilisé par drive-view-session (portier A∪B de la session de visionnage)
+module.exports.fileIdsDuSujet = fileIdsDuSujet;
+
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
