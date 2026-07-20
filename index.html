@@ -832,7 +832,7 @@ function openDetail(id, forcePadOpen=false){
   const stIdx=STATUS_ORDER.indexOf(s.statut);
   let html=`<div class="stepper">${STATUS_ORDER.map((st,i)=>{
     const cl=st===s.statut?'cur':i<stIdx?'done':'';
-    return`<button class="st-btn ${cl}" onclick="updStatut('${id}','${st}')">${st}</button>`;
+    return`<button class="st-btn ${cl}" onclick="updStatut('${id}','${st}',this)">${st}</button>`;
   }).join('')}</div>`;
   // Step Informations création
   const createdFmt = s.created ? new Date(s.created).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
@@ -1030,7 +1030,7 @@ function openDetail(id, forcePadOpen=false){
       </label>
       ${s.sansMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span></div>` : s.releveMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${s.statut!=='PAD'?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div><button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">📄 Exporter le relevé</button>`:''}</div>` : `<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div>`}
     </div>
-    ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD')" class="nav-btn primary"
+    ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD',this)" class="nav-btn primary"
       style="width:100%;background:${padPret?'var(--green)':'var(--bg4)'};border-color:${padPret?'var(--green)':'var(--border)'};color:${padPret?'#fff':'var(--text3)'};cursor:${padPret?'pointer':'not-allowed'}"
       ${!padPret?'disabled':''}>
       ${padPret?'✅ Marquer PAD':'⏳ Cap + relevé requis'}
@@ -1084,11 +1084,11 @@ function openDetail(id, forcePadOpen=false){
         <span class="step-ttl">📌 Statut</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px">
-        <button onclick="upd('${id}','Statut','select','Brief / Idée').then(()=>{s.statut='Brief / Idée';refreshUI('${id}')})"
+        <button onclick="updStatut('${id}','Brief / Idée',this)"
           class="nav-btn ${s.statut!=='PAD'?'primary':''}" style="flex:1;font-size:12px">
           🔵 En cours
         </button>
-        <button onclick="upd('${id}','Statut','select','PAD').then(()=>{s.statut='PAD';refreshUI('${id}')})"
+        <button onclick="updStatut('${id}','PAD',this)"
           class="nav-btn" style="flex:1;font-size:12px;${s.statut==='PAD'?'background:var(--green);border-color:var(--green);color:#fff':''}">
           ✅ Validé
         </button>
@@ -2382,6 +2382,13 @@ async function toggleVersionValidationBrand(versionId, sujetId, wasValidee, wasV
     toast('Réservé aux contacts Brand ou aux chefs','err');
     return;
   }
+  // ── Garde de fraîcheur (lot 2) : la validation Brand a-t-elle bougé depuis mon chargement ? ──
+  const verdict = await champToujoursACa(() => lireChampVersion(versionId, 'Validation Brand'), wasValide);
+  if(!verdict.ok) {
+    toast('⚠️ La validation Brand de cette version vient d\'être modifiée par quelqu\'un d\'autre — vérifie avant de refaire l\'action', 'err');
+    loadVersions(sujetId); // ré-affiche l'état frais — AUCUNE écriture
+    return;
+  }
   const newVal = !wasValide;
   try {
     await api('/pages/'+versionId,'PATCH',{properties:{'Validation Brand':{checkbox:newVal}}});
@@ -2392,6 +2399,13 @@ async function toggleVersionValidationBrand(versionId, sujetId, wasValidee, wasV
 
 async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, url) {
   const s = sujets.find(x=>x.id===sujetId);
+  // ── Garde de fraîcheur (lot 2) : la validation a-t-elle bougé depuis mon chargement ? ──
+  const verdict = await champToujoursACa(() => lireChampVersion(versionId, 'Validée'), wasValidee);
+  if(!verdict.ok) {
+    toast('⚠️ Cette version vient d\'être ' + (verdict.valeurServeur ? 'validée' : 'dévalidée') + ' par quelqu\'un d\'autre — vérifie avant de refaire l\'action', 'err');
+    loadVersions(sujetId); // ré-affiche l'état frais — AUCUNE écriture
+    return;
+  }
   const newVal = !wasValidee;
   try {
     await api('/pages/'+versionId,'PATCH',{properties:{'Validée':{checkbox:newVal}}});
@@ -2574,6 +2588,14 @@ async function annulerVersion(versionId, sujetId, versionNum) {
     confirmStyle: 'danger',
     onConfirm: async () => {
       const auteur = currentUser?.nom || '';
+      // ── Garde de fraîcheur (lot 2), APRÈS la confirmation humaine (le dialogue
+      // peut durer plusieurs secondes) : la version est-elle toujours Active ? ──
+      const verdict = await champToujoursACa(() => lireChampVersion(versionId, 'Statut'), 'Active');
+      if(!verdict.ok) {
+        toast('⚠️ Cette version vient d\'être ' + (verdict.valeurServeur === 'Annulée' ? 'annulée' : 'modifiée (' + verdict.valeurServeur + ')') + ' par quelqu\'un d\'autre — vérifie avant de refaire l\'action', 'err');
+        loadVersions(sujetId); // ré-affiche l'état frais — AUCUNE écriture
+        return;
+      }
       try {
         await api('/pages/'+versionId,'PATCH',{properties:{'Statut':{select:{name:'Annulée'}}}});
         if(s.journaliste && s.journaliste !== auteur) {
@@ -2952,6 +2974,32 @@ async function fichePollTick() {
   if(!res.changed) return;
   if(ficheEnEdition(_detailSujetId)) montrerConflitFiche(res); // fiche et saisie INTACTES
   else refreshDetail(_detailSujetId);                          // lecture seule : convergence ≤ 20 s
+}
+
+// ── Garde de fraîcheur à l'action (lot 2) ──
+// Relit LE champ visé juste avant une écriture critique et compare : jamais de
+// last_edited_time (zéro faux positif si un AUTRE champ a bougé). FAIL-OPEN :
+// timeout (2,5 s) ou erreur → on laisse écrire (la garde est un filet, pas une
+// porte ; en connexion instable, l'app reste utilisable — l'écriture elle-même
+// portera l'erreur réseau le cas échéant).
+async function champToujoursACa(lireFrais, valeurLocale, timeoutMs = 2500) {
+  try {
+    const fraiche = await Promise.race([
+      lireFrais(),
+      new Promise(res => setTimeout(() => res(undefined), timeoutMs))
+    ]);
+    if(fraiche === undefined) return {ok: true};    // timeout → fail-open
+    if(fraiche === valeurLocale) return {ok: true}; // le champ visé n'a pas bougé
+    return {ok: false, valeurServeur: fraiche};     // conflit réel sur CE champ
+  } catch(e) { return {ok: true}; }                 // erreur → fail-open
+}
+
+// Lit UN champ d'une page de la base 📹 Versions (Statut select, ou checkbox).
+async function lireChampVersion(versionId, prop) {
+  const page = await api('/pages/' + versionId, 'GET');
+  const pr = page.properties || {};
+  if(prop === 'Statut') return pr.Statut?.select?.name || 'Active';
+  return !!pr[prop]?.checkbox;
 }
 
 // ── Contrôle de version de l'app (ETag d'index.html — aucun fichier ni constante à
@@ -3890,10 +3938,30 @@ async function autoStatut(id, field, value){
   }
 }
 
-async function updStatut(id,statut){
-  await upd(id,'Statut','sel',statut);
-  const s=sujets.find(x=>x.id===id);if(s)s.statut=statut;
-  refreshUI(id);
+async function updStatut(id,statut,btnEl){
+  const s=sujets.find(x=>x.id===id);
+  const oldLabel = btnEl ? btnEl.textContent : '';
+  if(btnEl) { btnEl.textContent = '…'; btnEl.style.pointerEvents = 'none'; }
+  try {
+    // ── Garde de fraîcheur (lot 2) : le statut a-t-il bougé depuis mon chargement ? ──
+    // relireSujet (lot 1) merge au passage les autres champs frais dans le cache
+    // (badges préservés) — un autre champ modifié n'empêche JAMAIS l'écriture.
+    const verdict = await champToujoursACa(
+      async () => { await relireSujet(id); return (sujets.find(x => x.id === id) || {}).statut; },
+      s ? s.statut : undefined
+    );
+    if(!verdict.ok) {
+      toast('⚠️ Ce sujet vient d\'être modifié (statut : ' + verdict.valeurServeur + ') — vérifie avant de refaire l\'action', 'err');
+      refreshUI(id); // fiche + vue re-rendues sur l'état frais (déjà mergé) — AUCUNE écriture
+      return;
+    }
+    await upd(id,'Statut','sel',statut);
+    const s2=sujets.find(x=>x.id===id);if(s2)s2.statut=statut;
+    refreshUI(id);
+  } finally {
+    // Restauration dans TOUS les cas (succès, refus, échec d'écriture) — jamais de bouton coincé
+    if(btnEl) { btnEl.textContent = oldLabel; btnEl.style.pointerEvents = ''; }
+  }
 }
 
 function selFmt(fmt,el){
