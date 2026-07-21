@@ -2230,8 +2230,8 @@ async function loadVersions(sujetId) {
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
           <input type="url" value="${url}" placeholder="Lien vidéo..." style="flex:1;font-size:12px"
-            onblur="updateVersionUrl('${v.id}','${sujetId}',this.value)"
-            onkeydown="if(event.key==='Enter'){updateVersionUrl('${v.id}','${sujetId}',this.value);this.blur()}">
+            onblur="updateVersionUrl('${v.id}','${sujetId}',this.value,'${version}')"
+            onkeydown="if(event.key==='Enter'){updateVersionUrl('${v.id}','${sujetId}',this.value,'${version}');this.blur()}">
           ${lienInvalide ? `<span style="font-size:10px;color:var(--amber);white-space:nowrap;padding:4px 6px;background:var(--amber-dim);border-radius:4px">⚠️ Lien non lu</span>` : ''}
           ${url && type ? `<button onclick="openPlayer('${url}','${version}','${sujetId}','${version}')"
             style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;flex-shrink:0">▶</button>` : ''}
@@ -2313,11 +2313,12 @@ async function ajouterVersion(sujetId) {
   // Calculer le prochain numéro depuis les versions existantes dans Notion
   const el = document.getElementById('versions-list-'+sujetId);
   // Compter les entrées visibles actuelles (titres V1, V2...)
-  const titres = el ? [...el.querySelectorAll('[style*="font-weight:600"]')].map(e=>e.textContent.trim()) : [];
-  const nums = titres.map(t=>parseInt(t.replace('V',''))).filter(n=>!isNaN(n));
-  const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
-  const versionNum = `V${maxNum+1}`;
   try {
+    // Numéro contre Notion (source de vérité), jamais le DOM : +1 requête par création.
+    // Une version annulée garde son numéro → pas de réutilisation (V2 annulée → V3).
+    const vres = await api('/databases/'+DB_VERSIONS+'/query','POST',{filter:{property:'Sujet ID',rich_text:{equals:sujetId}}});
+    const nums = (vres.results||[]).map(v=>parseInt(v.properties.Version?.rich_text?.[0]?.plain_text?.replace('V','')||'0')).filter(n=>!isNaN(n));
+    const versionNum = `V${(nums.length ? Math.max(...nums) : 0)+1}`;
     await api('/pages','POST',{
       parent:{database_id:DB_VERSIONS},
       properties:{
@@ -2334,7 +2335,7 @@ async function ajouterVersion(sujetId) {
       s.statut = 'Montage';
       renderCards();
     }
-    loadVersions(sujetId);
+    await loadVersions(sujetId); // await : le verrou (finally) n'est libéré qu'après le re-render → pas de double-clic
     toast(`${versionNum} ajoutée`,'ok');
   } catch(e) { toast('Erreur : '+e.message,'err'); }
   finally {
@@ -2343,7 +2344,7 @@ async function ajouterVersion(sujetId) {
   }
 }
 
-async function updateVersionUrl(versionId, sujetId, url) {
+async function updateVersionUrl(versionId, sujetId, url, versionNum) {
   if(!url) return;
   const s = sujets.find(x=>x.id===sujetId);
   // Vérifier que le lien est un lien Drive, Vimeo ou Frame.io
@@ -2360,8 +2361,7 @@ async function updateVersionUrl(versionId, sujetId, url) {
     loadVersions(sujetId);
     // Notif au chef
     if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
-      const vNum = document.querySelector(`[data-vid="${versionId}"]`)?.dataset?.vnum || '';
-      await createNotif('v1_deposee', sujetId, s.code, s.titre, s.chef, currentUser.nom,
+      await createNotif(`v${(versionNum||'V1').replace('V','')}_deposee`, sujetId, s.code, s.titre, s.chef, currentUser.nom,
         `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
       loadNotifs();
     }
