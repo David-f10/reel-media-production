@@ -10,8 +10,12 @@
 
 1. ✅ **Chef par défaut** — FAIT et **mergé** (PR #48). Testé : sujet créé avec le champ Chef vidé → Benjamin arrive bien dans Notion.
 2. ✅ **Notifs `__chef__`** — FAIT et **mergé** (PR #49). Testé en conditions réelles : retour de Julie (Danone) reçu en push par le monteur, validation d'Arnaud reçue également. Ciblage et déduplication confirmés.
-3. ✅ **Création de versions + type `v1_deposee`** — FAIT le 21/07. Branche `fix-versions`, vérifiée par le Pilote, en attente de merge et de test.
-4. 🟡 **Codes en double** — **toujours théorique** : le seul cas réel (D1212 le 21/07) avait une **tout autre cause** (compteur non mis à jour après création hors app). Course read-modify-write côté client sur `dernierNumero+1`, bloquant n°1 de l'audit initial. Demande une **décision d'architecture** (allocation côté serveur), pas une rustine.
+3. ✅ **Création de versions + type `v1_deposee`** — FAIT. Branche `fix-versions`. **⚠️ Contenu réintégré dans le fichier du chantier 4** (voir note de fusion dans l'historique) : ne pousser QUE le fichier fusionné, sinon le chantier 3 serait écrasé.
+4. ✅ **Chacun valide ses propres retours** — FAIT le 21/07. Branche `valider-mes-retours`, **fichier fusionné 3+4** vérifié par le Pilote, en attente de merge et de test.
+5. 🟡 **Codes en double** — **toujours théorique** : le seul cas réel (D1212 le 21/07) avait une **tout autre cause** (compteur non mis à jour après création hors app). Course read-modify-write côté client sur `dernierNumero+1`, bloquant n°1 de l'audit initial. Demande une **décision d'architecture** (allocation côté serveur), pas une rustine.
+
+**⚠️ RÈGLE DE MERGE SUR MONOLITHE (apprise le 21/07)**
+`index.html` est un monolithe et David pousse des **fichiers entiers** via GitHub.com (Claude Code ne peut pas push). Deux branches produites en parallèle depuis le même `main` ne sont donc **jamais** « disjointes », même si elles touchent des fonctions différentes : la seconde poussée écrase la première. **Toujours** enchaîner les chantiers depuis un `main` à jour, ou faire fusionner par le Pilote avant de pousser.
 
 **NOUVEAU CHANTIER IDENTIFIÉ PAR DAVID (21/07) — séparer « retours finalisés » et « version validée » dans `review.html`**
 Constat en test réel : le client n'a que deux boutons — « Envoyer » (ses retours) et « Valider cette version ». Rien ne lui permet de dire « j'ai fini ma passe de retours ». Conséquence : un client qui a laissé des commentaires et veut signaler qu'il a terminé **valide un montage qu'il critique**. La base contient alors une version marquée validée avec des retours ouverts dessus — **donnée fausse**, et le chef peut lancer la suite alors que le client attend des corrections. Les deux boutons ne sont en outre pas différenciés visuellement (« Envoyer » en rouge plein, « Valider » en vert discret) alors qu'ils veulent dire des choses opposées.
@@ -54,6 +58,35 @@ Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07*
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-21 — CHANTIER 4 : chacun valide ses propres retours (+ FUSION avec le chantier 3)
+
+`index.html` **6256 lignes**. Branche `valider-mes-retours`. `node --check` OK. **Ce fichier contient les chantiers 3 ET 4 fusionnés par le Pilote** (voir note logistique en fin d'entrée).
+
+**LE CAS RÉEL.** Julien (non-chef) a filmé un sujet Brand. Il avait donc l'information pour laisser des retours au monteur Thierry. Il a créé **7 retours** depuis l'app — tous passés en **BROUILLON**, sans aucun moyen de les transmettre : le bouton « Valider tous les retours » n'apparaissait que si `currentUser.role === 'Chef'`. Le chef du sujet est Benjamin, absent du tournage. Et rien n'a averti Julien : le toast disait simplement « Retour ajouté ».
+
+**Le défaut de conception :** le mécanisme supposait que l'**autorité** (le chef) et la **connaissance** (qui a vu le tournage) vont ensemble. Chez Réel Média, ce n'est pas toujours vrai.
+
+**Vérification faite avant le chantier : le brouillon n'a JAMAIS été limité aux Brand.** `submitRetour` et `submitPlayerRetour` posent tous deux `Brouillon: true` **systématiquement**, sans aucun test sur le format ; l'affichage et `validerTousRetours` filtrent sur `Source === 'Équipe'` et `Brouillon`, jamais sur le format. L'aide intégrée le confirme : c'est une règle liée à la **source** (interne vs client) et au **rôle**, pas au format. (`loadVersions` calcule bien un `isBrand` ailleurs — le code sait distinguer par format quand c'est voulu.)
+
+**DÉCISION DE DAVID : chacun valide ses propres retours.** Un chef conserve la capacité de valider tous les retours du sujet.
+
+**Livré — 6 éditions :**
+- **Condition d'affichage** dans `loadRetours` **ET** `loadPlayerRetours` (blocs textuellement identiques → ancres distinguées par le **style du `<div>`**) : ajout de `hasMesBrouillons` (brouillon Équipe + `Auteur === myName`, avec garde `!!myName`) ; affichage si `(chef && hasBrouillonEquipe) || (!chef && hasMesBrouillons)`.
+- **UN bouton à libellé adaptatif**, pas deux : « **Valider tous les retours** » (chef) / « **Valider mes retours** » (auteur non-chef). Deux boutons n'auraient coexisté utilement que pour un chef ayant aussi ses propres brouillons — cas rare, et « tous » couvre déjà « les miens ». Le texte dit exactement ce qui va partir.
+- **`validerTousRetours` : le filtre DEVIENT la garde.** La garde binaire `if(role !== 'Chef') return` est remplacée par un **périmètre** : chef → tous les brouillons Équipe ; non-chef → uniquement `Auteur === currentUser.nom`. Plus robuste qu'un refus en début de fonction : même un appel direct ne peut pas toucher les retours d'autrui. Périmètre vide → toast « Aucun retour à valider » + `return` (pas de boucle vide silencieuse).
+- **Toasts de création explicites** sur les **deux** chemins : « Retour ajouté en brouillon — valide-le pour le transmettre ». C'est le correctif du piège de Julien.
+- **`Source === 'Équipe'` conservé partout** : les retours **Client** ne sont jamais touchés, jamais validables ici, jamais dans un périmètre.
+
+**LIMITE ASSUMÉE — identification de l'auteur par NOM.** Le champ `Auteur` est un `rich_text` contenant `currentUser.nom`, pas un id. Trois risques : ① **homonymie** — deux membres au même nom d'affichage pourraient valider les retours l'un de l'autre (⚠️ **non théorique : il y a deux Juliette dans l'équipe, Cohen et Prunier** — à vérifier dans la base Équipe qu'elles sont distinguées) ; ② **renommage** dans la base Équipe → les anciens brouillons deviennent orphelins, seul un chef peut les débloquer ; ③ comparaison `===` sensible à la casse et aux espaces. Impossible de mieux faire sans migration (les retours existants ne stockent aucun id d'auteur). Accepté en l'état.
+
+**Compteurs :** `'Réservé aux chefs'` **1 → 0** · `hasMesBrouillons` = 4 (2 déclarations + 2 usages) · `hasBrouillonEquipe` = 4 · `validerTousRetours` = 3 (inchangé) · « Valider mes retours » = 2 · `'Aucun retour à valider'` = 1 · anciens toasts = 0, nouveau toast = 2 · `isChefUser` = 6.
+
+**⚠️ NOTE LOGISTIQUE — FUSION MANUELLE DES CHANTIERS 3 ET 4.** Claude Code a produit le chantier 4 depuis un `main` **sans** le chantier 3, en indiquant « zones disjointes, merge dans l'ordre que tu veux ». C'est vrai au niveau des **fonctions**, mais **faux au niveau du fichier** : `index.html` est un monolithe et David pousse des fichiers entiers via GitHub.com (Claude Code ne peut pas push). Pousser le chantier 4 après le chantier 3 aurait donc **écrasé** les corrections versions. **Le Pilote a réappliqué le chantier 3 sur le fichier du chantier 4** et vérifié la présence des deux jeux de modifications. **Leçon à retenir : sur un monolithe poussé manuellement, deux branches parallèles ne sont jamais "disjointes" — toujours enchaîner les chantiers depuis un `main` à jour, ou fusionner avant de pousser.**
+
+**Dette réglée au passage :** le `const el = document.getElementById('versions-list-'+sujetId)` devenu orphelin dans `ajouterVersion` (chantier 3) a été **supprimé** lors de la fusion. D'où 6256 lignes et non 6258.
+
+---
 
 ### 2026-07-21 — CHANTIER 3 : fin du double-clic sur les versions + type de notif corrigé
 
