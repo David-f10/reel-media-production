@@ -527,7 +527,16 @@ async function init() {
       sujetId = page.id;
       const pr = page.properties;
       const titre = pr.Titre?.title?.[0]?.plain_text || '—';
-      sujetData = {titre, code: sujetCode};
+      // Destinataires potentiels d'un retour client (lus depuis la page déjà chargée, zéro requête)
+      sujetData = {titre, code: sujetCode,
+        chef: pr['Chef responsable']?.select?.name || '',
+        journaliste: pr.Journaliste?.select?.name || '',
+        contactBrand: pr['Contact Brand']?.select?.name || '',
+        monteurs: {
+          V1: pr['Monteur V1']?.select?.name || '',
+          V2: pr['Monteur V2']?.select?.name || '',
+          V3: pr['Monteur V3']?.select?.name || ''
+        }};
       document.getElementById('vi-code').textContent = sujetCode;
       document.getElementById('vi-titre').textContent = titre;
       document.getElementById('video-info').style.display = 'flex';
@@ -741,17 +750,9 @@ async function soumettre() {
     // Sujet → statut Retours
     if(sujetId) await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}});
 
-    // Notif équipe
-    await api('/pages','POST',{parent:{database_id:DB_NOTIFS},properties:{
-      'Message': {title:[{text:{content:`${clientNom} a laissé un retour sur ${sujetCode} (${versionActive})${tc?' · '+tc:''}${cat?' · '+cat:''}`}}]},
-      'Type': {select:{name:'retour'}},
-      'Destinataire': {rich_text:[{text:{content:'__chef__'}}]},
-      'Auteur': {rich_text:[{text:{content:clientNom}}]},
-      'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
-      'Sujet code': {rich_text:[{text:{content:sujetCode}}]},
-      'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
-      'Lu': {checkbox:false}
-    }});
+    // Notif équipe (cloche + push via notify.js) : chef + journaliste + monteur de
+    // la version concernée + contact Brand, dédupliqués.
+    await notifierEquipe('retour', `${clientNom} a laissé un retour sur ${sujetCode} (${versionActive})${tc?' · '+tc:''}${cat?' · '+cat:''}`);
 
     document.getElementById('r-desc').value='';
     document.getElementById('r-tc').value='';
@@ -759,6 +760,32 @@ async function soumettre() {
     toast('Retour envoyé ✓');
     await chargerTousRetours();
   } catch(e){toast('Erreur : '+e.message);}
+}
+
+// Destinataires d'un retour client : chef + journaliste + monteur de LA version
+// concernée uniquement + contact Brand. Vides ignorés, dédupliqués (une personne
+// cumulant deux rôles reçoit UNE notif). Extraction défensive du numéro de version.
+function destinatairesRetour() {
+  const set = new Set();
+  if(sujetData?.chef) set.add(sujetData.chef);
+  if(sujetData?.journaliste) set.add(sujetData.journaliste);
+  if(sujetData?.contactBrand) set.add(sujetData.contactBrand);
+  const m = /^V(\d+)$/.exec(versionActive || '');
+  if(m) { const mont = sujetData?.monteurs?.['V' + m[1]]; if(mont) set.add(mont); }
+  return [...set].filter(Boolean);
+}
+
+// Émet une notif (cloche + push) via notify.js, un appel par destinataire.
+// Best-effort : un échec n'interrompt jamais le flux client (le retour/validation
+// est déjà écrit). Auteur = clientNom (jamais un membre → jamais auto-skippé).
+async function notifierEquipe(type, message) {
+  for(const dest of destinatairesRetour()) {
+    await fetch('/.netlify/functions/notify', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type, sujetId, sujetCode, sujetTitre: sujetData?.titre || '', destinataire: dest, auteur: clientNom, message})
+    }).catch(() => {});
+  }
 }
 
 function ouvrirValidation() {
@@ -771,16 +798,8 @@ async function confirmerValidation() {
   fermerPopup('popup-valider');
   try {
     if(sujetId) await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Validation chef'}}}});
-    await api('/pages','POST',{parent:{database_id:DB_NOTIFS},properties:{
-      'Message': {title:[{text:{content:`${clientNom} a validé la ${versionActive} de ${sujetCode} — ${sujetData?.titre||''}`}}]},
-      'Type': {select:{name:'version_validee'}},
-      'Destinataire': {rich_text:[{text:{content:'__chef__'}}]},
-      'Auteur': {rich_text:[{text:{content:clientNom}}]},
-      'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
-      'Sujet code': {rich_text:[{text:{content:sujetCode}}]},
-      'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
-      'Lu': {checkbox:false}
-    }});
+    // Notif équipe (cloche + push via notify.js), mêmes destinataires dédupliqués.
+    await notifierEquipe('version_validee', `${clientNom} a validé la ${versionActive} de ${sujetCode} — ${sujetData?.titre||''}`);
     document.getElementById('popup-final').style.display = 'flex';
     toast('Version validée 🎉');
   } catch(e){toast('Erreur : '+e.message);}
