@@ -1862,7 +1862,7 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
         'Titre':{title:[{text:{content:titreDecli}}]},
         'Format':{select:{name:formatDecli}},
         'Sous-format':{select:{name:'Décli'}},
-        'Chef responsable':{select:{name:parent.chef||'Benjamin'}},
+        'Chef responsable':{select:{name:parent.chef||CHEF_PAR_DEFAUT}},
         'Journaliste':{select:{name:parent.journaliste||''}},
         'Statut':{select:{name:'Brief / Idée'}},
         'Code':{rich_text:[{text:{content:codeVal}}]},
@@ -1879,7 +1879,7 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
     const newSujet = parsePage(await api('/pages/'+newPage.id,'GET').catch(()=>({id:newPage.id,properties:{
       Titre:{title:[{text:{content:titreDecli}}]},
       Format:{select:{name:formatDecli}},
-      'Chef responsable':{select:{name:parent.chef}},
+      'Chef responsable':{select:{name:parent.chef||CHEF_PAR_DEFAUT}},
       Journaliste:{select:{name:parent.journaliste}},
       Statut:{select:{name:'Brief / Idée'}},
       Code:{rich_text:[{text:{content:codeVal}}]},
@@ -4180,7 +4180,8 @@ async function createSujet(){
   if(_createEnCours){toast('Création en cours...','err');return;}
   _createEnCours=true;
   const titre=document.getElementById('n-titre').value.trim();
-  const chef=document.getElementById('n-chef').value;
+  let chef=document.getElementById('n-chef').value;
+  if(!chef || !chef.trim()) chef=CHEF_PAR_DEFAUT; // fallback à l'écriture : un sujet a TOUJOURS un chef (vide ou blanc → défaut)
   const journSel=document.getElementById('n-journ').value;
   const journ=journSel==='__nouveau__'?document.getElementById('n-journ-nouveau').value.trim():journSel;
   const brief=document.getElementById('n-brief').value.trim();
