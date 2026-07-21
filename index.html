@@ -1603,7 +1603,7 @@ async function submitRetour() {
       }
     });
     closeOv('ov-retour');
-    toast('Retour ajouté', 'ok');
+    toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadRetours(retourSujetId);
     // Notif au journaliste
     if(sujet && sujet.journaliste && sujet.journaliste !== currentUser.nom) {
@@ -1642,7 +1642,7 @@ async function submitPlayerRetour(sujetId, version) {
     });
     if(document.getElementById('player-desc')) document.getElementById('player-desc').value = '';
     if(document.getElementById('player-tc')) document.getElementById('player-tc').value = '';
-    toast('Retour ajouté ✓', 'ok');
+    toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadPlayerRetours(sujetId, version);
     loadRetours(sujetId);
     // Notif au journaliste
@@ -2069,8 +2069,10 @@ async function loadRetours(sujetId) {
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
     const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
-    let html = (isChefUser && hasBrouillonEquipe)
-      ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:12px">Valider tous les retours</button></div>`
+    const myName = currentUser?.nom || '';
+    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'')===myName);
+    let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
+      ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
     Object.entries(byVersion).forEach(([version, items]) => {
       html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:var(--bg3);border-bottom:1px solid var(--border);position:sticky;top:0">${version} <span style="font-weight:400;opacity:0.6">${items.length} retour${items.length>1?'s':''}</span></div>`;
@@ -2136,12 +2138,16 @@ async function toggleRetour(retourId, sujetId, newStatut) {
 }
 
 async function validerTousRetours(sujetId) {
-  if(currentUser?.role !== 'Chef') { toast('Réservé aux chefs','err'); return; }
+  if(!currentUser) { toast('Non connecté','err'); return; }
   try {
     const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
       filter: {property:'Sujet ID', rich_text:{equals:sujetId}}
     });
-    const aValider = data.results.filter(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
+    // Garde de périmètre : chef → tous les brouillons Équipe ; sinon → uniquement les siens.
+    const estChef = currentUser?.role === 'Chef';
+    const myName = currentUser?.nom || '';
+    const aValider = data.results.filter(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (estChef || (!!myName && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'')===myName)));
+    if(!aValider.length) { toast('Aucun retour à valider','err'); return; }
     for(const r of aValider) {
       await api('/pages/' + r.id, 'PATCH', {properties:{'Brouillon':{checkbox:false}}});
     }
@@ -2311,8 +2317,6 @@ async function ajouterVersion(sujetId) {
   const btnLabel = btn ? btn.textContent : '';
   if(btn) { btn.disabled = true; btn.textContent = 'Création...'; }
   // Calculer le prochain numéro depuis les versions existantes dans Notion
-  const el = document.getElementById('versions-list-'+sujetId);
-  // Compter les entrées visibles actuelles (titres V1, V2...)
   try {
     // Numéro contre Notion (source de vérité), jamais le DOM : +1 requête par création.
     // Une version annulée garde son numéro → pas de réutilisation (V2 annulée → V3).
@@ -3723,8 +3727,10 @@ async function loadPlayerRetours(sujetId, version) {
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
     const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
-    let html = (isChefUser && hasBrouillonEquipe)
-      ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:11px">Valider tous les retours</button></div>`
+    const myName = currentUser?.nom || '';
+    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'')===myName);
+    let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
+      ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:11px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
     Object.entries(byVersion).forEach(([v, items]) => {
       const ouvertsV = items.filter(r => r.properties.Statut?.select?.name === 'Ouvert').length;
