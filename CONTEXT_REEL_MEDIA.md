@@ -1,10 +1,160 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-20 (visionnage + téléchargement client externe)
+> Dernière mise à jour : 2026-07-21 (chantiers 1 & 2 livrés + audit multi-utilisateur + incident compteur codes)
+
+═══════════════════════════════════════════════════════════════
+## 🔴 ÉTAT EN COURS — À TRAITER EN PRIORITÉ AU PROCHAIN CHAT
+═══════════════════════════════════════════════════════════════
+
+**FILE D'ATTENTE ISSUE DE L'AUDIT MULTI-UTILISATEUR DU 21/07**
+
+1. ✅ **Chef par défaut** — FAIT et **mergé** (PR #48, `main` = 64bb9b3). Testé par David : sujet créé avec le champ Chef vidé → Benjamin arrive bien dans Notion.
+2. ✅ **Notifs `__chef__`** — FAIT le 21/07 (voir historique). Branche `notif-retour-client`, vérifiée par le Pilote, en attente de merge.
+3. 🟠 **Création de versions** (l'incident Mickaël) — **PROCHAIN CHANTIER**. Périmètre **minimal validé** : corriger `ajouterVersion` seul (`await` sur le re-render avant libération du verrou + numérotation calculée contre **Notion**, pas contre le DOM). Le pattern `loadVersions` sans `await` (6 endroits) est **observé, pas traité** — décision « livrer petit, vivre une semaine ». *Analyse déjà faite dans l'audit, pas besoin de rediagnostiquer.*
+4. 🟡 **Codes en double** — **toujours théorique** : le seul cas réel (D1212 en double le 21/07) avait une **tout autre cause** (voir incident ci-dessous), pas la concurrence. Course read-modify-write côté client sur `dernierNumero+1`, bloquant n°1 de l'audit initial. Demande une **décision d'architecture** (allocation côté serveur), pas une rustine. Maintenu en dernier.
+
+**DEMANDE OUVERTE DE DAVID — audit des notifications INTERNES**
+David veut confirmer que le comportement de **toutes** les notifications internes de l'app est le bon. Prompt d'audit rédigé et prêt (lecture seule, tableau des 27 sites d'appel de `createNotif` : événement · type · destinataire · auteur ; puis signaler les types déclarés jamais émis, les événements qui devraient notifier et ne notifient pas, les destinataires potentiellement vides, les doublons possibles). **Pas encore envoyé** (budget). À noter : le cas déclencheur (Benjamin non notifié du dépôt de Mickaël) est **déjà résolu** par le chantier 1 — c'était un chef vide, pas une notification cassée.
+
+**AUTRES POINTS OUVERTS**
+- **Test visionnage étape 3** toujours non fait : laisser une vidéo review ouverte > 15 min → la permission doit rester dans Drive.
+- **PWA fermée = pas de push** : problème connu, non traité. Se corrigera dans `notify.js` — et bénéficiera automatiquement aux retours clients depuis le chantier 2.
+- **Chef par défaut évolutif** : Benjamin aujourd'hui, **Chloé dans ~3 mois**, Arnaud ponctuellement. Aujourd'hui = changer la constante `CHEF_PAR_DEFAUT` (1 ligne). Alternative notée pour plus tard : stocker le chef par défaut dans la base Équipe Notion (case à cocher) → changement sans toucher au code. **Non prioritaire** (confort vs fiabilité).
+- **Budget Claude Code contraint** : 251 €/250 € de crédits au 21/07, renouvellement le 1er août. Règles adoptées : le Pilote fait tout ce qui ne demande pas de lire le code (analyse, décisions, prompts, CONTEXT) ; Claude Code ne sert qu'à lire et écrire du code ; sessions courtes, un chantier à la fois ; lectures ciblées plutôt que relecture large du monolithe. **Les deux compteurs sont distincts** : la limite d'abonnement Max gouverne le chat Pilote, les crédits payants alimentent Claude Code.
+
+**CHANTIER SUSPENDU (analysé, validé, non lancé) — présence sur une fiche**
+Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07**. **Archivée, pas rejetée.** Suspendue au profit des chantiers de fiabilité (on ne pose pas du confort collaboratif sur un système qui accepte des états incohérents ; et la présence touche `fichePollTick`, cœur du multi-utilisateur).
+⚠️ **À revalider avant reprise** : si un chantier modifie `relireSujet`, `fichePollTick` ou le contrat du merge, les 8 ancres et les compteurs prédits devront être revérifiés.
+⚠️ **DÉPENDANCE À NE PAS PERDRE — TTL ↔ cadence** : le TTL de présence (45 s) est calé sur **2,5 × la cadence de `fichePollTick` (18 s)**. Si la cadence change (réévaluation prévue après une semaine d'usage), **le TTL doit bouger avec**. À 60 s de cadence, un TTL de 45 s ferait disparaître tout le monde en permanence.
+
+═══════════════════════════════════════════════════════════════
+## ⚠️ RÈGLES DE PROCÉDURE — CRÉATIONS HORS APP (ajouté le 21/07)
+═══════════════════════════════════════════════════════════════
+
+**Incident du 21/07 — deux sujets D1212, et onze doublons.** Master a créé onze sujets Desk (D1212-D1222) **directement dans Notion**, puis s'est interrompue (crédits épuisés) **avant de mettre à jour le compteur**. Le compteur Desk est resté à 1211 → l'app a ré-attribué D1212 à un nouveau sujet créé via l'app. Puis, avec des crédits, Master a **refait le lot entier** sans vérifier l'existant → onze doublons de titres. David a dû : passer le compteur à 1222, corriger « Coupe du monde 2026 » de D1212 en D1223 (son vrai code source), remettre le compteur à 1223, et supprimer le jeu de doublons le plus récent (celui d'hier portait le travail de Benjamin : statuts avancés, journalistes assignés).
+
+**Ce n'était donc PAS le bug de concurrence de l'audit.** Le bug de concurrence reste réel mais **toujours jamais matérialisé**.
+
+**RÈGLES QUI EN DÉCOULENT :**
+1. **Toute création de sujets directement dans Notion doit mettre à jour `Dernier numéro` dans 🔢 Compteurs de codes DANS LE MÊME GESTE.** L'app lit ce compteur pour attribuer les codes ; un sujet créé hors compteur = une collision programmée.
+2. **Toute création directe dans Notion doit renseigner `Chef responsable`** (à défaut : Benjamin). Le fallback du chantier 1 protège les créations **via l'app** uniquement — une écriture directe en base court-circuite toute la logique applicative, et aucun correctif code ne pourra jamais rattraper ça.
+3. **Tâches en lot** : annoncer le plan et le nombre d'étapes avant de commencer ; en cas d'interruption, terminer par un état des lieux (fait / pas fait / reste à faire) ; **avant de reprendre, vérifier ce qui existe déjà — ne jamais recommencer de zéro**. Le point 3 est le vrai filet : quand les crédits tombent, la session s'arrête net et l'état des lieux ne peut pas être écrit.
+4. **Réutilisation d'un numéro après suppression** : supprimer un sujet ne décrémente **pas** le compteur (trou dans la séquence). Réutilisation possible **manuellement**, et **uniquement** si c'est bien le dernier créé du format et qu'aucun autre n'a été créé entre-temps. **Ne pas automatiser** : une décrémentation auto rouvrirait la porte aux doublons en cas concurrent.
+- Décisions produit David : affichage **dans la fiche ouverte uniquement** (pas sur les cartes) · **tous** ceux qui ont la fiche ouverte, même en lecture · **pastilles avec initiales** (style .av existant), prénom au survol, soi-même exclu.
+- Architecture retenue : nouvelle fonction `fiche-sync.js` qui fait TROIS choses en UNE invocation (lit la page Notion + upsert présence Blobs + renvoie {page, presence}). `fichePollTick` bascule dessus au lieu du proxy → **±0 invocation Netlify supplémentaire** (le meilleur profil sur le point de tension du projet). Store Blobs `fiche-presence`, clé = sujetId, valeur = {userId: {nom, lastSeen}}. TTL 45 s (2,5× la cadence), purge à l'écriture + filtrage à la lecture + arrêt du poll déjà en place → pas de sweep nécessaire. `sendBeacon` de départ optionnel (recommandé, 3 lignes).
+- Point de chirurgie : extraire `integrerPageSujet(page)` de `relireSujet` pour que `fichePollTick` l'alimente depuis fiche-sync sans dupliquer la logique. **Fail-open** : si fiche-sync échoue, repli sur le proxy actuel.
+- Points à trancher : ① beacon de départ (reco : oui) ② TTL 45 s ③ **communication à l'équipe** : c'est un changement SOCIAL (chacun verra qui consulte quoi) — à annoncer explicitement.
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-21 — CHANTIER 2 : les retours clients notifient enfin l'équipe (`review.html`)
+
+`review.html` 821 → **840 lignes** (+19). Branche `notif-retour-client`. Diff +41/−22, un seul fichier. `node --check` OK. `index.html` et `notify.js` **intouchés**.
+
+**Le bug : `__chef__` n'était pas un lecteur manquant, c'était un placeholder jamais résolu.** Les deux émissions de `review.html` (retour client, validation client) écrivaient **en direct** dans `DB_NOTIFS` avec `Destinataire: '__chef__'`. Or `loadNotifs` filtre sur `Destinataire = currentUser.nom` — et personne ne s'appelle `__chef__`. L'intention « le chef » n'a jamais été convertie en nom réel côté émission. Conséquence double : **aucune cloche** (destinataire fantôme) **et aucun push** (écriture directe, `notify.js` jamais appelé). Depuis toujours. Les retours et validations **clients** ne notifiaient donc personne.
+
+**Décision produit David — ciblage précis :** destinataires = **chef + journaliste + monteur de LA version concernée uniquement + contact Brand**. Si le client commente la V3, le monteur de la V1 n'est **pas** notifié : un retour porte sur une version précise, et le bruit tue les notifications. Destinataire manquant → simplement ignoré, sans trace (décision assumée, la trace en logs a été proposée et refusée).
+
+**L'information était disponible gratuitement.** `init()` chargeait déjà la page sujet dans `pr` mais n'en extrayait que le titre. Or `Chef responsable`, `Journaliste`, `Contact Brand` et `Monteur V1/V2/V3` sont tous des propriétés directes de cette même page. **Zéro requête réseau ajoutée.**
+
+**Livré :**
+- `sujetData` enrichi à l'init : `chef`, `journaliste`, `contactBrand`, `monteurs {V1,V2,V3}`.
+- `destinatairesRetour()` : `Set` de noms non vides, extraction défensive `/^V(\d+)$/` (version exotique → monteur absent, sans erreur), **dédup obligatoire** (Mickaël journaliste ET monteur → **une seule** notif).
+- `notifierEquipe(type, message)` : boucle, **un POST `/.netlify/functions/notify` par destinataire**, best-effort (`.catch`), `auteur = clientNom`.
+- Les deux émissions `__chef__` remplacées (`type:'retour'` et `type:'version_validee'`), messages conservés à l'identique.
+
+**DÉCISION D'ARCHITECTURE — routage via `notify.js`, pas écriture directe.** Claude Code recommandait l'écriture directe (cloche seule, plus fidèle à l'existant). Le Pilote a recommandé l'inverse et David a tranché pour `notify.js` : ① un retour client doit être traité comme un dépôt de version, pas moins bien ; ② le jour où le problème « PWA fermée = pas de push » sera corrigé dans `notify.js`, les retours clients en bénéficieront **automatiquement** — l'écriture directe aurait laissé ce chemin sur le bord de la route ; ③ « fidèle à l'existant » signifiait ici fidèle à un mécanisme qui ne notifiait personne. Coût mesuré avant validation : `notify.js` prend **un destinataire par appel** → **1 à 4 invocations par retour** (typiquement 2-3 après dédup). Trivial sur un événement rare — le point de tension Netlify vient du polling continu, pas des événements ponctuels.
+
+**Compteurs :** `__chef__` **2 → 0**. `notifierEquipe` = 3 (déf. + 2 émissions), `destinatairesRetour` = 2. *Écart signalé par Claude Code et validé par le Pilote* : la proposition annonçait `destinatairesRetour` = 3, mais il a mieux factorisé (les deux blocs appellent `notifierEquipe`, qui appelle `destinatairesRetour` une seule fois). Le « 3 » a changé de symbole ; comportement identique, code plus DRY.
+
+**Dette mineure assumée :** `DB_NOTIFS` est désormais **déclarée mais inutilisée** dans `review.html` (les écritures directes ont disparu). Laissée en place : la retirer coûterait un tour de Claude Code pour une ligne morte inoffensive. À nettoyer au prochain chantier touchant ce fichier.
+
+---
+
+### 2026-07-21 — CHANTIER 1 : `CHEF_PAR_DEFAUT` devient un vrai fallback à l'écriture (+ audit multi-utilisateur)
+
+`index.html` 6249 → **6250 lignes**. Branche `chef-fallback`. Diff +4/−3, un seul fichier. `node --check` OK, tous les compteurs de préservation vérifiés par le Pilote.
+
+**Le bug des dates du 20/07 est CLOS — ce n'était PAS un bug de code.** Diagnostic Claude Code confirmé par le Pilote : les cinq sujets affichant « jeudi 28 mai 2026 à 11:11 » ont un `created_time` identique **à la seconde près** (09:11:01 UTC = 11:11 Paris) → signature d'un **import en masse** lors de la migration. Preuve décisive : les sujets créés **après** la migration affichent des dates justes et distinctes (F651 le 10 juin, sujets du jour corrects). Un bug de rendu ne serait pas sélectif par date de création. `relireSujet` est **innocenté** : un `GET /pages/<id>` renvoie `created_time`/`last_edited_time` au même niveau qu'un résultat de query, et `empreinteSujet` inclut `lastEdited` **volontairement** (c'est le signal de détection de modification). **Décision : ne rien faire** sur les dates d'import. Ne pas réinvestiguer.
+
+**Cause du chantier 1 — pourquoi Benjamin n'a pas été notifié.** David a constaté dans Notion des sujets avec `Chef responsable` **vide**, dont un créé **la veille**. Diagnostic : `CHEF_PAR_DEFAUT` n'était qu'une **valeur d'UI pré-remplie** dans `openNouveau` (l. 775), **jamais un fallback à l'écriture**. Si `n-chef` est vide au submit (pré-remplissage non joué, ou champ reset), un `select.name` vide part vers Notion, qui **l'avale silencieusement**. Et la notification de dépôt de version skippe en silence quand `s.chef` est vide → Benjamin n'a rien reçu, ni push, ni notif interne, ni indice visuel. Piste casse/accent **écartée** : `'Benjamin'` correspond exactement à l'option.
+
+**Les trois modifications livrées :**
+- **l. 4183-4184** — point de passage commun : les **3 handlers de création** (Brand nouveau client, Brand projet existant, sujet standard) lisent le chef sur une seule ligne. `const chef=` → `let chef=` + `if(!chef || !chef.trim()) chef=CHEF_PAR_DEFAUT;`. **Vide ET blanc** couverts (une valeur d'espaces passerait un simple `!chef`). Les 3 `props` consomment la variable sans changement — **aucun handler réécrit**.
+- **l. 1882** — déclinaison : `parent.chef` → `parent.chef||CHEF_PAR_DEFAUT` (le défaut se propageait : un sujet sans chef engendrait des déclinaisons sans chef).
+- **l. 1865** — déclinaison sœur : littéral `'Benjamin'` → `CHEF_PAR_DEFAUT`. **Décision David** : plus aucun littéral en dur, car le chef par défaut **changera** (Chloé dans ~3 mois).
+
+**Décision produit : un sujet doit TOUJOURS avoir un chef.** Aucun cas où le champ peut rester volontairement vide. Le pré-remplissage UI reste en place — ceinture (fallback écriture) **et** bretelles (pré-remplissage), l'UI ayant prouvé qu'elle ne suffisait pas.
+
+**Compteurs après livraison :** `CHEF_PAR_DEFAUT` = **5** (l. 499 déf. + 775 UI + 1865 + 1882 + 4184). Le Pilote attendait 6 — **son attente était fausse** (base surestimée d'une unité : la base réelle était 2, pas 3). Claude Code a **signalé l'écart au lieu de forcer le chiffre** ; comportement correct, un compteur trafiqué ne vérifie plus rien. `'Chef responsable':{select:{name:chef}}` = 3 (intacts). `EQUIPE_FALLBACK=[]` = 1. Aucun `'Benjamin'` en dur restant comme valeur par défaut (les 2 occurrences restantes sont des **listes d'options** de select, l. 773 et 878 — légitimes).
+
+**Signalé, NON corrigé (chantier séparé si besoin) :** le select « Chef responsable » de la fiche détail (l. 877) est le seul chemin théorique de re-vidage, via un `upd(..., 'sel', '')` **programmatique**. Non atteignable par l'UI (le select n'a pas d'option vide). Risque théorique.
+
+**À faire par David (manuel, hors code) :** rattraper dans Notion les sujets déjà créés sans chef — filtrer sur `Chef responsable` vide, assigner. Le correctif ne répare que le futur.
+
+---
+
+### 2026-07-21 — AUDIT MULTI-UTILISATEUR DES ÉCRITURES NOTION (lecture seule, aucun code)
+
+Déclenché par deux jours d'usage réel à ~10 personnes, qui ont révélé plus d'incohérences que le développement par chantiers isolés ne pouvait en voir.
+
+**L'incident déclencheur.** Mickaël dépose un lien de version, clique deux fois → **deux entrées V1**, aucune alerte. David corrige à la main **dans Notion** (renomme l'une en V2) → l'app suit. Benjamin, censé être notifié, **ne reçoit rien**. Le lien déposé était par ailleurs un lien de **dossier** et non de vidéo (problème d'usage, pas de bug — question produit notée : faut-il signaler un lien qui n'est visiblement pas une vidéo ?).
+
+**Mécanisme de la double création (reconstitué).** Un verrou **existe** (`_creerVersionEnCours` + bouton désactivé) mais il a un **trou temporel** : `loadVersions` est appelé **sans `await`**, le `finally` libère le verrou immédiatement, et pendant les 0,5-2 s de re-render un second clic relit un **DOM périmé** → `maxNum = 0` → deuxième V1. Aggravant : le numéro de version est calculé **depuis le DOM** (via un sélecteur de style `[style*="font-weight:600"]`), jamais contre Notion. Et le verrou est une **variable de navigateur** → structurellement inopérant entre deux utilisateurs.
+
+**Trois défauts confirmés** : ① garde anti-double-soumission trouée et par-navigateur · ② aucune contrainte d'unicité (deux V1 acceptées en silence) · ③ aucune contrainte de séquence (une V2 peut exister sans V1). Racine commune avec les codes : **le client calcule un identifiant séquentiel depuis un état local possiblement périmé**.
+
+**La notification manquante est un défaut INDÉPENDANT**, pas une conséquence de la double création (elle vit dans `updateVersionUrl`, pas dans la création). Cause réelle établie ensuite : `Chef responsable` vide → voir chantier 1.
+
+**Classement par gravité réelle (10 utilisateurs simultanés) :**
+- 🔴 **Codes de sujets** : `dernierNumero+1` calculé côté client, 4 sites de création. Le code est une **clé fonctionnelle** — les liens review résolvent par `Code` en prenant le **premier résultat** → un doublon peut servir **le mauvais sujet à un client externe**. Faiblesse d'**architecture**, pas corrigeable par rustine. Bloquant n°1 de l'audit initial, **jamais corrigé**.
+- 🔴 **Création de versions** : doublons silencieux, numérotation DOM, verrou troué. **Cerné et corrigeable seul.**
+- 🟠 **Notifications qui meurent en silence** : ① destinataire vide → skip **invisible** ② échec `notify.js` → console uniquement ③ **les notifs `__chef__` de review.html sont des lettres mortes** (2 émissions, 0 lecteur) → les retours et validations **clients** ne notifient personne. Bloquant n°2 de l'audit initial, **jamais corrigé**.
+- 🟠 **Fire-and-forget généralisé** : `loadVersions` sans `await` à 6 endroits (+ `loadNotifs`, `renderCards`) → l'écran ment pendant une fenêtre, terreau du double-clic.
+- 🟠 **Écritures concurrentes même-champ** : dernier écrit gagne. Le lot 2 protège désormais statuts et validations ; le reste (titres, notes, dates, monteur) non gardé — gravité contenue.
+- 🟡 Garde métier lisant le **texte** du DOM (`countEl.textContent.includes('ouvert')`) · transitions de statut auto non gardées · `deleteSujet` ouvert à tous · doubles PATCH idempotents.
+
+**Note sur les compteurs de codes** : supprimer un sujet ne décrémente **pas** `dernierNumero` — le numéro est perdu (trou dans la séquence). Réutilisation possible **manuellement** en décrémentant dans la base « Compteurs de codes », **uniquement** si c'est bien le dernier créé du format et qu'aucun autre n'a été créé entre-temps. **Ne pas automatiser** : une décrémentation auto rouvrirait la porte aux doublons en cas concurrent.
+
+---
+
+### 2026-07-20 — MULTI-UTILISATEURS : rafraîchissement v2 + lot 1 (fraîcheur fiche) + lot 2 (garde à l'action)
+Trois livraisons successives sur `index.html` (6022 → 6105 → 6181 → **6249 lignes**), chacune vérifiée et testée avant la suivante. Déclenchées par deux retours d'usage réel opposés.
+
+**A. RAFRAÎCHISSEMENT v2 — le bandeau devenu intelligent (index.html 6105)**
+*Irritant David* : le bandeau « Actualiser » se déclenchait dès qu'un champ changeait **n'importe où** (empreinte GLOBALE) → bruit permanent qu'on ignore. Et après clic, perte des repères (re-render complet) — au point d'avoir refait des modifs par confusion (aucune donnée perdue).
+*Règle produit validée* : changement sur un sujet non regardé → **silence** · fiche ouverte en **LECTURE seule** → silence aussi (« regarder ≠ modifier », précision David) · bandeau **uniquement** si on touche la fiche que quelqu'un modifie.
+- `empreinteSujet(s)` (JSON sans retoursOuverts) + `diffSujets` → modifies/ajoutes/supprimes. L'empreinte globale disparaît.
+- `ficheEnEdition(id)` : #ov-detail ouvert + `_detailSujetId === id` + (focus dans la fiche OU `_detailLastInteraction` < 30 s). **L'hystérésis 30 s comble les micro-trous entre deux champs** (sans elle, un tick tombant entre deux clics reconstruirait la fiche sous les doigts).
+- `idsVisibles()` calculé **AVANT ET APRÈS** le remplacement (un sujet qui SORT du filtre doit disparaître). Re-render **seulement si la vue visible est concernée** → zéro repaint dans le cas majoritaire.
+- `editionEnCours()` reste la garde absolue → si vrai, `_renderDiffere = true`, rattrapé au tick suivant.
+- `.maj-flash` : halo ambre 1,5 s sur les cartes fraîchement modifiées (via le sélecteur `onclick` existant → **zéro modification des gabarits**). Transforme la surprise en information.
+- **SUPPRIMÉS** : #refresh-banner, `_freshEnAttente`, `showRefreshBanner`, `hideRefreshBanner`, `empreinte` (globale), `appliquerFresh`. ⚠️ Piège évité à la vérif : ne PAS toucher `#version-banner` (bandeau ROUGE de nouvelle version, autre chantier) — noms similaires.
+
+**B. LOT 1 — FRAÎCHEUR DE LA FICHE (index.html 6181, branche `fiche-fraicheur`)**
+*Incident réel* : David passe un sujet en PAD ; son voisin a LA MÊME FICHE OUVERTE et travaille dedans → il ne voit rien, il aurait pu refaire le PAD. Diagnostic : en prod, `editionEnCours` considérait toute `.overlay.open` comme une édition → **délai de propagation INFINI** tant que la fiche restait ouverte. En v2, chaque clic réarmait l'hystérésis → fiche gelée en continu, et la fine barre #d-conflit passait inaperçue. (Le « ça s'est rafraîchi après avoir scrollé » s'explique : le scroll ne déclenche aucun événement d'interaction.)
+- `relireSujet(id)` : GET /pages/<id> unitaire (~300 ms), parsePage, comparaison empreinteSujet, **badge retoursOuverts préservé**, merge dans le cache. Ne re-rend JAMAIS la grille (calme v2 conservé).
+- **(b) Relecture à l'ouverture** de fiche + au retour d'onglet → on n'ouvre plus jamais sur du périmé. ⚠️ **Anti-boucle `_derniereRelecture`** (skip si même id relu < 5 s) : indispensable car `refreshDetail` repasse par `openDetail` → sans ce garde, boucle infinie.
+- **(g) Polling ciblé** : `setInterval(fichePollTick, 18000)` tant qu'une fiche est ouverte. Lecture seule → `refreshDetail` (convergence ≤ 20 s). En édition → **la fiche et la saisie restent INTACTES**, on alimente l'alerte. Triple ceinture anti-fuite : stop dans `closeOv`, dans `doLogout`, + auto-stop si la fiche n'est plus ouverte ; `demarrerPollingFiche` fait un stop avant de démarrer (jamais de cumul). Pause si onglet caché.
+- **(e) Conflit immanquable** : #d-conflit devient un **vrai bloc ambre** (padding 12/16, 13px, gras) avec texte contextualisé « ⚠️ Ce sujet vient de passer en "PAD" par quelqu'un d'autre — cliquer pour recharger la fiche » + **toast UNE FOIS par épisode** (`_conflitSignale`, reset à `rechargerFiche` et `stopPollingFiche` — sinon alerte toutes les 18 s).
+- Coût : ~3,3 req/min par fiche ouverte, onglet visible seulement. Pire cas 10 users ≈ 1,2 req/s vs limite ~3.
+- **Testé en réel** : séquencier propagé ~10-20 s, lien vidéo ~5 s, PAD vu quasi instantanément, alerte déclenchée. ✅
+
+**C. LOT 2 — GARDE À L'ACTION (index.html 6249, branche `garde-action`)**
+*Pourquoi* : le lot 1 réduit la fenêtre à ~18 s mais ne la supprime pas. David : **un double PAD a de vraies conséquences métier** → il faut la garantie.
+- `champToujoursACa(lireFrais, valeurLocale, timeout 2500)` : `Promise.race` → **FAIL-OPEN** sur timeout ET sur erreur (laisse écrire). Justification : bloquer sur échec rendrait l'app inutilisable en connexion instable ; dans le pire cas on retombe exactement sur le comportement d'avant, jamais en dessous.
+- **Comparaison du CHAMP VISÉ uniquement**, jamais `last_edited_time` → **zéro faux positif** (quelqu'un corrige un titre → le changement de statut passe quand même, et le titre frais est récupéré gratuitement au passage).
+- **4 handlers protégés** : `updStatut` (via relireSujet) + Validée + Validation Brand + annulerVersion (via `lireChampVersion(versionId, prop)`). **EXCLUS** : créations de pages (une page neuve ne peut pas être en conflit), statut retour 'Corrigé', `autoStatut`, et **toutes les écritures mono-champ au fil de l'eau** (pas de requête par frappe).
+- Au blocage : bouton restauré → toast avec la **vraie valeur serveur** → `refreshUI` sur l'état frais. **Refus d'UNE tentative, jamais de verrou** : re-cliquer fonctionne normalement.
+- UX : bouton '…' + `pointerEvents:none` pendant garde+écriture, restauré dans un **`finally` qui couvre les 3 cas** (succès, refus, échec d'écriture) → aucun bouton coincé. Sert aussi d'anti-double-clic. `upd()` **inchangé** (la garde est AVANT, on ne réécrit pas l'écriture).
+- **Testé en réel par David + son voisin** : « je n'ai pas pu PADiser un dossier qui venait d'être PADisé » → **le double PAD est devenu impossible.** ✅
+
+**DÉCISION SUR LA CADENCE** : rester à **18 s** (polling fiche) et **60 s** (tick global). Descendre à 10 s doublerait les invocations Netlify (point de tension) pour un gain de **confort** seulement — le risque, lui, est déjà éliminé par le lot 2. À réévaluer après une semaine d'usage réel.
+
+**TENSION ARBITRÉE (à garder en tête)** : le matin « ça bouge trop, je perds mes repères » → v2 conservatrice. L'après-midi « mon voisin voit du périmé, il peut agir faux » → lots 1 et 2. Ce sont des exigences **opposées** ; l'arbitrage retenu : la **fraîcheur ciblée** (fiche) + la **protection à l'écriture**, sans revenir au bruit sur la grille.
+
 
 ### 2026-07-20 — VISIONNAGE + TÉLÉCHARGEMENT CLIENT EXTERNE (gros chantier, 4 livraisons)
 Le client externe qui reçoit un lien review peut désormais **VOIR** et **TÉLÉCHARGER** la vidéo sans compte Google et sans partage d'email. `index.html` JAMAIS touché.
