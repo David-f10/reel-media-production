@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-21 (chantiers 1 & 2 livrés + audit multi-utilisateur + incident compteur codes)
+> Dernière mise à jour : 2026-07-21 (chantiers 1, 2 & 3 livrés + audits multi-utilisateur et notifications)
 
 ═══════════════════════════════════════════════════════════════
 ## 🔴 ÉTAT EN COURS — À TRAITER EN PRIORITÉ AU PROCHAIN CHAT
@@ -8,24 +8,30 @@
 
 **FILE D'ATTENTE ISSUE DE L'AUDIT MULTI-UTILISATEUR DU 21/07**
 
-1. ✅ **Chef par défaut** — FAIT et **mergé** (PR #48, `main` = 64bb9b3). Testé par David : sujet créé avec le champ Chef vidé → Benjamin arrive bien dans Notion.
-2. ✅ **Notifs `__chef__`** — FAIT le 21/07 (voir historique). Branche `notif-retour-client`, vérifiée par le Pilote, en attente de merge.
-3. 🟠 **Création de versions** (l'incident Mickaël) — **PROCHAIN CHANTIER**. Périmètre **minimal validé** : corriger `ajouterVersion` seul (`await` sur le re-render avant libération du verrou + numérotation calculée contre **Notion**, pas contre le DOM). Le pattern `loadVersions` sans `await` (6 endroits) est **observé, pas traité** — décision « livrer petit, vivre une semaine ». *Analyse déjà faite dans l'audit, pas besoin de rediagnostiquer.*
-4. 🟡 **Codes en double** — **toujours théorique** : le seul cas réel (D1212 en double le 21/07) avait une **tout autre cause** (voir incident ci-dessous), pas la concurrence. Course read-modify-write côté client sur `dernierNumero+1`, bloquant n°1 de l'audit initial. Demande une **décision d'architecture** (allocation côté serveur), pas une rustine. Maintenu en dernier.
+1. ✅ **Chef par défaut** — FAIT et **mergé** (PR #48). Testé : sujet créé avec le champ Chef vidé → Benjamin arrive bien dans Notion.
+2. ✅ **Notifs `__chef__`** — FAIT et **mergé** (PR #49). Testé en conditions réelles : retour de Julie (Danone) reçu en push par le monteur, validation d'Arnaud reçue également. Ciblage et déduplication confirmés.
+3. ✅ **Création de versions + type `v1_deposee`** — FAIT le 21/07. Branche `fix-versions`, vérifiée par le Pilote, en attente de merge et de test.
+4. 🟡 **Codes en double** — **toujours théorique** : le seul cas réel (D1212 le 21/07) avait une **tout autre cause** (compteur non mis à jour après création hors app). Course read-modify-write côté client sur `dernierNumero+1`, bloquant n°1 de l'audit initial. Demande une **décision d'architecture** (allocation côté serveur), pas une rustine.
 
-**DEMANDE OUVERTE DE DAVID — audit des notifications INTERNES**
-David veut confirmer que le comportement de **toutes** les notifications internes de l'app est le bon. Prompt d'audit rédigé et prêt (lecture seule, tableau des 27 sites d'appel de `createNotif` : événement · type · destinataire · auteur ; puis signaler les types déclarés jamais émis, les événements qui devraient notifier et ne notifient pas, les destinataires potentiellement vides, les doublons possibles). **Pas encore envoyé** (budget). À noter : le cas déclencheur (Benjamin non notifié du dépôt de Mickaël) est **déjà résolu** par le chantier 1 — c'était un chef vide, pas une notification cassée.
+**NOUVEAU CHANTIER IDENTIFIÉ PAR DAVID (21/07) — séparer « retours finalisés » et « version validée » dans `review.html`**
+Constat en test réel : le client n'a que deux boutons — « Envoyer » (ses retours) et « Valider cette version ». Rien ne lui permet de dire « j'ai fini ma passe de retours ». Conséquence : un client qui a laissé des commentaires et veut signaler qu'il a terminé **valide un montage qu'il critique**. La base contient alors une version marquée validée avec des retours ouverts dessus — **donnée fausse**, et le chef peut lancer la suite alors que le client attend des corrections. Les deux boutons ne sont en outre pas différenciés visuellement (« Envoyer » en rouge plein, « Valider » en vert discret) alors qu'ils veulent dire des choses opposées.
+À concevoir : **« J'ai fini mes retours »** (→ statut Retours, l'équipe peut travailler) vs **« Cette version est validée »** (→ Validation chef, plus rien à corriger). Envisager une garde : si des retours non résolus existent, la validation demande confirmation. **Chantier produit**, pas correction de bug — il touche l'interface vue par les clients, à réfléchir avant de coder.
+
+**DÉCISIONS PRODUIT EN ATTENTE (issues de l'audit des notifications)**
+- **Passage en PAD manuel ne notifie personne** : `updStatut` (changement de statut par clic direct) n'émet **aucune** notification. Le « c'est PAD » n'existe que dans les transitions automatiques. Question à trancher : faut-il notifier sur changement de statut, lesquels, et qui ? Notifier tous les statuts ferait du bruit ; PAD + Validation chef seraient ciblés.
+- **Contact Brand souvent vide** → les notifications de validation séquencier Brand skippent quasi systématiquement (même motif que le chef vide). Rendre obligatoire, ou accepter ?
 
 **AUTRES POINTS OUVERTS**
 - **Test visionnage étape 3** toujours non fait : laisser une vidéo review ouverte > 15 min → la permission doit rester dans Drive.
 - **PWA fermée = pas de push** : problème connu, non traité. Se corrigera dans `notify.js` — et bénéficiera automatiquement aux retours clients depuis le chantier 2.
-- **Chef par défaut évolutif** : Benjamin aujourd'hui, **Chloé dans ~3 mois**, Arnaud ponctuellement. Aujourd'hui = changer la constante `CHEF_PAR_DEFAUT` (1 ligne). Alternative notée pour plus tard : stocker le chef par défaut dans la base Équipe Notion (case à cocher) → changement sans toucher au code. **Non prioritaire** (confort vs fiabilité).
-- **Budget Claude Code contraint** : 251 €/250 € de crédits au 21/07, renouvellement le 1er août. Règles adoptées : le Pilote fait tout ce qui ne demande pas de lire le code (analyse, décisions, prompts, CONTEXT) ; Claude Code ne sert qu'à lire et écrire du code ; sessions courtes, un chantier à la fois ; lectures ciblées plutôt que relecture large du monolithe. **Les deux compteurs sont distincts** : la limite d'abonnement Max gouverne le chat Pilote, les crédits payants alimentent Claude Code.
+- **`Code suggéré` vide sur toute la vue Notion** alors que des sujets ont un code : formule qui ne se calcule pas, ou mauvais champ affiché (`Code` est la vraie propriété). Non urgent.
+- **Chef par défaut évolutif** : Benjamin aujourd'hui, **Chloé dans ~3 mois**, Arnaud ponctuellement. Aujourd'hui = changer la constante (1 ligne). Alternative pour plus tard : stocker le chef par défaut dans la base Équipe Notion (case à cocher) → changement sans toucher au code. **Non prioritaire.**
+- **Budget Claude Code contraint** : 251 €/250 € au 21/07, renouvellement le 1er août. Règles adoptées : le Pilote fait tout ce qui ne demande pas de lire le code (analyse, décisions, prompts, CONTEXT) ; Claude Code ne sert qu'à lire et écrire du code ; sessions courtes, un chantier à la fois ; lectures ciblées. **Les deux compteurs sont distincts** : la limite d'abonnement Max gouverne le chat Pilote, les crédits payants alimentent Claude Code.
 
 **CHANTIER SUSPENDU (analysé, validé, non lancé) — présence sur une fiche**
-Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07**. **Archivée, pas rejetée.** Suspendue au profit des chantiers de fiabilité (on ne pose pas du confort collaboratif sur un système qui accepte des états incohérents ; et la présence touche `fichePollTick`, cœur du multi-utilisateur).
+Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07**. **Archivée, pas rejetée.**
 ⚠️ **À revalider avant reprise** : si un chantier modifie `relireSujet`, `fichePollTick` ou le contrat du merge, les 8 ancres et les compteurs prédits devront être revérifiés.
-⚠️ **DÉPENDANCE À NE PAS PERDRE — TTL ↔ cadence** : le TTL de présence (45 s) est calé sur **2,5 × la cadence de `fichePollTick` (18 s)**. Si la cadence change (réévaluation prévue après une semaine d'usage), **le TTL doit bouger avec**. À 60 s de cadence, un TTL de 45 s ferait disparaître tout le monde en permanence.
+⚠️ **DÉPENDANCE À NE PAS PERDRE — TTL ↔ cadence** : le TTL de présence (45 s) est calé sur **2,5 × la cadence de `fichePollTick` (18 s)**. Si la cadence change, **le TTL doit bouger avec**. À 60 s de cadence, un TTL de 45 s ferait disparaître tout le monde en permanence.
 
 ═══════════════════════════════════════════════════════════════
 ## ⚠️ RÈGLES DE PROCÉDURE — CRÉATIONS HORS APP (ajouté le 21/07)
@@ -49,7 +55,51 @@ Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07*
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
 
-### 2026-07-21 — CHANTIER 2 : les retours clients notifient enfin l'équipe (`review.html`)
+### 2026-07-21 — CHANTIER 3 : fin du double-clic sur les versions + type de notif corrigé
+
+`index.html` **6250 lignes** (inchangé, +10/−10). Branche `fix-versions`. `node --check` OK. Base `main` = 974573c.
+
+**CORRECTION A — la double création de versions (l'incident Mickaël).** Mécanisme reconstitué par l'audit : le verrou `_creerVersionEnCours` **existait** mais `loadVersions` était appelé **sans `await`** ; le `finally` libérait le verrou immédiatement, et pendant les 0,5-2 s de re-render un second clic relisait un **DOM périmé** → `maxNum = 0` → deuxième V1. Aggravant : le numéro était calculé **depuis le DOM**, via un sélecteur de style `[style*="font-weight:600"]`, jamais contre Notion.
+
+Livré : ① calcul DOM **retiré** (ancre de 4 lignes — la 1ʳᵉ seule n'était pas unique, `font-weight:600` sert aussi l. 1572, hors périmètre) ; ② numéro calculé **contre Notion** dans le `try`, avant le POST — query `DB_VERSIONS` filtre `Sujet ID`, `max(numéros)+1` ; ③ `await loadVersions(sujetId)` → le `finally` ne libère le verrou qu'**après** le re-render.
+
+**Coût et UX assumés :** +1 requête Notion par création (marginal — une création en coûtait déjà 2-3). Le bouton reste « Création… » **0,5-2 s de plus** au lieu de se réactiver aussitôt : c'est précisément ce délai tenu qui ferme la fenêtre du double-clic. Bénéfice secondaire : un bouton visiblement occupé n'invite plus au reclic.
+
+**Risque résiduel documenté :** le verrou reste **par-navigateur**. Deux personnes créant *vraiment* simultanément peuvent encore produire deux V(n+1) — le calcul contre Notion corrige « mon DOM est périmé », pas la concurrence réelle. Seul un mécanisme serveur (type `alloc-code`) l'éliminerait. Hors périmètre, jamais matérialisé à ce jour.
+
+**PÉRIMÈTRE MINIMAL TENU** : `ajouterVersion` seul. Le pattern `loadVersions` sans `await` ailleurs (**8 autres occurrences** — updateVersionUrl, gardes de fraîcheur, toggles de validation, annulation) est **observé, pas traité** — décision « livrer petit, vivre une semaine ». *Note de comptage : la proposition annonçait « 6 → 5 » ; le réel était 9 avant chantier, 8 après. Claude Code a rectifié son propre chiffre au lieu de laisser le Pilote vérifier un « 5 » qui n'a jamais existé. Périmètre strictement respecté.*
+
+**CORRECTION B — le type `v1_deposee` codé en dur.** Le dépôt de lien depuis la **fiche** émettait toujours `'v1_deposee'`, même pour une V2 ou V3 (seule la vue tableau construisait correctement `` `v${v}_deposee` ``). Une V3 déposée depuis la fiche notifiait donc le chef d'une **V1**, avec la mauvaise icône.
+
+**Découverte importante à l'inspection : `data-vnum` est MORT.** Le code lisait `dataset?.vnum` mais **aucun élément ne porte cet attribut** → `vNum` valait toujours `''`. Le littéral `'v1_deposee'` n'était pas une négligence : c'était un **repli sur une variable qui n'a jamais fonctionné**. Se contenter de remplacer le littéral par `vNum` aurait émis `v_deposee` — type inexistant, icône par défaut, notification cassée. La parade retenue : **propager le vrai numéro depuis le rendu** (`version` est déjà en main dans la boucle de `loadVersions`), signature `updateVersionUrl(versionId, sujetId, url, versionNum)`, 2 call sites mis à jour, ligne `vNum` morte supprimée. Repli `(versionNum||'V1')` : **jamais de type vide**, toujours un type valide de `NOTIF_ICONS`.
+
+**Décision produit confirmée par David :** une **version annulée garde son numéro** (V2 annulée → la prochaine est V3, jamais une seconde V2). Réutiliser un numéro annulé créerait deux « V2 » distinctes dans l'historique — or les liens review, les notifications et les retours clients référencent ces numéros.
+
+**Compteurs après livraison :** `createNotif('v1_deposee'` **1 → 0** · template `` `_deposee` `` = **2** (fiche + vue tableau) · `querySelectorAll('[style*="font-weight:600"]')` **2 → 1** (l. 1572 conservée) · `dataset?.vnum` **1 → 0** · `loadVersions(sujetId)` = 10 dont **1 en `await`** · `_creerVersionEnCours` 4 · `CHEF_PAR_DEFAUT` 5 · `EQUIPE_FALLBACK` 2 (déclaration + usage, liste toujours vide) · tous les acquis habituels intacts.
+
+**Dette mineure assumée :** `const el = document.getElementById('versions-list-'+sujetId)` et son commentaire deviennent **orphelins** dans `ajouterVersion` (le calcul DOM qui les consommait a été retiré). Inoffensif. Laissé en place — à nettoyer au prochain chantier touchant cette fonction.
+
+---
+
+### 2026-07-21 — AUDIT DES NOTIFICATIONS INTERNES (lecture seule, aucun code)
+
+**26 sites d'appel de `createNotif`**, pas 27 — le CONTEXT était désynchronisé, corrigé ici. Signature : `createNotif(type, sujetId, code, titre, destinataire, auteur, message)`. `createNotif` route vers `notify.js` → page Notion **+** push VAPID. Garde-fou : `if(!destinataire || destinataire === auteur) return` — **skip silencieux** (simple `console.log`).
+
+**Carte des destinataires par famille d'événement :** retours équipe → `sujet.journaliste` · retour corrigé → `s.chef` · dépôt de lien → `s.chef` · validation d'une version → `s.journaliste` · version annulée → `s.journaliste` · validation séquencier → `s.journaliste` **et** `s.contactBrand` (double émission) · commentaire → `s.chef` **et** `s.journaliste` (avec anti-doublon `journaliste ≠ chef`) · transitions de statut auto → `s.journaliste` · créations de sujet → le journaliste assigné · idées (validée / déclinée / convertie) → `i.proposePar`.
+
+**DÉFAUTS RELEVÉS :**
+- 🔴 **`v1_deposee` codé en dur** au site du dépôt depuis la fiche → **corrigé par le chantier 3**.
+- 🟠 **Changement de statut manuel (`updStatut`) ne notifie personne**, y compris le passage en **PAD** par bouton. Le « c'est PAD » n'existe que dans les transitions automatiques. **Décision produit en attente.**
+- 🟠 **`s.contactBrand` très souvent vide** (sites validation séquencier Brand) → skip quasi systématique. Même motif que le chef vide. **Décision produit en attente.**
+- 🟠 **Sites `s.chef` sans garde `≠ auteur`** : si le chef est lui-même l'auteur, skip. Trois sites concernés.
+- 🟡 **`deleteSujet` et `ajouterVersion` n'émettent aucune notification** (la notif de dépôt dépend du collage du lien : si le lien n'est jamais collé, silence total).
+- 🟡 **Aucune garde anti-double-clic sur les émissions** : recliquer une validation ou un dépôt ré-émet la notification. Même famille de défaut que l'incident Mickaël.
+
+Aucun type de `NOTIF_ICONS` n'est strictement orphelin.
+
+---
+
+
 
 `review.html` 821 → **840 lignes** (+19). Branche `notif-retour-client`. Diff +41/−22, un seul fichier. `node --check` OK. `index.html` et `notify.js` **intouchés**.
 
@@ -70,6 +120,28 @@ Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07*
 **Compteurs :** `__chef__` **2 → 0**. `notifierEquipe` = 3 (déf. + 2 émissions), `destinatairesRetour` = 2. *Écart signalé par Claude Code et validé par le Pilote* : la proposition annonçait `destinatairesRetour` = 3, mais il a mieux factorisé (les deux blocs appellent `notifierEquipe`, qui appelle `destinatairesRetour` une seule fois). Le « 3 » a changé de symbole ; comportement identique, code plus DRY.
 
 **Dette mineure assumée :** `DB_NOTIFS` est désormais **déclarée mais inutilisée** dans `review.html` (les écritures directes ont disparu). Laissée en place : la retirer coûterait un tour de Claude Code pour une ligne morte inoffensive. À nettoyer au prochain chantier touchant ce fichier.
+
+---
+
+### 2026-07-21 — CHANTIER 2 : les retours clients notifient enfin l'équipe (`review.html`)
+
+`review.html` 821 → **840 lignes** (+19). Branche `notif-retour-client`, **mergée** (PR #49). Diff +41/−22. `node --check` OK. `index.html` et `notify.js` **intouchés**.
+
+**Le bug : `__chef__` n'était pas un lecteur manquant, c'était un placeholder jamais résolu.** Les deux émissions de `review.html` (retour client, validation client) écrivaient **en direct** dans `DB_NOTIFS` avec `Destinataire: '__chef__'`. Or `loadNotifs` filtre sur `Destinataire = currentUser.nom` — et personne ne s'appelle `__chef__`. Conséquence double : **aucune cloche** (destinataire fantôme) **et aucun push** (`notify.js` jamais appelé). Depuis toujours. Les retours et validations **clients** ne notifiaient donc personne.
+
+**Décision produit David — ciblage précis :** **chef + journaliste + monteur de LA version concernée uniquement + contact Brand**. Si le client commente la V3, le monteur de la V1 n'est **pas** notifié. Destinataire manquant → ignoré sans trace (trace en logs proposée et refusée).
+
+**L'information était disponible gratuitement** : `init()` chargeait déjà la page sujet dans `pr` mais n'en extrayait que le titre. **Zéro requête réseau ajoutée.**
+
+**Livré :** `sujetData` enrichi (`chef`, `journaliste`, `contactBrand`, `monteurs {V1,V2,V3}`) · `destinatairesRetour()` avec `Set` de noms non vides, extraction défensive `/^V(\d+)$/`, **dédup obligatoire** (une personne cumulant deux rôles → **une seule** notif) · `notifierEquipe(type, message)` : un POST `notify` par destinataire, best-effort.
+
+**DÉCISION D'ARCHITECTURE — routage via `notify.js`, pas écriture directe.** Claude Code recommandait l'écriture directe (cloche seule). Le Pilote a recommandé l'inverse, David a tranché : ① un retour client doit être traité comme un dépôt de version ; ② le jour où « PWA fermée = pas de push » sera corrigé dans `notify.js`, les retours clients en bénéficieront **automatiquement** ; ③ « fidèle à l'existant » signifiait ici fidèle à un mécanisme qui ne notifiait personne. Coût mesuré avant validation : **1 à 4 invocations par retour** (typiquement 2-3 après dédup) — trivial sur un événement rare.
+
+**TESTÉ EN CONDITIONS RÉELLES** : retour de Julie (Danone) sur la V1 de B54D → reçu en push par le monteur. Validation d'Arnaud → reçue également. Ciblage et déduplication confirmés.
+
+**Compteurs :** `__chef__` **2 → 0** · `notifierEquipe` 3 · `destinatairesRetour` 2. *Écart signalé et validé* : la proposition annonçait `destinatairesRetour` = 3, mais la factorisation via `notifierEquipe` a déplacé le « 3 » sur cet autre symbole.
+
+**Dette mineure assumée :** `DB_NOTIFS` désormais déclarée mais inutilisée dans `review.html`. Laissée en place.
 
 ---
 
