@@ -1,6 +1,19 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-22 (chantiers 6/6b/7 + analyse relevé musical)
+> Dernière mise à jour : 2026-07-22 (chantiers 6/6b/7/8 — session UX + fiabilité review/musique)
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 8 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-22 — CHANTIER 8 : « Sans musique » réversible depuis l'app (`index.html`)
+`index.html` **6256 lignes** (inchangé, +1/−1). Branche `musique-reversible`, base `main` cb0510f. `node --check` OK.
+**Besoin :** le bandeau « 🔇 Aucune musique » n'était pas cliquable → décochage impossible sans passer par Notion. **Option A validée par David : décochage depuis l'app, retour à l'écran de choix.**
+**Livré :** le bandeau reçoit un lien « Modifier » qui fait l'inverse exact du bouton « Sans musique » : `sx.sansMusique=false` + `upd('Sans musique','cb',false)` + `refreshUI`. Une seule écriture Notion. Comme `releveMusique` reste false, le rendu du ternaire retombe sur l'écran de choix « 🎵 Avec musique / 🔇 Sans musique ».
+**Périmètre strict :** SEUL le décochage. Le 2ᵉ verrou (formulaire masqué en PAD) n'est PAS traité — David le contourne en baissant le statut, c'est voulu.
+**Compteurs :** CHEF_PAR_DEFAUT=5, EQUIPE_FALLBACK=2, createNotif=27, relireSujet=5, fichePollTick=3 — tous intacts. review.html/notify.js intouchés.
+**Note méthode :** Claude Code a livré directement au lieu de proposer d'abord (le prompt demandait une proposition sur index.html). Toléré ici car diff d'une ligne, entièrement vérifiable, logique bien expliquée en amont. La règle proposition-d'abord sur index.html reste valable pour tout changement plus large.
+
+
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 CHANTIER 7 (à intégrer dans l'historique complet plus bas)
@@ -25,9 +38,7 @@
 5. ✅ **Trois boutons client** (fin de passe) — branche `client-fin-retours`, mergé.
 6. ✅ **Reconception UX zone client** — chantier 6, branche `chantier6-ux` (empilée sur 5). Vérifié, **en attente de merge et de test**.
 
-**🔜 PROCHAIN CHANTIER — décocher « Sans musique » depuis l'app** (petit, sur `index.html`)
-Le bandeau vert « Aucune musique » n'est pas cliquable → aujourd'hui il faut décocher `Sans musique` DANS NOTION pour repasser en mode relevé. Décision de David : rendre ça possible depuis l'app, et **annuler « Sans musique » ramène à l'écran de choix « Avec / Sans musique »** (option A validée — le décochage seul, PAS le 2ᵉ verrou PAD, que David contourne déjà en baissant le statut). Détail complet dans l'historique du 22/07.
-⚠️ C'est `index.html` → **après merge du chantier 6/6b** (review.html), pas en parallèle.
+**✅ FAIT (chantier 8, 22/07) — « Sans musique » réversible depuis l'app.** Le bandeau « Aucune musique » a un lien « Modifier » qui décoche et ramène à l'écran de choix (option A). Le 2ᵉ verrou (formulaire masqué en PAD) reste non traité — contournement manuel voulu.
 
 **DÉCISION PRODUIT TRANCHÉE — « Valider avec des retours » : AVERTIR.** ✅ FAIT (chantier 7, 22/07). Le popup de validation affiche un avertissement ambre si des retours sont ouverts, sans bloquer.
 
