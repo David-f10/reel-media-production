@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TEST — Lecteur vidéo natif (jetable)</title>
+<style>
+  :root { --red:#ff451a; --ok:#1db954; --warn:#e0a400; --bg:#101018; --bg2:#1a1a26; --border:#2c2c3a; --text:#f0f0f5; --text2:#9a9aa8; --mono:ui-monospace,Menlo,Consolas,monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; padding:14px; }
+  h1 { font-size:16px; margin:0 0 4px; }
+  .sub { color:var(--text2); font-size:12px; margin:0 0 16px; }
+  .card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:14px; }
+  label { display:block; font-size:12px; color:var(--text2); margin:0 0 4px; }
+  input { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:10px; font-size:14px; font-family:var(--mono); margin-bottom:10px; }
+  button { background:var(--red); border:none; color:#fff; padding:11px 16px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600; }
+  button.sec { background:var(--bg); border:1px solid var(--border); color:var(--text); }
+  button:disabled { opacity:.4; cursor:default; }
+  .btn-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  video { width:100%; max-height:52vh; background:#000; border-radius:8px; display:block; }
+  .metrics { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  .metric { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px; }
+  .metric .k { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.04em; }
+  .metric .v { font-size:20px; font-family:var(--mono); margin-top:3px; }
+  .big { font-size:26px; }
+  .verdict { font-size:14px; font-weight:600; padding:10px 12px; border-radius:8px; margin-top:12px; border:1px solid var(--border); background:var(--bg); }
+  .v-ok { color:var(--ok); border-color:var(--ok); }
+  .v-warn { color:var(--warn); border-color:var(--warn); }
+  .v-err { color:var(--red); border-color:var(--red); }
+  #log { font-family:var(--mono); font-size:12px; line-height:1.55; max-height:220px; overflow-y:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px; white-space:pre-wrap; }
+  .log-ok { color:var(--ok); } .log-err { color:var(--red); } .log-warn { color:var(--warn); } .log-info { color:var(--text2); }
+  .hint { font-size:11px; color:var(--text2); margin:-4px 0 10px; }
+</style>
+</head>
+<body>
+
+<h1>🧪 Test lecteur vidéo natif — page jetable</h1>
+<p class="sub">But : vérifier que l'URL Drive alimente un <code>&lt;video&gt;</code> et que le <b>seek en avant</b> est instantané (test des range requests). Ne fait partie d'aucune fonctionnalité.</p>
+
+<!-- ── ÉTAPE 1 : identifiants ── -->
+<div class="card">
+  <label>Code du sujet (ex. celui d'une review réelle)</label>
+  <input id="in-code" placeholder="ex : ABC-123" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <label>fileId Drive OU URL complète du fichier</label>
+  <input id="in-file" placeholder="1AbCd... ou https://drive.google.com/file/d/1AbCd.../view" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <p class="hint">Le fileId doit appartenir à ce sujet (le serveur vérifie la cohérence Notion, comme review.html). Les deux champs sont obligatoires pour ouvrir la session.</p>
+  <div class="btn-row">
+    <button id="btn-go">▶ Ouvrir la session + charger la vidéo</button>
+    <button id="btn-direct" class="sec" title="Charge la vidéo SANS ouvrir de session (pour un fichier déjà public — isole le test Range du mécanisme de session)">Mode direct (sans session)</button>
+  </div>
+</div>
+
+<!-- ── ÉTAPE 2 : lecteur ── -->
+<div class="card" id="player-card" style="display:none">
+  <video id="video" controls playsinline preload="metadata"></video>
+
+  <div class="metrics">
+    <div class="metric"><div class="k">currentTime (en direct)</div><div class="v big" id="m-time">0:00.0</div></div>
+    <div class="metric"><div class="k">Durée</div><div class="v" id="m-dur">—</div></div>
+    <div class="metric"><div class="k">Dernier seek pris en</div><div class="v" id="m-seek">—</div></div>
+    <div class="metric"><div class="k">État</div><div class="v" id="m-state">—</div></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="sec" onclick="jumpTo(10)">Sauter à 0:10</button>
+    <button onclick="jumpTo(150)">Sauter à 2:30 (test Range)</button>
+    <button class="sec" onclick="jumpVersFin()">Sauter vers la fin</button>
+    <button class="sec" onclick="captureTc()">📍 Capturer le timecode</button>
+  </div>
+  <div id="capture" class="hint" style="margin-top:8px"></div>
+
+  <div class="verdict" id="verdict">En attente de lecture…</div>
+</div>
+
+<!-- ── Journal ── -->
+<div class="card">
+  <label>Journal des événements vidéo</label>
+  <div id="log"></div>
+</div>
+
+<script>
+// ── Réglages alignés sur review.html ──
+var FN_SESSION = '/.netlify/functions/drive-view-session';
+var HEARTBEAT_MS = 60000;
+
+var video = document.getElementById('video');
+var _session = { fileId:null, code:null, timer:null };
+var _seekStart = 0;
+var _sawWaiting = false;
+
+function log(msg, cls) {
+  var el = document.getElementById('log');
+  var line = document.createElement('div');
+  line.className = cls ? ('log-' + cls) : '';
+  // Horodatage relatif au chargement de la page (pas de date absolue nécessaire).
+  var t = (performance.now() / 1000).toFixed(1);
+  line.textContent = '[' + t + 's] ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+// secondes → m:ss (ou h:mm:ss) — ce que le vrai chantier ferait pour remplir le champ timecode
+function fmt(sec) {
+  if (!isFinite(sec)) return '—';
+  sec = Math.max(0, sec);
+  var h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = Math.floor(sec%60);
+  var mm = (h>0 && m<10 ? '0'+m : ''+m), ss = (s<10 ? '0'+s : ''+s);
+  return (h>0 ? h+':'+mm+':'+ss : m+':'+ss);
+}
+function fmtMs(sec) { // version avec dixièmes pour l'affichage "en direct"
+  var base = fmt(sec);
+  var d = Math.floor((sec % 1) * 10);
+  return base + '.' + d;
+}
+
+// Extraction fileId : accepte un id brut ou une URL Drive (même logique que _drive.js/getDriveFileId)
+function extractFileId(raw) {
+  if (!raw) return '';
+  raw = raw.trim();
+  var m = raw.match(/\/file\/d\/([a-zA-Z0-9_-]+)/); if (m) return m[1];
+  m = raw.match(/[?&]id=([a-zA-Z0-9_-]{10,})/); if (m) return m[1];
+  return /^[a-zA-Z0-9_-]{10,}$/.test(raw) ? raw : '';
+}
+
+function usercontentUrl(fileId) {
+  return 'https://drive.usercontent.google.com/download?id=' + fileId + '&export=download&confirm=t';
+}
+
+// ── Session de visionnage (copie du mécanisme review.html) ──
+function sessionPost(action, code, fileId) {
+  return fetch(FN_SESSION, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:action, sujetCode:code, fileId:fileId })
+  }).then(function(r){ return r.json().catch(function(){ return {}; }); });
+}
+
+function startHeartbeat(code, fileId) {
+  stopHeartbeat();
+  _session.code = code; _session.fileId = fileId;
+  _session.timer = setInterval(function(){
+    if (document.hidden) return;
+    sessionPost('heartbeat', code, fileId).then(function(d){
+      if (d.ok && d.alive === false) { log('heartbeat: session morte → ré-open', 'warn'); sessionPost('open', code, fileId); }
+    }).catch(function(){});
+  }, HEARTBEAT_MS);
+}
+function stopHeartbeat() {
+  if (_session.timer) { clearInterval(_session.timer); _session.timer = null; }
+}
+
+// ── Chargement principal : ouvre la session PUIS pose la source ──
+document.getElementById('btn-go').addEventListener('click', function(){
+  var code = document.getElementById('in-code').value.trim();
+  var fileId = extractFileId(document.getElementById('in-file').value);
+  if (!code || !fileId) { alert('Renseigne le code du sujet ET le fileId (ou l\'URL).'); return; }
+  this.disabled = true; this.textContent = 'Ouverture de la session…';
+  var self = this;
+  log('open session → code=' + code + ' fileId=' + fileId, 'info');
+  sessionPost('open', code, fileId).then(function(d){
+    if (d && d.ok) {
+      log('session OUVERTE (reused=' + d.reused + ', expire dans ' + Math.round(((d.expiresAt||0)-Date.now())/60000) + ' min)', 'ok');
+      startHeartbeat(code, fileId);
+      charger(fileId);
+    } else {
+      log('open REFUSÉ : ' + JSON.stringify(d), 'err');
+      alert('Le serveur a refusé l\'ouverture : ' + (d && (d.error || d.step) || 'inconnu') + '\n\nVérifie que le fileId appartient bien à ce code de sujet.');
+      self.disabled = false; self.textContent = '▶ Ouvrir la session + charger la vidéo';
+    }
+  }).catch(function(e){
+    log('open ERREUR réseau : ' + e.message, 'err');
+    alert('Erreur réseau. Cette page doit être ouverte depuis le site déployé (Netlify), pas en fichier local.');
+    self.disabled = false; self.textContent = '▶ Ouvrir la session + charger la vidéo';
+  });
+});
+
+// ── Mode direct : charge une URL sans session (fichier déjà public) — isole le test Range ──
+document.getElementById('btn-direct').addEventListener('click', function(){
+  var raw = document.getElementById('in-file').value.trim();
+  var fileId = extractFileId(raw);
+  var url = fileId ? usercontentUrl(fileId) : raw; // si l'utilisateur colle une URL usercontent complète, on la prend telle quelle
+  if (!url) { alert('Colle un fileId, une URL Drive, ou une URL usercontent complète.'); return; }
+  log('mode direct (sans session) → ' + url.slice(0, 60) + '…', 'warn');
+  poserSource(url);
+});
+
+function charger(fileId) { poserSource(usercontentUrl(fileId)); }
+
+function poserSource(url) {
+  document.getElementById('player-card').style.display = 'block';
+  _sawWaiting = false;
+  video.src = url;
+  video.load();
+  log('video.src posé → chargement…', 'info');
+  setVerdict('Chargement de la vidéo…', '');
+}
+
+// ── Boutons de seek ── (LE test range = sauter loin, vers une zone non bufferisée)
+function jumpTo(t) {
+  if (!video.src) return;
+  _seekStart = performance.now();
+  _sawWaiting = false;
+  document.getElementById('m-seek').textContent = '…';
+  log('SEEK demandé → ' + t + 's (' + fmt(t) + ')', 'info');
+  video.currentTime = t;
+}
+function jumpVersFin() {
+  if (!video.duration || !isFinite(video.duration)) { alert('Durée inconnue — lance la lecture d\'abord.'); return; }
+  jumpTo(Math.max(0, video.duration - 10));
+}
+
+// ── Capture du timecode (le geste du vrai chantier) ──
+function captureTc() {
+  var tc = fmt(video.currentTime);
+  document.getElementById('capture').innerHTML =
+    '📍 Timecode capturé : <b style="color:#fff;font-family:var(--mono)">' + tc + '</b> ' +
+    '<span style="color:var(--text2)">(currentTime brut = ' + video.currentTime.toFixed(2) + ' s)</span>';
+  log('capture timecode → ' + tc + ' (' + video.currentTime.toFixed(2) + 's)', 'ok');
+}
+
+// ── Affichage en direct de currentTime (rAF pour la fluidité) ──
+function tick() {
+  document.getElementById('m-time').textContent = fmtMs(video.currentTime || 0);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function setVerdict(txt, cls) {
+  var el = document.getElementById('verdict');
+  el.textContent = txt;
+  el.className = 'verdict' + (cls ? ' ' + cls : '');
+}
+function setState(s) { document.getElementById('m-state').textContent = s; }
+
+// ── Événements vidéo = la vraie mesure ──
+video.addEventListener('loadedmetadata', function(){
+  document.getElementById('m-dur').textContent = fmt(video.duration);
+  log('loadedmetadata — durée=' + fmt(video.duration) + ' (la vidéo est LISIBLE)', 'ok');
+});
+video.addEventListener('canplay', function(){ log('canplay — prête à jouer', 'ok'); setState('prête'); });
+video.addEventListener('playing', function(){ log('playing — lecture en cours', 'ok'); setState('lecture'); });
+video.addEventListener('pause',   function(){ setState('pause'); });
+video.addEventListener('waiting', function(){ _sawWaiting = true; log('waiting — met en tampon (buffering)…', 'warn'); setState('buffering'); });
+video.addEventListener('stalled', function(){ log('stalled — flux interrompu', 'warn'); });
+video.addEventListener('seeking', function(){ log('seeking — recherche de position…', 'info'); });
+
+video.addEventListener('seeked', function(){
+  var dt = Math.round(performance.now() - _seekStart);
+  document.getElementById('m-seek').textContent = dt + ' ms';
+  if (_seekStart === 0) { log('seeked (position atteinte)', 'ok'); return; }
+  // Interprétation : seek rapide sans buffering prolongé = Range OK.
+  if (dt < 1500 && !_sawWaiting) {
+    log('seeked en ' + dt + ' ms, sans buffering → RANGE OK ✅', 'ok');
+    setVerdict('✅ RANGE OK — seek instantané (' + dt + ' ms). Le lecteur natif est viable.', 'v-ok');
+  } else if (dt < 4000) {
+    log('seeked en ' + dt + ' ms (buffering=' + _sawWaiting + ') → acceptable mais à surveiller', 'warn');
+    setVerdict('🟡 Seek en ' + dt + ' ms avec mise en tampon. Range probablement présent mais lent — teste plusieurs sauts.', 'v-warn');
+  } else {
+    log('seeked en ' + dt + ' ms → LENT', 'warn');
+    setVerdict('🟠 Seek lent (' + dt + ' ms). Range douteux — rejoue le test, compare à Chrome.', 'v-warn');
+  }
+});
+
+video.addEventListener('error', function(){
+  var e = video.error, code = e ? e.code : '?';
+  var map = {1:'ABORTED', 2:'NETWORK (accès refusé / session non ouverte ?)', 3:'DECODE (codec non lisible)', 4:'SRC_NOT_SUPPORTED (format/URL rejeté)'};
+  log('ERROR vidéo — code ' + code + ' : ' + (map[code] || 'inconnu'), 'err');
+  setVerdict('❌ La vidéo ne se lit pas (erreur ' + code + ' — ' + (map[code]||'?') + '). Voir le journal.', 'v-err');
+  setState('erreur');
+});
+
+// Sécurité : si aucun seeked n'arrive après un saut, on le signale (Range absent = blocage silencieux)
+setInterval(function(){
+  if (_seekStart && (performance.now() - _seekStart) > 6000 && document.getElementById('m-seek').textContent === '…') {
+    document.getElementById('m-seek').textContent = '> 6 s (bloqué ?)';
+    setVerdict('🟠 Le saut ne s\'est pas terminé après 6 s → seek BLOQUÉ. Signe fort d\'absence de Range.', 'v-warn');
+    _seekStart = 0;
+  }
+}, 1000);
+
+// Arrêt propre de la session en quittant
+window.addEventListener('pagehide', function(){
+  if (_session.fileId) navigator.sendBeacon(FN_SESSION, JSON.stringify({ action:'close', sujetCode:_session.code, fileId:_session.fileId }));
+  stopHeartbeat();
+});
+</script>
+</body>
+</html>
