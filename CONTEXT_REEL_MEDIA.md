@@ -1,6 +1,17 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-22 (chantier 6 UX + analyse relevé musical)
+> Dernière mise à jour : 2026-07-22 (chantiers 6/6b/7 + analyse relevé musical)
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 7 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-22 — CHANTIER 7 : avertir (sans bloquer) à la validation si des retours sont ouverts (`review.html`)
+`review.html` 902 → **914 lignes** (+12, insertions pures). Branche `avertir-validation`, base `main` cb0510f (chantier 6/6b mergé PR #52). `node --check` OK.
+**Besoin :** un client pouvait valider une version sur laquelle il avait laissé des retours — contradictoire. **Décision David : AVERTIR, pas bloquer.**
+**Livré :** ① élément `#popup-valider-warn` (ambre, `display:none` par défaut) inséré dans le popup de validation ; ② `ouvrirValidation` compte les retours ouverts (`Statut !== 'Corrigé'`, **même critère que `confirmerEnvoi`**) → si > 0, affiche « ⚠️ Vous avez N retour(s) en cours. Valider quand même ? » ; sinon masque. **Le bouton Confirmer reste TOUJOURS actif** — avertissement visuel, pas garde. `confirmerValidation` inchangé.
+**Compteurs :** `popup-valider-warn` = 2 · `!== 'Corrigé'` = 2 (confirmerEnvoi + ouvrirValidation) · confirmerValidation/ouvrirValidation/confirmerEnvoi/marquerFini/soumettre inchangés · `__chef__` = 0.
+
+
 
 ═══════════════════════════════════════════════════════════════
 ## 🔴 ÉTAT EN COURS — À TRAITER EN PRIORITÉ AU PROCHAIN CHAT
@@ -18,8 +29,7 @@
 Le bandeau vert « Aucune musique » n'est pas cliquable → aujourd'hui il faut décocher `Sans musique` DANS NOTION pour repasser en mode relevé. Décision de David : rendre ça possible depuis l'app, et **annuler « Sans musique » ramène à l'écran de choix « Avec / Sans musique »** (option A validée — le décochage seul, PAS le 2ᵉ verrou PAD, que David contourne déjà en baissant le statut). Détail complet dans l'historique du 22/07.
 ⚠️ C'est `index.html` → **après merge du chantier 6/6b** (review.html), pas en parallèle.
 
-**DÉCISION PRODUIT EN ATTENTE — « Valider cette version » quand des retours existent (review.html)**
-David a soulevé (22/07) : un client peut aujourd'hui valider une version sur laquelle il a laissé des retours — c'est contradictoire (approuver un montage qu'on critique). Deux options à trancher : **bloquer** (pas de validation tant qu'il reste des retours ouverts) ou **avertir** (Valider reste actif, mais le popup dit « Vous avez N retours en cours. Valider quand même ? »). Avis du Pilote : avertir plutôt que bloquer, pour ne pas empêcher le cas légitime « retour mineur puis validation ». **David n'a pas encore tranché.**
+**DÉCISION PRODUIT TRANCHÉE — « Valider avec des retours » : AVERTIR.** ✅ FAIT (chantier 7, 22/07). Le popup de validation affiche un avertissement ambre si des retours sont ouverts, sans bloquer.
 
 **PROCHAIN GROS MORCEAU — ANALYSE MULTI-UTILISATEUR (planifiée pour le 1er août, au renouvellement du budget)**
 David veut comprendre comment améliorer la plateforme pour l'usage multi-user (~10 personnes simultanées, cœur du produit). Objectifs : carte d'architecture + fragilités restantes + priorisation. **La vraie question à trancher** : continuer à colmater les défauts multi-user un par un, OU introduire une **couche de coordination serveur** ? Presque tous les défauts multi-user ont la même racine — *le client calcule et écrit directement dans Notion sans arbitre* (codes, versions, dernier-qui-écrit-gagne). Un arbitre serveur (généralisation d'`alloc-code`) réglerait toute la famille d'un coup. **Décision structurante → à faire avec budget confortable, pas en fin de session.** S'appuiera sur les audits déjà faits (multi-utilisateur + notifications) pour limiter le coût.
