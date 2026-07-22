@@ -36,7 +36,7 @@
   .retours-side {
     width: 360px; flex-shrink: 0;
     background: var(--bg2); border-left: 1px solid var(--border);
-    display: flex; flex-direction: column; overflow: hidden;
+    display: flex; flex-direction: column; overflow-y: auto;
   }
 
   /* PLAYER */
@@ -83,7 +83,7 @@
   .panel-count { font-size: 10px; color: var(--text3); background: var(--bg4); padding: 2px 8px; border-radius: 8px; font-family: var(--mono); }
 
   /* RETOURS LIST */
-  .retours-list { flex: 1; overflow-y: auto; }
+  .retours-list { flex: 1; overflow-y: auto; min-height: 0; }
   .retour-item { padding: 10px 16px; border-bottom: 1px solid var(--border); }
   .retour-item.other-version { opacity: 0.4; }
   .retour-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
@@ -116,11 +116,13 @@
     width: 100%; transition: opacity 0.15s; margin-bottom: 8px;
   }
   .btn-envoyer:hover { opacity: 0.85; }
-  .btn-actions { display: flex; gap: 8px; }
+  .btn-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .cloture-titre { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+  .btn-cloture { width: 100%; padding: 10px 12px; border-radius: var(--r); font-size: 12px; font-family: var(--font); cursor: pointer; text-align: center; white-space: normal; box-sizing: border-box; transition: all 0.15s; }
   .btn-valider {
-    flex: 1; background: var(--green-dim); border: 1px solid var(--green);
-    color: var(--green); padding: 7px; border-radius: var(--r);
-    font-size: 11px; font-family: var(--font); cursor: pointer;
+    background: var(--green-dim); border: 1px solid var(--green);
+    color: var(--green); border-radius: var(--r);
+    font-family: var(--font); cursor: pointer;
     font-weight: 500; transition: all 0.15s;
   }
   .btn-valider:hover { background: var(--green); color: #fff; }
@@ -253,10 +255,13 @@
       </div>
       <textarea class="form-input" id="r-desc" placeholder="Décrivez votre retour..." style="min-height:64px;resize:none;margin-bottom:8px"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();soumettre()}"></textarea>
-      <button class="btn-envoyer" onclick="soumettre()">Envoyer →</button>
+      <button class="btn-envoyer" onclick="soumettre()">Envoyer ce retour →</button>
       <div class="btn-actions">
-        <button class="btn-valider" onclick="ouvrirValidation()">✅ Valider cette version</button>
-        <a class="btn-dl" id="btn-dl" href="#" target="_blank">⬇ Télécharger</a>
+        <div class="cloture-titre">Quand vous avez terminé</div>
+        <button id="btn-fini" class="btn-cloture" onclick="marquerFini()" style="background:var(--bg4);border:1px solid var(--border2);color:var(--text2)">✔ J'ai fini mes retours</button>
+        <button class="btn-cloture" onclick="ouvrirEnvoi()" style="background:#2A2A3A;border:1px solid #3A3A4A;color:var(--text);font-weight:600">📨 Envoyer les retours à l'équipe</button>
+        <button class="btn-valider btn-cloture" onclick="ouvrirValidation()" style="font-weight:600">✅ Valider cette version</button>
+        <a class="btn-dl" id="btn-dl" href="#" target="_blank" style="justify-content:center;margin-top:2px">⬇ Télécharger</a>
       </div>
     </div>
   </div>
@@ -289,7 +294,7 @@
     <input type="text" class="form-input" id="id-prenom" placeholder="Votre prénom" onkeydown="if(event.key==='Enter')identifier()">
     <div class="id-label">Entreprise <span style="font-weight:400;text-transform:none;letter-spacing:0">(optionnel)</span></div>
     <input type="text" class="form-input" id="id-entreprise" placeholder="Votre entreprise" onkeydown="if(event.key==='Enter')identifier()">
-    <div class="id-error" id="id-error">Veuillez entrer votre prénom</div>
+    <div class="id-error" id="id-error">Veuillez entrer votre prénom et votre entreprise</div>
     <button class="btn-id" onclick="identifier()">Accéder à la vidéo →</button>
   </div>
 </div>
@@ -313,6 +318,19 @@
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="popup-btn" onclick="fermerPopup('popup-valider')" style="flex:1">Annuler</button>
       <button onclick="confirmerValidation()" style="flex:1;background:var(--green);border:none;color:#fff;padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500">✅ Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- POPUP ENVOYER LES RETOURS (signal collectif) -->
+<div class="popup-overlay" id="popup-envoyer">
+  <div class="popup-card">
+    <div class="popup-icon">📨</div>
+    <div class="popup-title">Envoyer les retours ?</div>
+    <div class="popup-sub">Vous allez <strong>clôturer les retours pour toute votre équipe</strong>. L'équipe Réel Média sera notifiée qu'elle peut les traiter. Confirmer ?</div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="popup-btn" onclick="fermerPopup('popup-envoyer')" style="flex:1">Annuler</button>
+      <button onclick="confirmerEnvoi()" style="flex:1;background:#2A2A3A;border:1px solid #3A3A4A;color:var(--text);padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:600">Confirmer l'envoi</button>
     </div>
   </div>
 </div>
@@ -506,8 +524,8 @@ async function telechargerReview(url, btnEl) {
 async function identifier() {
   const prenom = document.getElementById('id-prenom').value.trim();
   const entreprise = document.getElementById('id-entreprise').value.trim();
-  if(!prenom) { document.getElementById('id-error').style.display='block'; return; }
-  clientNom = prenom + (entreprise ? ` (${entreprise})` : '');
+  if(!prenom || !entreprise) { document.getElementById('id-error').style.display='block'; return; }
+  clientNom = prenom + ` (${entreprise})`;
   sessionStorage.setItem('review-nom', clientNom);
   document.getElementById('id-screen').style.display = 'none';
   document.getElementById('app-layout').style.display = 'flex';
@@ -529,6 +547,7 @@ async function init() {
       const titre = pr.Titre?.title?.[0]?.plain_text || '—';
       // Destinataires potentiels d'un retour client (lus depuis la page déjà chargée, zéro requête)
       sujetData = {titre, code: sujetCode,
+        statut: pr.Statut?.select?.name || '',
         chef: pr['Chef responsable']?.select?.name || '',
         journaliste: pr.Journaliste?.select?.name || '',
         contactBrand: pr['Contact Brand']?.select?.name || '',
@@ -560,6 +579,7 @@ async function init() {
   chargerPlayer(versionActive);
   // Charger tous les retours du client
   await chargerTousRetours();
+  majBoutonFini(); // état « J'ai fini / Reprendre » selon sessionStorage (par personne + sujet)
 }
 
 function buildVersionTabs() {
@@ -803,6 +823,48 @@ async function confirmerValidation() {
     document.getElementById('popup-final').style.display = 'flex';
     toast('Version validée 🎉');
   } catch(e){toast('Erreur : '+e.message);}
+}
+
+// ── A : « J'ai fini mes retours » — signal INDIVIDUEL, informatif, réversible ──
+// État par personne + par sujet en sessionStorage. Ne touche PAS au statut de la carte.
+function cleFini() { return 'review-fini-' + sujetId; }
+function majBoutonFini() {
+  const btn = document.getElementById('btn-fini');
+  if(!btn) return;
+  const fini = sessionStorage.getItem(cleFini()) === '1';
+  btn.textContent = fini ? '↩ Reprendre' : '✔ J\'ai fini mes retours';
+}
+async function marquerFini() {
+  const fini = sessionStorage.getItem(cleFini()) === '1';
+  if(fini) {
+    // Reprise : efface l'état local, NE renotifie PAS (seul le 1er « J'ai fini » notifie).
+    sessionStorage.removeItem(cleFini());
+    majBoutonFini();
+    toast('Vous pouvez de nouveau laisser des retours');
+    return;
+  }
+  sessionStorage.setItem(cleFini(), '1');
+  majBoutonFini();
+  await notifierEquipe('retour', `${clientNom} a terminé ses retours sur ${sujetCode}`);
+  toast('Merci — l\'équipe est prévenue que vous avez terminé');
+}
+
+// ── C : « Envoyer les retours » — signal COLLECTIF, avec confirmation ──
+function ouvrirEnvoi() { document.getElementById('popup-envoyer').style.display = 'flex'; }
+async function confirmerEnvoi() {
+  fermerPopup('popup-envoyer');
+  try {
+    // Compteur : retours OUVERTS uniquement (un retour Corrigé ne compte pas)
+    const nbOuverts = tousRetours.filter(r => (r.properties.Statut?.select?.name||'Ouvert') !== 'Corrigé').length;
+    // Garde anti-régression : ne jamais reculer un statut déjà avancé (Retours/Validation chef/PAD)
+    const statutsAvances = ['Retours', 'Validation chef', 'PAD'];
+    if(sujetId && !statutsAvances.includes(sujetData?.statut||'')) {
+      await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}});
+      if(sujetData) sujetData.statut = 'Retours';
+    }
+    await notifierEquipe('retour', `${clientNom} a clôturé les retours sur ${sujetCode} — ${nbOuverts} retour${nbOuverts>1?'s':''} à traiter`);
+    toast('Retours envoyés à l\'équipe ✓');
+  } catch(e){ toast('Erreur : '+e.message); }
 }
 
 function fermerPopup(id) {

@@ -1,41 +1,55 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-21 (chantiers 1, 2 & 3 livrés + audits multi-utilisateur et notifications)
+> Dernière mise à jour : 2026-07-22 (chantier 6 UX + analyse relevé musical)
 
 ═══════════════════════════════════════════════════════════════
 ## 🔴 ÉTAT EN COURS — À TRAITER EN PRIORITÉ AU PROCHAIN CHAT
 ═══════════════════════════════════════════════════════════════
 
-**FILE D'ATTENTE ISSUE DE L'AUDIT MULTI-UTILISATEUR DU 21/07**
+**CINQ CHANTIERS LIVRÉS LE 21/07** (tous vérifiés par le Pilote)
+1. ✅ **Chef par défaut** — mergé (PR #48), testé.
+2. ✅ **Notifs retours clients `__chef__`** — mergé (PR #49), testé en réel (Julie/Danone).
+3. ✅ **Double-clic versions + type `v1_deposee`** — fusionné dans le fichier du chantier 4.
+4. ✅ **Chacun valide ses retours** — mergé (fichier fusionné 3+4).
+5. ✅ **Trois boutons client** (fin de passe) — branche `client-fin-retours`, mergé.
+6. ✅ **Reconception UX zone client** — chantier 6, branche `chantier6-ux` (empilée sur 5). Vérifié, **en attente de merge et de test**.
 
-1. ✅ **Chef par défaut** — FAIT et **mergé** (PR #48). Testé : sujet créé avec le champ Chef vidé → Benjamin arrive bien dans Notion.
-2. ✅ **Notifs `__chef__`** — FAIT et **mergé** (PR #49). Testé en conditions réelles : retour de Julie (Danone) reçu en push par le monteur, validation d'Arnaud reçue également. Ciblage et déduplication confirmés.
-3. ✅ **Création de versions + type `v1_deposee`** — FAIT. Branche `fix-versions`. **⚠️ Contenu réintégré dans le fichier du chantier 4** (voir note de fusion dans l'historique) : ne pousser QUE le fichier fusionné, sinon le chantier 3 serait écrasé.
-4. ✅ **Chacun valide ses propres retours** — FAIT le 21/07. Branche `valider-mes-retours`, **fichier fusionné 3+4** vérifié par le Pilote, en attente de merge et de test.
-5. 🟡 **Codes en double** — **toujours théorique** : le seul cas réel (D1212 le 21/07) avait une **tout autre cause** (compteur non mis à jour après création hors app). Course read-modify-write côté client sur `dernierNumero+1`, bloquant n°1 de l'audit initial. Demande une **décision d'architecture** (allocation côté serveur), pas une rustine.
+**🔜 PROCHAIN CHANTIER — décocher « Sans musique » depuis l'app** (petit, sur `index.html`)
+Le bandeau vert « Aucune musique » n'est pas cliquable → aujourd'hui il faut décocher `Sans musique` DANS NOTION pour repasser en mode relevé. Décision de David : rendre ça possible depuis l'app, et **annuler « Sans musique » ramène à l'écran de choix « Avec / Sans musique »** (option A validée — le décochage seul, PAS le 2ᵉ verrou PAD, que David contourne déjà en baissant le statut). Détail complet dans l'historique du 22/07.
+⚠️ C'est `index.html` → **après merge du chantier 6/6b** (review.html), pas en parallèle.
 
-**⚠️ RÈGLE DE MERGE SUR MONOLITHE (apprise le 21/07)**
-`index.html` est un monolithe et David pousse des **fichiers entiers** via GitHub.com (Claude Code ne peut pas push). Deux branches produites en parallèle depuis le même `main` ne sont donc **jamais** « disjointes », même si elles touchent des fonctions différentes : la seconde poussée écrase la première. **Toujours** enchaîner les chantiers depuis un `main` à jour, ou faire fusionner par le Pilote avant de pousser.
+**DÉCISION PRODUIT EN ATTENTE — « Valider cette version » quand des retours existent (review.html)**
+David a soulevé (22/07) : un client peut aujourd'hui valider une version sur laquelle il a laissé des retours — c'est contradictoire (approuver un montage qu'on critique). Deux options à trancher : **bloquer** (pas de validation tant qu'il reste des retours ouverts) ou **avertir** (Valider reste actif, mais le popup dit « Vous avez N retours en cours. Valider quand même ? »). Avis du Pilote : avertir plutôt que bloquer, pour ne pas empêcher le cas légitime « retour mineur puis validation ». **David n'a pas encore tranché.**
 
-**NOUVEAU CHANTIER IDENTIFIÉ PAR DAVID (21/07) — séparer « retours finalisés » et « version validée » dans `review.html`**
-Constat en test réel : le client n'a que deux boutons — « Envoyer » (ses retours) et « Valider cette version ». Rien ne lui permet de dire « j'ai fini ma passe de retours ». Conséquence : un client qui a laissé des commentaires et veut signaler qu'il a terminé **valide un montage qu'il critique**. La base contient alors une version marquée validée avec des retours ouverts dessus — **donnée fausse**, et le chef peut lancer la suite alors que le client attend des corrections. Les deux boutons ne sont en outre pas différenciés visuellement (« Envoyer » en rouge plein, « Valider » en vert discret) alors qu'ils veulent dire des choses opposées.
-À concevoir : **« J'ai fini mes retours »** (→ statut Retours, l'équipe peut travailler) vs **« Cette version est validée »** (→ Validation chef, plus rien à corriger). Envisager une garde : si des retours non résolus existent, la validation demande confirmation. **Chantier produit**, pas correction de bug — il touche l'interface vue par les clients, à réfléchir avant de coder.
+**PROCHAIN GROS MORCEAU — ANALYSE MULTI-UTILISATEUR (planifiée pour le 1er août, au renouvellement du budget)**
+David veut comprendre comment améliorer la plateforme pour l'usage multi-user (~10 personnes simultanées, cœur du produit). Objectifs : carte d'architecture + fragilités restantes + priorisation. **La vraie question à trancher** : continuer à colmater les défauts multi-user un par un, OU introduire une **couche de coordination serveur** ? Presque tous les défauts multi-user ont la même racine — *le client calcule et écrit directement dans Notion sans arbitre* (codes, versions, dernier-qui-écrit-gagne). Un arbitre serveur (généralisation d'`alloc-code`) réglerait toute la famille d'un coup. **Décision structurante → à faire avec budget confortable, pas en fin de session.** S'appuiera sur les audits déjà faits (multi-utilisateur + notifications) pour limiter le coût.
 
-**DÉCISIONS PRODUIT EN ATTENTE (issues de l'audit des notifications)**
-- **Passage en PAD manuel ne notifie personne** : `updStatut` (changement de statut par clic direct) n'émet **aucune** notification. Le « c'est PAD » n'existe que dans les transitions automatiques. Question à trancher : faut-il notifier sur changement de statut, lesquels, et qui ? Notifier tous les statuts ferait du bruit ; PAD + Validation chef seraient ciblés.
-- **Contact Brand souvent vide** → les notifications de validation séquencier Brand skippent quasi systématiquement (même motif que le chef vide). Rendre obligatoire, ou accepter ?
+**FAUSSES PISTES ÉLIMINÉES LE 21/07 (ne pas rouvrir) :**
+- **Codes en double** : jamais eu de vrai cas de concurrence. L'unique incident (D1212) venait d'une **double création manuelle par Master**, pas d'une course. Reste théorique — tout en bas de la pile.
+- **Notifier au passage PAD manuel** : NON, c'est **voulu**. Le PAD est une décision humaine qui suit l'upload des photos + validation musique. Pas un événement à notifier automatiquement. Comportement actuel correct.
+- **Contact Brand souvent vide** : **normal**, l'équipe Brand n'est pas encore onboardée sur l'app. Se réglera tout seul. Pas un chantier.
+
+**CHANTIERS PRODUIT IDENTIFIÉS, NON PRIORITAIRES**
+- **`confirmerValidation` sans garde anti-régression** (review.html) : peut faire reculer un statut (PAD → Validation chef). Signalé au chantier 5, à harmoniser un jour avec la garde de `confirmerEnvoi`.
+- **Signal « fini » persistant côté équipe** : aujourd'hui en sessionStorage (par navigateur). Si besoin d'un affichage durable « qui a fini », il faudra un champ Notion.
 
 **AUTRES POINTS OUVERTS**
-- **Test visionnage étape 3** toujours non fait : laisser une vidéo review ouverte > 15 min → la permission doit rester dans Drive.
-- **PWA fermée = pas de push** : problème connu, non traité. Se corrigera dans `notify.js` — et bénéficiera automatiquement aux retours clients depuis le chantier 2.
-- **`Code suggéré` vide sur toute la vue Notion** alors que des sujets ont un code : formule qui ne se calcule pas, ou mauvais champ affiché (`Code` est la vraie propriété). Non urgent.
-- **Chef par défaut évolutif** : Benjamin aujourd'hui, **Chloé dans ~3 mois**, Arnaud ponctuellement. Aujourd'hui = changer la constante (1 ligne). Alternative pour plus tard : stocker le chef par défaut dans la base Équipe Notion (case à cocher) → changement sans toucher au code. **Non prioritaire.**
-- **Budget Claude Code contraint** : 251 €/250 € au 21/07, renouvellement le 1er août. Règles adoptées : le Pilote fait tout ce qui ne demande pas de lire le code (analyse, décisions, prompts, CONTEXT) ; Claude Code ne sert qu'à lire et écrire du code ; sessions courtes, un chantier à la fois ; lectures ciblées. **Les deux compteurs sont distincts** : la limite d'abonnement Max gouverne le chat Pilote, les crédits payants alimentent Claude Code.
+- **Test visionnage étape 3** toujours non fait : vidéo review ouverte > 15 min → la permission doit rester dans Drive.
+- **Tests du chantier 3** (double-clic versions) : David a fait confiance, pas encore testé en réel.
+- **PWA fermée = pas de push** : connu, non traité. Se corrigera dans `notify.js`.
+- **`Code suggéré` vide dans la vue Notion** : formule non calculée ou mauvais champ affiché (`Code` = vraie propriété). Non urgent.
+- **Chef par défaut évolutif** : Benjamin → **Chloé dans ~3 mois** → Arnaud ponctuel. Changement = 1 ligne (constante). Alternative : case à cocher dans la base Équipe. Non prioritaire.
+- **Budget Claude Code** : 251/250 € au 21/07, renouvellement 1er août. Le Pilote fait tout hors-code ; Claude Code lit/écrit le code ; sessions courtes ; lectures ciblées.
 
-**CHANTIER SUSPENDU (analysé, validé, non lancé) — présence sur une fiche**
-Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07**. **Archivée, pas rejetée.**
-⚠️ **À revalider avant reprise** : si un chantier modifie `relireSujet`, `fichePollTick` ou le contrat du merge, les 8 ancres et les compteurs prédits devront être revérifiés.
-⚠️ **DÉPENDANCE À NE PAS PERDRE — TTL ↔ cadence** : le TTL de présence (45 s) est calé sur **2,5 × la cadence de `fichePollTick` (18 s)**. Si la cadence change, **le TTL doit bouger avec**. À 60 s de cadence, un TTL de 45 s ferait disparaître tout le monde en permanence.
+**CHANTIER SUSPENDU — présence sur une fiche**
+Proposition de diff vérifiée le 21/07. **Archivée, pas rejetée.** À reprendre APRÈS l'analyse multi-user (qui pourrait en changer l'approche).
+⚠️ **À revalider avant reprise** : si un chantier a modifié `relireSujet`/`fichePollTick`/le contrat du merge, revérifier les 8 ancres et les compteurs.
+⚠️ **DÉPENDANCE TTL ↔ cadence** : TTL présence 45 s = 2,5 × cadence `fichePollTick` (18 s). Si la cadence change, le TTL doit suivre.
+
+**RÈGLES APPRISES LE 21/07 (à respecter)**
+- **Créations hors app (Master, saisie directe Notion)** : mettre le compteur de codes à jour ET renseigner le chef, dans le même geste. Le fallback code ne protège que les créations via l'app.
+- **Merge sur monolithe** : `index.html` poussé en fichier entier → deux branches parallèles ne sont JAMAIS disjointes, la 2ᵉ écrase la 1ʳᵉ. Enchaîner depuis un `main` à jour, ou faire fusionner par le Pilote avant push.
+- **Tâches en lot** : annoncer le plan ; en cas d'interruption, état des lieux ; avant de reprendre, vérifier l'existant (ne jamais recommencer de zéro).
 
 ═══════════════════════════════════════════════════════════════
 ## ⚠️ RÈGLES DE PROCÉDURE — CRÉATIONS HORS APP (ajouté le 21/07)
@@ -58,6 +72,76 @@ Proposition de diff détaillée produite et **vérifiée par le Pilote le 21/07*
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+**⚠️ CORRECTIF 6b (même session) — bouton Télécharger clippé.** Effet de bord de la refonte : la zone d'actions passée en vertical (titre + 3 boutons empilés + marges) a fait déborder la `.form-section` du conteneur `.retours-side`, qui était en `overflow: hidden` → le dernier élément (« ⬇ Télécharger ») était repoussé hors zone visible et **non cliquable**. Le bouton n'était pas cassé (logique intacte), juste **hors champ**. Corrigé en 2 lignes CSS : `.retours-side { overflow: hidden → overflow-y: auto }` (la colonne défile au lieu de couper) + `.retours-list { min-height: 0 }` (corrige le piège flexbox `min-height:auto` qui empêchait la liste de se compresser). Vérifié desktop + mobile (`50vh`), 0 comme 20 retours. Leçon : agrandir une zone dans un conteneur à hauteur fixe + `overflow:hidden` clippe silencieusement le contenu du bas — toujours vérifier le débordement vertical après une restructuration verticale.
+
+---
+
+### 2026-07-22 — CHANTIER 6 : reconception UX de la zone d'actions client (`review.html`) — HABILLAGE PUR
+
+`review.html` 899 → **902 lignes** (+3, diff +13/−10). Branche `chantier6-ux` **empilée sur `client-fin-retours`** (le fichier contient donc chantiers 5 ET 6 ; à l'upload il remplace le `review.html` de `client-fin-retours`). `node --check` OK. `index.html`/`notify.js` intouchés.
+
+**POURQUOI.** Le chantier 5 avait livré trois boutons client fonctionnels, mais l'UX était cassée : `.btn-actions { display: flex }` tassait 4 boutons sur une ligne dans un panneau étroit → libellés coupés, « Envoyer les retours » illisible, bouton de confirmation du popup réduit à une icône sans texte. Et collision entre « Envoyer → » (un retour) et « Envoyer les retours » (clôture).
+
+**AUCUNE LOGIQUE MODIFIÉE — habillage pur.** Les 6 fonctions (`marquerFini`, `ouvrirEnvoi`, `confirmerEnvoi`, `ouvrirValidation`, `confirmerValidation`, `soumettre`) inchangées, `__chef__` = 0, garde anti-régression et compteur des retours ouverts préservés. Seuls changent : disposition, couleurs, 3 libellés.
+
+**Livré :**
+- **`.btn-actions` en `flex-direction: column`** + `border-top` séparant deux zones. Nouvelles classes `.btn-cloture` (largeur 100 %, `white-space:normal`, `box-sizing:border-box` → libellés jamais coupés) et `.cloture-titre`.
+- **Zone 1 « Laisser un retour »** : bouton renommé « Envoyer → » → **« Envoyer ce retour → »** (reste rouge). Lève la collision.
+- **Zone 2 « Quand vous avez terminé »** : titre de section + 3 boutons empilés pleine largeur — « ✔ J'ai fini mes retours » (neutre, bascule Reprendre) · « 📨 Envoyer les retours à l'équipe » (**neutre marqué #2A2A3A, plus d'ambre**) · « ✅ Valider cette version » (**vert via `.btn-valider`**). Télécharger → lien discret.
+- **Popup `popup-envoyer`** : bouton « **Confirmer l'envoi** » en toutes lettres, neutre marqué, `flex:1` (égalité avec Annuler).
+
+**DÉCISION COULEUR (validée par David sur maquette) — LE VERT = APPROUVER, UNIQUEMENT.** « Valider cette version » est la seule action verte. « Envoyer les retours » est en neutre marqué : le client ne doit jamais croire qu'il approuve alors qu'il demande des corrections. C'est le cœur de la correction — l'ambre du chantier 5 créait une 3ᵉ couleur sans signification claire.
+
+**Compteurs :** `Envoyer →` (ancien) = 0 · `Envoyer ce retour →` = 1 · `btn-cloture` = 4 · `cloture-titre` = 2 · `Confirmer l'envoi` = 1 · `background:var(--amber)` sur boutons = 0 · 6 fonctions logiques inchangées · `__chef__` = 0.
+
+---
+
+### 2026-07-22 — ANALYSE (lecture seule) : comment saisir un relevé musical — DEUX VERROUS
+
+Question d'usage de David (pas un bug). Il n'arrivait pas à saisir un relevé musical sur un sujet. Diagnostic Claude Code :
+
+**Le bloc musique a 3 états exclusifs**, gouvernés par deux cases Notion (`Sans musique`, `Relevé musique`) : ① état initial → deux boutons « 🎵 Avec musique » / « 🔇 Sans musique » ; ② « Sans musique » cochée → `<div>` vert figé « Aucune musique », **SANS onclick, non cliquable** ; ③ « Avec relevé » → formulaire (Titre/Artiste/Durée + « + Ajouter »).
+
+**VERROU 1 :** une fois « Sans musique » cochée, **l'app n'offre AUCUN moyen de la décocher** → il faut le faire **dans Notion** (base 🎬 Suivi de Production, décocher la propriété `Sans musique`), recharger, puis cliquer « 🎵 Avec musique ».
+**VERROU 2 :** le formulaire de saisie est **masqué si statut === 'PAD'** (et la case « Cap déposée » est disabled en PAD). Il faut **sortir du PAD** (repasser à Validation chef/Montage), saisir, puis éventuellement remettre en PAD.
+
+Cumul fréquent : un sujet livré est souvent **en PAD ET en « Sans musique »** → traiter les deux avant de pouvoir saisir.
+
+**→ PETIT CHANTIER IDENTIFIÉ (prochain, sur `index.html`) :** rendre le décochage de « Sans musique » possible **depuis l'app**. Décision de David : annuler « Sans musique » doit **ramener à l'écran de choix « Avec / Sans musique »** (pas directement au formulaire). À cadrer : faut-il aussi gérer le second verrou (PAD masque le formulaire), ou seulement le décochage ?
+
+**Note produit connexe (déjà notée) :** le recul manuel de statut via la barre du haut (`updStatut`) est **volontaire et fréquent** chez David (ex. sortir un sujet du PAD pour saisir un relevé). Ce n'est donc pas un défaut à corriger — mais ça relance la question : y a-t-il des reculs de statut NON voulus (ex. un client qui ferait reculer un PAD depuis review.html) à distinguer des reculs volontaires depuis l'app ?
+
+---
+
+### 2026-07-21 — CHANTIER 5 : trois boutons client dans `review.html` (fin de passe individuelle + collective)
+
+`review.html` 840 → **899 lignes** (+59). Branche `client-fin-retours`. `node --check` OK. `index.html` et `notify.js` **intouchés**.
+
+**LE PROBLÈME.** Un client n'avait que « Envoyer » (un retour) et « Valider cette version ». Pour signaler « j'ai fini ma passe », il n'avait que le bouton de validation — donc il **validait un montage qu'il critiquait**. La base contenait alors une version validée avec des retours ouverts : donnée fausse, le chef pouvait lancer la suite alors que le client attendait des corrections.
+
+**DÉCOUVERTE DE L'ANALYSE (chantier 5, lecture seule) :** l'identification client à l'ouverture **existait déjà** (écran prénom/entreprise + `sessionStorage('review-nom')`). Ce que David croyait coûteux était fait. Chaque personne qui ouvre le lien sur son appareil entre son nom → identités distinctes. Le « même nom observé » venait d'ouvertures sur le même appareil, pas d'un défaut. **Le vrai point dur** était ailleurs : la notion de « référent client » n'existe **nulle part** dans les données (`Contact Brand` = membres de l'agence, pas clients). **Décision de David : un seul lien, pas de référent désigné** — n'importe quelle personne identifiée peut clôturer, la confirmation explicite est la seule barrière.
+
+**TROIS ACTIONS DISTINCTES, livrées :**
+- **A — « J'ai fini mes retours »** (`marquerFini`) : signal **individuel**, informatif, **réversible** (bascule « ✔ J'ai fini » / « ↩ Reprendre »). État en `sessionStorage['review-fini-<sujetId>']` (par personne + par sujet). Premier clic → notif équipe « … a terminé ses retours ». « Reprendre » → efface l'état local, **ne renotifie pas**. **Ne touche pas au statut de la carte.**
+- **B — identification durcie** : prénom **ET** entreprise désormais obligatoires non vides (avant : prénom seul).
+- **C — « Envoyer les retours »** (`ouvrirEnvoi`/`confirmerEnvoi`) : signal **collectif**, popup de confirmation (« Vous allez clôturer les retours pour toute votre équipe »). Au clic confirmé → statut `Retours` **avec garde anti-régression** + notif équipe « … a clôturé les retours — N retours à traiter ».
+
+**GARDE ANTI-RÉGRESSION (le point que le Pilote surveillait) :** liste `['Retours','Validation chef','PAD']` — le statut n'est écrit `'Retours'` **que si** le statut courant n'y est pas déjà. Carte en PAD + clic Envoyer → statut **reste PAD**, mais la notif part quand même. **Jamais de recul.** Choix de la liste plutôt qu'une copie de `STATUT_ORDER` : robuste au changement d'ordre. *Note : `confirmerValidation` existant régresse potentiellement le statut sans garde (PAD → Validation chef) — signalé, hors périmètre, à harmoniser un jour.*
+
+**COMPTEUR N = retours OUVERTS uniquement** (`Statut !== 'Corrigé'`) : « N retours à traiter » reflète ce que le monteur a réellement à faire.
+
+**« Envoyer » ne verrouille rien** : le client peut continuer à laisser des retours après (ils notifient normalement). Décision de David : un retour tardif ne doit pas être bloqué.
+
+**Trois boutons distingués visuellement** : neutre (J'ai fini) · ambre (Envoyer) · vert (Valider cette version). Le vert = j'approuve, l'ambre = je clôture pour corrections, le neutre = ma passe perso est finie. C'est ce qui casse la confusion d'origine.
+
+**Réutilisation :** `notifierEquipe`/`destinatairesRetour` du chantier 2 réutilisés tels quels (chef + journaliste + monteur de la version + contact Brand, dédupliqués). Type de notif = `'retour'` faute de type dédié (un type « clôturé » toucherait `index.html`, hors périmètre).
+
+**Compteurs :** `__chef__` = 0 (acquis chantier 2 préservé) · `notifierEquipe` = 5 · `marquerFini`/`ouvrirEnvoi`/`confirmerEnvoi` = 2 chacun · `majBoutonFini` = 4 · `popup-envoyer` = 4 · `statut: pr.Statut` ajouté à `sujetData` · `confirmerValidation`/`ouvrirValidation`/`soumettre`/`chargerTousRetours` intacts.
+
+**Limite assumée :** l'état « fini » est en `sessionStorage` → par navigateur, perdu au changement d'appareil. Confort visuel, acceptable. Si un jour l'équipe doit voir durablement « qui a fini », il faudra un champ Notion.
+
+---
 
 ### 2026-07-21 — CHANTIER 4 : chacun valide ses propres retours (+ FUSION avec le chantier 3)
 
