@@ -194,6 +194,10 @@ nav{
     background:var(--bg2);
   }
   .sb-workspace,.sb-sep,.sb-filters,.sb-bottom,.sb-section-label{display:none!important}
+  /* Filtres de format (#sb-cats, généré par renderSidebarCats) hors de la barre du bas
+     mobile — restent accessibles via le bandeau #sb-filters du haut. Partagé avec la
+     sidebar desktop : masqué en mobile, jamais supprimé (indispensable au desktop). */
+  #sb-cats{display:none!important}
   .sb-nav{
     display:flex;flex-direction:row;padding:4px 8px;
     width:100%;align-items:center;justify-content:space-around;gap:8px;

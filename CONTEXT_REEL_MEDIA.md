@@ -1,6 +1,24 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-22 (chantiers 6/6b/7/8 — session UX + fiabilité review/musique)
+> Dernière mise à jour : 2026-07-22 (chantiers 6→9 — session UX mobile + fiabilité review/musique)
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 9 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-22 — CHANTIER 9 : barre du bas mobile réduite aux 4 pages (`css/layout.css`)
+**Les CSS sont des fichiers SÉPARÉS dans /css, pas dans index.html.** Ce chantier ne touche que `css/layout.css`.
+
+**Constat David (mobile) :** la barre du bas (= la `.sidebar` qui bascule en barre horizontale sous `@media max-width:700px`) contenait les 4 pages MAIS AUSSI les filtres de format (MAG/Brand/Face Cam/YouTube/Desk), qui débordaient (YouTube hors barre).
+
+**Fausse piste corrigée (2 tours de diagnostic) :** un 1er fix ciblait `.sb-item` avec de mauvais id. En réalité : les 4 pages sont des `.sb-item` (#nav-dashboard/#nav-production/#nav-idees/#nav-taches) ; **les formats sont des `.sb-cat` dans le conteneur `#sb-cats`** (générés par `renderSidebarCats`), une AUTRE famille. Le PR #55 a bien masqué les `.sb-item` en trop (Archives, Export) mais **PAS `#sb-cats`** → les formats survivaient entre Production et Idées. Leçon : ne jamais affirmer une cause sans que Claude Code ait lu le code réel — le Pilote a supposé « faux id » et « jamais mergé », les deux étaient faux.
+
+**Fix réel (chantier 9b) :** une seule ligne ajoutée dans le `@media(max-width:700px)` de `css/layout.css` → `#sb-cats{display:none!important}`. Vérifié par le Pilote sur le fichier : ligne 200, à l'intérieur du média (ouvre l.174, ferme l.230) ; le `#sb-cats` desktop (l.254, hors média, `display:flex`) intact ; accolades 115/115.
+
+**Résultat :** barre du bas mobile = 4 pages (Dashboard, Production, Idées, Tâches). Desktop inchangé (sidebar + sous-filtres de format sous Production). **Décision David : pas besoin de filtrer par format sur mobile** — les formats restent dans la sidebar desktop, et le filtrage mobile se fait par statut (bandeau du haut). Branche `sbcats-mobile-hide`.
+
+**⚠️ À VÉRIFIER APRÈS MERGE :** confirmer sur mobile réel que la barre n'a QUE 4 items. Le fix précédent était passé inaperçu (ni mergé correctement, ni testé) — cette fois, tester en prod.
+
+
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 CHANTIER 8 (à intégrer dans l'historique complet plus bas)
@@ -53,6 +71,14 @@ David veut comprendre comment améliorer la plateforme pour l'usage multi-user (
 **CHANTIERS PRODUIT IDENTIFIÉS, NON PRIORITAIRES**
 - **`confirmerValidation` sans garde anti-régression** (review.html) : peut faire reculer un statut (PAD → Validation chef). Signalé au chantier 5, à harmoniser un jour avec la garde de `confirmerEnvoi`.
 - **Signal « fini » persistant côté équipe** : aujourd'hui en sessionStorage (par navigateur). Si besoin d'un affichage durable « qui a fini », il faudra un champ Notion.
+
+**IDÉES UX / FONCTIONNALITÉS EN ATTENTE (notées le 22/07, non lancées)**
+- **Tri « dernière modification » sur la vue Liste** : David veut pouvoir trier pour que les cartes récemment modifiées remontent en haut. ⚠️ **À VÉRIFIER AVANT DE CODER** : est-ce que `last_edited_time` (Notion) est mis à jour par les vraies actions utilisateur SEULEMENT, ou aussi par le polling/refresh automatique (`relireSujet`) ? Si le refresh touche `last_edited_time`, le tri deviendrait du bruit (les cartes remonteraient sans action réelle). Question à poser à Claude Code avant tout chantier.
+- **Alignement « Copier le lien » / croix de fermeture** dans la fiche détail mobile : les deux boutons ne sont pas à la même hauteur. Petit ajustement CSS.
+- **Effet boutons flottants iOS** (style photothèque : capsules arrondies flottant au-dessus du contenu) : David aime, mais « si c'est compliqué, plus tard ». Confort esthétique, pas prioritaire — à ne pas faire tant que la navigation n'est pas stable.
+- **Déclinaison → format MAG** : une déclinaison peut aussi créer un format MAG (pas seulement hériter du format parent). À creuser plus tard.
+
+**BANDEAU « NOUVELLE VERSION » (checkAppVersion / version-banner)** — NE PAS désactiver. C'est une sécurité multi-user : prévient les utilisateurs sur une version en cache de recharger. L'agacement actuel vient de la phase de dev intense (déploiements fréquents) — se calmera naturellement. Si besoin un jour, le rendre plus discret plutôt que le supprimer.
 
 **AUTRES POINTS OUVERTS**
 - **Test visionnage étape 3** toujours non fait : vidéo review ouverte > 15 min → la permission doit rester dans Drive.
