@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-21 (5 chantiers livrés + 2 audits — grosse session)
+> Dernière mise à jour : 2026-07-22 (chantier 6 UX + analyse relevé musical)
 
 ═══════════════════════════════════════════════════════════════
 ## 🔴 ÉTAT EN COURS — À TRAITER EN PRIORITÉ AU PROCHAIN CHAT
@@ -11,7 +11,12 @@
 2. ✅ **Notifs retours clients `__chef__`** — mergé (PR #49), testé en réel (Julie/Danone).
 3. ✅ **Double-clic versions + type `v1_deposee`** — fusionné dans le fichier du chantier 4.
 4. ✅ **Chacun valide ses retours** — mergé (fichier fusionné 3+4).
-5. ✅ **Trois boutons client** (fin de passe individuelle/collective) — branche `client-fin-retours`, vérifié, **en attente de merge et de test**.
+5. ✅ **Trois boutons client** (fin de passe) — branche `client-fin-retours`, mergé.
+6. ✅ **Reconception UX zone client** — chantier 6, branche `chantier6-ux` (empilée sur 5). Vérifié, **en attente de merge et de test**.
+
+**🔜 PROCHAIN CHANTIER — décocher « Sans musique » depuis l'app** (petit, sur `index.html`)
+Le bandeau vert « Aucune musique » n'est pas cliquable → aujourd'hui il faut décocher `Sans musique` DANS NOTION pour repasser en mode relevé. Décision de David : rendre ça possible depuis l'app, et **annuler « Sans musique » ramène à l'écran de choix « Avec / Sans musique »**. À cadrer avant de lancer : traiter aussi le 2ᵉ verrou (formulaire masqué en PAD) ou seulement le décochage ? Détail complet dans l'historique du 22/07.
+⚠️ C'est `index.html` → **après merge du chantier 6** (review.html), pas en parallèle.
 
 **PROCHAIN GROS MORCEAU — ANALYSE MULTI-UTILISATEUR (planifiée pour le 1er août, au renouvellement du budget)**
 David veut comprendre comment améliorer la plateforme pour l'usage multi-user (~10 personnes simultanées, cœur du produit). Objectifs : carte d'architecture + fragilités restantes + priorisation. **La vraie question à trancher** : continuer à colmater les défauts multi-user un par un, OU introduire une **couche de coordination serveur** ? Presque tous les défauts multi-user ont la même racine — *le client calcule et écrit directement dans Notion sans arbitre* (codes, versions, dernier-qui-écrit-gagne). Un arbitre serveur (généralisation d'`alloc-code`) réglerait toute la famille d'un coup. **Décision structurante → à faire avec budget confortable, pas en fin de session.** S'appuiera sur les audits déjà faits (multi-utilisateur + notifications) pour limiter le coût.
@@ -64,6 +69,43 @@ Proposition de diff vérifiée le 21/07. **Archivée, pas rejetée.** À reprend
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+### 2026-07-22 — CHANTIER 6 : reconception UX de la zone d'actions client (`review.html`) — HABILLAGE PUR
+
+`review.html` 899 → **902 lignes** (+3, diff +13/−10). Branche `chantier6-ux` **empilée sur `client-fin-retours`** (le fichier contient donc chantiers 5 ET 6 ; à l'upload il remplace le `review.html` de `client-fin-retours`). `node --check` OK. `index.html`/`notify.js` intouchés.
+
+**POURQUOI.** Le chantier 5 avait livré trois boutons client fonctionnels, mais l'UX était cassée : `.btn-actions { display: flex }` tassait 4 boutons sur une ligne dans un panneau étroit → libellés coupés, « Envoyer les retours » illisible, bouton de confirmation du popup réduit à une icône sans texte. Et collision entre « Envoyer → » (un retour) et « Envoyer les retours » (clôture).
+
+**AUCUNE LOGIQUE MODIFIÉE — habillage pur.** Les 6 fonctions (`marquerFini`, `ouvrirEnvoi`, `confirmerEnvoi`, `ouvrirValidation`, `confirmerValidation`, `soumettre`) inchangées, `__chef__` = 0, garde anti-régression et compteur des retours ouverts préservés. Seuls changent : disposition, couleurs, 3 libellés.
+
+**Livré :**
+- **`.btn-actions` en `flex-direction: column`** + `border-top` séparant deux zones. Nouvelles classes `.btn-cloture` (largeur 100 %, `white-space:normal`, `box-sizing:border-box` → libellés jamais coupés) et `.cloture-titre`.
+- **Zone 1 « Laisser un retour »** : bouton renommé « Envoyer → » → **« Envoyer ce retour → »** (reste rouge). Lève la collision.
+- **Zone 2 « Quand vous avez terminé »** : titre de section + 3 boutons empilés pleine largeur — « ✔ J'ai fini mes retours » (neutre, bascule Reprendre) · « 📨 Envoyer les retours à l'équipe » (**neutre marqué #2A2A3A, plus d'ambre**) · « ✅ Valider cette version » (**vert via `.btn-valider`**). Télécharger → lien discret.
+- **Popup `popup-envoyer`** : bouton « **Confirmer l'envoi** » en toutes lettres, neutre marqué, `flex:1` (égalité avec Annuler).
+
+**DÉCISION COULEUR (validée par David sur maquette) — LE VERT = APPROUVER, UNIQUEMENT.** « Valider cette version » est la seule action verte. « Envoyer les retours » est en neutre marqué : le client ne doit jamais croire qu'il approuve alors qu'il demande des corrections. C'est le cœur de la correction — l'ambre du chantier 5 créait une 3ᵉ couleur sans signification claire.
+
+**Compteurs :** `Envoyer →` (ancien) = 0 · `Envoyer ce retour →` = 1 · `btn-cloture` = 4 · `cloture-titre` = 2 · `Confirmer l'envoi` = 1 · `background:var(--amber)` sur boutons = 0 · 6 fonctions logiques inchangées · `__chef__` = 0.
+
+---
+
+### 2026-07-22 — ANALYSE (lecture seule) : comment saisir un relevé musical — DEUX VERROUS
+
+Question d'usage de David (pas un bug). Il n'arrivait pas à saisir un relevé musical sur un sujet. Diagnostic Claude Code :
+
+**Le bloc musique a 3 états exclusifs**, gouvernés par deux cases Notion (`Sans musique`, `Relevé musique`) : ① état initial → deux boutons « 🎵 Avec musique » / « 🔇 Sans musique » ; ② « Sans musique » cochée → `<div>` vert figé « Aucune musique », **SANS onclick, non cliquable** ; ③ « Avec relevé » → formulaire (Titre/Artiste/Durée + « + Ajouter »).
+
+**VERROU 1 :** une fois « Sans musique » cochée, **l'app n'offre AUCUN moyen de la décocher** → il faut le faire **dans Notion** (base 🎬 Suivi de Production, décocher la propriété `Sans musique`), recharger, puis cliquer « 🎵 Avec musique ».
+**VERROU 2 :** le formulaire de saisie est **masqué si statut === 'PAD'** (et la case « Cap déposée » est disabled en PAD). Il faut **sortir du PAD** (repasser à Validation chef/Montage), saisir, puis éventuellement remettre en PAD.
+
+Cumul fréquent : un sujet livré est souvent **en PAD ET en « Sans musique »** → traiter les deux avant de pouvoir saisir.
+
+**→ PETIT CHANTIER IDENTIFIÉ (prochain, sur `index.html`) :** rendre le décochage de « Sans musique » possible **depuis l'app**. Décision de David : annuler « Sans musique » doit **ramener à l'écran de choix « Avec / Sans musique »** (pas directement au formulaire). À cadrer : faut-il aussi gérer le second verrou (PAD masque le formulaire), ou seulement le décochage ?
+
+**Note produit connexe (déjà notée) :** le recul manuel de statut via la barre du haut (`updStatut`) est **volontaire et fréquent** chez David (ex. sortir un sujet du PAD pour saisir un relevé). Ce n'est donc pas un défaut à corriger — mais ça relance la question : y a-t-il des reculs de statut NON voulus (ex. un client qui ferait reculer un PAD depuis review.html) à distinguer des reculs volontaires depuis l'app ?
+
+---
 
 ### 2026-07-21 — CHANTIER 5 : trois boutons client dans `review.html` (fin de passe individuelle + collective)
 
