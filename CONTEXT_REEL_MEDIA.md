@@ -15,8 +15,11 @@
 6. ✅ **Reconception UX zone client** — chantier 6, branche `chantier6-ux` (empilée sur 5). Vérifié, **en attente de merge et de test**.
 
 **🔜 PROCHAIN CHANTIER — décocher « Sans musique » depuis l'app** (petit, sur `index.html`)
-Le bandeau vert « Aucune musique » n'est pas cliquable → aujourd'hui il faut décocher `Sans musique` DANS NOTION pour repasser en mode relevé. Décision de David : rendre ça possible depuis l'app, et **annuler « Sans musique » ramène à l'écran de choix « Avec / Sans musique »**. À cadrer avant de lancer : traiter aussi le 2ᵉ verrou (formulaire masqué en PAD) ou seulement le décochage ? Détail complet dans l'historique du 22/07.
-⚠️ C'est `index.html` → **après merge du chantier 6** (review.html), pas en parallèle.
+Le bandeau vert « Aucune musique » n'est pas cliquable → aujourd'hui il faut décocher `Sans musique` DANS NOTION pour repasser en mode relevé. Décision de David : rendre ça possible depuis l'app, et **annuler « Sans musique » ramène à l'écran de choix « Avec / Sans musique »** (option A validée — le décochage seul, PAS le 2ᵉ verrou PAD, que David contourne déjà en baissant le statut). Détail complet dans l'historique du 22/07.
+⚠️ C'est `index.html` → **après merge du chantier 6/6b** (review.html), pas en parallèle.
+
+**DÉCISION PRODUIT EN ATTENTE — « Valider cette version » quand des retours existent (review.html)**
+David a soulevé (22/07) : un client peut aujourd'hui valider une version sur laquelle il a laissé des retours — c'est contradictoire (approuver un montage qu'on critique). Deux options à trancher : **bloquer** (pas de validation tant qu'il reste des retours ouverts) ou **avertir** (Valider reste actif, mais le popup dit « Vous avez N retours en cours. Valider quand même ? »). Avis du Pilote : avertir plutôt que bloquer, pour ne pas empêcher le cas légitime « retour mineur puis validation ». **David n'a pas encore tranché.**
 
 **PROCHAIN GROS MORCEAU — ANALYSE MULTI-UTILISATEUR (planifiée pour le 1er août, au renouvellement du budget)**
 David veut comprendre comment améliorer la plateforme pour l'usage multi-user (~10 personnes simultanées, cœur du produit). Objectifs : carte d'architecture + fragilités restantes + priorisation. **La vraie question à trancher** : continuer à colmater les défauts multi-user un par un, OU introduire une **couche de coordination serveur** ? Presque tous les défauts multi-user ont la même racine — *le client calcule et écrit directement dans Notion sans arbitre* (codes, versions, dernier-qui-écrit-gagne). Un arbitre serveur (généralisation d'`alloc-code`) réglerait toute la famille d'un coup. **Décision structurante → à faire avec budget confortable, pas en fin de session.** S'appuiera sur les audits déjà faits (multi-utilisateur + notifications) pour limiter le coût.
@@ -69,6 +72,10 @@ Proposition de diff vérifiée le 21/07. **Archivée, pas rejetée.** À reprend
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS (plus récent en haut)
 ═══════════════════════════════════════════════════════════════
+
+**⚠️ CORRECTIF 6b (même session) — bouton Télécharger clippé.** Effet de bord de la refonte : la zone d'actions passée en vertical (titre + 3 boutons empilés + marges) a fait déborder la `.form-section` du conteneur `.retours-side`, qui était en `overflow: hidden` → le dernier élément (« ⬇ Télécharger ») était repoussé hors zone visible et **non cliquable**. Le bouton n'était pas cassé (logique intacte), juste **hors champ**. Corrigé en 2 lignes CSS : `.retours-side { overflow: hidden → overflow-y: auto }` (la colonne défile au lieu de couper) + `.retours-list { min-height: 0 }` (corrige le piège flexbox `min-height:auto` qui empêchait la liste de se compresser). Vérifié desktop + mobile (`50vh`), 0 comme 20 retours. Leçon : agrandir une zone dans un conteneur à hauteur fixe + `overflow:hidden` clippe silencieusement le contenu du bas — toujours vérifier le débordement vertical après une restructuration verticale.
+
+---
 
 ### 2026-07-22 — CHANTIER 6 : reconception UX de la zone d'actions client (`review.html`) — HABILLAGE PUR
 
