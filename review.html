@@ -255,6 +255,8 @@
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();soumettre()}"></textarea>
       <button class="btn-envoyer" onclick="soumettre()">Envoyer →</button>
       <div class="btn-actions">
+        <button id="btn-fini" onclick="marquerFini()" style="background:var(--bg4);border:1px solid var(--border2);color:var(--text2);padding:9px 14px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer">✔ J'ai fini mes retours</button>
+        <button onclick="ouvrirEnvoi()" style="background:var(--amber);border:none;color:#111;padding:9px 14px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500">📨 Envoyer les retours</button>
         <button class="btn-valider" onclick="ouvrirValidation()">✅ Valider cette version</button>
         <a class="btn-dl" id="btn-dl" href="#" target="_blank">⬇ Télécharger</a>
       </div>
@@ -289,7 +291,7 @@
     <input type="text" class="form-input" id="id-prenom" placeholder="Votre prénom" onkeydown="if(event.key==='Enter')identifier()">
     <div class="id-label">Entreprise <span style="font-weight:400;text-transform:none;letter-spacing:0">(optionnel)</span></div>
     <input type="text" class="form-input" id="id-entreprise" placeholder="Votre entreprise" onkeydown="if(event.key==='Enter')identifier()">
-    <div class="id-error" id="id-error">Veuillez entrer votre prénom</div>
+    <div class="id-error" id="id-error">Veuillez entrer votre prénom et votre entreprise</div>
     <button class="btn-id" onclick="identifier()">Accéder à la vidéo →</button>
   </div>
 </div>
@@ -313,6 +315,19 @@
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="popup-btn" onclick="fermerPopup('popup-valider')" style="flex:1">Annuler</button>
       <button onclick="confirmerValidation()" style="flex:1;background:var(--green);border:none;color:#fff;padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500">✅ Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- POPUP ENVOYER LES RETOURS (signal collectif) -->
+<div class="popup-overlay" id="popup-envoyer">
+  <div class="popup-card">
+    <div class="popup-icon">📨</div>
+    <div class="popup-title">Envoyer les retours ?</div>
+    <div class="popup-sub">Vous allez <strong>clôturer les retours pour toute votre équipe</strong>. L'équipe Réel Média sera notifiée qu'elle peut les traiter. Confirmer ?</div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="popup-btn" onclick="fermerPopup('popup-envoyer')" style="flex:1">Annuler</button>
+      <button onclick="confirmerEnvoi()" style="flex:1;background:var(--amber);border:none;color:#111;padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500">📨 Confirmer</button>
     </div>
   </div>
 </div>
@@ -506,8 +521,8 @@ async function telechargerReview(url, btnEl) {
 async function identifier() {
   const prenom = document.getElementById('id-prenom').value.trim();
   const entreprise = document.getElementById('id-entreprise').value.trim();
-  if(!prenom) { document.getElementById('id-error').style.display='block'; return; }
-  clientNom = prenom + (entreprise ? ` (${entreprise})` : '');
+  if(!prenom || !entreprise) { document.getElementById('id-error').style.display='block'; return; }
+  clientNom = prenom + ` (${entreprise})`;
   sessionStorage.setItem('review-nom', clientNom);
   document.getElementById('id-screen').style.display = 'none';
   document.getElementById('app-layout').style.display = 'flex';
@@ -529,6 +544,7 @@ async function init() {
       const titre = pr.Titre?.title?.[0]?.plain_text || '—';
       // Destinataires potentiels d'un retour client (lus depuis la page déjà chargée, zéro requête)
       sujetData = {titre, code: sujetCode,
+        statut: pr.Statut?.select?.name || '',
         chef: pr['Chef responsable']?.select?.name || '',
         journaliste: pr.Journaliste?.select?.name || '',
         contactBrand: pr['Contact Brand']?.select?.name || '',
@@ -560,6 +576,7 @@ async function init() {
   chargerPlayer(versionActive);
   // Charger tous les retours du client
   await chargerTousRetours();
+  majBoutonFini(); // état « J'ai fini / Reprendre » selon sessionStorage (par personne + sujet)
 }
 
 function buildVersionTabs() {
@@ -803,6 +820,48 @@ async function confirmerValidation() {
     document.getElementById('popup-final').style.display = 'flex';
     toast('Version validée 🎉');
   } catch(e){toast('Erreur : '+e.message);}
+}
+
+// ── A : « J'ai fini mes retours » — signal INDIVIDUEL, informatif, réversible ──
+// État par personne + par sujet en sessionStorage. Ne touche PAS au statut de la carte.
+function cleFini() { return 'review-fini-' + sujetId; }
+function majBoutonFini() {
+  const btn = document.getElementById('btn-fini');
+  if(!btn) return;
+  const fini = sessionStorage.getItem(cleFini()) === '1';
+  btn.textContent = fini ? '↩ Reprendre' : '✔ J\'ai fini mes retours';
+}
+async function marquerFini() {
+  const fini = sessionStorage.getItem(cleFini()) === '1';
+  if(fini) {
+    // Reprise : efface l'état local, NE renotifie PAS (seul le 1er « J'ai fini » notifie).
+    sessionStorage.removeItem(cleFini());
+    majBoutonFini();
+    toast('Vous pouvez de nouveau laisser des retours');
+    return;
+  }
+  sessionStorage.setItem(cleFini(), '1');
+  majBoutonFini();
+  await notifierEquipe('retour', `${clientNom} a terminé ses retours sur ${sujetCode}`);
+  toast('Merci — l\'équipe est prévenue que vous avez terminé');
+}
+
+// ── C : « Envoyer les retours » — signal COLLECTIF, avec confirmation ──
+function ouvrirEnvoi() { document.getElementById('popup-envoyer').style.display = 'flex'; }
+async function confirmerEnvoi() {
+  fermerPopup('popup-envoyer');
+  try {
+    // Compteur : retours OUVERTS uniquement (un retour Corrigé ne compte pas)
+    const nbOuverts = tousRetours.filter(r => (r.properties.Statut?.select?.name||'Ouvert') !== 'Corrigé').length;
+    // Garde anti-régression : ne jamais reculer un statut déjà avancé (Retours/Validation chef/PAD)
+    const statutsAvances = ['Retours', 'Validation chef', 'PAD'];
+    if(sujetId && !statutsAvances.includes(sujetData?.statut||'')) {
+      await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}});
+      if(sujetData) sujetData.statut = 'Retours';
+    }
+    await notifierEquipe('retour', `${clientNom} a clôturé les retours sur ${sujetCode} — ${nbOuverts} retour${nbOuverts>1?'s':''} à traiter`);
+    toast('Retours envoyés à l\'équipe ✓');
+  } catch(e){ toast('Erreur : '+e.message); }
 }
 
 function fermerPopup(id) {
