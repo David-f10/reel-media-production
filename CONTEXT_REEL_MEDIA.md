@@ -1,6 +1,35 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-22 (chantiers 6→10 — session UX mobile + notifications)
+> Dernière mise à jour : 2026-07-23 (chantiers 6→11 — UX mobile, notifications, double enregistrement)
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 11 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-23 — CHANTIER 11 : notifications en double corrigées + login sur Production (`index.html`)
+`index.html` **6343 lignes**. `node --check` OK. `review.html`/`notify.js`/CSS intouchés.
+
+**PARTIE 1 — NOTIFICATIONS EN DOUBLE (bug remonté par Benjamin via Éloise)**
+
+**Symptôme :** quand Éloise déposait un séquencier, Benjamin recevait **DEUX** notifications.
+
+**Fausses pistes écartées :** ① pas un doublon dans la base Équipe (vérifié par Master : une seule fiche « Éloise », code elo26) ; ② pas un destinataire ciblé deux fois (le code ne notifie que `s.chef`, une fois) ; ③ pas une conséquence du chantier 10 (vérifié, le bug préexistait).
+
+**VRAIE CAUSE — double déclenchement par la touche Entrée.** Les inputs de lien avaient à la fois `onblur="save()"` ET `onkeydown="if(Enter){save(); this.blur()}"`. Appuyer sur Entrée déclenchait donc **deux** sauvegardes : l'appel direct, puis `this.blur()` qui rappelait `onblur`. Et la garde anti-changement **ne protégeait pas** : `s.lienSeq` n'est mis à jour qu'**après** le `await` de `upd`, donc le 2ᵉ appel lisait l'ancienne valeur et passait. **Ce n'était donc pas « spécifique à Éloise »** — c'est spécifique à ceux qui valident par Entrée.
+
+**PAS ISOLÉ AU SÉQUENCIER :** le **lien de version** (`updateVersionUrl`) avait le même défaut, **en pire** (aucune garde de changement du tout). Le **livrable** a le même câblage mais est épargné (garde synchrone + pas de notif).
+
+**CORRECTION — au niveau du DÉCLENCHEUR (approche proposée par Claude Code, meilleure que celle du Pilote).** Le Pilote proposait le modèle `saveLivrable` (poser l'état local AVANT le `await`). Claude Code l'a **refusé à juste titre** : si l'écriture Notion échoue, l'app croirait que c'est enregistré → **mensonge d'affichage**. *(Note : `saveLivrable` porte ce défaut latent, invisible car il ne notifie pas.)* Solution retenue : **`onkeydown` Entrée ne fait plus QUE `this.blur()`**, et `onblur` reste le seul chemin de sauvegarde. Entrée valide toujours, cliquer ailleurs valide toujours — **UX identique** — mais la sauvegarde ne part qu'une fois. **Rien n'est écrit en avance → rien à annuler → aucun mensonge possible, par construction.**
+
+De plus, `updateVersionUrl` reçoit la garde qui lui manquait : attribut `data-saved` semé au rendu, mis à jour **APRÈS le PATCH réussi** (dans le `try`) → si Notion échoue, la valeur n'est pas mémorisée et le prochain blur réessaie.
+
+**PARTIE 2 — LOGIN SUR PRODUCTION**
+Après connexion, on arrivait sur le Dashboard. Décision de David : arriver sur **Production**, pour **tous** — évite un clic à chaque connexion. Changé au point d'entrée (l.3215) **et** au fallback « sujet introuvable » (l.3210). Le **bouton latéral Dashboard reste intact** (l.137) — le Dashboard reste accessible, on change juste le point d'entrée. Vérifié : aucune dépendance (les données se chargent indépendamment de la page affichée).
+
+**Compteurs :** `onkeydown` avec `save+blur` = **0** (les 2 corrigés) · `data-saved` = 1 · `el.dataset.saved = url` = 1 · `navTo('dashboard')` = **1** (le bouton latéral seulement — ne pas lire ce reste comme un oubli) · `navTo('production')` = 10 · `createNotif` = 27 (**inchangé — mêmes notifs, seule la fréquence est corrigée**) · chantier 10 intact (`verifierCompletionVersion` 5, `effacerMarqueurCompletion` 3, `retours_traites` 2) · `CHEF_PAR_DEFAUT`=5 · `EQUIPE_FALLBACK`=2.
+
+**LEÇON MÉTHODE :** le Pilote a proposé une solution qui aurait introduit un défaut (mensonge d'affichage). Claude Code l'a refusée en expliquant pourquoi, et a proposé mieux. **C'est exactement pourquoi on demande une PROPOSITION avant de coder.**
+
+
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 CHANTIER 10 (à intégrer dans l'historique complet plus bas)
@@ -115,10 +144,24 @@ David veut comprendre comment améliorer la plateforme pour l'usage multi-user (
 - **Signal « fini » persistant côté équipe** : aujourd'hui en sessionStorage (par navigateur). Si besoin d'un affichage durable « qui a fini », il faudra un champ Notion.
 
 **IDÉES UX / FONCTIONNALITÉS EN ATTENTE (notées le 22/07, non lancées)**
-- **🔜 LOGIN → PAGE PRODUCTION** (décidé le 22/07, chantier suivant) : aujourd'hui on arrive sur Dashboard après connexion. David veut arriver directement sur **Production**, pour **tous** (pas seulement les journalistes) — évite un clic à chaque connexion. Petit chantier, probablement une ligne, sur `index.html`. **À faire APRÈS le merge du chantier 10** (même fichier, ne pas empiler).
+
+**🔜 CHANTIER 12 — CODE CLIENT DEPUIS LES CLIENTS RÉELS + CLARIFIER LE FORMULAIRE** (décidé le 23/07, prochain chantier, `index.html`)
+
+*Contexte — INCIDENT DU 23/07 (3ᵉ occurrence du même problème) :* le compteur Brand était à **53** alors que **B54 (Danone Gallia) et B55 (Energizer)** existaient déjà dans 🏷️ Clients Brand. Master les avait créés en direct dans Notion **sans incrémenter le compteur**. Le prochain client créé via l'app aurait reçu **B54 — un code déjà pris**, et le décalage se serait perpétué (compteur à 54 → proposerait B55, encore pris). **Corrigé par Master : compteur Brand → 55.** *(À noter : B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion — 3ᵉ source de vérité qui diverge.)*
+
+*Analyse Claude Code — le mécanisme :* le code proposé vient du champ `Dernier numéro` de la base **Compteurs** (`updateBrandCode` l.4189), incrémenté **UNIQUEMENT** lors d'une création via l'app (l.4307). Aucune vérification contre les codes réels des clients. Les créations hors app ne l'incrémentent jamais → dérive garantie.
+
+*Décision de David :* **l'app doit calculer le prochain code depuis les CLIENTS RÉELS** (base Clients Brand, déjà chargée et contenant tous les codes) au lieu du compteur séparé. S'auto-corrige sans intervention humaine. ⚠️ **Limite honnête : ça ne règle PAS l'écart avec le Google Sheet** (une source hors Notion restera toujours divergente).
+
+*À grouper dans le même chantier :* **clarifier le formulaire**. Analyse Claude Code : en mode « Nouveau client », le formulaire crée **DEUX objets** — un **client** dans Clients Brand (code `B54`) **ET** un **sujet** dans Suivi Production (code `B54A`) ; le « Format de livraison » alimente le `Sous-format` du **sujet**. En mode « Déclinaison », **un seul sujet** (B54B…) rattaché au client existant, pas de nouveau client. **Le piège :** le formulaire s'appelle « Nouveau sujet » mais crée aussi un client, et les deux champs de nom (« Nom du nouveau client » vs « Titre ») prêtent à confusion. → afficher explicitement « vous allez créer un client ET son premier sujet ».
+
+*Question ouverte à traiter dans le chantier :* les autres formats (MAG, Desk, Face Cam, YouTube, Interne) utilisent le même mécanisme de compteur — ont-ils le même risque de dérive ? Faut-il appliquer la même logique à tous ?
+
+*Fragilité annexe notée (non traitée) :* les 3 créations (sujet → incrément compteur → client) s'enchaînent **sans transaction**. Si la création du client échoue après celle du sujet, on obtient un **sujet orphelin** + un compteur avancé.
+
 - **Tri « dernière modification » sur la vue Liste** : David veut pouvoir trier pour que les cartes récemment modifiées remontent en haut. ⚠️ **À VÉRIFIER AVANT DE CODER** : est-ce que `last_edited_time` (Notion) est mis à jour par les vraies actions utilisateur SEULEMENT, ou aussi par le polling/refresh automatique (`relireSujet`) ? Si le refresh touche `last_edited_time`, le tri deviendrait du bruit. Question à poser à Claude Code avant tout chantier.
-- **Alignement « Copier le lien » / croix de fermeture** dans la fiche détail mobile : les deux boutons ne sont pas à la même hauteur. Petit ajustement CSS.
-- **Effet boutons flottants iOS** (style photothèque : capsules arrondies flottant au-dessus du contenu) : David aime, mais « si c'est compliqué, plus tard ». Confort esthétique, pas prioritaire.
+- **Alignement « Copier le lien » / croix de fermeture** dans la fiche détail mobile : les deux boutons ne sont pas à la même hauteur. Petit ajustement CSS (fichiers `css/`, pas `index.html`).
+- **Effet boutons flottants iOS** (style photothèque) : David aime, mais « si c'est compliqué, plus tard ». Confort, pas prioritaire.
 - **Déclinaison → format MAG** : une déclinaison peut aussi créer un format MAG (pas seulement hériter du format parent). À creuser plus tard.
 
 **🚫 TIMECODE AUTOMATIQUE (style Frame.io) — SUJET CLASSÉ le 22/07, ne pas rouvrir sans nouvel élément**

@@ -945,7 +945,7 @@ function openDetail(id, forcePadOpen=false){
       <div style="display:flex;gap:6px;align-items:center">
         <input type="url" id="seq-${id}" value="${s.lienSeq||''}" placeholder="https://docs.google.com/..." style="flex:1"
           onblur="saveSeq('${id}',this.value)"
-          onkeydown="if(event.key==='Enter'){saveSeq('${id}',this.value);this.blur()}">
+          onkeydown="if(event.key==='Enter'){this.blur()}">
         ${s.lienSeq?`<a href="${s.lienSeq}" target="_blank" style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:6px;font-size:11px;text-decoration:none;white-space:nowrap">↗ Ouvrir</a>`:''}
       </div>
     </div>
@@ -2321,9 +2321,9 @@ async function loadVersions(sujetId) {
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
-          <input type="url" value="${url}" placeholder="Lien vidéo..." style="flex:1;font-size:12px"
-            onblur="updateVersionUrl('${v.id}','${sujetId}',this.value,'${version}')"
-            onkeydown="if(event.key==='Enter'){updateVersionUrl('${v.id}','${sujetId}',this.value,'${version}');this.blur()}">
+          <input type="url" value="${url}" data-saved="${url}" placeholder="Lien vidéo..." style="flex:1;font-size:12px"
+            onblur="updateVersionUrl('${v.id}','${sujetId}',this.value,'${version}',this)"
+            onkeydown="if(event.key==='Enter'){this.blur()}">
           ${lienInvalide ? `<span style="font-size:10px;color:var(--amber);white-space:nowrap;padding:4px 6px;background:var(--amber-dim);border-radius:4px">⚠️ Lien non lu</span>` : ''}
           ${url && type ? `<button onclick="openPlayer('${url}','${version}','${sujetId}','${version}')"
             style="background:var(--red);border:none;color:#fff;cursor:pointer;padding:6px 10px;border-radius:6px;font-size:12px;flex-shrink:0">▶</button>` : ''}
@@ -2434,8 +2434,9 @@ async function ajouterVersion(sujetId) {
   }
 }
 
-async function updateVersionUrl(versionId, sujetId, url, versionNum) {
+async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
   if(!url) return;
+  if(el && url === (el.dataset.saved||'')) return; // garde : lien inchangé → pas de re-notif
   const s = sujets.find(x=>x.id===sujetId);
   // Vérifier que le lien est un lien Drive, Vimeo ou Frame.io
   const isDrive = url.includes('drive.google.com');
@@ -2448,6 +2449,7 @@ async function updateVersionUrl(versionId, sujetId, url, versionNum) {
   }
   try {
     await api('/pages/'+versionId,'PATCH',{properties:{'Titre':{title:[{text:{content:url}}]}}});
+    if(el) el.dataset.saved = url; // mémorisé APRÈS écriture réussie → pas de mensonge en cas d'échec
     loadVersions(sujetId);
     // Notif au chef
     if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
@@ -3207,12 +3209,12 @@ function showApp() {
       } else {
         // Sujet supprimé/archivé/inconnu : démarrage normal, message discret, jamais de blocage
         toast('Sujet introuvable ou archivé', 'err');
-        navTo('dashboard');
+        navTo('production');
       }
       // Nettoyer l'URL : le param est consommé (F5 ne rouvrira pas la fiche)
       history.replaceState({}, '', location.pathname);
     } else {
-      navTo('dashboard');
+      navTo('production');
     }
     loadNotifs();
     loadTachesBadgeSilent();
