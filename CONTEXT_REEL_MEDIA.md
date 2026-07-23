@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-23 (chantiers 6→13 · chantiers 10 et 11 VALIDÉS EN RÉEL · chantier 13 vérifié, à tester sur preview)
+> Dernière mise à jour : 2026-07-23 (chantier 14 vérifié, à merger · incident notifs en double du 23/07 EN COURS D'ÉLUCIDATION)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -8,28 +8,85 @@
 
 **Ce fichier est la mémoire du projet.** Le chat précédent a atteint sa limite. Voici où en est exactement le travail.
 
-### ✅ CE QUI EST EN PRODUCTION (mergé, testé)
-Chantiers 1 à 11. Le dernier merge en date est le **chantier 11** (`index.html`, 6343 lignes) : correction des notifications en double (touche Entrée) + arrivée sur Production au login.
+### ✅ CE QUI EST EN PRODUCTION
+Chantiers **1 à 13**. Les chantiers **12** (code client Brand depuis les clients réels) et **13** (nom du client visible + tri « Modif ») ont été **testés et mergés le 23/07** — `client-brand-tri` portait les deux.
 
-### 🟢 CHANTIER 12 — VÉRIFIÉ, EN COURS DE MERGE
-`index.html` 6380 lignes, `prochainNumeroBrand` = 3, `node --check` OK. Branche `code-client-reel`, à merger via PR après test sur la Deploy Preview (le formulaire Brand doit proposer **B56**).
+### 🟢 CHANTIER 14 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6439 lignes** (inchangé) + `review.html` **913 lignes**. `node --check` OK sur les deux. Branche `retours-lisibles`. **DEUX fichiers à pousser**, `css/views.css` non touché.
 
-⚠️ **Angle mort connu, non couvert :** B56 « Saumon Écosse » existe dans le **Google Sheet** de David mais PAS dans Notion. Le chantier 12 aligne l'app sur **Notion**, pas sur le Sheet.
+**À tester sur la preview :** ① un retour Corrigé se lit normalement (plus barré, plus atténué) sur la **carte**, dans le **lecteur d'index.html** ET dans **review.html** côté client ; ② badge vert + barre verte à gauche présents partout ; ③ un retour ⛔ Impossible est lisible aussi, en gardant son orange ; ④ le bouton **Réouvrir** d'un corrigé fonctionne toujours ; ⑤ dans review.html, le bloc « Retours des autres versions » reste atténué comme avant ; ⑥ un **brouillon** reste atténué.
 
-### 🟢 CHANTIER 13 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
-`index.html` **6439 lignes**, `node --check` OK. Branche `client-brand-tri`. Nom du client Brand visible (cartes + liste + recherche) et tri « Modif » sur la vue Liste.
+### 🟡 RETOUR BENJAMIN NON TRAITÉ — MODIFIER / SUPPRIMER UN BROUILLON
+Benjamin veut pouvoir **modifier ou supprimer un retour en brouillon** pendant qu'il fait ses retours. Aujourd'hui il peut en créer un mais pas revenir dessus avant transmission. **Chantier non lancé.** Piste : la logique de permission existe déjà (chantier 4, identification de l'auteur par **nom** — avec ses limites documentées : homonymie, renommage, comparaison sensible à la casse).
 
-**⚠️ Ordre de merge — les deux branches touchent `index.html`.** `client-brand-tri` est construite SUR le chantier 12 : elle contient donc les deux chantiers (`prochainNumeroBrand` = 3 vérifié dans le fichier 6439 lignes). **Merger `code-client-reel` D'ABORD, puis `client-brand-tri`** — ou merger directement `client-brand-tri` qui porte les deux. Ne JAMAIS merger le 12 après le 13 : il écraserait le 13.
+### 🔴 INCIDENT DU 23/07 — NOTIFS EN DOUBLE CHEZ BENJAMIN (NON ÉLUCIDÉ)
+**Symptôme observé après le merge** (capture d'écran de la cloche de Benjamin) :
+- **3 notifs identiques** « Paul a corrigé un retour sur F671 », même horodatage **12:13**
+- **2 notifs identiques** « Éloise a déposé le séquencier de M698 », même horodatage **11:45**
 
-**À tester sur la preview :** ① un sujet Brand affiche le nom du client (cartes ET liste), un non-Brand n'affiche rien de plus ; ② taper « Danone » dans la recherche remonte ses sujets ; ③ colonne « Modif » : cliquer trie du plus récent au plus ancien ; ④ laisser la liste ouverte >60 s pendant qu'un collègue modifie un sujet → **aucune ligne ne doit sauter en tête**, le sujet modifié doit seulement flasher sur place.
+**Pourquoi c'est troublant :** ces deux symptômes correspondent à des bugs **déjà corrigés et confirmés en réel le matin même**. Le libellé « a corrigé un retour » est celui de l'ancien type `retour_corrige`, dont le call site avait été mis à **0** au chantier 10 (remplacé par une notif unique de complétion). Et le doublon séquencier est exactement le symptôme corrigé au chantier 11.
 
-### ✅ TESTS FERMÉS (validés en réel le 23/07)
-- **Chantier 10** — Benjamin confirme : une seule notification de complétion, plus une par retour.
-- **Chantier 11** — Éloise confirme : dépôt de séquencier validé par Entrée → une seule notification.
-Plus rien en attente de vérification sur les chantiers mergés.
+**HYPOTHÈSE PRINCIPALE — CACHE PWA / VERSION PÉRIMÉE CÔTÉ ÉMETTEUR.**
+Les notifications sont créées par **le navigateur de celui qui agit**, pas par un serveur. Si Paul et Éloise tournaient encore sur une version en cache d'**avant** les chantiers 10 et 11, leur code produisait les anciennes notifs. Benjamin, simple destinataire, les recevait correctement — son propre code n'y change rien. **Cette hypothèse expliquerait les DEUX anomalies d'un coup.**
+
+**Élément confirmé par David :** le **bandeau « nouvelle version » était encore visible dans leur app**. Donc `checkAppVersion` a bien détecté la nouvelle version — ce qui a échoué, c'est le **passage à l'acte** : le bandeau est **passif par conception** (reload uniquement au clic volontaire). Ils l'ont vu, ne l'ont pas cliqué, et ont continué à travailler sur l'ancien code.
+
+**⚠️ TEST QUI TRANCHE — À FAIRE AVANT TOUT AUDIT :** demander à Paul de **recharger** (clic sur le bandeau, ou Cmd+Shift+R / fermer-rouvrir la PWA), puis de corriger un retour. Benjamin reçoit **1 seule** notif → c'était le cache, le code est bon, dossier clos. Le doublon **persiste sur une app fraîchement rechargée** → c'est le code, et on lance un audit avec Claude Code sur les chemins d'appel de `createNotif`.
+**Ne pas dépenser de budget Claude Code avant ce test** — il coûte 30 secondes et écarte une hypothèse entière.
+
+**Question restée sans réponse (à poser si l'audit a lieu) :** Paul a-t-il corrigé **trois** retours sur F671 (→ trois notifs de l'ancien système individuel) ou **un seul** (→ triple création, autre problème) ?
+
+### 🟡 CHANTIER 13 — POINT ④ NON VÉRIFIÉ EN CONDITIONS RÉELLES
+Le comportement **« ordre figé pendant la lecture »** (voir l'entrée du chantier 13) n'a **pas** été testé en multi-utilisateur : liste ouverte > 60 s pendant qu'un collègue modifie un sujet, aucune ligne ne doit sauter. **Mergé, mais non confirmé.** ⚠️ C'est un défaut **silencieux** : s'il ne marchait pas, rien d'anormal ne se verrait tout de suite — juste, un jour, une ligne qui bouge pendant la lecture, sans qu'on fasse le lien avec ce chantier.
+**Aggravant :** tant que le cache PWA n'est pas maîtrisé, ce test est **ininterprétable** — on ne sait pas qui tourne sur quelle version.
+
+### 🔜 CHANTIER RECOMMANDÉ PAR LE PILOTE — LE BANDEAU DE VERSION
+L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du temps perdu à croire qu'un bug corrigé était revenu, et un chantier (13, point ④) devenu invérifiable.
+
+**L'argument de fond :** un bandeau passif suffit pour une amélioration de confort. Il ne suffit **pas** quand un chantier change ce que le code **ÉCRIT** dans Notion (notifications, codes, statuts). Dans ce cas, un utilisateur sur une version périmée ne rate pas une amélioration — il **produit des données incohérentes pour toute l'équipe**. C'est une catégorie de risque différente.
+⚠️ **Le CONTEXT dit par ailleurs de NE PAS désactiver ce bandeau** (sécurité multi-user). Le chantier consisterait à le **renforcer**, pas à le supprimer. **Décision non prise — David arbitre.**
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 14 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-23 — CHANTIER 14 : les retours traités redeviennent lisibles (`index.html` + `review.html`)
+`index.html` **6439 lignes** (inchangé — habillage pur) · `review.html` **913 lignes**. `node --check` OK sur les deux. Branche `retours-lisibles`. **`css/views.css` NON touché.**
+
+**BESOIN (remonté par Benjamin, qui corrige les retours).** Un retour passé à « Corrigé » devenait **illisible** : texte **barré** ET **atténué**. Or Benjamin a besoin de **relire ce qui est déjà traité** pendant qu'il corrige le reste — dans le lecteur vidéo comme sur la carte. **« Corrigé » ne veut pas dire « inutile ».**
+
+**DEUX MÉCANISMES CUMULÉS, TROIS EMPLACEMENTS DISTINCTS.** Le diagnostic a demandé une lecture complète — les trois rendus ne partagent **aucun** code :
+- **Carte** (`index.html` ~l.2142-2151) : balise `<s>` + classe CSS `.retour-row.corrige`
+- **Lecteur d'`index.html`** (~l.3894-3906) : balise `<s>` + `opacity:0.45` **en dur**
+- **`review.html`** (côté client) : **3ᵉ gabarit**, avec sa **propre CSS inline** (`.r-desc.corrige { line-through; opacity:0.5 }`)
+
+**DEUX CORRECTIONS AU BRIEF DU PILOTE (relevées par Claude Code) :**
+1. `.corrige` n'est **pas** dans `components.css` mais dans **`css/views.css`** (`.retour-row.corrige{opacity:0.45}`).
+2. `review.html` a **DEUX** blocs de retours, pas un : celui de la version courante (à corriger) **et** « Retours des autres versions » (déjà atténué à 0.4 **par version** — équivalent d'`!isActive`, **à ne pas toucher**).
+
+**LIVRÉ — habillage seul, zéro logique modifiée.**
+- **Corrigé**, aux 3 emplacements : plus de `<s>`, plus d'atténuation → **pleine lisibilité**. Identité renforcée : **badge vert** (fond `rgba(29,158,117,0.12)`, bordure `1px rgba(29,158,117,0.3)`, texte `#1D9E75`) + **barre verte à gauche** (`2px solid #1D9E75`). Wording client « ✓ **Pris en compte** » conservé dans `review.html`.
+- **⛔ Impossible** (carte + lecteur) : traité **comme corrigé** — lisible, sans barré ni opacité, **garde son identité orange** (bordure + badge + raison en italique). *Argument retenu de Claude Code : Benjamin a autant besoin de relire **pourquoi** un retour était impossible — souvent pour l'expliquer au client ou au chef.*
+- **Incohérence historique résolue** : la carte barrait corrigé **et** impossible, le lecteur **seulement** corrigé. Désormais **aucun `<s>` nulle part** (`grep -c "<s>"` : 2 → **0**).
+- **Distinctions PRÉSERVÉES** : `!isActive` (version non active) et **brouillon** gardent `opacity:0.45` — ce sont des distinctions de **version** et d'**état de transmission**, pas de statut de traitement.
+
+**DÉCISION — `#1D9E75` EN DUR PARTOUT.** `var(--green)` est défini dans les CSS externes pour `index.html` et dans la CSS **inline** de `review.html` : rien ne garantissait la même valeur des deux côtés. *(Vérifié après coup : `review.html` l.16 définit bien `--green: #1D9E75` — les deux coïncidaient. La décision reste la bonne : un badge au vert différent selon l'écran aurait été pire que pas de badge.)* Cohérent avec l'existant, qui code déjà `#ff6b35` et `#E63946` en dur.
+
+**DETTE ASSUMÉE — CSS MORT.** `.retour-row.corrige` (dans `css/views.css`) **n'est plus jamais émise** : la carte est passée en style inline pour éviter un 3ᵉ fichier à pousser. La règle reste dans le CSS, inoffensive. ⚠️ **Si quelqu'un réutilise un jour la classe `corrige` en pensant qu'elle atténue, il aura une surprise.** Nettoyage volontairement remis à un chantier qui touchera `views.css` pour d'autres raisons.
+
+**Compteurs vérifiés par le Pilote :** `index.html` = 6439 (inchangé) · `review.html` = 913 · `<s>` = **0** (était 2) · `toggleRetour` = 5 (**inchangé**) · `opacity:0.45` = 3 (`!isActive`/brouillon, version annulée, tâches) · `1D9E75` index = 10 · `1D9E75` review = 3 · `line-through` review = **0** · `other-version` review = 2 (**inchangé**) · classe `corrige` encore émise = **0** · `CHEF_PAR_DEFAUT` = 5 · `EQUIPE_FALLBACK` = 2 · `rebuildMapClients` = 4 · `prochainNumeroBrand` = 3 · `createNotif` = 27 · balises `<script>` 4/4 et 1/1.
+
+**DEUX PREUVES DE NON-RÉGRESSION EXIGÉES PAR LE PILOTE, VÉRIFIÉES SUR LE FICHIER :**
+1. **Bouton « Réouvrir »** (`index.html` l.2162) : `<div class="retour-check done" onclick="toggleRetour(…,'Ouvert')" title="Réouvrir">✓</div>` — **intact**. Un corrigé redevenu lisible garde son bouton de réouverture.
+2. **Bloc « Retours des autres versions »** (`review.html` l.723-731) : **inchangé** — toujours `.retour-item other-version` (atténué 0.4), `.r-desc` sans classe `corrige`, simple `✓`.
+
+**LEÇON MÉTHODE — LA MAQUETTE AVANT LE CODE.** Le Pilote a d'abord produit une maquette dans un **design générique**, sans rapport avec la DA de l'app. Corrigé après remarque de David : extraction des couleurs réelles depuis `index.html` (`#1D9E75`, `#ff6b35`, `#E63946`, `#9898B0`, `#1E1E2A`) et maquette refaite sur fond sombre. **Une maquette hors charte ne permet pas de valider un choix visuel** — elle donne l'illusion d'une décision prise.
+
+**RESTE OUVERT — 2ᵉ retour de Benjamin :** pouvoir **modifier ou supprimer un retour en brouillon** avant transmission. Chantier distinct, non lancé.
 
 
 
