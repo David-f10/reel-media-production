@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-23 (chantiers 14 et 15 vérifiés, à merger · audit permissions FAIT · incident notifs du 23/07 EN COURS D'ÉLUCIDATION)
+> Dernière mise à jour : 2026-07-23 (chantier 15 corrigé et testé, prêt à merger · audit permissions FAIT · incident notifs du 23/07 EN COURS D'ÉLUCIDATION)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -16,12 +16,12 @@ Chantiers **1 à 13**. Les chantiers **12** (code client Brand depuis les client
 
 **À tester sur la preview :** ① un retour Corrigé se lit normalement (plus barré, plus atténué) sur la **carte**, dans le **lecteur d'index.html** ET dans **review.html** côté client ; ② badge vert + barre verte à gauche présents partout ; ③ un retour ⛔ Impossible est lisible aussi, en gardant son orange ; ④ le bouton **Réouvrir** d'un corrigé fonctionne toujours ; ⑤ dans review.html, le bloc « Retours des autres versions » reste atténué comme avant ; ⑥ un **brouillon** reste atténué.
 
-### 🟢 CHANTIER 15 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
-`index.html` **6540 lignes** (6439 → +101). `node --check` OK. Branche `brouillons-editables`. `index.html` seul.
+### 🟢 CHANTIER 15 — TESTÉ SUR LA PREVIEW, PRÊT À MERGER
+`index.html` **6541 lignes** (6439 → +102, correctif z-index inclus). `node --check` OK. Branche `brouillons-editables`. `index.html` seul.
 
-**⚠️ ORDRE DE MERGE.** Les chantiers 14 (`retours-lisibles`) et 15 (`brouillons-editables`) touchent tous deux `index.html`. Le 15 est construit **sur** le 14 (vérifié : `<s>` = 0, `1D9E75` = 10 dans le fichier de 6540 lignes). **Merger le 14 D'ABORD, puis le 15** — ou merger le 15 qui porte les deux. **Jamais le 14 après le 15.** Attention : le 14 comprend aussi `review.html`, que le 15 ne touche pas — ce fichier doit être poussé séparément.
+**Testé par David sur la Deploy Preview 63 :** suppression OK depuis les deux emplacements ; édition OK depuis la fiche ET depuis le lecteur après correctif. **Validé.**
 
-**À tester sur la preview :** ① l'auteur d'un brouillon voit ✏️ et 🗑, sur la **carte ET dans le lecteur** ; ② un chef voit 🗑 sur le brouillon d'un autre mais **pas** ✏️ ; ③ un retour **transmis** n'affiche aucun bouton ; ④ modifier un brouillon change le texte **sans** créer de notification ni de doublon ; ⑤ supprimer demande confirmation avec aperçu du texte ; ⑥ **le test qui compte** : ouvrir une édition, fermer sans enregistrer, puis créer un retour neuf → doit créer un **nouveau** retour, pas modifier l'ancien.
+**⚠️ ORDRE DE MERGE.** Les chantiers 14 (`retours-lisibles`) et 15 (`brouillons-editables`) touchent tous deux `index.html`. Le 15 est construit **sur** le 14 (vérifié : `<s>` = 0, `1D9E75` = 10 dans le fichier de 6541 lignes). **Merger le 14 D'ABORD, puis le 15** — ou merger le 15 qui porte les deux. **Jamais le 14 après le 15.** Attention : le 14 comprend aussi **`review.html`**, que le 15 ne touche pas — ce fichier se pousse séparément.
 
 ### 🔴 INCIDENT DU 23/07 — NOTIFS EN DOUBLE CHEZ BENJAMIN (NON ÉLUCIDÉ)
 **Symptôme observé après le merge** (capture d'écran de la cloche de Benjamin) :
@@ -76,7 +76,7 @@ Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer exista
 
 **POINT DE ROBUSTESSE RELEVÉ (pas une faille) :** la comparaison d'auteur du chantier 4 était en `===` **sans `trim()`**. Un espace parasite dans Notion pouvait empêcher quelqu'un de valider **son propre** retour. Direction de l'erreur correcte (**fail-safe** : refus, jamais accès à tort), mais gênant pour une fonction de suppression. → **Durci dans le chantier 15.**
 
-**DETTE SIGNALÉE, NON TRAITÉE :** double source de « qui est chef » — les droits viennent du rôle Notion, mais le défaut du formulaire utilise une liste **codée en dur** `['Benjamin','Arnaud','Chloé']` (l.823). Sûr aujourd'hui, mais un 4ᵉ chef ajouté dans Notion serait ignoré par ce tableau. ⚠️ **Pertinent car Chloé devient chef dans ~3 mois.**
+**DETTE SIGNALÉE, NON TRAITÉE (portée limitée) :** double source de « qui est chef » — les **droits** viennent du rôle Notion, mais le **défaut du formulaire** « Nouveau sujet » utilise une liste **codée en dur** `['Benjamin','Arnaud','Chloé']` (l.823). ⚠️ **Ne concerne PAS le passage de Chloé au rôle de chef dans ~3 mois : son nom est déjà dans cette liste.** Le cas réel serait la nomination d'un chef **hors de ces trois-là** (Thierry, ou un nouveau) : il aurait bien tous ses droits (ils viennent du rôle Notion), mais le formulaire ne le proposerait pas par défaut. **Désagrément de confort, aucune perte de droits.**
 
 ---
 
@@ -114,6 +114,17 @@ Le Pilote proposait de réutiliser `champToujoursACa` (l.3129). **Claude Code l'
 → `trim()` ne retire que des blancs : il **répare** une correspondance cassée par un espace parasite, **sans jamais** confondre deux noms distincts. La validation du chantier 4 se comporte à l'identique, en plus robuste.
 
 **ÉCART DE COMPTAGE ÉLUCIDÉ :** Claude Code annonçait `archived:true` = 7, le Pilote en comptait 6. Cause : la 7ᵉ occurrence (l.3614) s'écrit `archived: true` **avec une espace**. Aucune anomalie — le grep du Pilote était plus étroit. *Leçon : un écart de compteur doit être élucidé, pas signalé comme une erreur.*
+
+**CORRECTIF EN COURS DE TEST — L'ÉDITION ÉTAIT INVISIBLE DEPUIS LE LECTEUR (+1 ligne, 6540 → 6541).**
+*Symptôme constaté par David sur la Deploy Preview 63 :* depuis la **fiche**, l'édition fonctionnait parfaitement (popup pré-rempli, bouton Enregistrer). Depuis le **lecteur vidéo**, le clic ✏️ ne produisait **aucun effet visible** — alors que la **suppression** y fonctionnait. **Console : aucune erreur JavaScript** (seulement des erreurs Google Drive CSP et une balise meta obsolète, sans rapport) → la fonction s'exécutait bien.
+
+*Cause réelle, vérifiée dans le code :* `ov-retour` est en **z-index 200** (`css/components.css` l.20), le lecteur `#video-player-modal` en **z-index 9999** (`index.html` l.3861). Depuis le lecteur, le popup s'ouvrait donc **derrière** — invisible et non cliquable. La suppression marchait parce que `showConfirmModal` est en **z-index 10000**, au-dessus du lecteur.
+
+*Le piège écarté :* un z-index ne sert à rien si les éléments ne partagent pas le même **contexte d'empilement**. Vérifié : `ov-retour` et le lecteur sont **frères sous `<body>`** — `app-shell` ferme l.239, les overlays commencent l.241, et le lecteur est `appendChild` sur `body` (l.3927). `.app-shell` n'a que `display/flex-direction/height`, **aucune** position ni transform → **ne crée pas** de contexte d'empilement. Les z-index se comparent donc directement. **Claude Code a vérifié ce point de lui-même au lieu de croire l'hypothèse du Pilote.**
+
+*Correctif :* `ov-retour` monte à **10001** à l'ouverture de l'édition (l.1804) et redescend à `''` dans `closeOv` (l.4596). **Aucun fichier `/css` touché** — le `z-index:200` fautif reste dans `components.css`, contourné en inline. Un seul fichier à pousser. *Effet de bord accepté :* l'édition depuis la fiche monte aussi à 10001 — inoffensif aujourd'hui (rien ne dépasse 200 dans ce contexte), **à garder en tête si un composant flottant est ajouté un jour pendant l'édition**.
+
+*Garde-fous du chantier 15 vérifiés intacts après correctif :* les 2 resets de `_editBrouillonId` (l.1622 et l.4596 — le reset du z-index a été ajouté dans la même branche `ov-retour` de `closeOv`, sans déplacer celui du flag) et le fail-closed (`relireBrouillon` = 5). `createNotif` = 27.
 
 **COMPORTEMENT CONCURRENT (deux personnes sur le même brouillon) :** couvert par le fail-closed. A transmet pendant que B veut supprimer → B voit `!brouillon` → refus et rafraîchissement. A supprime pendant que B édite → B voit `archived` → refus. Double suppression simultanée → le second voit `archived` → refus propre (et `PATCH archived:true` serait de toute façon idempotent).
 
