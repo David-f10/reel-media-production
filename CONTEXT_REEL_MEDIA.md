@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-23 (chantiers 6→12 · chantier 12 LIVRÉ ET VÉRIFIÉ, à merger)
+> Dernière mise à jour : 2026-07-23 (chantiers 6→13 · chantiers 10 et 11 VALIDÉS EN RÉEL · chantier 13 vérifié, à tester sur preview)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -11,19 +11,63 @@
 ### ✅ CE QUI EST EN PRODUCTION (mergé, testé)
 Chantiers 1 à 11. Le dernier merge en date est le **chantier 11** (`index.html`, 6343 lignes) : correction des notifications en double (touche Entrée) + arrivée sur Production au login.
 
-### 🟢 CHANTIER 12 — LIVRÉ ET VÉRIFIÉ LE 23/07, EN ATTENTE DE MERGE
-**Le fichier a été re-livré par Claude Code et vérifié par le Pilote.** `index.html` **6380 lignes**, `prochainNumeroBrand` = **3**, `node --check` OK. Le piège de l'upload (ancien fichier 6343 lignes remonté par erreur) **ne s'est pas reproduit**.
+### 🟢 CHANTIER 12 — VÉRIFIÉ, EN COURS DE MERGE
+`index.html` 6380 lignes, `prochainNumeroBrand` = 3, `node --check` OK. Branche `code-client-reel`, à merger via PR après test sur la Deploy Preview (le formulaire Brand doit proposer **B56**).
 
-**Reste à faire :** pousser `index.html` sur GitHub → tester en réel la création d'un client Brand (doit proposer **B56**, le compteur étant à 55).
+⚠️ **Angle mort connu, non couvert :** B56 « Saumon Écosse » existe dans le **Google Sheet** de David mais PAS dans Notion. Le chantier 12 aligne l'app sur **Notion**, pas sur le Sheet.
 
-⚠️ **Angle mort connu, non couvert :** B56 « Saumon Écosse » existe dans le **Google Sheet** de David mais PAS dans Notion. Le chantier 12 aligne l'app sur **Notion**, pas sur le Sheet. Si le Sheet fait autorité, il faut créer le client dans Notion.
+### 🟢 CHANTIER 13 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6439 lignes**, `node --check` OK. Branche `client-brand-tri`. Nom du client Brand visible (cartes + liste + recherche) et tri « Modif » sur la vue Liste.
 
-### ⏳ EN ATTENTE DE TEST PAR DAVID (mergés mais non validés en réel)
-- **Chantier 10** — notification unique de complétion des retours. Benjamin doit confirmer qu'il ne reçoit plus qu'UNE notif quand tous les retours d'une version sont traités. ⚠️ **PRÉREQUIS FAIT :** Master a créé la propriété `Complétion notifiée` (case à cocher) sur la base 📹 Versions.
-- **Chantier 11** — Éloise doit déposer un séquencier **en appuyant sur Entrée** : Benjamin ne doit recevoir qu'UNE notification (avant : deux). Idem sur un lien de version.
+**⚠️ Ordre de merge — les deux branches touchent `index.html`.** `client-brand-tri` est construite SUR le chantier 12 : elle contient donc les deux chantiers (`prochainNumeroBrand` = 3 vérifié dans le fichier 6439 lignes). **Merger `code-client-reel` D'ABORD, puis `client-brand-tri`** — ou merger directement `client-brand-tri` qui porte les deux. Ne JAMAIS merger le 12 après le 13 : il écraserait le 13.
+
+**À tester sur la preview :** ① un sujet Brand affiche le nom du client (cartes ET liste), un non-Brand n'affiche rien de plus ; ② taper « Danone » dans la recherche remonte ses sujets ; ③ colonne « Modif » : cliquer trie du plus récent au plus ancien ; ④ laisser la liste ouverte >60 s pendant qu'un collègue modifie un sujet → **aucune ligne ne doit sauter en tête**, le sujet modifié doit seulement flasher sur place.
+
+### ✅ TESTS FERMÉS (validés en réel le 23/07)
+- **Chantier 10** — Benjamin confirme : une seule notification de complétion, plus une par retour.
+- **Chantier 11** — Éloise confirme : dépôt de séquencier validé par Entrée → une seule notification.
+Plus rien en attente de vérification sur les chantiers mergés.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 13 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-23 — CHANTIER 13 : nom du client Brand visible + tri « dernière modification » (`index.html`)
+`index.html` 6380 → **6439 lignes** (+59). `node --check` OK. Branche `client-brand-tri`, **construite sur le chantier 12** (contient donc les deux). `review.html` / `notify.js` / CSS **intouchés** — styles **inline** par choix explicite, pour rester sur un seul fichier et éviter un second push.
+
+**PARTIE A — LE NOM DU CLIENT BRAND.**
+*Besoin :* sur un sujet Brand on voyait le code (`B54A`) mais pas le client (Danone Gallia). Il fallait le chercher de tête ou ouvrir la fiche.
+
+*Mécanisme :* le nom ne vit pas sur le sujet mais dans 🏷️ Clients Brand, lié par le code (`B54A` → client `B54`). Deux pièces :
+- **`mapClientsParCode`** (Map `code → nom`) reconstruite par **`rebuildMapClients()`** après **chacun** des 3 points de chargement de `clients` (l.646 `loadSujets`, l.819 `openNouveau`, l.6161 `appLoadData`). **Jamais un `clients.find()` par carte** — à 200 sujets × re-render, la différence compte. ⚠️ **C'est le compteur de vérification critique : `rebuildMapClients` = 4** (déf + 3 appels). S'il en manquait un, on aurait des noms périmés après création d'un client — bug silencieux typique.
+- **`nomClientDeCode(code, format)`** : `^B\d+` → `B54A`/`B54B`/`B54AA` donnent tous `B54`. Retourne `''` si non-Brand, code absent, code irrégulier ou **client orphelin**. Jamais d'`undefined`, jamais d'exception.
+
+*Affichage :* chip muté **sur la ligne existante du code** dans les deux gabarits de carte (`cardHTML` l.733, `cardHTMLHighlight` l.6383) — **pas de ligne supplémentaire**, le compactage du 16/07 est préservé ; ellipsis à 96 px + `title` complet. En vue Liste, chip dans la **cellule Titre** (l.6017) et **non dans la cellule Code** : celle-ci fait 80 px et tronquerait « Danone Gallia » à l'excès. **Aucune colonne ajoutée pour le nom.** Sujet non-Brand → le ternaire ne rend rien : pas d'espace, pas de séparateur orphelin.
+
+*Recherche :* une ligne dans `applySearch` (l.4008), via la Map (O(1), pas de lookup par frappe). **Insensible à la casse, sensible aux accents** — identique aux 12 autres champs, comportement global inchangé. « Danone » passe, « Crème » exigera l'accent ; changer ça serait un chantier sur toute la recherche.
+
+*Soin non demandé, à noter :* les attributs `title` échappent les guillemets (`.replace(/"/g,'&quot;')`) — un nom de client contenant un guillemet ne casse pas le HTML.
+
+**PARTIE B — TRI « MODIF » SUR LA VUE LISTE.**
+
+*La question bloquante, tranchée par audit du code (pas par supposition) :* `last_edited_time` est-il pollué par les mécanismes automatiques ? **Non.** `autoRefreshTick` (l.3133, 60 s) est un `POST /query` en lecture pure ; `fichePollTick` (18 s) et `relireSujet` sont des `GET` purs ; ouvrir une fiche n'écrit rien ; `champToujoursACa` n'utilise jamais `last_edited_time`. Les deux écritures « automatiques » suspectes (`Lu` et `Complétion notifiée`) portent sur **d'autres bases** (DB_NOTIFS, DB_VERSIONS) et suivent une vraie action utilisateur. **Aucun mécanisme automatique ne touche `last_edited_time` d'un sujet de DB_PROD → le tri est du signal, pas du bruit.** Bonus : `parsePage` exposait **déjà** `lastEdited`, rien à ajouter côté parsing.
+
+*Livré :* colonne **« Modif »** (90 px) dans le patron de tri existant (`cols`/`listSort`/en-têtes cliquables), avec date **relative** via `fmtModif` (à l'instant / il y a X min / il y a X h / hier / date courte — `fmtDate` seul n'aurait pas reflété l'ordre intra-journée). Défaut : **plus récent d'abord**. **Pas de persistance** (session seulement, retombe sur `created` au rechargement), cohérent avec l'existant et avec l'arrivée sur Production au login.
+
+***LE POINT DUR — L'ORDRE EST FIGÉ PENDANT LA LECTURE.*** Sans garde, le scénario était : un collègue modifie un sujet → au tick suivant (60 s), ce sujet **remonte en tête** et toutes les lignes glissent. Aggravant : `renderVueAvecScroll` conserve le scroll **en pixels, pas la ligne** → après réordonnancement on regarde une AUTRE ligne. Et `editionEnCours()` ne protège pas : **lire n'est pas éditer**. C'est exactement la désorientation déjà documentée.
+*Solution :* instantané **`_ordreListeFige`** (Map `id → rang`) calculé sur **action utilisateur** (clic en-tête, filtre, recherche) et **réutilisé** par l'auto-refresh via le drapeau **`_autoRenderEnCours`**, posé et relâché de façon synchrone dans `renderVueAvecScroll` (l.3027/3030). Résultat : les données se mettent à jour et les sujets modifiés **flashent en place** (`flasherMaj`), mais **rien ne saute**. Pour réordonner, l'utilisateur **re-clique « Modif »**.
+**Exception assumée et commentée :** un sujet **nouveau** (absent de l'instantané, rang −1) se place **en tête** — une création mérite d'être vue. C'est un choix, pas un effet de bord.
+*Sûreté vérifiée :* l'instantané est construit (l.5954) **avant** toute lecture (l.5963) → aucun `null`-deref possible.
+
+**Compteurs vérifiés par le Pilote :** `wc -l` = **6439** · `rebuildMapClients` = **4** · `nomClientDeCode` = 5 · `mapClientsParCode` = 5 · `fmtModif` = 2 · `_ordreListeFige` = 6 · `_autoRenderEnCours` = 4 · `lastEdited` = 11 · `CHEF_PAR_DEFAUT` = 5 · `EQUIPE_FALLBACK` = 2 (bien `= []`) · `prochainNumeroBrand` = 3 (chantier 12 préservé) · `createNotif` = 27 · chantier 11 intact (`save();this.blur()` = 0, `data-saved` = 3, `navTo('dashboard')` = 1, `navTo('production')` = 10) · chantier 10 intact (5/3/2) · balises `<script>` 4/4.
+
+**LIMITE CONNUE :** si deux clients partagent le même code (donnée incohérente d'avant le chantier 12), la Map garde le **dernier** — un `console.warn` le signale au lieu de l'enterrer silencieusement.
+
+**LEÇON MÉTHODE :** le Pilote avait suggéré la cellule **Code** pour la vue Liste, par intuition et sans avoir lu le rendu. Claude Code a lu, mesuré (80 px) et proposé la cellule **Titre** avec l'argument. Le Pilote a suivi. **Une préférence non vérifiée ne pèse rien face à une lecture du code réel** — même règle que pour les diagnostics.
 
 
 
@@ -220,7 +264,7 @@ David veut comprendre comment améliorer la plateforme pour l'usage multi-user (
 
 *Fragilité annexe notée (non traitée) :* les 3 créations (sujet → incrément compteur → client) s'enchaînent **sans transaction**. Si la création du client échoue après celle du sujet, on obtient un **sujet orphelin** + un compteur avancé.
 
-- **Tri « dernière modification » sur la vue Liste** : David veut pouvoir trier pour que les cartes récemment modifiées remontent en haut. ⚠️ **À VÉRIFIER AVANT DE CODER** : est-ce que `last_edited_time` (Notion) est mis à jour par les vraies actions utilisateur SEULEMENT, ou aussi par le polling/refresh automatique (`relireSujet`) ? Si le refresh touche `last_edited_time`, le tri deviendrait du bruit. Question à poser à Claude Code avant tout chantier.
+- ✅ **FAIT (chantier 13)** — ~~Tri « dernière modification » sur la vue Liste~~ : David veut pouvoir trier pour que les cartes récemment modifiées remontent en haut. ⚠️ **À VÉRIFIER AVANT DE CODER** : est-ce que `last_edited_time` (Notion) est mis à jour par les vraies actions utilisateur SEULEMENT, ou aussi par le polling/refresh automatique (`relireSujet`) ? Si le refresh touche `last_edited_time`, le tri deviendrait du bruit. Question à poser à Claude Code avant tout chantier.
 - **Alignement « Copier le lien » / croix de fermeture** dans la fiche détail mobile : les deux boutons ne sont pas à la même hauteur. Petit ajustement CSS (fichiers `css/`, pas `index.html`).
 - **Effet boutons flottants iOS** (style photothèque) : David aime, mais « si c'est compliqué, plus tard ». Confort, pas prioritaire.
 - **Déclinaison → format MAG** : une déclinaison peut aussi créer un format MAG (pas seulement hériter du format parent). À creuser plus tard.
