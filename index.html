@@ -2139,16 +2139,16 @@ async function loadRetours(sujetId) {
         const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
         const corrige = statut === 'Corrigé';
         const impossible = statut === '⛔ Impossible';
-        html += `<div class="retour-row ${corrige||impossible?'corrige':''}" style="${impossible?'border-left:2px solid #ff6b35':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
+        html += `<div class="retour-row" style="${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
           <div style="flex:1;min-width:0${brouillon?';opacity:0.55':''}">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
               ${tc?`<span class="retour-tc">${tc}</span>`:''}
               ${cat?`<span class="retour-cat">${cat}</span>`:''}
               ${source==='Client'?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(239,159,39,0.15);color:#EF9F27;border:1px solid rgba(239,159,39,0.3)">Client</span>`:''}
-              ${corrige?`<span class="retour-status-ok">✓ Corrigé</span>`:''}
+              ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Corrigé</span>`:''}
               ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
             </div>
-            <div class="retour-desc">${corrige||impossible?'<s>'+desc+'</s>':desc}</div>
+            <div class="retour-desc">${desc}</div>
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
             <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>
@@ -3891,19 +3891,19 @@ async function loadPlayerRetours(sujetId, version) {
         const date = new Date(r.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
         const corrige = statut === 'Corrigé';
         const impossible = statut === '⛔ Impossible';
-        const opacity = (!isActive || corrige || impossible || brouillon) ? 'opacity:0.45;' : '';
+        const opacity = (!isActive || brouillon) ? 'opacity:0.45;' : '';
 
-        html += `<div style="${opacity}display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1E1E2A;${impossible?'border-left:2px solid #ff6b35':''};transition:background 0.1s"
+        html += `<div style="${opacity}display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1E1E2A;${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':''};transition:background 0.1s"
           onmouseover="this.style.background='#16161F'" onmouseout="this.style.background='transparent'">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
               ${tc?`<span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tc}</span>`:''}
               ${cat?`<span style="font-size:10px;color:#5A5A70;background:#1E1E2A;padding:1px 6px;border-radius:4px">${cat}</span>`:''}
               ${source==='Client'?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(239,159,39,0.15);color:#EF9F27;border:1px solid rgba(239,159,39,0.3)">Client</span>`:''}
-              ${corrige?`<span style="font-size:10px;color:#1D9E75">✓ Corrigé</span>`:''}
+              ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Corrigé</span>`:''}
               ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
             </div>
-            <div style="font-size:12px;color:#9898B0;line-height:1.5">${corrige?'<s>'+desc+'</s>':desc}</div>
+            <div style="font-size:12px;color:#9898B0;line-height:1.5">${desc}</div>
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||''}</div>`:''}
             <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>

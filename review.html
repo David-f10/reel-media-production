@@ -91,7 +91,6 @@
   .r-cat { font-size: 10px; color: var(--text3); background: var(--bg4); padding: 1px 6px; border-radius: 4px; }
   .r-version-badge { font-size: 9px; font-family: var(--mono); color: var(--text3); border: 1px solid var(--border2); padding: 1px 5px; border-radius: 3px; }
   .r-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
-  .r-desc.corrige { text-decoration: line-through; opacity: 0.5; }
   .r-meta { font-size: 10px; color: var(--text3); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
   .r-status-ok { color: var(--green); font-size: 10px; }
   .empty-retours { padding: 32px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.6; }
@@ -700,13 +699,13 @@ function afficherRetours() {
     const statut = pr.Statut?.select?.name || 'Ouvert';
     const corrige = statut === 'Corrigé';
     const date = new Date(r.created_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-    html += `<div class="retour-item">
+    html += `<div class="retour-item"${corrige?' style="border-left:2px solid #1D9E75"':''}>
       <div class="retour-item-top">
         ${tc?`<span class="r-tc">${tc}</span>`:''}
         ${cat?`<span class="r-cat">${cat}</span>`:''}
-        ${corrige?`<span class="r-status-ok">✓ Pris en compte</span>`:''}
+        ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Pris en compte</span>`:''}
       </div>
-      <div class="r-desc ${corrige?'corrige':''}">${desc}</div>
+      <div class="r-desc">${desc}</div>
       <div class="r-meta">${date}</div>
     </div>`;
   });
