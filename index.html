@@ -389,7 +389,7 @@
 <div class="overlay" id="ov-retour">
   <div class="modal" style="max-width:440px">
     <div class="modal-hdr">
-      <div class="modal-title">📋 Nouveau retour</div>
+      <div class="modal-title" id="ret-modal-title">📋 Nouveau retour</div>
       <button class="modal-close" onclick="closeOv('ov-retour')">×</button>
     </div>
     <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
@@ -430,7 +430,7 @@
     </div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="closeOv('ov-retour')">Annuler</button>
-      <button class="nav-btn primary" onclick="submitRetour()">Envoyer →</button>
+      <button class="nav-btn primary" id="ret-submit-btn" onclick="submitRetour()">Envoyer →</button>
     </div>
   </div>
 </div>
@@ -1614,9 +1614,14 @@ document.addEventListener('click', e => {
 
 // ─── RETOURS ───
 let retourSujetId = null;
+let _editBrouillonId = null;      // null = CRÉATION ; non-null = ÉDITION d'un brouillon (PATCH en place)
+let _editBrouillonVersion = null; // version pour rafraîchir la liste du lecteur après édition
 
 function openAjoutRetour(sujetId) {
   retourSujetId = sujetId;
+  _editBrouillonId = null; _editBrouillonVersion = null; // mode CRÉATION : reset du flag édition (reset #1)
+  const _t=document.getElementById('ret-modal-title'); if(_t) _t.textContent='📋 Nouveau retour';
+  const _b=document.getElementById('ret-submit-btn'); if(_b) _b.textContent='Envoyer →';
   // Pré-sélectionner la dernière version disponible depuis la base Versions
   const versionsEl = document.getElementById('versions-list-'+sujetId);
   if(versionsEl) {
@@ -1636,6 +1641,25 @@ async function submitRetour() {
   if(!currentUser) { toast("Connectez-vous pour laisser un retour", 'err'); return; }
   const desc = document.getElementById('ret-desc').value.trim();
   if(!desc) { toast('Ajoutez une description', 'err'); return; }
+  // ── Mode ÉDITION d'un brouillon : PATCH en place, JAMAIS recréer, AUCUNE notif ──
+  if(_editBrouillonId) {
+    const chk = await relireBrouillon(_editBrouillonId);
+    if(!chk || !chk.brouillon) { toast('Ce retour a été transmis ou supprimé — édition impossible','err'); closeOv('ov-retour'); loadRetours(retourSujetId); if(_editBrouillonVersion) loadPlayerRetours(retourSujetId,_editBrouillonVersion); return; }
+    if(chk.auteur !== (currentUser?.nom||'').trim()) { toast('Vous ne pouvez modifier que vos propres brouillons','err'); return; }
+    const sid=retourSujetId, ver=_editBrouillonVersion;
+    try {
+      await api('/pages/'+_editBrouillonId,'PATCH',{properties:{
+        'Description':{title:[{text:{content:desc}}]},
+        'Version':{select:{name:document.getElementById('ret-version').value}},
+        'Catégorie':document.getElementById('ret-categorie').value ? {select:{name:document.getElementById('ret-categorie').value}} : {select:null},
+        'Timecode':{rich_text:[{text:{content:document.getElementById('ret-timecode').value.trim()}}]}
+      }});
+      closeOv('ov-retour'); // reset #2 du flag édition
+      toast('Brouillon modifié','ok');
+      loadRetours(sid); if(ver) loadPlayerRetours(sid,ver);
+    } catch(e) { toast('Erreur : '+e.message,'err'); }
+    return;
+  }
   const sujet = sujets.find(s => s.id === retourSujetId);
   try {
     await api('/pages', 'POST', {
@@ -1705,6 +1729,80 @@ async function submitPlayerRetour(sujetId, version) {
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
+}
+
+// ─── ÉDITION / SUPPRESSION DE BROUILLONS ───
+// Re-lecture FAIL-CLOSED (contrairement à champToujoursACa, fail-OPEN) : le doute — erreur,
+// timeout, page archivée — renvoie null → l'action destructive est REFUSÉE. Un bouton visible
+// n'est jamais une autorisation : la vérité, c'est cette relecture fraîche au moment d'agir.
+async function relireBrouillon(retourId) {
+  try {
+    const page = await Promise.race([
+      api('/pages/' + retourId),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500))
+    ]);
+    if(!page || page.archived) return null;
+    const pr = page.properties || {};
+    return {
+      brouillon: (pr.Source?.select?.name||'Équipe')==='Équipe' && (pr.Brouillon?.checkbox||false),
+      auteur: (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim(),
+      desc: pr.Description?.title?.[0]?.plain_text||'',
+      version: pr.Version?.select?.name||'V1',
+      cat: pr['Catégorie']?.select?.name||'',
+      tc: pr.Timecode?.rich_text?.[0]?.plain_text||''
+    };
+  } catch(e) { return null; }
+}
+
+// Supprimer un brouillon (archived:true — récupérable 30 j dans Notion). Auteur → son propre
+// brouillon ; Chef → n'importe lequel. Double re-vérification fail-closed : au clic ET juste
+// avant l'archivage (le retour a pu être transmis entre l'affichage du bouton et le clic).
+async function supprimerBrouillon(retourId, sujetId, version) {
+  if(!currentUser) { toast('Non connecté','err'); return; }
+  const estChef = currentUser?.role === 'Chef';
+  const myName = (currentUser?.nom||'').trim();
+  const chk = await relireBrouillon(retourId);
+  if(!chk) { toast('Impossible de vérifier l\'état du retour — réessaie','err'); loadRetours(sujetId); if(version) loadPlayerRetours(sujetId,version); return; }
+  if(!chk.brouillon) { toast('Ce retour a déjà été transmis — il n\'est plus supprimable','err'); loadRetours(sujetId); if(version) loadPlayerRetours(sujetId,version); return; }
+  if(!estChef && chk.auteur !== myName) { toast('Vous ne pouvez supprimer que vos propres brouillons','err'); return; }
+  const apercu = chk.desc.slice(0,80) + (chk.desc.length>80?'…':'');
+  showConfirmModal({
+    title:'Supprimer ce brouillon ?',
+    message:'« '+apercu+' »\n\nCette action est définitive.',
+    confirmText:'Supprimer', confirmStyle:'danger',
+    onConfirm: async () => {
+      const rechk = await relireBrouillon(retourId);
+      if(!rechk || !rechk.brouillon) { toast('Ce retour a été transmis ou supprimé entre-temps','err'); loadRetours(sujetId); if(version) loadPlayerRetours(sujetId,version); return; }
+      if(!estChef && rechk.auteur !== myName) { toast('Action refusée','err'); return; }
+      try {
+        await api('/pages/'+retourId,'PATCH',{archived:true});
+        toast('Brouillon supprimé','ok');
+        loadRetours(sujetId); if(version) loadPlayerRetours(sujetId,version);
+      } catch(e) { toast('Erreur : '+e.message,'err'); }
+    }
+  });
+}
+
+// Ouvrir l'édition d'un brouillon (AUTEUR uniquement — un chef ne modifie jamais le texte d'un
+// collègue). Re-vérif fail-closed, puis pré-remplissage de ov-retour en mode ÉDITION.
+async function ouvrirEditionBrouillon(retourId, sujetId, version) {
+  if(!currentUser) { toast('Non connecté','err'); return; }
+  const myName = (currentUser?.nom||'').trim();
+  const chk = await relireBrouillon(retourId);
+  if(!chk) { toast('Impossible de vérifier l\'état du retour — réessaie','err'); loadRetours(sujetId); if(version) loadPlayerRetours(sujetId,version); return; }
+  if(!chk.brouillon) { toast('Ce retour a déjà été transmis — il n\'est plus modifiable','err'); loadRetours(sujetId); if(version) loadPlayerRetours(sujetId,version); return; }
+  if(chk.auteur !== myName) { toast('Vous ne pouvez modifier que vos propres brouillons','err'); return; }
+  retourSujetId = sujetId;
+  _editBrouillonId = retourId;
+  _editBrouillonVersion = version || null;
+  document.getElementById('ret-version').value = chk.version;
+  document.getElementById('ret-timecode').value = chk.tc;
+  document.getElementById('ret-categorie').value = chk.cat;
+  document.getElementById('ret-desc').value = chk.desc;
+  const _t=document.getElementById('ret-modal-title'); if(_t) _t.textContent='✏️ Modifier le brouillon';
+  const _b=document.getElementById('ret-submit-btn'); if(_b) _b.textContent='Enregistrer';
+  const _ov=document.getElementById('ov-retour'); if(_ov) _ov.style.zIndex='10001'; // au-dessus du lecteur (z-index:9999) — sinon l'édition s'ouvre DERRIÈRE, invisible
+  openOv('ov-retour');
 }
 
 // ─── MUSIQUES ───
@@ -2120,8 +2218,8 @@ async function loadRetours(sujetId) {
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
     const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
-    const myName = currentUser?.nom || '';
-    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'')===myName);
+    const myName = (currentUser?.nom||'').trim();
+    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
     let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
       ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
@@ -2139,6 +2237,8 @@ async function loadRetours(sujetId) {
         const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
         const corrige = statut === 'Corrigé';
         const impossible = statut === '⛔ Impossible';
+        const estMoi = (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim() === myName;
+        const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border2)'">🗑</div>`:''}</div>` : '';
         html += `<div class="retour-row" style="${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
           <div style="flex:1;min-width:0${brouillon?';opacity:0.55':''}">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
@@ -2152,7 +2252,7 @@ async function loadRetours(sujetId) {
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
             <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>
-          ${brouillon?'':(!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+          ${brouillon?brouillonActions:(!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
             <div class="retour-check" onclick="toggleRetour('${r.id}','${sujetId}','Corrigé')" title="Marquer corrigé"
               onmouseover="this.style.borderColor='var(--green)';this.style.background='var(--green-dim)'"
               onmouseout="this.style.borderColor='var(--border2)';this.style.background='transparent'"></div>
@@ -2281,8 +2381,8 @@ async function validerTousRetours(sujetId) {
     });
     // Garde de périmètre : chef → tous les brouillons Équipe ; sinon → uniquement les siens.
     const estChef = currentUser?.role === 'Chef';
-    const myName = currentUser?.nom || '';
-    const aValider = data.results.filter(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (estChef || (!!myName && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'')===myName)));
+    const myName = (currentUser?.nom||'').trim();
+    const aValider = data.results.filter(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (estChef || (!!myName && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName)));
     if(!aValider.length) { toast('Aucun retour à valider','err'); return; }
     for(const r of aValider) {
       await api('/pages/' + r.id, 'PATCH', {properties:{'Brouillon':{checkbox:false}}});
@@ -3867,8 +3967,8 @@ async function loadPlayerRetours(sujetId, version) {
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
     const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
-    const myName = currentUser?.nom || '';
-    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'')===myName);
+    const myName = (currentUser?.nom||'').trim();
+    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
     let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
       ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:11px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
@@ -3891,6 +3991,8 @@ async function loadPlayerRetours(sujetId, version) {
         const date = new Date(r.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
         const corrige = statut === 'Corrigé';
         const impossible = statut === '⛔ Impossible';
+        const estMoi = (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim() === myName;
+        const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}','${version}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#378ADD'" onmouseout="this.style.borderColor='#2A2A3A'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}','${version}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#E63946'" onmouseout="this.style.borderColor='#2A2A3A'">🗑</div>`:''}</div>` : '';
         const opacity = (!isActive || brouillon) ? 'opacity:0.45;' : '';
 
         html += `<div style="${opacity}display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1E1E2A;${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':''};transition:background 0.1s"
@@ -3907,7 +4009,7 @@ async function loadPlayerRetours(sujetId, version) {
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||''}</div>`:''}
             <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>
-          ${brouillon?'':!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+          ${brouillon?brouillonActions:!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
             <div onclick="toggleRetourPlayer('${r.id}','${sujetId}','${version}')" title="Marquer corrigé"
               style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s;color:#1D9E75"
               onmouseover="this.style.borderColor='#1D9E75';this.style.background='rgba(29,158,117,0.1)'"
@@ -4491,7 +4593,7 @@ function deleteSujet(id, titre){
 }
 
 function openOv(id){document.getElementById(id).classList.add('open');}
-function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;if(id==='ov-detail'){stopPollingFiche();if(currentPage==='dashboard')appRenderDashboard();}}
+function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;if(id==='ov-retour'){_editBrouillonId=null;_editBrouillonVersion=null;const _ov=document.getElementById('ov-retour');if(_ov)_ov.style.zIndex='';}if(id==='ov-detail'){stopPollingFiche();if(currentPage==='dashboard')appRenderDashboard();}}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
 
