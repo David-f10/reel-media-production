@@ -515,6 +515,7 @@ const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé'
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
 let sujets=[],sujetsArchives=[],idees=[],taches=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
+let mapClientsParCode = new Map(); // code client → nom, reconstruite à chaque (re)chargement de `clients`
 let currentUser=null; // {id, nom, role}
 
 function getPrefixe(p){
@@ -642,6 +643,7 @@ async function loadSujets(){
         nbProjets:pr['Nb projets']?.number??0
       };
     });
+    rebuildMapClients();
     document.getElementById('cnt-all').textContent=sujets.length;
     renderCards();
     if(vueActive!=='cards') setVue(vueActive);
@@ -728,7 +730,7 @@ function cardHTML(s){
   return`<div class="card card--c" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
       <span style="display:flex;align-items:center;gap:5px">
-        <span class="card-code">${s.code||'—'}</span>
+        <span class="card-code">${s.code||'—'}</span>${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:10px;color:var(--text3);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom">${nc}</span>`:''})()}
         ${s.retoursOuverts>0?`<span style="font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span>`:''}
       </span>
       <div style="display:flex;align-items:center;gap:4px">
@@ -744,6 +746,39 @@ function cardHTML(s){
 
 function stColor(s){return{'Brief / Idée':'#555','Séquencier en cours':'#378ADD','Séquencier validé':'#7F77DD','En tournage':'#EF9F27','Post-prod':'#EF9F27','Montage':'#1D9E75','Retours':'#e63946','Validation chef':'#7F77DD','PAD':'#1D9E75'}[s]||'#555';}
 function fmtDate(d){if(!d)return'';return new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});}
+// Map code client → nom, reconstruite à chaque (re)chargement de `clients` (jamais un find() par carte).
+// Doublon de code (donnée Notion incohérente) : la Map garde le DERNIER, mais on TRACE en console.
+function rebuildMapClients(){
+  mapClientsParCode = new Map();
+  (clients||[]).forEach(cl=>{
+    const code=String(cl.code||'').trim();
+    if(!code) return;
+    if(mapClientsParCode.has(code)) console.warn('Code client en doublon dans Notion :', code, '(«', mapClientsParCode.get(code), '» écrasé par «', cl.nom, '»)');
+    mapClientsParCode.set(code, cl.nom||'');
+  });
+}
+// Nom du client d'un sujet Brand, via son code (B54A/B54B/B54AA → client B54). Défensif :
+// non-Brand, code absent, code irrégulier ou orphelin → '' (jamais undefined, jamais d'exception).
+function nomClientDeCode(code, format){
+  if(format!=='Brand' || !code) return '';
+  const codeClient=(String(code).match(/^B\d+/)||[])[0];
+  if(!codeClient) return '';
+  return mapClientsParCode.get(codeClient)||'';
+}
+// Date relative pour la colonne « Modif » : à l'instant / il y a X min / il y a X h / hier / date courte.
+function fmtModif(d){
+  if(!d) return '';
+  const t=new Date(d).getTime();
+  if(isNaN(t)) return '';
+  const min=Math.floor((Date.now()-t)/60000);
+  if(min<1) return "à l'instant";
+  if(min<60) return 'il y a '+min+' min';
+  const h=Math.floor(min/60);
+  if(h<24) return 'il y a '+h+' h';
+  const j=Math.floor(h/24);
+  if(j===1) return 'hier';
+  return fmtDate(d);
+}
 function clearDate(id, field, btnEl){
   const wrap = btnEl?.closest('.date-wrap');
   const input = wrap?.querySelector('input[type=date]');
@@ -781,6 +816,7 @@ async function openNouveau(){
         nbProjets:pr['Nb projets']?.number??0
       };
     });
+    rebuildMapClients();
   }catch(e){console.warn('Erreur reload compteurs/clients',e);}
   // Reset form
   document.getElementById('n-titre').value='';
@@ -2988,8 +3024,10 @@ function renderVueAvecScroll() {
   const st = mc ? mc.scrollTop : 0;
   const kb = mc ? mc.querySelector('.vue-kanban') : null;
   const sl = kb ? kb.scrollLeft : 0;
+  _autoRenderEnCours = true; // l'auto-refresh ne doit pas recalculer l'ordre figé du tri « Modif »
   if(currentPage === 'production') appSetVue(currentVue);
   else if(currentPage === 'dashboard') appRenderDashboard();
+  _autoRenderEnCours = false;
   if(mc) mc.scrollTop = st;
   const kb2 = mc ? mc.querySelector('.vue-kanban') : null;
   if(kb2) kb2.scrollLeft = sl;
@@ -3966,7 +4004,8 @@ function applySearch(list) {
     (s.monteur2||'').toLowerCase().includes(searchQuery) ||
     (s.monteur3||'').toLowerCase().includes(searchQuery) ||
     (s.stockage||'').toLowerCase().includes(searchQuery) ||
-    (s.notes||'').toLowerCase().includes(searchQuery)
+    (s.notes||'').toLowerCase().includes(searchQuery) ||
+    (nomClientDeCode(s.code, s.format)).toLowerCase().includes(searchQuery)
   );
 }
 
@@ -5056,6 +5095,8 @@ async function loadActiviteDashboard() {
 // ─── VUE LISTE ───
 let listSortCol = 'created';
 let listSortDir = 1;
+let _ordreListeFige = null;     // instantané {id→rang} du tri « Modif », FIGÉ pendant la lecture (auto-refresh)
+let _autoRenderEnCours = false; // true seulement pendant un re-render déclenché par l'auto-refresh
 
 // ─── RÉFÉRENCES ───
 async function loadRefs(sujetId, containerId) {
@@ -5905,10 +5946,24 @@ function renderListe() {
   if(curFilter && curFilter.t === 'f' && curFilter.v) list = list.filter(s => s.format === curFilter.v);
   list = applySearch(list);
 
+  // Tri « Modif » : ordre FIGÉ pendant la lecture. Une action utilisateur (clic en-tête, filtre,
+  // recherche) recalcule l'instantané ; l'auto-refresh le RÉUTILISE → pas de réordonnancement sous
+  // les yeux. EXCEPTION assumée : un sujet NOUVEAU (absent de l'instantané) se place en tête (rang -1),
+  // car une création mérite d'être vue.
+  if(!_autoRenderEnCours) _ordreListeFige = null;
+  if(listSortCol === 'lastEdited' && !_ordreListeFige) {
+    const ordonnes = [...list].sort((x, y) => ((new Date(y.lastEdited).getTime()||0) - (new Date(x.lastEdited).getTime()||0)));
+    _ordreListeFige = new Map(ordonnes.map((s, i) => [s.id, i])); // rang 0 = le plus récent
+  }
   // Tri
   list = [...list].sort((a, b) => {
     let av = a[listSortCol] || '';
     let bv = b[listSortCol] || '';
+    if(listSortCol === 'lastEdited') {
+      const ra = _ordreListeFige.has(a.id) ? _ordreListeFige.get(a.id) : -1;
+      const rb = _ordreListeFige.has(b.id) ? _ordreListeFige.get(b.id) : -1;
+      return (ra - rb) * listSortDir; // dir=1 (défaut) → plus récent d'abord ; nouveaux (-1) en tête
+    }
     if(listSortCol === 'statut') {
       av = STATUS_ORDER.indexOf(a.statut);
       bv = STATUS_ORDER.indexOf(b.statut);
@@ -5934,6 +5989,7 @@ function renderListe() {
     {key:'chef', label:'Chef', w:'80px', cls:'td-chef'},
     {key:'tourJ1', label:'Tournage', w:'90px'},
     {key:'monteur', label:'Monteur', w:'90px', cls:'td-mont'},
+    {key:'lastEdited', label:'Modif', w:'90px'},
   ];
 
   function sortIcon(key) {
@@ -5958,6 +6014,7 @@ function renderListe() {
         <div style="display:flex;align-items:center;gap:6px">
           ${s.titre}
           ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
+          ${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:9px;padding:1px 6px;border-radius:3px;background:var(--bg4);color:var(--text3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle">${nc}</span>`:''})()}
         </div>
       </td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
@@ -5972,6 +6029,7 @@ function renderListe() {
       <td class="td-chef">${s.chef||'—'}</td>
       <td class="td-date">${s.tourJ1?fmtDate(s.tourJ1):'—'}</td>
       <td class="td-mont">${s.monteur1||s.journaliste||'—'}</td>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fmtModif(s.lastEdited)}</td>
       <td onclick="event.stopPropagation()">
         <button onclick="deleteSujet('${s.id}','${s.titre.replace(/'/g,"\'")}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px" title="Supprimer">🗑</button>
       </td>
@@ -6100,6 +6158,7 @@ async function appLoadData() {
         nbProjets: pr['Nb projets']?.number ?? 0
       };
     });
+    rebuildMapClients();
     // sujetsArchives chargées à la demande
     document.getElementById('cnt-all').textContent = sujets.length;
     renderSidebarCats();
@@ -6321,7 +6380,7 @@ function cardHTMLHighlight(s, q) {
   return`<div class="card card--c" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
       <span style="display:flex;align-items:center;gap:5px">
-        <span class="card-code">${highlightText(s.code||'—',q)}</span>
+        <span class="card-code">${highlightText(s.code||'—',q)}</span>${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:10px;color:var(--text3);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom">${highlightText(nc,q)}</span>`:''})()}
         ${s.retoursOuverts>0?`<span style="font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span>`:''}
       </span>
       <div style="display:flex;align-items:center;gap:6px">
