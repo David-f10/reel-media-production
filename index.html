@@ -269,14 +269,15 @@
           <button id="brand-btn-decli" class="nav-btn" style="flex:1;font-size:11px" onclick="setBrandMode('decli')">Déclinaison client existant</button>
         </div>
         <div id="brand-nouveau" style="display:none">
-          <div class="field-label" style="margin-bottom:4px">Nom du nouveau client</div>
+          <div class="field-label" style="margin-bottom:4px">Nom du client (ex : Nike)</div>
           <input type="text" id="brand-nom-client" placeholder="Ex: Nike" oninput="updateBrandCode()">
-          <div id="brand-code-preview" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--red);display:none">Code attribué : <strong id="brand-code-val"></strong></div>
+          <div style="margin-top:4px;font-size:11px;color:var(--text3)">Le titre saisi en haut deviendra le premier sujet de ce client.</div>
+          <div id="brand-code-preview" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--red);display:none">✚ Création de 2 éléments : le client <strong id="brand-code-val"></strong> + son 1er sujet <strong id="brand-code-sujet"></strong></div>
         </div>
         <div id="brand-decli" style="display:none">
           <div class="field-label" style="margin-bottom:4px">Client</div>
           <select id="brand-client-select" onchange="updateBrandDecliCode()"><option value="">Choisir un client...</option></select>
-          <div id="brand-decli-preview" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--red);display:none">Code attribué : <strong id="brand-decli-val"></strong></div>
+          <div id="brand-decli-preview" style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--red);display:none">✚ Création d'1 sujet : <strong id="brand-decli-val"></strong>, rattaché à <strong id="brand-decli-client"></strong>. <span style="color:var(--text3)">(Aucun nouveau client.)</span></div>
         </div>
         <div class="field" style="margin-top:4px">
           <div class="field-label" style="margin-bottom:4px">Format de livraison *</div>
@@ -758,7 +759,10 @@ function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEa
 // Ouvre le modal APRÈS avoir rechargé les compteurs depuis Notion
 async function openNouveau(){
   try{
-    const comp=await api(`/databases/${DB_COMP}/query`,'POST',{});
+    const [comp,cli]=await Promise.all([
+      api(`/databases/${DB_COMP}/query`,'POST',{}),
+      api(`/databases/${DB_CLIENTS_BRAND}/query`,'POST',{sorts:[{property:'Code',direction:'ascending'}]})
+    ]);
     compteurs={};
     comp.results.forEach(p=>{
       const pr=p.properties;
@@ -767,7 +771,17 @@ async function openNouveau(){
       const dernierNumero=pr['Dernier numéro']?.number??0;
       compteurs[fmt]={id:p.id,prefixe,dernierNumero,prochainCode:`${prefixe}${dernierNumero+1}`};
     });
-  }catch(e){console.warn('Erreur reload compteurs',e);}
+    // Clients frais aussi (code Brand calculé depuis le réel + dropdown déclinaison à jour)
+    clients=cli.results.map(p=>{
+      const pr=p.properties;
+      return{id:p.id,
+        nom:pr.Client?.title?.[0]?.plain_text||'',
+        code:pr.Code?.rich_text?.[0]?.plain_text||pr.Code?.text?.[0]?.plain_text||'',
+        derniereLettre:pr['Dernière lettre']?.rich_text?.[0]?.plain_text||pr['Dernière lettre']?.text?.[0]?.plain_text||'',
+        nbProjets:pr['Nb projets']?.number??0
+      };
+    });
+  }catch(e){console.warn('Erreur reload compteurs/clients',e);}
   // Reset form
   document.getElementById('n-titre').value='';
   const chefs=['Benjamin','Arnaud','Chloé'];
@@ -4187,12 +4201,25 @@ function setBrandMode(mode){
   if(mode==='nouveau') updateBrandCode();
 }
 
+// Prochain numéro Brand = max des codes clients RÉELS, planchonné par le compteur, +1.
+// Parsing robuste : tout code sans chiffre est écarté (NaN). Le compteur sert de plancher
+// de secours (liste vide/indisponible) et garantit qu'on ne régresse jamais.
+function prochainNumeroBrand(listeClients){
+  let maxClients=0;
+  (listeClients||[]).forEach(cl=>{
+    const n=parseInt((String(cl.code||'').match(/\d+/)||[])[0],10);
+    if(!isNaN(n) && n>maxClients) maxClients=n;
+  });
+  const plancher=compteurs['Brand']?.dernierNumero||0;
+  return Math.max(maxClients, plancher)+1;
+}
+
 function updateBrandCode(){
-  const c=compteurs['Brand'];
-  if(!c) return;
-  const nextNum=c.dernierNumero+1;
-  const code=`B${String(nextNum).padStart(2,'0')}`;
-  document.getElementById('brand-code-val').textContent=code;
+  const nextNum=prochainNumeroBrand(clients);
+  const codeClient=`B${String(nextNum).padStart(2,'0')}`;
+  document.getElementById('brand-code-val').textContent=codeClient;
+  const sujEl=document.getElementById('brand-code-sujet');
+  if(sujEl) sujEl.textContent=codeClient+'A';
   document.getElementById('brand-code-preview').style.display='block';
 }
 
@@ -4218,6 +4245,8 @@ function updateBrandDecliCode(){
   if(!client) return;
   const prochainLettre=nextLetter(client.derniereLettre);
   document.getElementById('brand-decli-val').textContent=`${client.code}${prochainLettre}`;
+  const cliEl=document.getElementById('brand-decli-client');
+  if(cliEl) cliEl.textContent=client.nom;
   document.getElementById('brand-decli-preview').style.display='block';
 }
 
@@ -4293,7 +4322,15 @@ async function createSujet(){
     if(!formatLivraison){toast('Choisissez un format de livraison','err');_createEnCours=false;return;}
     const c=compteurs['Brand'];
     if(brandMode==='nouveau'){
-      const nv=c.dernierNumero+1;
+      // Relecture autoritaire des clients + calcul depuis le réel + anti-collision (bump silencieux)
+      let clientsFrais=clients;
+      try{
+        const cliData=await api(`/databases/${DB_CLIENTS_BRAND}/query`,'POST',{sorts:[{property:'Code',direction:'ascending'}]});
+        clientsFrais=cliData.results.map(p=>({code:p.properties.Code?.rich_text?.[0]?.plain_text||p.properties.Code?.text?.[0]?.plain_text||''}));
+      }catch(e){console.warn('Relecture clients au submit échouée, on retombe sur la liste en mémoire',e);}
+      let nv=prochainNumeroBrand(clientsFrais);
+      const codesExistants=new Set(clientsFrais.map(cl=>String(cl.code||'').trim()));
+      while(codesExistants.has(`B${String(nv).padStart(2,'0')}`)){ console.log('Code Brand B'+String(nv).padStart(2,'0')+' déjà pris → bump'); nv++; }
       const codeClient=`B${String(nv).padStart(2,'0')}`;
       codeVal=codeClient+'A';
       // Créer le sujet (premier projet du client)

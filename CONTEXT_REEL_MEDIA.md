@@ -1,6 +1,67 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-23 (chantiers 6→11 — UX mobile, notifications, double enregistrement)
+> Dernière mise à jour : 2026-07-23 (chantiers 6→12 · chantier 12 LIVRÉ ET VÉRIFIÉ, à merger)
+
+═══════════════════════════════════════════════════════════════
+## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
+═══════════════════════════════════════════════════════════════
+
+**Ce fichier est la mémoire du projet.** Le chat précédent a atteint sa limite. Voici où en est exactement le travail.
+
+### ✅ CE QUI EST EN PRODUCTION (mergé, testé)
+Chantiers 1 à 11. Le dernier merge en date est le **chantier 11** (`index.html`, 6343 lignes) : correction des notifications en double (touche Entrée) + arrivée sur Production au login.
+
+### 🟢 CHANTIER 12 — LIVRÉ ET VÉRIFIÉ LE 23/07, EN ATTENTE DE MERGE
+**Le fichier a été re-livré par Claude Code et vérifié par le Pilote.** `index.html` **6380 lignes**, `prochainNumeroBrand` = **3**, `node --check` OK. Le piège de l'upload (ancien fichier 6343 lignes remonté par erreur) **ne s'est pas reproduit**.
+
+**Reste à faire :** pousser `index.html` sur GitHub → tester en réel la création d'un client Brand (doit proposer **B56**, le compteur étant à 55).
+
+⚠️ **Angle mort connu, non couvert :** B56 « Saumon Écosse » existe dans le **Google Sheet** de David mais PAS dans Notion. Le chantier 12 aligne l'app sur **Notion**, pas sur le Sheet. Si le Sheet fait autorité, il faut créer le client dans Notion.
+
+### ⏳ EN ATTENTE DE TEST PAR DAVID (mergés mais non validés en réel)
+- **Chantier 10** — notification unique de complétion des retours. Benjamin doit confirmer qu'il ne reçoit plus qu'UNE notif quand tous les retours d'une version sont traités. ⚠️ **PRÉREQUIS FAIT :** Master a créé la propriété `Complétion notifiée` (case à cocher) sur la base 📹 Versions.
+- **Chantier 11** — Éloise doit déposer un séquencier **en appuyant sur Entrée** : Benjamin ne doit recevoir qu'UNE notification (avant : deux). Idem sur un lien de version.
+
+### 🔧 ACTION MASTER FAITE LE 23/07
+Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 12 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-23 — CHANTIER 12 : code client Brand calculé depuis les clients RÉELS + formulaire clarifié (`index.html`)
+`index.html` 6343 → **6380 lignes** (+37). `node --check` OK (2 blocs de script inline). `review.html` / `notify.js` / CSS **intouchés**.
+
+**POURQUOI — incident du 23/07, 3ᵉ occurrence du même problème.** Le compteur Brand était à **53** alors que **B54 (Danone Gallia)** et **B55 (Energizer)** existaient déjà dans 🏷️ Clients Brand, créés en direct dans Notion sans incrémenter le compteur. Le prochain client créé via l'app aurait reçu **B54 — un code déjà pris**. La cause racine : le code proposé venait du champ `Dernier numéro` de la base **Compteurs**, incrémenté **uniquement** lors d'une création via l'app, sans aucune vérification contre les codes réels. Toute création hors app garantissait la dérive.
+
+**PARTIE 1 — LE CODE VIENT DÉSORMAIS DU RÉEL.**
+Nouveau helper `prochainNumeroBrand(listeClients)` (l.4207) : max des codes clients réels, **planchonné par le compteur**, +1. Parsing robuste (`match(/\d+/)`, tout code sans chiffre écarté via `isNaN`). Le compteur n'est plus la source de vérité — il devient un **plancher de secours** (liste vide ou requête en échec) et **se répare tout seul**, puisqu'on y réécrit désormais le vrai max.
+
+Deux garde-fous au moment du submit (l.4326-4334), au-delà de la proposition initiale :
+- **Relecture autoritaire** de `DB_CLIENTS_BRAND` juste avant la création — la liste en mémoire peut avoir plusieurs minutes. En cas d'échec réseau, `console.warn` et repli silencieux sur la liste en mémoire (jamais de blocage de la création).
+- **Bump anti-collision** : `Set` des codes existants, `while` qui incrémente tant que le code est pris. Tracé en `console.log`, **sans toast** — l'utilisateur n'a pas à connaître la mécanique.
+
+**PÉRIMÈTRE STRICT — BRAND SEUL.** Vérifié : les 6 usages restants de `c.dernierNumero+1` sont tous **hors** de la branche Brand-nouveau (l.4389/4402 = autres formats · l.1871/1891 = duplication de sujet · l.5378/5394 = création depuis une idée). La question « faut-il appliquer la même logique à tous les formats ? » reste **ouverte** — voir les chantiers non prioritaires.
+
+**PARTIE 2 — LE FORMULAIRE DIT CE QU'IL FAIT (affichage seul, aucune logique changée).**
+Le formulaire s'appelle « Nouveau sujet » mais crée **deux objets** en mode Nouveau client : un **client** dans Clients Brand (`B56`) **ET** un **sujet** dans Suivi Production (`B56A`). Les deux champs de nom (« Nom du nouveau client » vs « Titre ») prêtaient à confusion. Livré :
+- Libellé « **Nom du client (ex : Nike)** » (l.272)
+- Phrase « Le titre saisi en haut deviendra le premier sujet de ce client. » (l.274)
+- Preview « ✚ **Création de 2 éléments** : le client **B56** + son 1er sujet **B56A** » (l.275)
+- Preview déclinaison « ✚ **Création d'1 sujet** : **B54B**, rattaché à **Nike**. *(Aucun nouveau client.)* » (l.280)
+
+**LIMITE ASSUMÉE — le Google Sheet reste divergent.** L'app s'aligne sur **Notion**, qui devient la source de vérité pour les codes Brand. **B56 « Saumon Écosse » existe dans le Sheet de David mais pas dans Notion** : l'app proposera B56 malgré tout. Aucun correctif code ne peut couvrir une 3ᵉ source hors système — seule la discipline de saisie le peut.
+
+**FRAGILITÉ NON TRAITÉE (déjà notée) :** les créations (sujet → incrément compteur → client) s'enchaînent **sans transaction**. Si la création du client échoue après celle du sujet, on obtient un **sujet orphelin** + un compteur avancé. Le chantier 12 réduit l'impact (le prochain calcul repart du réel) mais ne supprime pas le cas.
+
+**Compteurs vérifiés par le Pilote :** `wc -l` = **6380** · `prochainNumeroBrand` = **3** (déf. l.4207 + `updateBrandCode` l.4218 + submit l.4331) · `brand-code-sujet` = 2 · `brand-decli-client` = 2 · `updateBrandCode` = 3 · `CHEF_PAR_DEFAUT` = 5 · `EQUIPE_FALLBACK` = 2 (et bien `= []` l.2809) · `createNotif` = 27 · chantier 11 intact (`save();this.blur()` = **0**, `data-saved` = 3, `navTo('dashboard')` = 1, `navTo('production')` = 10) · chantier 10 intact (`verifierCompletionVersion` 5, `effacerMarqueurCompletion` 3, `retours_traites` 2) · balises `<script>` équilibrées 4/4.
+
+**NOTE FORMAT :** le code est produit avec `padStart(2,'0')`. Au-delà de B99, on obtiendra B100 (3 chiffres) — cohérent avec le parsing `/\d+/`, aucun blocage, mais à savoir.
+
+**LEÇON MÉTHODE — LE PIÈGE DE L'UPLOAD.** Le chantier 12 avait été produit puis **perdu** : lors du premier upload, c'est l'ancien fichier (6343 lignes, chantier 11) qui est remonté. Le Pilote l'a détecté par `grep -c prochainNumeroBrand` = 0. **Règle : deux critères bloquants (nombre de lignes ET présence d'un marqueur propre au chantier) vérifiés AVANT toute analyse de contenu.** Un fichier re-livré n'est jamais présumé être le bon.
+
+
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 CHANTIER 11 (à intégrer dans l'historique complet plus bas)
@@ -145,7 +206,7 @@ David veut comprendre comment améliorer la plateforme pour l'usage multi-user (
 
 **IDÉES UX / FONCTIONNALITÉS EN ATTENTE (notées le 22/07, non lancées)**
 
-**🔜 CHANTIER 12 — CODE CLIENT DEPUIS LES CLIENTS RÉELS + CLARIFIER LE FORMULAIRE** (décidé le 23/07, prochain chantier, `index.html`)
+**✅ CHANTIER 12 — CODE CLIENT DEPUIS LES CLIENTS RÉELS + CLARIFIER LE FORMULAIRE** — **LIVRÉ ET VÉRIFIÉ le 23/07** (voir l'entrée d'historique en haut du fichier). Le contexte d'analyse ci-dessous est conservé pour mémoire.)
 
 *Contexte — INCIDENT DU 23/07 (3ᵉ occurrence du même problème) :* le compteur Brand était à **53** alors que **B54 (Danone Gallia) et B55 (Energizer)** existaient déjà dans 🏷️ Clients Brand. Master les avait créés en direct dans Notion **sans incrémenter le compteur**. Le prochain client créé via l'app aurait reçu **B54 — un code déjà pris**, et le décalage se serait perpétué (compteur à 54 → proposerait B55, encore pris). **Corrigé par Master : compteur Brand → 55.** *(À noter : B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion — 3ᵉ source de vérité qui diverge.)*
 
