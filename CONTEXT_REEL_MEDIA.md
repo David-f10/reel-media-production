@@ -1,6 +1,48 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-22 (chantiers 6→9 — session UX mobile + fiabilité review/musique)
+> Dernière mise à jour : 2026-07-22 (chantiers 6→10 — session UX mobile + notifications)
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 10 (à intégrer dans l'historique complet plus bas)
+═══════════════════════════════════════════════════════════════
+### 2026-07-22 — CHANTIER 10 : une seule notification de complétion au lieu d'une par retour (`index.html`)
+`index.html` **6341 lignes**. `node --check` OK. `review.html`/`notify.js` intouchés.
+
+**BESOIN (remonté par Benjamin) :** il recevait **une notification par retour traité** (5 retours = 5 notifs). Ce qui l'intéresse, c'est de savoir quand il peut **aller vérifier** — donc quand TOUT est traité.
+
+**DÉCISIONS DE DAVID :**
+- Supprimer les notifs individuelles, les remplacer par **une seule notif de complétion**
+- « Traité » = **Corrigé OU ⛔ Impossible**, peu importe l'ordre
+- **Destinataires : auteur(s) des retours + le chef**, dédupliqués (si l'auteur EST le chef → une seule notif)
+- **Brouillons exclus** du comptage (un brouillon n'a jamais été transmis)
+- **Retours clients** : comptés comme les autres, **aucune règle spéciale**. Contexte métier : dans le flux de David, une version a soit des retours internes, soit des retours clients, **jamais les deux** (la V2 porte les retours de Benjamin, on corrige, la V3 part au client). Le cas de coexistence ne se présente pas.
+
+**BUG CORRIGÉ AU PASSAGE :** `toggleRetourPlayer` (marquer corrigé depuis le player) était **totalement silencieux** — cocher tous les retours depuis le player ne prévenait personne. Les **3 chemins** convergent désormais vers la même vérification.
+
+**Livré :**
+- helper `verifierCompletionVersion(sujetId, retourId, statutApplique)` appelé par les 3 chemins (`toggleRetour` Corrigé, `toggleRetourPlayer` Corrigé, `confirmerImpossible`)
+- `effacerMarqueurCompletion` sur la réouverture (réarme un futur cycle)
+- 2 `createNotif` de traitement **supprimés** (`retour_corrige` l.2132, `retour` impossible l.3818)
+- type **`retours_traites`** + icône 🎉 dans `NOTIF_ICONS`. **Cloche uniquement** — `LABELS`/`TYPES_IMPORTANTS` non touchés (fil d'activité inchangé)
+- message : `✅ Tous les retours de la V2 de B54D ont été traités (3 corrigés · 2 impossibles)`
+
+**LES 4 PARADES (toutes vérifiées dans le fichier) :**
+1. **Read-after-write** — le retour qu'on vient de traiter est **exclu du comptage** (`r.id!==retourId`). Sans ça, Notion pouvant encore le montrer « Ouvert », **la notif ne partirait JAMAIS**.
+2. **Comptage autoritaire** — relecture de `DB_RETOURS` contre Notion, jamais la mémoire locale.
+3. **Brouillons exclus** — `Source==='Équipe' && Brouillon===true` ne bloque pas la complétion.
+4. **Statut vide = Ouvert** — `(Statut||'Ouvert')==='Ouvert'`, pour ne pas rater un retour au statut vide.
+
+**MARQUEUR ANTI-DOUBLON, EN BEST-EFFORT :** propriété **`Complétion notifiée`** (case à cocher) sur **DB_VERSIONS**. Posée AVANT l'envoi (rétrécit la course), effacée à la réouverture. **Toutes les lectures/écritures du marqueur sont en `try/catch`** : si la propriété manque ou si Notion échoue, on loggue et **la notif part quand même**. Seule la protection anti-double-envoi est dégradée, jamais la notif.
+
+**⚠️ PRÉREQUIS NOTION AVANT MERGE :** ajouter la propriété **case à cocher `Complétion notifiée`** sur la base 📹 Versions. Sans elle, la notif fonctionne mais peut se répéter (si réouverture puis re-correction).
+
+**Limite assumée :** Notion n'a ni transaction ni verrou → si deux personnes traitent les deux derniers retours à la même milliseconde, une double notif reste possible. Événement rare, accepté.
+
+**Compteurs :** `createNotif` call sites **26 → 25** (net −1 : **2 retirés, 1 ajouté** — c'est le remplacement voulu, PAS une régression) · `verifierCompletionVersion` = 5 (déf + 3 appels + 1) · `effacerMarqueurCompletion` = 3 · `retours_traites` = 2 · `Complétion notifiée` = 4 · **notifs de CRÉATION de retour (l.1613/1651 → journaliste) INTACTES** · `CHEF_PAR_DEFAUT`=5 · `EQUIPE_FALLBACK`=2.
+
+**Note :** l'entrée d'icône `retour_corrige` est **conservée** dans `NOTIF_ICONS` (bien que le call site soit à 0) pour que les anciennes notifs de ce type gardent leur ✅ dans l'historique de la cloche. Volontaire.
+
+
 
 ═══════════════════════════════════════════════════════════════
 ## 📝 CHANTIER 9 (à intégrer dans l'historique complet plus bas)
@@ -73,10 +115,22 @@ David veut comprendre comment améliorer la plateforme pour l'usage multi-user (
 - **Signal « fini » persistant côté équipe** : aujourd'hui en sessionStorage (par navigateur). Si besoin d'un affichage durable « qui a fini », il faudra un champ Notion.
 
 **IDÉES UX / FONCTIONNALITÉS EN ATTENTE (notées le 22/07, non lancées)**
-- **Tri « dernière modification » sur la vue Liste** : David veut pouvoir trier pour que les cartes récemment modifiées remontent en haut. ⚠️ **À VÉRIFIER AVANT DE CODER** : est-ce que `last_edited_time` (Notion) est mis à jour par les vraies actions utilisateur SEULEMENT, ou aussi par le polling/refresh automatique (`relireSujet`) ? Si le refresh touche `last_edited_time`, le tri deviendrait du bruit (les cartes remonteraient sans action réelle). Question à poser à Claude Code avant tout chantier.
+- **🔜 LOGIN → PAGE PRODUCTION** (décidé le 22/07, chantier suivant) : aujourd'hui on arrive sur Dashboard après connexion. David veut arriver directement sur **Production**, pour **tous** (pas seulement les journalistes) — évite un clic à chaque connexion. Petit chantier, probablement une ligne, sur `index.html`. **À faire APRÈS le merge du chantier 10** (même fichier, ne pas empiler).
+- **Tri « dernière modification » sur la vue Liste** : David veut pouvoir trier pour que les cartes récemment modifiées remontent en haut. ⚠️ **À VÉRIFIER AVANT DE CODER** : est-ce que `last_edited_time` (Notion) est mis à jour par les vraies actions utilisateur SEULEMENT, ou aussi par le polling/refresh automatique (`relireSujet`) ? Si le refresh touche `last_edited_time`, le tri deviendrait du bruit. Question à poser à Claude Code avant tout chantier.
 - **Alignement « Copier le lien » / croix de fermeture** dans la fiche détail mobile : les deux boutons ne sont pas à la même hauteur. Petit ajustement CSS.
-- **Effet boutons flottants iOS** (style photothèque : capsules arrondies flottant au-dessus du contenu) : David aime, mais « si c'est compliqué, plus tard ». Confort esthétique, pas prioritaire — à ne pas faire tant que la navigation n'est pas stable.
+- **Effet boutons flottants iOS** (style photothèque : capsules arrondies flottant au-dessus du contenu) : David aime, mais « si c'est compliqué, plus tard ». Confort esthétique, pas prioritaire.
 - **Déclinaison → format MAG** : une déclinaison peut aussi créer un format MAG (pas seulement hériter du format parent). À creuser plus tard.
+
+**🚫 TIMECODE AUTOMATIQUE (style Frame.io) — SUJET CLASSÉ le 22/07, ne pas rouvrir sans nouvel élément**
+David voulait capturer le timecode automatiquement quand un client laisse un retour. **Exploré à fond, testé en réel, conclusion : impossible tant que les vidéos sont sur Drive en HD.** Le détail, pour ne pas refaire le chemin :
+- L'app affiche la vidéo via un **iframe Google Drive `/preview`** → boîte noire cross-origin, **aucun accès à `currentTime`**, et **aucune API postMessage** (vérifié par recherche : Drive n'est pas un SDK de lecteur).
+- **`<video>` natif sur l'URL `drive.usercontent/download` : TESTÉ EN RÉEL, ÉCHOUE.** Page de test `test-video-natif.html` sur sujet B18G → `SRC_NOT_SUPPORTED (erreur 4)` + seek bloqué (> 6 s). Cause : pour les fichiers **> 100 Mo** (les reviews font 200-500 Mo), Google renvoie une **page HTML d'avertissement** au lieu du flux ; le `confirm=t` statique ne suffit plus (token dynamique lié à un cookie). Mur **délibéré** de Google (anti-hotlinking).
+- **Drive n'offre PAS de « signed URL »** façon S3 (vérifié) — aucune URL courte hotlinkable par un `<video>`.
+- **Proxy serveur Netlify** : ferait transiter 200-500 Mo **par visionnage** → coût/limites serverless inacceptables, contraire à la légèreté de l'app.
+- **Proxy léger 480p : REJETÉ PAR DAVID** — un client valide un montage, il ne peut pas juger sur du 480p. **La pleine qualité HD est une contrainte métier absolue.**
+- **Chronomètre / audio parallèle / vidéo invisible comme horloge** : tous morts pour la **même raison** — l'iframe Drive n'émet aucun signal, donc **rien à synchroniser**. La dérive est maximale au moment précis du commentaire (le client met en pause pour écrire).
+- **Seule voie restante** : un **jumeau de streaming HD** auto-généré au dépôt via un transcodage **à l'usage** (Mux/Coconut ~0,015 $/min, **sans abonnement**, ~0,05-0,10 $ par review), hébergé sur le CDN du service (le flux ne passe PAS par Netlify), avec player exposant `getCurrentTime`/`setCurrentTime`. Le **master reste sur Drive** — c'est une copie dérivée, pas une migration. **Décision non prise.**
+- **Verdict honnête** : les 4 contraintes (HD + timecode exact + rien hors Drive + rien de lourd par Netlify) sont **sur-contraintes**. Quelque chose doit céder, et la plus souple est « aucune copie hors Drive ». **Si David refuse la copie dérivée → le timecode manuel est définitif.**
 
 **BANDEAU « NOUVELLE VERSION » (checkAppVersion / version-banner)** — NE PAS désactiver. C'est une sécurité multi-user : prévient les utilisateurs sur une version en cache de recharger. L'agacement actuel vient de la phase de dev intense (déploiements fréquents) — se calmera naturellement. Si besoin un jour, le rendre plus discret plutôt que le supprimer.
 

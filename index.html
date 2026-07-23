@@ -1349,7 +1349,8 @@ const NOTIF_ICONS = {
   commentaire: '💬',
   version_validee: '✔️',
   version_annulee: '❌',
-  validation: '✅'
+  validation: '✅',
+  retours_traites: '🎉'
 };
 
 async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message) {
@@ -2126,14 +2127,99 @@ async function toggleRetour(retourId, sujetId, newStatut) {
     });
     toast(newStatut === 'Corrigé' ? '✅ Marqué corrigé' : 'Retour réouvert', 'ok');
     loadRetours(sujetId);
-    if(newStatut==='Corrigé'&&currentUser){
-      const s=sujets.find(x=>x.id===sujetId);
-      if(s&&s.chef&&s.chef!==currentUser.nom)
-        await createNotif('retour_corrige',sujetId,s.code,s.titre,s.chef,currentUser.nom,`${currentUser.nom} a corrigé un retour sur ${s.code}`);
+    if(newStatut==='Corrigé'){
+      if(currentUser) await verifierCompletionVersion(sujetId, retourId, 'Corrigé');
       loadNotifs();
+    } else if(newStatut==='Ouvert'){
+      await effacerMarqueurCompletion(sujetId, retourId);
     }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
+  }
+}
+
+// ─── COMPLÉTION DES RETOURS (UNE notif quand TOUS traités) ───
+// Recompte les retours OUVERTS de la version contre Notion (source autoritaire) après
+// chaque traitement. Si aucun ne reste ouvert → UNE notif aux auteurs (non-brouillon)
+// + chef, dédupliqués par Set. 4 parades : exclusion du retour traité (read-after-write),
+// comptage Notion (jamais la mémoire), brouillons exclus, statut vide = ouvert.
+// Marqueur "Complétion notifiée" sur DB_VERSIONS en BEST-EFFORT : son échec (propriété
+// absente / Notion HS) est loggué mais N'EMPÊCHE JAMAIS la notif de partir.
+async function verifierCompletionVersion(sujetId, retourId, statutApplique){
+  try {
+    const s = sujets.find(x=>x.id===sujetId);
+    if(!s) return;
+    // 1. Relire les retours du sujet (autoritaire)
+    const data = await api('/databases/'+DB_RETOURS+'/query','POST',{
+      filter:{property:'Sujet ID',rich_text:{equals:sujetId}}, page_size:100
+    });
+    const retours = data.results || [];
+    // 2. Version du retour traité
+    const traite = retours.find(r=>r.id===retourId);
+    const versionName = traite?.properties?.Version?.select?.name || '';
+    if(!versionName) return; // impossible de cadrer → on ne notifie pas à l'aveugle
+    const estBrouillon = r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false);
+    const memeVersion = r => (r.properties.Version?.select?.name||'')===versionName;
+    // 3. Compter les ouverts (exclut le retour traité, brouillons ; statut vide = ouvert)
+    const ouverts = retours.filter(r =>
+      r.id!==retourId && memeVersion(r) && !estBrouillon(r) &&
+      ((r.properties.Statut?.select?.name)||'Ouvert')==='Ouvert'
+    ).length;
+    if(ouverts>0) return; // pas encore complet
+    // 4. Décompte pour le message : les AUTRES depuis Notion + le retour traité selon statutApplique
+    const autres = retours.filter(r => r.id!==retourId && memeVersion(r) && !estBrouillon(r));
+    let nbCorriges = autres.filter(r=>(r.properties.Statut?.select?.name||'')==='Corrigé').length;
+    let nbImpossibles = autres.filter(r=>(r.properties.Statut?.select?.name||'')==='⛔ Impossible').length;
+    if(statutApplique==='Corrigé') nbCorriges++; else if(statutApplique==='⛔ Impossible') nbImpossibles++;
+    // 5. Marqueur (BEST-EFFORT) : trouver la/les page(s) version, dédupliquer
+    let dejaPoste = false, versionPages = [];
+    try {
+      const vdata = await api('/databases/'+DB_VERSIONS+'/query','POST',{
+        filter:{property:'Sujet ID',rich_text:{equals:sujetId}}, page_size:100
+      });
+      versionPages = (vdata.results||[]).filter(v => (v.properties.Version?.rich_text?.[0]?.plain_text||'')===versionName);
+      dejaPoste = versionPages.some(v => v.properties['Complétion notifiée']?.checkbox===true);
+    } catch(e){ console.warn('Complétion : lecture marqueur échouée (on continue)', e.message); }
+    if(dejaPoste) return; // déjà notifié pour cette version
+    // Poser le marqueur AVANT l'envoi (rétrécit la course) — best-effort
+    for(const v of versionPages){
+      try { await api('/pages/'+v.id,'PATCH',{properties:{'Complétion notifiée':{checkbox:true}}}); }
+      catch(e){ console.warn('Complétion : pose marqueur échouée (on continue)', e.message); }
+    }
+    // 6. Destinataires = auteurs non-brouillon de la version + chef, dédupliqués
+    const dest = new Set();
+    retours.filter(r=>memeVersion(r) && !estBrouillon(r)).forEach(r=>{
+      const a = r.properties.Auteur?.rich_text?.[0]?.plain_text || '';
+      if(a) dest.add(a);
+    });
+    if(s.chef) dest.add(s.chef);
+    // 7. Envoi (createNotif s'auto-annule si destinataire vide ou == auteur courant)
+    const auteur = currentUser?.nom || '';
+    const message = `✅ Tous les retours de la ${versionName} de ${s.code} ont été traités (${nbCorriges} corrigé${nbCorriges>1?'s':''} · ${nbImpossibles} impossible${nbImpossibles>1?'s':''})`;
+    for(const d of dest){
+      await createNotif('retours_traites', sujetId, s.code, s.titre, d, auteur, message);
+    }
+  } catch(e){
+    console.error('verifierCompletionVersion échouée :', e.message);
+  }
+}
+
+// Réouverture d'un retour → efface le marqueur pour réarmer un futur cycle (best-effort).
+async function effacerMarqueurCompletion(sujetId, retourId){
+  try {
+    const r = await api('/pages/'+retourId,'GET');
+    const versionName = r?.properties?.Version?.select?.name || '';
+    if(!versionName) return;
+    const vdata = await api('/databases/'+DB_VERSIONS+'/query','POST',{
+      filter:{property:'Sujet ID',rich_text:{equals:sujetId}}, page_size:100
+    });
+    const versionPages = (vdata.results||[]).filter(v => (v.properties.Version?.rich_text?.[0]?.plain_text||'')===versionName);
+    for(const v of versionPages){
+      try { await api('/pages/'+v.id,'PATCH',{properties:{'Complétion notifiée':{checkbox:false}}}); }
+      catch(e){ console.warn('Complétion : effacement marqueur échoué (on continue)', e.message); }
+    }
+  } catch(e){
+    console.warn('effacerMarqueurCompletion échouée (on continue) :', e.message);
   }
 }
 
@@ -3791,6 +3877,7 @@ async function toggleRetourPlayer(retourId, sujetId, version) {
     toast('✓ Marqué corrigé','ok');
     loadPlayerRetours(sujetId, version);
     loadRetours(sujetId); // Sync avec la fiche
+    await verifierCompletionVersion(sujetId, retourId, 'Corrigé');
   } catch(e) { toast('Erreur','err'); }
 }
 
@@ -3813,10 +3900,8 @@ async function confirmerImpossible() {
         'Raison impossible': {rich_text:[{text:{content:raison}}]}
       }
     });
-    const s = sujets.find(s => s.id === impossibleSujetId);
-    if(s && currentUser) {
-      await createNotif('retour', impossibleSujetId, s.code, s.titre, s.chef, currentUser.nom,
-        `⛔ Retour impossible sur ${s.code} — ${raison}`);
+    if(currentUser) {
+      await verifierCompletionVersion(impossibleSujetId, impossibleRetourId, '⛔ Impossible');
       loadNotifs();
     }
     closeOv('ov-impossible');
