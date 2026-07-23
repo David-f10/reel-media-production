@@ -1801,6 +1801,7 @@ async function ouvrirEditionBrouillon(retourId, sujetId, version) {
   document.getElementById('ret-desc').value = chk.desc;
   const _t=document.getElementById('ret-modal-title'); if(_t) _t.textContent='✏️ Modifier le brouillon';
   const _b=document.getElementById('ret-submit-btn'); if(_b) _b.textContent='Enregistrer';
+  const _ov=document.getElementById('ov-retour'); if(_ov) _ov.style.zIndex='10001'; // au-dessus du lecteur (z-index:9999) — sinon l'édition s'ouvre DERRIÈRE, invisible
   openOv('ov-retour');
 }
 
@@ -4592,7 +4593,7 @@ function deleteSujet(id, titre){
 }
 
 function openOv(id){document.getElementById(id).classList.add('open');}
-function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;if(id==='ov-retour'){_editBrouillonId=null;_editBrouillonVersion=null;}if(id==='ov-detail'){stopPollingFiche();if(currentPage==='dashboard')appRenderDashboard();}}
+function closeOv(id){document.getElementById(id).classList.remove('open');if(id==='ov-new')_createEnCours=false;if(id==='ov-retour'){_editBrouillonId=null;_editBrouillonVersion=null;const _ov=document.getElementById('ov-retour');if(_ov)_ov.style.zIndex='';}if(id==='ov-detail'){stopPollingFiche();if(currentPage==='dashboard')appRenderDashboard();}}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
 function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
 
