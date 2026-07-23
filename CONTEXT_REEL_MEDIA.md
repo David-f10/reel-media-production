@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-23 (chantier 14 vérifié, à merger · incident notifs en double du 23/07 EN COURS D'ÉLUCIDATION)
+> Dernière mise à jour : 2026-07-23 (chantiers 14 et 15 vérifiés, à merger · audit permissions FAIT · incident notifs du 23/07 EN COURS D'ÉLUCIDATION)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -16,8 +16,12 @@ Chantiers **1 à 13**. Les chantiers **12** (code client Brand depuis les client
 
 **À tester sur la preview :** ① un retour Corrigé se lit normalement (plus barré, plus atténué) sur la **carte**, dans le **lecteur d'index.html** ET dans **review.html** côté client ; ② badge vert + barre verte à gauche présents partout ; ③ un retour ⛔ Impossible est lisible aussi, en gardant son orange ; ④ le bouton **Réouvrir** d'un corrigé fonctionne toujours ; ⑤ dans review.html, le bloc « Retours des autres versions » reste atténué comme avant ; ⑥ un **brouillon** reste atténué.
 
-### 🟡 RETOUR BENJAMIN NON TRAITÉ — MODIFIER / SUPPRIMER UN BROUILLON
-Benjamin veut pouvoir **modifier ou supprimer un retour en brouillon** pendant qu'il fait ses retours. Aujourd'hui il peut en créer un mais pas revenir dessus avant transmission. **Chantier non lancé.** Piste : la logique de permission existe déjà (chantier 4, identification de l'auteur par **nom** — avec ses limites documentées : homonymie, renommage, comparaison sensible à la casse).
+### 🟢 CHANTIER 15 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6540 lignes** (6439 → +101). `node --check` OK. Branche `brouillons-editables`. `index.html` seul.
+
+**⚠️ ORDRE DE MERGE.** Les chantiers 14 (`retours-lisibles`) et 15 (`brouillons-editables`) touchent tous deux `index.html`. Le 15 est construit **sur** le 14 (vérifié : `<s>` = 0, `1D9E75` = 10 dans le fichier de 6540 lignes). **Merger le 14 D'ABORD, puis le 15** — ou merger le 15 qui porte les deux. **Jamais le 14 après le 15.** Attention : le 14 comprend aussi `review.html`, que le 15 ne touche pas — ce fichier doit être poussé séparément.
+
+**À tester sur la preview :** ① l'auteur d'un brouillon voit ✏️ et 🗑, sur la **carte ET dans le lecteur** ; ② un chef voit 🗑 sur le brouillon d'un autre mais **pas** ✏️ ; ③ un retour **transmis** n'affiche aucun bouton ; ④ modifier un brouillon change le texte **sans** créer de notification ni de doublon ; ⑤ supprimer demande confirmation avec aperçu du texte ; ⑥ **le test qui compte** : ouvrir une édition, fermer sans enregistrer, puis créer un retour neuf → doit créer un **nouveau** retour, pas modifier l'ancien.
 
 ### 🔴 INCIDENT DU 23/07 — NOTIFS EN DOUBLE CHEZ BENJAMIN (NON ÉLUCIDÉ)
 **Symptôme observé après le merge** (capture d'écran de la cloche de Benjamin) :
@@ -48,6 +52,70 @@ L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du t
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 AUDIT PERMISSIONS + CHANTIER 15
+═══════════════════════════════════════════════════════════════
+### 2026-07-23 — AUDIT (lecture seule) : comparaison des noms de personnes
+
+**Déclencheur.** Avant de livrer une fonction **destructive** (supprimer un brouillon) reposant sur l'identification de l'auteur **par nom**, le Pilote a fait vérifier la base Équipe par Master, puis auditer le code par Claude Code.
+
+**CE QUE MASTER A TROUVÉ (24 fiches passées en revue) :**
+- Les deux Juliette sont **distinguables** : `Juliette` (code `jlt26`) et `Juliette Prunier` (code `jup26`), aucune espace parasite, ni l'une ni l'autre n'est chef.
+- **Aucun homonyme exact** dans la base.
+- **MAIS deux paires en PRÉFIXE STRICT** : `Juliette` ⊂ `Juliette Prunier`, et — plus grave — **`Arnaud` ⊂ `Arnaud C`**, où **`Arnaud` est CHEF et `Arnaud C` ne l'est pas**. Master a alerté : une comparaison non stricte pourrait accorder des **droits de chef** à la mauvaise personne.
+- Note annexe : `Juliette B` existe comme option du select Journaliste dans 🎬 Suivi de Production **sans** fiche dans Équipe ; et la fiche `archived` de l'ancien doublon Guillaume est toujours présente.
+
+**CE QUE L'AUDIT DU CODE A ÉTABLI — LE RISQUE N'EXISTE PAS :**
+- **Les droits de chef ne viennent PAS du nom** mais de `currentUser?.role === 'Chef'`, **stocké dans Notion**. C'est le point que le Pilote avait mal supposé : il croyait les permissions dérivées du nom.
+- Toutes les comparaisons sensibles (validation, dédup de notifications, self-skip, destinataires, gestion d'équipe) sont en **`===` strict** ou en `equals` Notion exact.
+- Les deux seules comparaisons non-`===` sont **bénignes** : `chefs.includes(currentUser.nom)` est un **`Array.includes`** (égalité d'élément, **pas** une sous-chaîne — à ne pas confondre avec le bug `.includes('Haute')` de la pastille priorité), et le `.includes` du **filtre de recherche**, volontaire et sans effet sur les droits.
+- **Ni Master ni Claude Code n'a eu tort** : Master a vu la forme `.includes` et alerté — le bon réflexe ; Claude Code a vérifié qu'il s'agissait d'un tableau.
+
+**POINT DE ROBUSTESSE RELEVÉ (pas une faille) :** la comparaison d'auteur du chantier 4 était en `===` **sans `trim()`**. Un espace parasite dans Notion pouvait empêcher quelqu'un de valider **son propre** retour. Direction de l'erreur correcte (**fail-safe** : refus, jamais accès à tort), mais gênant pour une fonction de suppression. → **Durci dans le chantier 15.**
+
+**DETTE SIGNALÉE, NON TRAITÉE :** double source de « qui est chef » — les droits viennent du rôle Notion, mais le défaut du formulaire utilise une liste **codée en dur** `['Benjamin','Arnaud','Chloé']` (l.823). Sûr aujourd'hui, mais un 4ᵉ chef ajouté dans Notion serait ignoré par ce tableau. ⚠️ **Pertinent car Chloé devient chef dans ~3 mois.**
+
+---
+
+### 2026-07-23 — CHANTIER 15 : modifier et supprimer un brouillon (`index.html`)
+`index.html` 6439 → **6540 lignes** (+101). `node --check` OK. Branche `brouillons-editables`. `index.html` seul — `review.html` non concerné (un client ne crée jamais de brouillon).
+
+**BESOIN (Benjamin) :** pouvoir modifier ou supprimer un retour en brouillon pendant qu'il fait ses retours. Avant : on pouvait en créer un, jamais revenir dessus.
+
+**RÈGLES VALIDÉES PAR DAVID :**
+- **Fenêtre :** tant que le retour est **brouillon**. Une fois transmis, plus touchable — ni par l'auteur, ni par un chef.
+- **L'auteur** peut **modifier ET supprimer** son brouillon.
+- **Un chef** peut **supprimer** n'importe quel brouillon (nettoyage des orphelins) mais **JAMAIS le modifier**. *Raison : un retour porte le nom de son auteur ; un chef qui réécrirait le texte mettrait des mots dans la bouche d'un collègue.*
+- La logique de **validation** (chantier 4) ne change pas.
+
+**DÉCOUVERTE DE CLAUDE CODE — LE PILOTE AVAIT MAL CADRÉ.** Un brouillon s'affiche à **DEUX** endroits : la liste de la fiche (`loadRetours`) **et** celle du lecteur (`loadPlayerRetours`). Le prompt initial ne visait que la première. Or **le lecteur est le cas d'usage principal de Benjamin** — livrer la carte seule aurait laissé le besoin à moitié résolu. Livré sur **les deux**.
+
+**LE POINT DUR — UN BOUTON VISIBLE N'EST PAS UNE AUTORISATION.** Le polling relit le sujet toutes les 18 s : entre l'affichage du bouton et le clic, le retour peut avoir été **transmis** par quelqu'un d'autre.
+Le Pilote proposait de réutiliser `champToujoursACa` (l.3129). **Claude Code l'a refusé, à juste titre : cette fonction est FAIL-OPEN par conception** (timeout ou erreur → on laisse écrire). C'est juste pour une écriture bénigne, **inadapté à une action destructive** — sur un doute réseau, on supprimerait un retour peut-être déjà transmis.
+*Solution retenue :* fonction dédiée **`relireBrouillon`** (l.1735), **FAIL-CLOSED** — `GET` frais avec timeout 2,5 s ; erreur, timeout, page archivée ou introuvable → `null` → **refus explicite**. Contrôle exécuté **au clic**, **à l'ouverture de l'édition**, **à l'enregistrement**, et **une seconde fois juste avant l'archivage**. *Compromis assumé : sur réseau instable, un refus temporaire — préférable à une suppression erronée.*
+
+**LIVRÉ :**
+- Boutons ✏️ / 🗑 dans la colonne d'action, **carte et lecteur**. Conditions : ✏️ = `brouillon && auteur===moi` · 🗑 = `brouillon && (auteur===moi || chef)`. Retour transmis → **rien**.
+- **Suppression** = `archived:true` (PATCH), après `showConfirmModal` en style danger **affichant les 80 premiers caractères** du retour. *L'API Notion n'a de toute façon pas de hard-delete ; `archived` est récupérable 30 jours et cohérent avec le patron déjà utilisé pour musiques, versions, membres, sujets et références.*
+- **Édition** = **`PATCH` en place** sur `ov-retour` réutilisé en mode édition (flag `_editBrouillonId`). Seuls `Description`, `Version`, `Catégorie`, `Timecode` changent — **`Auteur`, `Statut`, `Brouillon`, `Sujet ID` intouchés**, id et `created_time` préservés. **Aucune notification** (un brouillon n'a jamais été transmis).
+- **Durcissement `trim()`** des deux côtés sur les 3 sites du chantier 4 (l.2220, 2383, 3969) + les nouveaux contrôles. **Casse volontairement inchangée** : la normaliser élargirait la comparaison.
+
+**LE RISQUE PRINCIPAL — LA FUITE DE FLAG — ET SA PREUVE.** Réutiliser `submitRetour` pour deux modes crée un danger : un `_editBrouillonId` mal réinitialisé transformerait une **création** en **édition** (donc un `PATCH` sur un retour existant au lieu d'un nouveau retour).
+*Vérifié par le Pilote sur le fichier :* **`openAjoutRetour` remet le flag à `null` en l.1622, AVANT toute création.** Même si `closeOv` (l.4595, reset au ×, à Annuler et après enregistrement) était contourné, la création repasse **toujours** par ce reset. Scénario « ouvrir une édition → fermer sans enregistrer → créer un retour neuf » → `if(_editBrouillonId)` faux → branche **création (POST)**, jamais de PATCH.
+*Note d'honnêteté de Claude Code :* **2 statements** de reset couvrant les 3 chemins de fermeture, et non 3 statements — il l'a signalé de lui-même plutôt que de laisser croire le contraire.
+
+**Compteurs vérifiés par le Pilote :** `wc -l` = **6540** · `createNotif` = **27 (INCHANGÉ** — preuve que l'édition ne notifie pas et que la branche edit n'a pas fuité dans le chemin de création) · `validerTousRetours` = 3 (inchangé) · `_editBrouillonId` = 7 · `relireBrouillon` = 5 · `supprimerBrouillon` = 3 · `ouvrirEditionBrouillon` = 3 · `toggleRetour` = 5 · `<s>` = 0 · `1D9E75` = 10 (chantier 14 préservé) · `nomClientDeCode` = 5 et `rebuildMapClients` = 4 (chantier 13 préservé) · `prochainNumeroBrand` = 3 · `CHEF_PAR_DEFAUT` = 5 · `EQUIPE_FALLBACK` = 2 · balises `<script>` 4/4.
+
+**PREUVE `trim()` — exécutée réellement par le Pilote, pas supposée :**
+`"Arnaud C" === "Arnaud"` → **false** · `"Juliette Prunier" === "Juliette"` → **false** · `"Arnaud " === "Arnaud"` (après trim) → **true** · `"juliette" === "Juliette"` → **false**.
+→ `trim()` ne retire que des blancs : il **répare** une correspondance cassée par un espace parasite, **sans jamais** confondre deux noms distincts. La validation du chantier 4 se comporte à l'identique, en plus robuste.
+
+**ÉCART DE COMPTAGE ÉLUCIDÉ :** Claude Code annonçait `archived:true` = 7, le Pilote en comptait 6. Cause : la 7ᵉ occurrence (l.3614) s'écrit `archived: true` **avec une espace**. Aucune anomalie — le grep du Pilote était plus étroit. *Leçon : un écart de compteur doit être élucidé, pas signalé comme une erreur.*
+
+**COMPORTEMENT CONCURRENT (deux personnes sur le même brouillon) :** couvert par le fail-closed. A transmet pendant que B veut supprimer → B voit `!brouillon` → refus et rafraîchissement. A supprime pendant que B édite → B voit `archived` → refus. Double suppression simultanée → le second voit `archived` → refus propre (et `PATCH archived:true` serait de toute façon idempotent).
 
 
 
