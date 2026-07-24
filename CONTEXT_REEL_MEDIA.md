@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-24 (chantier 16 mergé · chantier 17 vérifié, à tester · chantiers 18→20 cadrés, non lancés)
+> Dernière mise à jour : 2026-07-24 (chantiers 16 et 17 mergés · chantier 19 vérifié, à tester · 18 et 20 cadrés, non lancés)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -49,12 +49,16 @@ Le comportement **« ordre figé pendant la lecture »** de la vue Liste triée 
 
 **À tester sur la preview :** ① Louise dépose un retour → **Benjamin ET le journaliste** notifiés, **une seule fois chacun** ; ② valider un séquencier → **UNE seule** notification (plus de doublon `·` / `—`) ; ③ commentaire sur une carte Brand → contact Brand notifié (inerte tant que le champ est vide) ; ④ cliquer « Valider mes retours » → le bouton passe par **⏳ Envoi en cours… puis ✓ Retours transmis** ; ⑤ la liste du **lecteur** se rafraîchit après validation.
 
-### 🔜 CHANTIERS 18 → 20 — CADRÉS, NON LANCÉS
-- **18 — Modifier/supprimer les commentaires généraux** (patron du chantier 15 réappliqué)
-- **19 — Le retour attaché** (Benjamin attache une reformulation à un retour client)
-- **20 — Le filtre de validation** (invisibilité pour le monteur jusqu'à validation)
+### 🟢 CHANTIER 19 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6670 lignes** (6588 → +82). `node --check` OK. Branche `retour-adapte`. **`index.html` seul.**
 
-⚠️ **Contrainte budget :** David était à 251/250 € au 21/07, renouvellement au 1er août. L'analyse globale 19-20 est à garder pour **après** le renouvellement.
+**Les 3 champs Notion sont créés** sur 📋 Retours (data source `7817050d-ad51-45a3-bea2-6e6f7e2e0238`) : **`Reformulation`**, **`Reformulé par`**, **`Timecode reformulé`** — accents vérifiés côté code.
+
+**À tester sur la preview :** ① un chef voit ✏️ Adapter sur un retour Ouvert dont il n'est pas l'auteur, **fiche ET lecteur** ; ② un non-chef ne le voit pas ; ③ après adaptation, le retour client apparaît en gris au-dessus et la reformulation en dessous ; ④ **une seule case à cocher** ; ⑤ le monteur peut toujours marquer Validé ou Impossible ; ⑥ le badge « N ouvert » ne change pas après une adaptation.
+
+### 🔜 CHANTIERS 18 ET 20 — CADRÉS, NON LANCÉS
+- **18 — Modifier/supprimer les commentaires généraux** (patron du chantier 15 réappliqué). ⚠️ Question non tranchée : un commentaire n'a pas d'état brouillon — la fenêtre de modification est-elle illimitée ou limitée dans le temps ?
+- **20 — Le filtre de validation** (validation groupée par Benjamin + invisibilité pour le monteur jusque-là). S'appuie sur le 19.
 
 ### 🔜 PROCHAIN CHANTIER CADRÉ — RECHARGEMENT SILENCIEUX (ex- « bandeau de version »)
 L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du temps perdu à croire qu'un bug corrigé était revenu, et un chantier (13, point ④) devenu invérifiable.
@@ -64,6 +68,53 @@ L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du t
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 19 (24/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-24 — CHANTIER 19 : le retour adapté par Benjamin (`index.html`)
+`index.html` 6588 → **6670 lignes** (+82). `node --check` OK. Branche `retour-adapte`. `review.html` **hors scope** (décision argumentée, voir plus bas).
+
+**LE BESOIN.** Les **clients ne sont pas encore dans l'app** : leurs retours arrivent **par mail** et **Louise (marketing, en contact client)** les recopie dans la carte. *⚠️ Louise = marketing ; **Éloise = journaliste, PAS en contact client** — ne pas confondre.* Un retour recopié tel quel est souvent **non actionnable** : « la vidéo est trop longue » ne dit pas quoi couper. Benjamin doit pouvoir le **traduire** avant que le monteur le reçoive.
+
+**LES DEUX ÉTAGES — LE POINT DE CONCEPTION.** Deux rôles, deux vocabulaires, aucun empiètement :
+- **Benjamin juge de la CLARTÉ** → **Valider** (clair, part tel quel) ou **Adapter** (il attache sa reformulation).
+- **Le monteur / journaliste juge de la FAISABILITÉ** → **Validé** ou **Impossible**.
+⚠️ ***Benjamin ne marque JAMAIS « impossible ».*** Correction apportée par David en cours de cadrage — le Pilote l'avait mis dans sa maquette initiale, à tort. Le mécanisme « impossible » reste **exactement** où il est, côté monteur.
+
+**PRINCIPE STRUCTURANT — ON N'ÉCRASE JAMAIS LA PAROLE DU CLIENT.** Benjamin **ajoute**, il ne réécrit pas. *Raison : ces retours sont **déjà** des retranscriptions de mails ; réécrire par-dessus mettrait **deux couches d'interprétation** entre le client et le monteur, et ferait perdre la trace si le client conteste.* Même principe qu'au **chantier 15**.
+
+***LA DÉCISION QUI PORTE TOUT LE CHANTIER — LA STRUCTURE DE DONNÉES.***
+Deux options étaient sur la table : **3 champs sur le retour existant**, ou **un second retour lié par relation**.
+**Retenu : les 3 champs sur la même page** (`Reformulation`, `Reformulé par`, `Timecode reformulé`), `Description` jamais touchée, détection par `estAdapte = Reformulation non vide` (aucun booléen).
+*L'argument décisif de Claude Code, que le Pilote n'avait pas anticipé :* **un retour = une page = un Statut = une case = un comptage.** Les règles « **une seule case à cocher** » et « **compte pour UN** » sont donc vraies **PAR CONSTRUCTION** — **aucun site de comptage n'a besoin d'être touché**.
+*Pourquoi le second retour lié a été écarté :* deux pages Notion pour une seule demande → **deux lignes à compter**, donc exactement l'incohérence redoutée (« validé » sur l'un, « impossible » sur l'autre), et il aurait fallu filtrer l'enfant **partout** (fiche, lecteur, `verifierCompletionVersion`, badges).
+*Compatibilité :* les retours existants ont `Reformulation` vide → `estAdapte=false` → affichés normalement. **Rien ne casse.**
+
+**PRÉREQUIS NOTION — FAIT AVANT LE CODE.** 3 champs créés par Master sur 📋 Retours (data source `7817050d-ad51-45a3-bea2-6e6f7e2e0238`) : **`Reformulation`**, **`Reformulé par`**, **`Timecode reformulé`**.
+⚠️ **Le risque était un bug totalement silencieux :** un accent manquant dans un nom de propriété fait lire du **vide** sans lever la moindre erreur. Les noms exacts ont donc été transmis à Claude Code et **vérifiés dans le fichier livré**.
+*Précision de Master, utile pour la suite :* dans Notion, **« Text » (interface) et `rich_text` (API) sont le MÊME type** — il n'existe pas de « Text simple » distinct. Lecture via `.plain_text`, écriture en `{rich_text:[{text:{content}}]}`.
+
+**LIVRÉ.**
+- **Bouton ✏️ Adapter** dans l'action-colonne, visible si `isChefUser && Ouvert && !brouillon && Auteur !== moi` (*un chef n'adapte pas son propre retour — il l'éditerait, et reformuler ses propres mots n'a pas de sens*). Ré-adaptation possible : le chef édite **ses** mots.
+- **Portée : tout retour non-propre**, Client **ou** Équipe (restreindre à Client-only aurait ajouté une garde spéciale sans bénéfice — un retour interne vague mérite aussi une traduction).
+- **Affichage sur les DEUX gabarits** (fiche `loadRetours` **et** lecteur `loadPlayerRetours` — *le chantier 15 avait montré qu'ils ne partagent aucun code*) : retour client **en haut, gris/italique, non cochable** ; « ↳ Adapté par [nom] » + timecode + reformulation **en dessous**.
+- **Aucune notification à l'adaptation** — adapter ne change pas **qui doit agir** (le monteur doit toujours traiter le retour), et le monteur verra la reformulation en ouvrant la fiche. `createNotif` reste à **27**, donc **zéro risque de recréer le doublon du chantier 17**.
+- **Pas de fail-closed** (contrairement au chantier 15) : l'adaptation est **non destructive** — si le retour a été traité entre-temps, la reformulation s'attache sans dommage.
+
+**`review.html` HORS SCOPE — décision argumentée.** Le client verrait la **reformulation interne de ses propres mots** → friction (« ce n'est pas ce que j'ai dit ») et exposition d'une couche interne chef→monteur. **Un seul fichier à pousser.** À rouvrir si les clients entrent dans l'app.
+
+**Compteurs vérifiés par le Pilote :** `wc -l` = 6670 · `createNotif` = **27 (inchangé)** · `ouvrirAdapter` = 3 · `confirmerAdapter` = 2 · `estAdapte` = 6 · `Reformulation` = 5 · `Reformulé par` = 3 · `Timecode reformulé` = 4 (**accents corrects**) · `ouvrirImpossible` = 4 · `verifierCompletionVersion` = 5 (inchangé) · `CHEF_PAR_DEFAUT` = 10 · `EQUIPE_FALLBACK` = 2 · `rechargerPropre` = 3 et `_ecrituresEnVol` = 5 (**ch16 intact**) · `_editBrouillonId` = 7 (**ch15 intact**) · `rebuildMapClients` = 4 · balises 4/4.
+
+**PREUVE A — LA PAROLE DU CLIENT N'EST JAMAIS ÉCRASÉE.** Vérifié par lecture directe : `confirmerAdapter` (l.2232-2249) **n'écrit QUE les 3 champs d'adaptation**. Les seules écritures de `'Description'` dans tout le fichier sont les **créations** de retour (l.1685/1701/1744 — la parole de l'auteur au moment où il crée) et le module Idées (l.5536+, sans rapport). **Aucun chemin de ce chantier ne touche `Description`.**
+
+**PREUVE B — UNE SEULE CASE.** Action-colonne inchangée sur les deux gabarits. Le bouton ✏️ Adapter est une **action distincte** (ouvre `ov-adapter`), **pas une case** : il n'ajoute aucun second contrôle du `Statut`. Mécanisme impossible du monteur intact.
+
+**PREUVE C — COMPTAGE INTACT.** Tous les sites comptent des **pages par `Statut`** (`verifierCompletionVersion` l.2406, badges de `loadRetours`, `loadVersions`, `loadPlayerRetours`). **Zéro ligne de comptage touchée** — bénéfice direct du choix de structure.
+
+**Incident de parcours, résolu par Claude Code seul :** une erreur de syntaxe due à un échappement d'apostrophe (`l\\'adaptation`) dans un attribut `title`. Détectée par `node --check`, corrigée en retirant l'apostrophe du libellé. *Rappel utile : les libellés à apostrophe dans des attributs HTML générés en template littéral sont un piège récurrent.*
 
 
 
@@ -639,7 +690,7 @@ David voulait capturer le timecode automatiquement quand un client laisse un ret
 - **PWA fermée = pas de push** : connu, non traité. Se corrigera dans `notify.js`.
 - **`Code suggéré` vide dans la vue Notion** : formule non calculée ou mauvais champ affiché (`Code` = vraie propriété). Non urgent.
 - **Chef par défaut évolutif** : Benjamin → **Chloé dans ~3 mois** → Arnaud ponctuel. Changement = 1 ligne (constante). Alternative : case à cocher dans la base Équipe. Non prioritaire.
-- **Budget Claude Code** : 251/250 € au 21/07, renouvellement 1er août. Le Pilote fait tout hors-code ; Claude Code lit/écrit le code ; sessions courtes ; lectures ciblées.
+- **Forfait Claude Code : MAX (5x)** — ⚠️ **CORRIGÉ le 24/07.** L'ancienne note « 251/250 €, renouvellement 1er août » était **fausse** et a fait recommander au Pilote de différer des chantiers sans raison. Le fonctionnement réel : **limites d'usage par session** (réinitialisation toutes les ~5 h) et **limite hebdomadaire** (réinitialisation le **mercredi 12:00**), pas un budget en euros qui s'épuise. Au 24/07 : 26 % de l'hebdomadaire consommé. **Pas de contrainte bloquante** pour enchaîner les chantiers. Seul point d'attention réel : une **session** entamée à un niveau élevé peut se réinitialiser en cours de chantier — dans ce cas il suffit de renvoyer le prompt. Le Pilote fait tout le hors-code ; Claude Code lit/écrit le code ; sessions courtes ; lectures ciblées.
 
 **CHANTIER SUSPENDU — présence sur une fiche**
 Proposition de diff vérifiée le 21/07. **Archivée, pas rejetée.** À reprendre APRÈS l'analyse multi-user (qui pourrait en changer l'approche).
