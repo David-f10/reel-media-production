@@ -1686,12 +1686,16 @@ async function submitRetour() {
     closeOv('ov-retour');
     toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadRetours(retourSujetId);
-    // Notif au journaliste
-    if(sujet && sujet.journaliste && sujet.journaliste !== currentUser.nom) {
+    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués
+    if(sujet) {
       const cat = document.getElementById('ret-categorie').value;
       const tc = document.getElementById('ret-timecode').value.trim();
-      await createNotif('retour', retourSujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom,
-        `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`,true);
+      const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`;
+      const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
+      if(sujet.journaliste && sujet.journaliste !== currentUser.nom)
+        await createNotif('retour', retourSujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour);
+      if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste)
+        await createNotif('retour', retourSujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour);
       loadNotifs();
     }
   } catch(e) {
@@ -1726,10 +1730,14 @@ async function submitPlayerRetour(sujetId, version) {
     toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadPlayerRetours(sujetId, version);
     loadRetours(sujetId);
-    // Notif au journaliste
-    if(sujet && sujet.journaliste && sujet.journaliste !== currentUser.nom) {
-      await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom,
-        `${currentUser.nom} a laissé un retour sur ${sujet.code}${tc?' — '+tc:''}`);
+    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués
+    if(sujet) {
+      const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code}${tc?' — '+tc:''}`;
+      const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
+      if(sujet.journaliste && sujet.journaliste !== currentUser.nom)
+        await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour);
+      if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste)
+        await createNotif('retour', sujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour);
       loadNotifs();
     }
   } catch(e) {
@@ -2227,7 +2235,7 @@ async function loadRetours(sujetId) {
     const myName = (currentUser?.nom||'').trim();
     const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
     let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
-      ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
+      ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}', this)" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
     Object.entries(byVersion).forEach(([version, items]) => {
       html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:var(--bg3);border-bottom:1px solid var(--border);position:sticky;top:0">${version} <span style="font-weight:400;opacity:0.6">${items.length} retour${items.length>1?'s':''}</span></div>`;
@@ -2379,8 +2387,9 @@ async function effacerMarqueurCompletion(sujetId, retourId){
   }
 }
 
-async function validerTousRetours(sujetId) {
+async function validerTousRetours(sujetId, btnEl, version) {
   if(!currentUser) { toast('Non connecté','err'); return; }
+  const oldLabel = btnEl ? btnEl.textContent : '';
   try {
     const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
       filter: {property:'Sujet ID', rich_text:{equals:sujetId}}
@@ -2389,14 +2398,20 @@ async function validerTousRetours(sujetId) {
     const estChef = currentUser?.role === 'Chef';
     const myName = (currentUser?.nom||'').trim();
     const aValider = data.results.filter(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (estChef || (!!myName && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName)));
-    if(!aValider.length) { toast('Aucun retour à valider','err'); return; }
+    if(!aValider.length) { toast('Aucun retour à valider','err'); return; } // bouton intact : état « envoi » pas encore posé
+    if(btnEl) { btnEl.textContent = '⏳ Envoi en cours…'; btnEl.style.pointerEvents = 'none'; }
     for(const r of aValider) {
       await api('/pages/' + r.id, 'PATCH', {properties:{'Brouillon':{checkbox:false}}});
     }
     toast(`${aValider.length} retour${aValider.length>1?'s':''} validé${aValider.length>1?'s':''}`,'ok');
-    loadRetours(sujetId);
+    if(btnEl) btnEl.textContent = '✓ Retours transmis';
+    // "✓ transmis" visible ~1,2 s, puis re-render (le bouton disparaît, plus de brouillon à moi)
+    setTimeout(() => { loadRetours(sujetId); if(version) loadPlayerRetours(sujetId, version); }, 1200);
   } catch(e) {
+    // Échec (même en milieu de boucle) : JAMAIS figé sur « Envoi en cours » → retour au label initial
+    if(btnEl) { btnEl.textContent = oldLabel; btnEl.style.pointerEvents = ''; }
     toast('Erreur : ' + e.message, 'err');
+    loadRetours(sujetId); if(version) loadPlayerRetours(sujetId, version); // refléter l'état partiel éventuel
   }
 }
 
@@ -2938,7 +2953,7 @@ async function toggleValidationSeq(id, type) {
       // Notif au journaliste que le chef a validé
       if(s.journaliste && s.journaliste !== auteur) {
         await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
-          `${auteur} a validé le séquencier de ${s.code} · ${s.titre}`);
+          `${auteur} a validé le séquencier de ${s.code} — ${s.titre}`);
         loadNotifs();
       }
     }
@@ -3569,10 +3584,13 @@ async function postComment(sujetId) {
     const s = sujets.find(s=>s.id===sujetId);
     if(s && currentUser) {
       const msg = `${currentUser.nom} a commenté ${s.code} — ${s.titre}`;
-      if(s.chef && s.chef !== currentUser.nom)
-        await createNotif('commentaire', sujetId, s.code, s.titre, s.chef, currentUser.nom, msg);
-      if(s.journaliste && s.journaliste !== currentUser.nom && s.journaliste !== s.chef)
+      const chefDest = s.chef || CHEF_PAR_DEFAUT;
+      if(chefDest && chefDest !== currentUser.nom)
+        await createNotif('commentaire', sujetId, s.code, s.titre, chefDest, currentUser.nom, msg);
+      if(s.journaliste && s.journaliste !== currentUser.nom && s.journaliste !== chefDest)
         await createNotif('commentaire', sujetId, s.code, s.titre, s.journaliste, currentUser.nom, msg);
+      if(s.format==='Brand' && s.contactBrand && s.contactBrand !== currentUser.nom && s.contactBrand !== chefDest && s.contactBrand !== s.journaliste)
+        await createNotif('commentaire', sujetId, s.code, s.titre, s.contactBrand, currentUser.nom, msg);
       loadNotifs();
     }
   } catch(e) {
@@ -4015,7 +4033,7 @@ async function loadPlayerRetours(sujetId, version) {
     const myName = (currentUser?.nom||'').trim();
     const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
     let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
-      ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}')" class="nav-btn primary" style="width:100%;font-size:11px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
+      ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}', this, '${version}')" class="nav-btn primary" style="width:100%;font-size:11px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
     Object.entries(byVersion).forEach(([v, items]) => {
       const ouvertsV = items.filter(r => r.properties.Statut?.select?.name === 'Ouvert').length;
@@ -4212,22 +4230,6 @@ async function autoStatut(id, field, value){
     renderCards();
     const stepper=document.querySelector('.stepper');
     if(stepper) refreshDetail(id);
-
-    // ─── Notifications automatiques selon le nouveau statut ───
-    const auteur = currentUser?.nom || '';
-    if(newStatut==='Séquencier validé' && s.journaliste && s.journaliste!==auteur) {
-      await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
-        `${auteur} a validé le séquencier de ${s.code} — ${s.titre}`);
-    }
-    else if(newStatut==='Validation chef' && s.journaliste && s.journaliste!==auteur) {
-      await createNotif('version_validee', id, s.code, s.titre, s.journaliste, auteur,
-        `${auteur} a validé une version de ${s.code} — ${s.titre}`);
-    }
-    else if(newStatut==='PAD' && s.journaliste && s.journaliste!==auteur) {
-      await createNotif('version_validee', id, s.code, s.titre, s.journaliste, auteur,
-        `${s.code} est PAD 🎉 — ${s.titre}`);
-    }
-    loadNotifs();
   }
 }
 
