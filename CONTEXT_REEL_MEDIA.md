@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-23 (chantier 16 vérifié, à tester · incident notifs CLOS · chantiers 17→20 CADRÉS, non lancés)
+> Dernière mise à jour : 2026-07-24 (chantier 16 mergé · chantier 17 vérifié, à tester · chantiers 18→20 cadrés, non lancés)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -44,14 +44,17 @@ Le comportement **« ordre figé pendant la lecture »** de la vue Liste triée 
 
 **À tester sur la preview :** ① le bandeau atténué s'affiche bien et le clic met à jour ; ② laisser l'app ouverte, déployer une version, changer d'onglet quelques secondes → au retour, l'app doit être à jour ; ③ **le test qui compte** : commencer à taper un retour, changer d'onglet → **l'app ne doit PAS se recharger**, la saisie doit être intacte au retour ; ④ idem avec une fiche ouverte (overlay).
 
-### 🔜 CHANTIERS 17 → 20 — CADRÉS AVEC DAVID LE 23/07, NON LANCÉS
-Cinq besoins remontés par David, découpés en quatre chantiers. **Aucun n'est lancé.** Voir l'entrée détaillée dans l'historique.
-- **17 — Notifications + feedback des boutons** (3 corrections indépendantes, aucune dépendance, le plus utile immédiatement)
+### 🟢 CHANTIER 17 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6588 lignes**. `node --check` OK. Branche `notifs-et-feedback`. **`index.html` seul** (`review.html` déféré).
+
+**À tester sur la preview :** ① Louise dépose un retour → **Benjamin ET le journaliste** notifiés, **une seule fois chacun** ; ② valider un séquencier → **UNE seule** notification (plus de doublon `·` / `—`) ; ③ commentaire sur une carte Brand → contact Brand notifié (inerte tant que le champ est vide) ; ④ cliquer « Valider mes retours » → le bouton passe par **⏳ Envoi en cours… puis ✓ Retours transmis** ; ⑤ la liste du **lecteur** se rafraîchit après validation.
+
+### 🔜 CHANTIERS 18 → 20 — CADRÉS, NON LANCÉS
 - **18 — Modifier/supprimer les commentaires généraux** (patron du chantier 15 réappliqué)
 - **19 — Le retour attaché** (Benjamin attache une reformulation à un retour client)
-- **20 — Le filtre de validation** (invisibilité pour le monteur jusqu'à validation de Benjamin)
+- **20 — Le filtre de validation** (invisibilité pour le monteur jusqu'à validation)
 
-⚠️ **Contrainte budget :** David était à 251/250 € au 21/07, renouvellement au 1er août. Le Pilote a recommandé de faire le **17 seul** d'ici là (aucune analyse préalable nécessaire) et de garder l'analyse globale 19-20 pour après le renouvellement. **Décision de David en attente.**
+⚠️ **Contrainte budget :** David était à 251/250 € au 21/07, renouvellement au 1er août. L'analyse globale 19-20 est à garder pour **après** le renouvellement.
 
 ### 🔜 PROCHAIN CHANTIER CADRÉ — RECHARGEMENT SILENCIEUX (ex- « bandeau de version »)
 L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du temps perdu à croire qu'un bug corrigé était revenu, et un chantier (13, point ④) devenu invérifiable.
@@ -61,6 +64,47 @@ L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du t
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 17 (24/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-24 — CHANTIER 17 : notifications et feedback des boutons (`index.html`)
+`index.html` 6586 → **6588 lignes**. `node --check` OK. Branche `notifs-et-feedback`. `review.html` **déféré** (validation client, UX différente, popup qui donne déjà un signal).
+
+**POINT 1 — LE DOUBLE « SÉQUENCIER VALIDÉ » : DEUX APPELS, PAS UN DOUBLE-CLIC.**
+*Symptôme :* Mickaël recevait **deux** notifications par sujet sur D1228/1229/1230/1231, quand Benjamin validait.
+***Le détail qui a tout tranché :*** les deux messages n'avaient **pas le même séparateur** — « D1229 **·** faucon millenium » et « D1229 **—** faucon millenium ». **Un double-clic aurait produit deux messages IDENTIQUES.** Deux formats = deux morceaux de code distincts. C'est ce qui a orienté le diagnostic en une lecture.
+*Cause :* un clic → `toggleValidationSeq` notifie **en direct** (A, `·`) **ET** son `upd('Séquencier validé')` **cascade** vers `autoStatut` qui notifie **aussi** (B, `—`). ⚠️ **À ne pas confondre avec le chantier 11**, qui corrigeait un double *déclenchement* du **même** appel.
+*Livré :* **A gardé** (dans son handler dédié), **B retiré**, séparateur aligné `·` → `—`.
+*Argument décisif :* B est gardé par `cur < statutIndex(...)` — il ne notifie que si le statut **AVANCE**. Une re-validation sur un sujet déjà avancé ne notifierait pas. **A est plus fidèle à l'action réelle.**
+*Bonus — du code mort retiré :* les 2 autres branches notif de `autoStatut` (**Validation chef**, **PAD**) ne se déclenchaient **jamais** — `upd('Version validee')` n'est appelé nulle part (la validation de version fait un **PATCH direct**, donc sans cascade), et aucun champ ne mappe vers `newStatut='PAD'`. Vestige de l'époque où `autoStatut` était le notificateur central, depuis court-circuité partout. **Bloc entier supprimé** (−3 `createNotif`).
+
+**POINT 2 — LE CHEF NON NOTIFIÉ : DEUX FAUSSES PISTES AVANT LA BONNE.**
+*Fausse piste 1 (du Pilote) :* le brief parlait de **commentaires**. Claude Code a vérifié `postComment` et découvert que **le chef y est DÉJÀ notifié** (l.3588). ⚠️ **Ajouter un `createNotif` aurait recréé exactement le doublon du point 1.** C'est la vérification préalable qui l'a évité.
+*Fausse piste 2 (de Claude Code) :* il a supposé que les cartes commentées n'avaient **pas de chef assigné**. **Vérification Master dans Notion : sur 249 sujets actifs, ZÉRO sans chef** (239 Benjamin, 10 Arnaud, 0 Chloé). L'hypothèse tombait.
+*La vraie cause, après correction de David :* il s'agissait des **RETOURS**, pas des commentaires — et **déposés depuis le LECTEUR**. Vérifié : `submitRetour` (fiche) et `submitPlayerRetour` (lecteur) ne notifiaient **que le journaliste**. Le chef n'était **pas exclu — il n'avait jamais été ajouté**. Les deux chemins étaient cohérents entre eux, mais tous deux incomplets.
+*Livré :* le chef est notifié dans **les deux** chemins, avec fallback `CHEF_PAR_DEFAUT` et dédup contre le journaliste et l'auteur (+2 `createNotif`). Fallback aussi appliqué à `postComment` (modifie le destinataire, **pas** d'appel en plus).
+**Le fallback est INERTE aujourd'hui** (tous les sujets ont un chef — c'est le fallback d'**écriture** du chantier 1 qui produit ce résultat) : c'est un **filet**, pas une fonctionnalité de volume. Il protège si un champ est vidé à la main.
+
+**POINT 3 — CONTACT BRAND.** Notifié sur **tous** les commentaires d'une carte Brand (restreindre au chef aurait été arbitraire). Dédup contre auteur, chef et journaliste. ⚠️ Rappel : « Contact Brand » = membres de l'**agence interne** (Arnaud/Guillaume/Louise/Victor), **PAS** les contacts client. Champ **vide par design** aujourd'hui → la garde `&& s.contactBrand` fait dégrader en silence. **+1 `createNotif`.**
+
+**POINT 4 — LE BOUTON QUI NE DISAIT PAS S'IL AVAIT PRIS.** `validerTousRetours` boucle des PATCH un par un → plusieurs secondes possibles, sans aucun signal. Le double-clic était bloqué (chantier 3) mais l'utilisateur **ne savait pas** si l'app avait enregistré.
+*Livré :* trois états — « Valider mes retours » → « ⏳ Envoi en cours… » → « ✓ Retours transmis », puis re-render qui retire le bouton après ~1,2 s (la confirmation s'efface d'elle-même). **En cas d'échec, même en milieu de boucle : retour au label initial + toast.** *Un bouton figé sur « Envoi en cours » aurait remplacé un doute par une impasse.* **Bonus :** la liste du **lecteur** se rafraîchit aussi (avant, seule la fiche l'était).
+
+**⚠️ LE COMPTEUR `createNotif` EST UN MAUVAIS GARDE-FOU SUR CE CHANTIER.** Il revient à **27 par pure coïncidence** : **−3** (bloc mort) **+2** (chef sur les retours) **+1** (contactBrand). Un total inchangé n'aurait **rien prouvé**. Le Pilote a donc exigé la **liste ligne par ligne** avec type et destinataire, et l'a vérifiée emplacement par emplacement. *Leçon : un compteur global ne vaut que si l'on sait ce qu'il devrait mesurer.*
+
+**Compteurs vérifiés :** `wc -l` = 6588 · `createNotif` = 27 (**croisé avec la liste**) · `CHEF_PAR_DEFAUT` = 10 (5 + 3 usages `chefDest` + 2 commentaires) · `autoStatut` = 2 · `contactBrand` = 10 · séparateur `·` du séquencier = **0** · `EQUIPE_FALLBACK` = 2 · `rechargerPropre` = 3 et `_ecrituresEnVol` = 5 (**ch16 intact**) · `rebuildMapClients` = 4 · `_editBrouillonId` = 7 · balises 4/4.
+
+**PREUVE ANTI-DOUBLON — SIMULÉE PAR LE PILOTE, PAS CROITE SUR PAROLE.** Les gardes ont été extraites et exécutées sur tous les cas limites :
+*Dépôt de retour* — chef = journaliste → 1 notif · auteur = chef → 1 notif (pas de self) · auteur = journaliste → 1 notif · sans chef avec Benjamin journaliste → **Benjamin 1 seule fois** · cas nominal → 2 notifs à 2 personnes.
+*Commentaire Brand* — contactBrand = journaliste → sauté · = chef → sauté · = auteur → sauté · nominal → 3 destinataires distincts.
+**Aucun doublon dans aucun cas.**
+
+**PREUVE TRANSITIONS.** Les **6 transitions** de `autoStatut` sont identiques avant/après. Et la **notif de DÉPÔT du séquencier** (l.4211-4215, dont dépend le **chantier 11**) est **intacte** — elle vit dans un `if` séparé, hors du bloc supprimé. *C'était le risque principal du point 1 : retirer le bloc en emportant cette notif-là.*
+
+**Détail sans effet, signalé sans être touché :** un `,true` traîne en **8ᵉ argument** d'un `createNotif` alors que la signature en compte 7 → **ignoré par JavaScript**. Reliquat inoffensif, hors scope.
 
 
 
