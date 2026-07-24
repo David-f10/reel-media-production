@@ -385,6 +385,33 @@
   </div>
 </div>
 
+<!-- MODAL ADAPTER RETOUR (chef : attache une reformulation SANS écraser la parole du client) -->
+<div class="overlay" id="ov-adapter">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr">
+      <div class="modal-title" id="adapter-title">✏️ Adapter le retour</div>
+      <button class="modal-close" onclick="closeOv('ov-adapter')">×</button>
+    </div>
+    <div style="padding:18px 20px">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px">Retour client (conservé tel quel)</div>
+      <div id="adapter-client" style="font-size:12px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:4px 10px;margin-bottom:14px;line-height:1.5"></div>
+      <div class="field" style="max-width:130px">
+        <div class="field-label">Timecode</div>
+        <input type="text" id="adapter-tc" placeholder="ex: 1:24" style="font-family:var(--mono)">
+      </div>
+      <div class="field">
+        <div class="field-label">Ta reformulation *</div>
+        <textarea id="adapter-reformulation" placeholder="Traduis la demande du client en instruction actionnable pour le monteur…" style="min-height:90px"></textarea>
+      </div>
+      <p style="font-size:11px;color:var(--text3);margin-top:6px">La parole du client reste intacte et visible. Ta reformulation est attachée en dessous.</p>
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button class="nav-btn" onclick="closeOv('ov-adapter')">Annuler</button>
+      <button class="nav-btn primary" onclick="confirmerAdapter()">Attacher</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL AJOUT RETOUR -->
 <div class="overlay" id="ov-retour">
   <div class="modal" style="max-width:440px">
@@ -2178,6 +2205,49 @@ function ouvrirImpossible(retourId, sujetId) {
   openOv('ov-impossible');
 }
 
+// ─── ADAPTATION D'UN RETOUR (chef) ───
+// Benjamin ATTACHE une reformulation ; la parole du client (Description) n'est JAMAIS écrasée.
+let _adapterRetourId = null, _adapterSujetId = null, _adapterVersion = null;
+
+async function ouvrirAdapter(retourId, sujetId, version) {
+  _adapterRetourId = retourId; _adapterSujetId = sujetId; _adapterVersion = version || null;
+  document.getElementById('adapter-client').textContent = '…';
+  document.getElementById('adapter-reformulation').value = '';
+  document.getElementById('adapter-tc').value = '';
+  openOv('ov-adapter');
+  try {
+    const page = await api('/pages/' + retourId);
+    const pr = page.properties || {};
+    const clientTxt = pr.Description?.title?.[0]?.plain_text || '';
+    const tcOrig = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+    const reformExistante = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
+    const tcReform = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
+    document.getElementById('adapter-client').textContent = clientTxt;
+    document.getElementById('adapter-reformulation').value = reformExistante;
+    document.getElementById('adapter-tc').value = tcReform || tcOrig; // reprend l'origine si pas de tc reformulé
+    document.getElementById('adapter-title').textContent = reformExistante ? '✏️ Modifier l\'adaptation' : '✏️ Adapter le retour';
+  } catch(e) { document.getElementById('adapter-client').textContent = '(impossible de charger le retour)'; }
+}
+
+async function confirmerAdapter() {
+  if(!currentUser) { toast('Non connecté','err'); return; }
+  const reformulation = document.getElementById('adapter-reformulation').value.trim();
+  if(!reformulation) { toast('Écris une reformulation','err'); return; }
+  const tc = document.getElementById('adapter-tc').value.trim();
+  const rid = _adapterRetourId, sid = _adapterSujetId, ver = _adapterVersion;
+  try {
+    // On écrit UNIQUEMENT les 3 champs d'adaptation. Description (parole du client) n'est jamais touchée.
+    await api('/pages/'+rid,'PATCH',{properties:{
+      'Reformulation':{rich_text:[{text:{content:reformulation}}]},
+      'Reformulé par':{rich_text:[{text:{content:currentUser.nom}}]},
+      'Timecode reformulé':{rich_text:[{text:{content:tc}}]}
+    }});
+    closeOv('ov-adapter');
+    toast('Reformulation attachée','ok');
+    loadRetours(sid); if(ver) loadPlayerRetours(sid, ver);
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
 // ─── LIEN CLIENT ───
 function genererLienClient(sujetId, version, lienVideo) {
   const s = sujets.find(s => s.id === sujetId);
@@ -2253,6 +2323,11 @@ async function loadRetours(sujetId) {
         const impossible = statut === '⛔ Impossible';
         const estMoi = (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim() === myName;
         const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border2)'">🗑</div>`:''}</div>` : '';
+        const reformulation = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
+        const reformulePar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
+        const tcReformule = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
+        const estAdapte = !!reformulation;
+        const peutAdapter = isChefUser && !corrige && !impossible && !brouillon && !estMoi;
         html += `<div class="retour-row" style="${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
           <div style="flex:1;min-width:0${brouillon?';opacity:0.55':''}">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
@@ -2262,11 +2337,12 @@ async function loadRetours(sujetId) {
               ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Corrigé</span>`:''}
               ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
             </div>
-            <div class="retour-desc">${desc}</div>
+            ${estAdapte?`<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${desc}</div><div class="retour-desc"><span style="font-size:9px;color:var(--blue);font-weight:600">↳ Adapté par ${reformulePar||'chef'}</span>${tcReformule?` <span class="retour-tc">${tcReformule}</span>`:''}<div style="margin-top:2px">${reformulation}</div></div>`:`<div class="retour-desc">${desc}</div>`}
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
             <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>
           ${brouillon?brouillonActions:(!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+            ${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}')" title="${estAdapte?'Modifier la reformulation':'Adapter (reformuler pour le monteur)'}" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}
             <div class="retour-check" onclick="toggleRetour('${r.id}','${sujetId}','Corrigé')" title="Marquer corrigé"
               onmouseover="this.style.borderColor='var(--green)';this.style.background='var(--green-dim)'"
               onmouseout="this.style.borderColor='var(--border2)';this.style.background='transparent'"></div>
@@ -4058,6 +4134,11 @@ async function loadPlayerRetours(sujetId, version) {
         const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}','${version}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#378ADD'" onmouseout="this.style.borderColor='#2A2A3A'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}','${version}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#E63946'" onmouseout="this.style.borderColor='#2A2A3A'">🗑</div>`:''}</div>` : '';
         const opacity = (!isActive || brouillon) ? 'opacity:0.45;' : '';
 
+        const reformulation = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
+        const reformulePar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
+        const tcReformule = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
+        const estAdapte = !!reformulation;
+        const peutAdapter = isChefUser && !corrige && !impossible && !brouillon && !estMoi;
         html += `<div style="${opacity}display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1E1E2A;${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':''};transition:background 0.1s"
           onmouseover="this.style.background='#16161F'" onmouseout="this.style.background='transparent'">
           <div style="flex:1;min-width:0">
@@ -4068,11 +4149,12 @@ async function loadPlayerRetours(sujetId, version) {
               ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Corrigé</span>`:''}
               ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
             </div>
-            <div style="font-size:12px;color:#9898B0;line-height:1.5">${desc}</div>
+            ${estAdapte?`<div style="font-size:11px;color:#5A5A70;font-style:italic;border-left:2px solid #2A2A3A;padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${desc}</div><div style="font-size:12px;color:#9898B0;line-height:1.5"><span style="font-size:9px;color:#378ADD;font-weight:600">↳ Adapté par ${reformulePar||'chef'}</span>${tcReformule?` <span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tcReformule}</span>`:''}<div style="margin-top:2px">${reformulation}</div></div>`:`<div style="font-size:12px;color:#9898B0;line-height:1.5">${desc}</div>`}
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||''}</div>`:''}
             <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
           </div>
           ${brouillon?brouillonActions:!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+            ${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}','${version}')" title="${estAdapte?'Modifier la reformulation':'Adapter (reformuler pour le monteur)'}" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#378ADD'" onmouseout="this.style.borderColor='#2A2A3A'">✏️</div>`:''}
             <div onclick="toggleRetourPlayer('${r.id}','${sujetId}','${version}')" title="Marquer corrigé"
               style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s;color:#1D9E75"
               onmouseover="this.style.borderColor='#1D9E75';this.style.background='rgba(29,158,117,0.1)'"
