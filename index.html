@@ -229,7 +229,7 @@
     <div id="search-count" style="display:none;padding:4px 24px;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0"></div>
     <!-- Bandeau version : une nouvelle version de l'APP est en prod.
          Passif : rien ne se passe sans clic volontaire. Reste affiché jusqu'au reload. -->
-    <div id="version-banner" onclick="location.reload()" style="display:none;padding:5px 24px;font-size:11px;color:#fff;background:var(--red);cursor:pointer;flex-shrink:0;text-align:center">🚀 Nouvelle version de l'app disponible — <strong>Recharger</strong></div>
+    <div id="version-banner" onclick="rechargerPropre()" style="display:none;padding:5px 24px;font-size:11px;color:#E63946;background:rgba(230,57,70,0.12);border-bottom:1px solid rgba(230,57,70,0.3);cursor:pointer;flex-shrink:0;text-align:center">🚀 Nouvelle version disponible — <strong style="text-decoration:underline">Mettre à jour</strong></div>
     <!-- Contenu -->
     <div class="main-content" id="main-content">
       <div class="loading"><div class="spin"></div></div>
@@ -581,6 +581,8 @@ function hideNotionBanner(){
 }
 
 api = async function(endpoint, method, body, _r){
+  const estEcriture = method && method !== 'GET' && !_r; // écriture réelle, hors retry 429/503 (_r>0)
+  if(estEcriture) _ecrituresEnVol++;
   try{
     const r = await _apiOriginal(endpoint, method, body, _r);
     hideNotionBanner();
@@ -594,6 +596,10 @@ api = async function(endpoint, method, body, _r){
       showNotionBanner();
     }
     throw e;
+  }finally{
+    // TOUJOURS décrémenté : succès, exception, réseau tombé, catch qui relance — le finally couvre tout.
+    // Clamp à 0 par sécurité (ne peut jamais rester bloqué > 0 ni passer négatif).
+    if(estEcriture) _ecrituresEnVol = Math.max(0, _ecrituresEnVol - 1);
   }
 };
 
@@ -3059,6 +3065,9 @@ async function doLogin(){
 // ── Rafraîchissement automatique v2 (diff par sujet, application silencieuse,
 //    conflit signalé DANS la fiche — saisie toujours sacrée) ──
 let _autoRefreshTimer = null, _notifsTimer = null, _autoRefreshBusy = false, _lastVisTick = 0;
+let _ecrituresEnVol = 0;            // écritures Notion (non-GET) en vol — garde-fou : jamais de reload pendant une écriture
+let _nouvelleVersionDispo = false;  // détecté en VISIBLE par checkAppVersion ; l'action se fait au masquage / inactivité
+let _derniereActivite = Date.now(); // horodatage de la dernière interaction utilisateur (seuil d'inactivité)
 let _renderDiffere = false;        // rendu sauté par la garde absolue → rattrapé au tick suivant
 let _detailLastInteraction = 0;    // dernière interaction avec la fiche (hystérésis 30 s)
 
@@ -3262,15 +3271,47 @@ async function checkAppVersion() {
     if(!etag) return;                                  // pas d'ETag → contrôle impossible, silencieux
     if(_appEtag === null) { _appEtag = etag; return; } // 1er passage = baseline
     if(etag !== _appEtag) {
+      _nouvelleVersionDispo = true;
       const b = document.getElementById('version-banner');
       if(b) b.style.display = 'block';
+      tenterReloadSilencieux(); // si déjà caché ou inactif à l'instant même de la détection
     }
   } catch(e) { /* silencieux : réessai au prochain passage */ }
+}
+
+// ── Rechargement PROPRE : purge des caches rm-* (best-effort) PUIS reload. ──
+// Utilisé par le bandeau ET le reload silencieux. La purge est best-effort (mode privé /
+// pas d'API caches / rejet) → on recharge TOUJOURS (network-first garantit index.html frais).
+// Hors-ligne : on NE purge PAS (on garde le filet offline) mais on recharge quand même.
+async function rechargerPropre(){
+  if(navigator.onLine !== false){
+    try{
+      if(window.caches && caches.keys){
+        const keys = await caches.keys();
+        await Promise.all(keys.filter(k => k.startsWith('rm-')).map(k => caches.delete(k)));
+      }
+    }catch(e){ /* purge best-effort — on recharge quand même */ }
+  }
+  location.reload();
+}
+
+// ── Reload SILENCIEUX. TOUTES les gardes sont évaluées ICI, au moment d'AGIR (jamais à la
+// détection) : editionEnCours() et _ecrituresEnVol reflètent l'instant présent. Ne recharge
+// que si une version est prête ET qu'aucun travail n'est en jeu. Déclencheur : caché OU inactif ≥ 10 min.
+function tenterReloadSilencieux(){
+  if(!_nouvelleVersionDispo) return;
+  if(navigator.onLine === false) return;
+  if(editionEnCours()) return;      // saisie / overlay (fiche, formulaires) / lecteur ouverts → jamais
+  if(_ecrituresEnVol > 0) return;   // écriture Notion en vol → jamais
+  const inactif = (Date.now() - _derniereActivite) > 10 * 60 * 1000;
+  if(!document.hidden && !inactif) return; // onglet caché OU inactif ≥ 10 min
+  rechargerPropre();
 }
 
 async function autoRefreshTick() {
   if(document.hidden || _autoRefreshBusy || !currentUser) return;
   checkAppVersion(); // contrôle version app (fire-and-forget, throttlé 5 min en interne)
+  tenterReloadSilencieux(); // visible-idle : recharge si version prête + inactif ≥ 10 min
   _autoRefreshBusy = true;
   try {
     const prod = await apiQueryAll('/databases/' + DB_PROD + '/query',
@@ -3317,7 +3358,8 @@ async function autoRefreshTick() {
 
 // Onglet redevenu visible → tick immédiat (throttlé à 1/15s) + relecture de la fiche ouverte
 document.addEventListener('visibilitychange', () => {
-  if(document.hidden || !currentUser) return;
+  if(document.hidden){ tenterReloadSilencieux(); return; } // au MASQUAGE : recharge en tâche de fond si une version est prête
+  if(!currentUser) return;
   const ovDetail = document.getElementById('ov-detail');
   if(ovDetail && ovDetail.classList.contains('open') && _detailSujetId) fichePollTick();
   const now = Date.now();
@@ -3325,6 +3367,9 @@ document.addEventListener('visibilitychange', () => {
   _lastVisTick = now;
   autoRefreshTick();
 });
+
+// Horodatage d'activité pour le seuil d'inactivité du reload silencieux (écouteurs légers, passifs).
+['pointerdown','keydown'].forEach(ev => document.addEventListener(ev, () => { _derniereActivite = Date.now(); }, {passive:true, capture:true}));
 
 function showApp() {
   document.getElementById('login-screen').style.display = 'none';

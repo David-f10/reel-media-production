@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-23 (chantier 15 corrigé et testé, prêt à merger · audit permissions FAIT · incident notifs du 23/07 EN COURS D'ÉLUCIDATION)
+> Dernière mise à jour : 2026-07-23 (chantier 16 vérifié, à tester · incident notifs CLOS · chantiers 17→20 CADRÉS, non lancés)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -23,28 +23,37 @@ Chantiers **1 à 13**. Les chantiers **12** (code client Brand depuis les client
 
 **⚠️ ORDRE DE MERGE.** Les chantiers 14 (`retours-lisibles`) et 15 (`brouillons-editables`) touchent tous deux `index.html`. Le 15 est construit **sur** le 14 (vérifié : `<s>` = 0, `1D9E75` = 10 dans le fichier de 6541 lignes). **Merger le 14 D'ABORD, puis le 15** — ou merger le 15 qui porte les deux. **Jamais le 14 après le 15.** Attention : le 14 comprend aussi **`review.html`**, que le 15 ne touche pas — ce fichier se pousse séparément.
 
-### 🔴 INCIDENT DU 23/07 — NOTIFS EN DOUBLE CHEZ BENJAMIN (NON ÉLUCIDÉ)
-**Symptôme observé après le merge** (capture d'écran de la cloche de Benjamin) :
-- **3 notifs identiques** « Paul a corrigé un retour sur F671 », même horodatage **12:13**
-- **2 notifs identiques** « Éloise a déposé le séquencier de M698 », même horodatage **11:45**
+### ✅ INCIDENT DU 23/07 — NOTIFS EN DOUBLE : ÉLUCIDÉ ET CLOS
+**Symptôme :** Benjamin recevait 3 notifs identiques « Paul a corrigé un retour sur F671 » (12:13) et 2 notifs « Éloise a déposé le séquencier de M698 » (11:45) — alors que ces deux bugs avaient été corrigés et **confirmés en réel le matin même** (chantiers 10 et 11).
 
-**Pourquoi c'est troublant :** ces deux symptômes correspondent à des bugs **déjà corrigés et confirmés en réel le matin même**. Le libellé « a corrigé un retour » est celui de l'ancien type `retour_corrige`, dont le call site avait été mis à **0** au chantier 10 (remplacé par une notif unique de complétion). Et le doublon séquencier est exactement le symptôme corrigé au chantier 11.
+**CAUSE CONFIRMÉE PAR TEST — VERSION PÉRIMÉE CHEZ L'ÉMETTEUR (cache PWA).**
+Les notifications sont créées par **le navigateur de celui qui agit**, pas par un serveur. Paul et Éloise travaillaient encore sur une version d'**avant** les chantiers 10 et 11 : leur ancien code produisait les anciennes notifs. Benjamin, simple destinataire, les recevait correctement.
+**Élément aggravant :** le bandeau « nouvelle version » **était visible chez eux**. `checkAppVersion` avait donc bien détecté la mise à jour — ce qui a échoué, c'est le **passage à l'acte** : le bandeau est **passif par conception** (rechargement au clic volontaire uniquement). Ils l'ont vu, ne l'ont pas cliqué, et ont continué à travailler.
 
-**HYPOTHÈSE PRINCIPALE — CACHE PWA / VERSION PÉRIMÉE CÔTÉ ÉMETTEUR.**
-Les notifications sont créées par **le navigateur de celui qui agit**, pas par un serveur. Si Paul et Éloise tournaient encore sur une version en cache d'**avant** les chantiers 10 et 11, leur code produisait les anciennes notifs. Benjamin, simple destinataire, les recevait correctement — son propre code n'y change rien. **Cette hypothèse expliquerait les DEUX anomalies d'un coup.**
+**✅ VÉRIFIÉ PAR TEST (23/07) :** après rechargement, Paul a envoyé un nouveau retour → **Benjamin a reçu UNE SEULE notification**. **Le code des chantiers 10 et 11 était bon depuis le début. Il n'y a jamais eu de bug — c'était un problème de déploiement.**
 
-**Élément confirmé par David :** le **bandeau « nouvelle version » était encore visible dans leur app**. Donc `checkAppVersion` a bien détecté la nouvelle version — ce qui a échoué, c'est le **passage à l'acte** : le bandeau est **passif par conception** (reload uniquement au clic volontaire). Ils l'ont vu, ne l'ont pas cliqué, et ont continué à travailler sur l'ancien code.
+**⚠️ CE QUE CET INCIDENT DÉMONTRE, ET QUI JUSTIFIE LE CHANTIER BANDEAU :** une version périmée **chez l'émetteur** ne se contente pas de rater une amélioration — elle **produit de fausses données pour les autres**. C'est un cas **réel et vérifié**, plus une précaution théorique. C'est l'argument central du chantier « rechargement silencieux ».
 
-**⚠️ TEST QUI TRANCHE — À FAIRE AVANT TOUT AUDIT :** demander à Paul de **recharger** (clic sur le bandeau, ou Cmd+Shift+R / fermer-rouvrir la PWA), puis de corriger un retour. Benjamin reçoit **1 seule** notif → c'était le cache, le code est bon, dossier clos. Le doublon **persiste sur une app fraîchement rechargée** → c'est le code, et on lance un audit avec Claude Code sur les chemins d'appel de `createNotif`.
-**Ne pas dépenser de budget Claude Code avant ce test** — il coûte 30 secondes et écarte une hypothèse entière.
+*Question restée sans réponse, désormais sans enjeu : Paul avait-il corrigé trois retours (→ trois notifs de l'ancien système individuel) ou un seul (→ triple création) ? Le dossier est clos, la cause est établie.*
 
-**Question restée sans réponse (à poser si l'audit a lieu) :** Paul a-t-il corrigé **trois** retours sur F671 (→ trois notifs de l'ancien système individuel) ou **un seul** (→ triple création, autre problème) ?
+### ✅ CHANTIER 13 — POINT ④ VALIDÉ EN CONDITIONS RÉELLES (23/07)
+Le comportement **« ordre figé pendant la lecture »** de la vue Liste triée par « Modif » a été **testé en multi-utilisateur et confirmé** : la liste ne se réorganise pas sous les yeux de l'utilisateur quand un collègue modifie un sujet. Les sujets modifiés flashent en place. **Plus rien en attente sur le chantier 13.**
 
-### 🟡 CHANTIER 13 — POINT ④ NON VÉRIFIÉ EN CONDITIONS RÉELLES
-Le comportement **« ordre figé pendant la lecture »** (voir l'entrée du chantier 13) n'a **pas** été testé en multi-utilisateur : liste ouverte > 60 s pendant qu'un collègue modifie un sujet, aucune ligne ne doit sauter. **Mergé, mais non confirmé.** ⚠️ C'est un défaut **silencieux** : s'il ne marchait pas, rien d'anormal ne se verrait tout de suite — juste, un jour, une ligne qui bouge pendant la lecture, sans qu'on fasse le lien avec ce chantier.
-**Aggravant :** tant que le cache PWA n'est pas maîtrisé, ce test est **ininterprétable** — on ne sait pas qui tourne sur quelle version.
+### 🟢 CHANTIER 16 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6586 lignes** (6541 → +45). `node --check` OK. Branche `reload-silencieux`. **`index.html` seul — `sw.js` NON touché.**
 
-### 🔜 CHANTIER RECOMMANDÉ PAR LE PILOTE — LE BANDEAU DE VERSION
+**À tester sur la preview :** ① le bandeau atténué s'affiche bien et le clic met à jour ; ② laisser l'app ouverte, déployer une version, changer d'onglet quelques secondes → au retour, l'app doit être à jour ; ③ **le test qui compte** : commencer à taper un retour, changer d'onglet → **l'app ne doit PAS se recharger**, la saisie doit être intacte au retour ; ④ idem avec une fiche ouverte (overlay).
+
+### 🔜 CHANTIERS 17 → 20 — CADRÉS AVEC DAVID LE 23/07, NON LANCÉS
+Cinq besoins remontés par David, découpés en quatre chantiers. **Aucun n'est lancé.** Voir l'entrée détaillée dans l'historique.
+- **17 — Notifications + feedback des boutons** (3 corrections indépendantes, aucune dépendance, le plus utile immédiatement)
+- **18 — Modifier/supprimer les commentaires généraux** (patron du chantier 15 réappliqué)
+- **19 — Le retour attaché** (Benjamin attache une reformulation à un retour client)
+- **20 — Le filtre de validation** (invisibilité pour le monteur jusqu'à validation de Benjamin)
+
+⚠️ **Contrainte budget :** David était à 251/250 € au 21/07, renouvellement au 1er août. Le Pilote a recommandé de faire le **17 seul** d'ici là (aucune analyse préalable nécessaire) et de garder l'analyse globale 19-20 pour après le renouvellement. **Décision de David en attente.**
+
+### 🔜 PROCHAIN CHANTIER CADRÉ — RECHARGEMENT SILENCIEUX (ex- « bandeau de version »)
 L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du temps perdu à croire qu'un bug corrigé était revenu, et un chantier (13, point ④) devenu invérifiable.
 
 **L'argument de fond :** un bandeau passif suffit pour une amélioration de confort. Il ne suffit **pas** quand un chantier change ce que le code **ÉCRIT** dans Notion (notifications, codes, statuts). Dans ce cas, un utilisateur sur une version périmée ne rate pas une amélioration — il **produit des données incohérentes pour toute l'équipe**. C'est une catégorie de risque différente.
@@ -52,6 +61,167 @@ L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du t
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 16 + CADRAGE DES CHANTIERS 17→20
+═══════════════════════════════════════════════════════════════
+### 2026-07-23 — CHANTIER 16 : rechargement silencieux + bandeau atténué (`index.html`)
+`index.html` 6541 → **6586 lignes** (+45). `node --check` OK. Branche `reload-silencieux`. **`sw.js` non touché** (on s'appuie sur network-first + purge côté page, jamais sur `SW_VERSION`).
+
+**POURQUOI — l'incident du 23/07, vérifié.** Une version périmée **chez l'émetteur** a produit de **fausses notifications** chez Benjamin. Le bandeau était visible, il n'a pas été cliqué. Ce n'est pas un problème de confort : c'est un problème de **cohérence des données**.
+
+**PARTIE B — LE BANDEAU (l.232).** Reste en place (**filet** pour ceux qui travaillent sans interruption et ne déclenchent jamais les conditions du silencieux — le supprimer aurait retiré le seul recours dans ce cas). Devient discret : `rgba(230,57,70,0.12)` + bordure `rgba(230,57,70,0.3)` + texte `#E63946`, au lieu du rouge plein. **Libellé « Recharger » → « Mettre à jour »** : *« Recharger » décrit l'action machine et peut se lire « je vais perdre ce que je fais » ; « Mettre à jour » décrit ce que la personne obtient.*
+
+**PARTIE A — LE RECHARGEMENT SILENCIEUX.**
+
+***LE POINT DUR, ET SA RÉSOLUTION.*** Le Pilote craignait une contradiction fatale : le déclencheur envisagé était « onglet caché », mais `checkAppVersion` est **en pause si `document.hidden`**. Détection et action ne pouvaient pas coexister.
+*Solution trouvée par Claude Code :* **détecter pendant que l'onglet est VISIBLE** (poser le flag `_nouvelleVersionDispo`), puis **AGIR au moment où l'onglet se cache** (`visibilitychange` → hidden). On n'a **jamais** besoin de détecter en caché — la détection a eu lieu avant. Le rechargement se fait pendant que l'utilisateur ne regarde pas ; au retour, l'app est fraîche. **La contradiction est résolue par la conception, pas contournée.**
+Second déclencheur : onglet resté visible mais **inactif ≥ 10 min** (via `autoRefreshTick`).
+
+***LES CINQ GARDES, TOUTES ÉVALUÉES AU MOMENT D'AGIR*** (`tenterReloadSilencieux`, l.3301) : version prête · en ligne · `!editionEnCours()` · `_ecrituresEnVol === 0` · caché **OU** inactif ≥ 10 min. **Aucune n'est lue à la détection** — entre détection et action il peut s'écouler plusieurs minutes, l'état est donc ré-évalué à l'instant d'agir.
+
+***LE GARDE-FOU CRITIQUE — LE COMPTEUR D'ÉCRITURES.*** Un compteur bloqué à > 0 désactiverait **définitivement** le rechargement, en **panne totalement silencieuse** — personne ne s'en apercevrait avant des mois.
+*Vérifié par le Pilote sur le fichier :* le décrément est dans un **`finally`** (l.599-603) qui couvre **les trois chemins** — le `return` du succès (un `return` dans un `try` n'échappe pas au `finally`), le `throw` du catch, et l'erreur réseau. Clamp `Math.max(0, …)` → jamais négatif. Incrément **hors retry** (`!_r`) → pas de double comptage sur un 429/503. **Aucune panne silencieuse possible.**
+
+***`editionEnCours()` SUFFIT — découverte utile.*** Dans cette app, **toute l'édition vit dans des overlays**. Un textarea rempli puis blur est donc **déjà couvert** (l'overlay reste ouvert, indépendamment du focus). Le seul angle mort est la **barre de recherche**, qui ne porte aucune donnée. La condition « aucun overlay ouvert » du Pilote était **redondante** avec `editionEnCours()`.
+
+**`rechargerPropre()` (l.3286)** — purge des caches `rm-*` **best-effort** puis `location.reload()`. Si la purge échoue (mode privé, pas d'API `caches`) → **on recharge quand même** (network-first garantit le JS frais ; seul le CSS reste d'un cran). **Garde hors-ligne :** si `navigator.onLine === false`, **pas de purge** (on garde le filet offline) mais reload quand même — évite le piège « purge puis reload hors-ligne = page blanche ». Le bandeau l'utilise aussi désormais.
+
+**Compteurs vérifiés par le Pilote :** `wc -l` = **6586** · `_ecrituresEnVol` = 5 · `rechargerPropre` = 3 · `_nouvelleVersionDispo` = 3 · `_derniereActivite` = 3 · `editionEnCours` = 5 · `createNotif` = 27 · `_editBrouillonId` = 7 · `relireBrouillon` = 5 · `rebuildMapClients` = 4 · `CHEF_PAR_DEFAUT` = 5 · `EQUIPE_FALLBACK` = 2 · balises `<script>` 4/4 · **`sw.js` intact**.
+
+**⚠️ POINT D'HONNÊTETÉ — UNE PRÉDICTION DU PILOTE ÉTAIT FAUSSE.** Le Pilote avait écrit dans le prompt : `location.reload` « **doit DIMINUER** ». **Faux.** Il **reste à 1** : le reload n'a pas disparu, il a été **centralisé** dans `rechargerPropre()`. Il ne *peut pas* descendre sous 1 tant qu'il faut recharger. Ce qui a changé : le bandeau ne l'inline plus. **Claude Code l'a signalé au lieu de laisser croire que la prédiction était bonne.** *Leçon : un compteur attendu par le Pilote n'est pas une vérité — c'est une hypothèse à confronter au code.*
+
+---
+
+### 2026-07-23 — CADRAGE DES CHANTIERS 17 → 20 (aucun lancé)
+
+**Contexte métier livré par David.** Les **clients ne sont pas encore dans l'app** (on teste en interne avant de les y faire entrer). Aujourd'hui le retour client arrive **par mail**, et **Louise (équipe marketing)** le recopie dans la carte. *Attention : Louise est marketing et en contact client ; **Éloise est journaliste et n'est PAS en contact direct avec les clients** — ne pas confondre.*
+
+**LE PROBLÈME :** un retour client recopié tel quel est souvent **non actionnable** — « la vidéo est trop longue » ne dit pas quoi couper. Benjamin doit pouvoir **relire, traduire et valider** avant que journalistes et monteurs y aient accès.
+
+**LE FLUX CIBLE, validé avec David :**
+1. Louise recopie le retour client dans la carte et le **valide** → il part à Benjamin.
+2. Benjamin relit **retour par retour** : soit il le laisse **tel quel** (déjà clair), soit il le marque **adapté** ou **impossible** et **écrit dessous** sa version actionnable (« couper de 2:35 à 3:00 »).
+3. Benjamin **valide une seule fois** l'ensemble → le monteur reçoit tout d'un coup.
+4. **Tant que Benjamin n'a pas validé, le monteur NE VOIT RIEN** (décision explicite de David).
+5. Quand le monteur a terminé, **c'est lui qui notifie Louise**, qui répond au client.
+
+**PRINCIPE STRUCTURANT — ON N'ÉCRASE JAMAIS LA PAROLE DU CLIENT.** Benjamin **ajoute**, il ne réécrit pas. Le retour client reste visible, la reformulation y est **attachée**. *Raison : ces retours sont déjà des retranscriptions de mails ; réécrire par-dessus mettrait deux couches d'interprétation entre le client et le monteur, et ferait perdre la trace le jour où le client conteste.* **Même principe qu'au chantier 15** (un chef ne modifie pas le texte d'un autre).
+
+**Absence de Benjamin :** rien n'est bloqué — tout le monde a accès aux cartes, et Arnaud est chef aussi.
+
+**LE DÉCOUPAGE PROPOSÉ PAR LE PILOTE (4 chantiers) :**
+- **17 — Notifications + feedback des boutons.** Trois corrections **indépendantes** : (a) Benjamin **non notifié** quand Louise commente — ressemble à un **bug simple**, pas à un manque de conception ; (b) le **contact Brand** doit être notifié quand Benjamin commente sur une carte Brand ; (c) le **bouton de validation ne change pas d'état** → on ne sait pas si l'app a pris (même après le blocage du double-clic). Proposition : trois états — « Valider mes retours » / « ⏳ Envoi en cours… » / « ✓ Retours transmis ».
+- **18 — Modifier/supprimer les commentaires généraux** par leur auteur. **Le patron existe déjà** : c'est le chantier 15 réappliqué aux commentaires de carte (auteur modifie + supprime, chef supprime seulement, contrôle fail-closed au clic).
+- **19 — Le retour attaché.** La structure de données nouvelle, **sans** encore le filtre de validation. Livrable seul et déjà utile.
+- **20 — Le filtre de validation.** Invisibilité pour le monteur jusqu'à validation, et validation groupée. **S'appuie sur le 19.**
+
+**POURQUOI 19 ET 20 SÉPARÉS alors que David demandait de regrouper :** le 19 **ajoute une donnée**, le 20 **change qui voit quoi et quand**. Si le 20 pose problème en test, le 19 reste acquis. Les fusionner ferait un chantier **deux fois plus gros** que tout ce qui a été fait jusqu'ici, sur du code que 10 personnes utilisent quotidiennement.
+
+**CE QUE LES CHANTIERS 19-20 IMPLIQUENT (à ne pas sous-estimer) :** un retour peut porter un **retour attaché** (la liste n'est plus plate) · un **deuxième étage de validation** (brouillon → transmis à Benjamin → validé → visible du monteur) · une **invisibilité conditionnelle par rôle**, qui n'existe pas aujourd'hui. Ça touche l'affichage (**deux gabarits qui ne partagent rien**, cf. chantier 15), la validation, les notifications, le comptage des retours ouverts, et probablement `review.html`.
+
+**QUESTIONS ENCORE OUVERTES (posées, sans réponse) :**
+- Sur la vue monteur : **une seule case à cocher** par retour (celle de Benjamin quand il a précisé, sinon celle du client) — à confirmer.
+- Quand Benjamin marque **« impossible »**, le retour part-il quand même au monteur ou disparaît-il de sa vue ?
+- Louise voit-elle que son retour a été **adapté**, ou seulement le résultat final ?
+
+**⚠️ RÉSERVE DU PILOTE, à garder en tête :** ces chantiers sont conçus pour un **flux client qui n'existe pas encore** (les clients ne sont pas dans l'app). Il y a un risque de bâtir une machinerie pour un usage qui **changera** quand ils y entreront vraiment. David a choisi de tout mettre en place malgré cette réserve.
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 VÉRIFICATION SERVICE WORKER (23/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-23 — VÉRIFICATION (lecture seule) : un rechargement suffit-il à obtenir la nouvelle version ?
+
+**Déclencheur.** Avant de cadrer un chantier « rechargement silencieux », le Pilote a voulu écarter un risque : **si le service worker resservait l'ancien `index.html`, le mécanisme entier serait inutile.** Vérification demandée à Claude Code, `sw.js` lu intégralement.
+
+**RÉPONSE : OUI, le rechargement suffit pour ce qui compte. L'inquiétude du Pilote était infondée.**
+
+**Stratégies de cache de `sw.js`, route par route :**
+| Route | Stratégie | Fraîcheur |
+|---|---|---|
+| `/.netlify/functions/*` | **network-only** (le SW ne l'intercepte pas) | toujours frais — `notify.js` **jamais** caché |
+| **`index.html`** | **network-first** (l.52-53, 76-89) | **frais tant qu'on est en ligne** |
+| **`/css/*.css`** | **stale-while-revalidate** (l.58-59, 91-99) | sert l'**ancien**, revalide pour le chargement **suivant** |
+| png/ico/svg/json/manifest | cache-first | ancien |
+| CDN externes | cache-first opaque | ancien |
+
+**Le point décisif :** `index.html` est **network-first**, donc un `location.reload()` — même déclenché silencieusement — **délivre à coup sûr le JS à jour, indépendamment de l'état du service worker**. Un SW périmé sert quand même un `index.html` frais (il ne tombe sur le cache que si le réseau échoue).
+→ **L'incident du 23/07 était un bug de LOGIQUE JS dans `index.html`. Un simple rechargement l'aurait évité.**
+
+**Le mélange de versions existe, mais dans un seul sens et sans gravité :** `index.html` frais **+ CSS d'un cran en retard** (à cause du stale-while-revalidate). L'inverse (HTML périmé + CSS fraîches) est **impossible**. Décalage **cosmétique**, auto-résorbé au chargement suivant.
+
+**⚠️ PIÈGE ÉVITÉ — `location.reload(true)` est DÉPRÉCIÉ ET IGNORÉ** par les navigateurs modernes. Il ne contourne pas le SW et n'a jamais contourné son cache. **Coder ça en croyant forcer aurait produit un mécanisme qui ne force rien.**
+
+**Le bouton du bandeau aujourd'hui (l.232) :** un `location.reload()` **nu** — aucun vidage de cache, aucune mise à jour SW forcée.
+**La détection (`checkAppVersion`, l.3255) est fiable :** `HEAD` sur `/index.html` avec `cache:'no-store'`, comparaison d'ETag, au plus 1 contrôle / 5 min. Le `HEAD` **contourne le SW par construction** (le SW n'intercepte que les GET). ⚠️ Mais le poll est **en pause si `document.hidden`** — sur une PWA en arrière-plan (typique iOS), même la détection s'arrête jusqu'au retour au premier plan.
+
+**Le SW se met bien à jour lui-même** (`skipWaiting` l.26 + `clients.claim` l.33). **Nuance critique :** `clients.claim` change **quel SW gère les requêtes**, **pas le JS déjà en cours d'exécution** dans la page. La page continue de tourner sur l'ancien `index.html` **jusqu'au rechargement**. **`clients.claim` ≠ recharger la page.**
+
+**DETTE CONFIRMÉE — `SW_VERSION` EST MANUELLE** (`'2026-06-04-2'`, sw.js l.3). Les noms de cache la contiennent : **la bumper purge l'ancien cache CSS**. Mais elle est **figée depuis juin malgré ~10 déploiements** — la discipline a **déjà échoué**, c'était déjà documenté. **Ne pas bâtir un mécanisme qui en dépend.**
+
+**MÉTHODE FIABLE POUR UN RECHARGEMENT PROPRE dans CETTE architecture :**
+`caches.keys()` → supprimer tous les caches `rm-*` → **puis** `location.reload()`. Après purge : `index.html` réseau (frais) et SWR trouve un RUNTIME vide → **CSS téléchargées fraîches au même rechargement**. Optionnel : `registration.update()`, mais `skipWaiting`/`clients.claim` s'en chargent déjà — **la purge de cache est la clé**.
+
+**RECOMMANDATION DU PILOTE POUR LE CHANTIER :** inclure la purge. Sans elle, on obtient un mélange de deux versions que personne n'a testé ; **et surtout la purge rend le mécanisme robuste indépendamment de `SW_VERSION`**, sur laquelle on ne peut pas compter.
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 ANALYSES DE FOND — COUCHE SERVEUR, COÛT, CACHE (22/07)
+═══════════════════════════════════════════════════════════════
+> ⚠️ **Ces analyses ont été réalisées le 22/07 mais n'avaient JAMAIS été reportées dans le CONTEXT** (omission du Pilote de l'époque). Restituées le 23/07 à la demande de David. **Ne pas les refaire.** Le trou a coûté une restitution erronée : le Pilote a présenté « l'analyse multi-utilisateur » comme restant à faire alors qu'elle était livrée.
+
+### 2026-07-22 — ANALYSE (lecture seule) : coût et alternatives de base de données
+
+**Limites Notion vérifiées (recherche web, prix 2026) :** ~**3 requêtes/seconde** par intégration · **1000 requêtes / 5 min** par workspace · et surtout **AUCUNE TRANSACTION** — donc **aucun verrou possible**. C'est cette dernière limite qui est structurante, pas les quotas.
+
+**Supabase (Postgres managé) — 25 $/mois, soit ~350 €/an** pour ce volume. Apporte de **vraies transactions**, du **temps réel natif**, et **pas de limite 3 req/s**. **MAIS** : la migration est une **refonte complète de la couche données**, et surtout on **perd Notion comme interface directe** — or **Master travaille dedans**. Ce n'est pas un détail technique : c'est un changement de mode de travail.
+
+**Firebase — DÉCONSEILLÉ.** Facturation **à l'opération** → **50-200 $/mois** pour un usage comparable, et surtout des **factures imprévisibles précisément quand l'app marche bien**. Le succès y coûte cher, de façon non budgétable.
+
+**VERDICT : Notion tient encore pour le volume actuel.** Migrer serait une refonte pour un problème **non matérialisé**. **Le vrai palier est la couche serveur, PAS la migration de base.**
+
+---
+
+### 2026-07-22 — ANALYSE (lecture seule) : mesure du gain d'un cache serveur
+
+**Chiffres tirés du code, pas estimés.** Trois timers : `autoRefreshTick` 60 s (2-3 requêtes) · `loadNotifs` 60 s (1) · `fichePollTick` 18 s (1). Tous **en pause si `document.hidden`**.
+
+**À 10 personnes : ~40-73 requêtes/min, soit 22-40 % du plafond Notion.** Pas proche de la limite en régime établi — **mais le pic de connexion du matin touche brièvement le plafond**.
+
+**La redondance est massive et mesurable :** la lecture de `DB_PROD` est **identique pour tout le monde**. Un cache serveur permettrait de **diviser par 10** cette part → **~40-45 % de requêtes évitées**, et surtout **le pic de login aplati**.
+
+**⚠️ LIMITE HONNÊTE — le gain de vitesse RESSENTIE est faible.** Le polling est silencieux : le réduire **n'accélère pas les clics**. Le gain réel porte sur **le chargement initial**, **l'ouverture de fiche**, et la **robustesse aux heures chargées**. À ne pas vendre comme une amélioration de fluidité.
+
+---
+
+### 2026-07-22 — ANALYSE (lecture seule) : ce qu'une couche serveur changerait
+
+**L'existant :** le proxy `notion.js` est un **relais PASSIF** — aucune validation. Et **84 appels Notion directs** sont éparpillés dans `index.html`.
+
+**Ce qu'une couche serveur apporterait :**
+- **Allocation des codes atomique** — le seul **corrupteur de données pivots**
+- **Cache des lectures** — un seul rentre, tout le monde est servi à la porte
+- **Logique métier centralisée** — aujourd'hui dupliquée sur les 84 sites
+- **Sécurité des écritures** — aujourd'hui **n'importe qui peut tout écrire via le proxy**
+
+**LES LIMITES QUI RESTERAIENT MALGRÉ TOUT (à ne pas oublier en décidant) :**
+- Notion **sans transactions** → garantie **probabiliste**, jamais atomique
+- **3 req/s inchangé** (token partagé) — la couche le **CONCENTRE** même
+- **Pas d'événements Notion** → le temps réel resterait conditionné à ce que **TOUTES** les écritures passent par le serveur
+- **+1 aller-retour** par écriture arbitrée
+
+**Ce n'est PAS une refonte : c'est un ajout PROGRESSIF, fonction par fonction.** Le modèle **existe déjà en production** : `auth-token-create` / `auth-token-consume`, `drive-download-review.js` (**ne fait jamais confiance au client** — re-dérive tout depuis Notion), `drive-permsweep.js` (**fail-closed**).
+
+**RECOMMANDATION DE L'ÉPOQUE (22/07) :** si **UNE** seule fonction serveur devait être écrite, c'est **`alloc-code`** — elle règle le seul corrupteur de données pivots, absorberait aussi les **numéros de version** et la **lettre Brand**, et le squelette existe déjà (`drive-download-review.js` sert de modèle).
+
+**⚠️ MISE À JOUR DU 23/07 — LA RECOMMANDATION A ÉTÉ DÉPASSÉE PAR LES FAITS.**
+Le **chantier 12** a traité le **symptôme principal côté client** : calcul du code depuis les **clients réels** (au lieu du compteur) + **relecture autoritaire** et **bump anti-collision** au submit. **Le risque de code en double est donc très réduit SANS arbitre serveur.**
+→ La question « faut-il `alloc-code` côté serveur ? » **ne se pose plus dans les mêmes termes**. **À RÉÉVALUER avant de lancer quoi que ce soit** — l'argument « c'est le seul corrupteur de données pivots » n'a plus la même force. Ce qui reste vrai : le verrou de création de versions est **par-navigateur** (voir chantier 3), et la **sécurité des écritures** via le proxy passif reste entière.
 
 
 
@@ -372,7 +542,8 @@ Après connexion, on arrivait sur le Dashboard. Décision de David : arriver sur
 
 **DÉCISION PRODUIT TRANCHÉE — « Valider avec des retours » : AVERTIR.** ✅ FAIT (chantier 7, 22/07). Le popup de validation affiche un avertissement ambre si des retours sont ouverts, sans bloquer.
 
-**PROCHAIN GROS MORCEAU — ANALYSE MULTI-UTILISATEUR (planifiée pour le 1er août, au renouvellement du budget)**
+**PROCHAIN GROS MORCEAU — DÉCISION D'ARCHITECTURE (visée pour le 1er août, au renouvellement du budget)**
+⚠️ **L'ANALYSE EST FAITE, PAS LA DÉCISION.** Les audits multi-utilisateur (17/07 et 21/07) et les trois analyses de fond du 22/07 (coût/alternatives, gain du cache, couche serveur — voir la section dédiée en haut du fichier) sont livrés. Ce qui reste est **un arbitrage**, pas un travail d'analyse. Ne pas relancer d'audit.
 David veut comprendre comment améliorer la plateforme pour l'usage multi-user (~10 personnes simultanées, cœur du produit). Objectifs : carte d'architecture + fragilités restantes + priorisation. **La vraie question à trancher** : continuer à colmater les défauts multi-user un par un, OU introduire une **couche de coordination serveur** ? Presque tous les défauts multi-user ont la même racine — *le client calcule et écrit directement dans Notion sans arbitre* (codes, versions, dernier-qui-écrit-gagne). Un arbitre serveur (généralisation d'`alloc-code`) réglerait toute la famille d'un coup. **Décision structurante → à faire avec budget confortable, pas en fin de session.** S'appuiera sur les audits déjà faits (multi-utilisateur + notifications) pour limiter le coût.
 
 **FAUSSES PISTES ÉLIMINÉES LE 21/07 (ne pas rouvrir) :**
