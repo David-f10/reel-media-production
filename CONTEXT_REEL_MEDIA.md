@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-27 (chantiers 16/17/19 mergés · 20A vérifié, à tester · 20B et 18 à suivre)
+> Dernière mise à jour : 2026-07-27 (chantiers 16/17/19 mergés · 20A et 21 vérifiés, à tester · 20B et 18 à suivre)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -52,6 +52,9 @@ Le comportement **« ordre figé pendant la lecture »** de la vue Liste triée 
 ### ✅ CHANTIER 19 — MERGÉ (24/07)
 Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
+### 🟢 CHANTIER 21 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6696 lignes**. `node --check` OK. Branche `notif-brand-depot`. **`index.html` seul.** Notifie le **contact Brand** au dépôt d'un lien de version (tous les dépôts, cartes Brand). ⚠️ **Inerte tant que le champ Contact Brand est vide** (par design) — testable seulement une fois l'équipe Brand assignée sur des cartes.
+
 ### 🟢 CHANTIER 20A — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
 `index.html` **6684 lignes**. `node --check` OK. Branche `origine-retour`. **`index.html` seul, rien à créer dans Notion.**
 
@@ -98,6 +101,28 @@ L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du t
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 21 (27/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-27 — CHANTIER 21 : notifier le contact Brand au dépôt d'un lien (`index.html`)
+`index.html` 6684 → **6696 lignes** (+12). `node --check` OK. Branche `notif-brand-depot`. `index.html` seul (`review.html` ne fait que **lire** les liens, aucun dépôt-notif là-bas).
+
+**BESOIN :** au dépôt d'un lien de version (**tous** les dépôts, V1/V2/V3) sur une carte **Brand**, notifier le **contact Brand** de la carte, en plus du chef. Même patron que le contactBrand du chantier 17 (commentaires), appliqué au dépôt.
+
+**DEUX SITES :** `updateVersionUrl` (L2722) et `onLienBlur` (L4439). Garde identique : `format==='Brand' && contactBrand && !== auteur && !== chef && !== journaliste`. `createNotif` **27 → 29**.
+
+**CONSTAT HONNÊTE DE CLAUDE CODE :** au dépôt, **seul le CHEF est notifié aujourd'hui, pas le journaliste** — contrairement à ce que suggérait le cadrage du Pilote. Le vrai garde anti-double est `!== chef` ; le `!== journaliste` est **précautionneux et inerte** (contact Brand et journaliste sont des rôles disjoints). Conservé quand même : une garde de trop protège si les rôles se chevauchaient un jour.
+
+**PREUVE ANTI-DOUBLON — simulée par le Pilote sur tous les cas :** contactBrand = chef → **sauté** · = journaliste → sauté · = auteur → sauté · **vide (cas actuel) → sauté, silencieux** · nominal Brand → 2 notifs distinctes (chef + contact Brand) · carte non-Brand → rien. **Aucun destinataire dupliqué.**
+
+**INERTE AUJOURD'HUI :** le champ Contact Brand est **vide par design** (équipe Brand pas onboardée) → la notif dégrade en silence. **Non testable en réel** tant que le champ n'est pas rempli — la vérification porte sur la logique.
+
+**⚠️ PIÈGE DE L'UPLOAD, RATTRAPÉ.** Le **premier** fichier uploadé était l'**ancien** (chantier 20A, 6684 lignes, `createNotif`=27) au lieu du 21 (6696, 29). Le Pilote l'a détecté sur ses **deux critères bloquants** (lignes ET compteur) avant toute analyse, et a demandé le re-upload. Le second était le bon. *Confirmation que la règle « deux critères bloquants vérifiés avant analyse » (établie au chantier 12) fonctionne.*
+
+**Compteurs vérifiés :** `wc -l` = 6696 · `createNotif` = 29 · `contactBrand` = 14 · `chefDest` = 11 (**ch17 intact**) · `estAdapte` = 6 et `ouvrirAdapter` = 3 (**ch19**) · `ret-origine` = 6 (**ch20A**) · `rechargerPropre` = 3 (**ch16**) · `_editBrouillonId` = 7 (**ch15**) · `CHEF_PAR_DEFAUT` = 10 · `EQUIPE_FALLBACK` = 2 · balises 4/4.
 
 
 

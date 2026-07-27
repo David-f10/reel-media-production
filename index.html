@@ -2717,6 +2717,12 @@ async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
         `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
       loadNotifs();
     }
+    // Notif au contact Brand (carte Brand uniquement ; dédup vs auteur/chef/journaliste ; silencieux si vide)
+    if(s && s.format==='Brand' && s.contactBrand && currentUser && s.contactBrand !== currentUser.nom && s.contactBrand !== s.chef && s.contactBrand !== s.journaliste) {
+      await createNotif(`v${(versionNum||'V1').replace('V','')}_deposee`, sujetId, s.code, s.titre, s.contactBrand, currentUser.nom,
+        `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
+      loadNotifs();
+    }
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
@@ -4422,9 +4428,15 @@ async function onLienBlur(input, id, v){
     if(tsEl) tsEl.textContent=new Date().toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
     // Notif au chef
     const s = sujets.find(sx=>sx.id===id);
+    const auteur = currentUser?.nom || 'Équipe';
     if(s && s.chef) {
-      const auteur = currentUser?.nom || 'Équipe';
       await createNotif(`v${v}_deposee`, id, s.code, s.titre, s.chef, auteur,
+        `${auteur} a déposé la V${v} de ${s.code} — ${s.titre}`);
+      loadNotifs();
+    }
+    // Notif au contact Brand (carte Brand uniquement ; dédup vs auteur/chef/journaliste ; silencieux si vide)
+    if(s && s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur && s.contactBrand !== s.chef && s.contactBrand !== s.journaliste) {
+      await createNotif(`v${v}_deposee`, id, s.code, s.titre, s.contactBrand, auteur,
         `${auteur} a déposé la V${v} de ${s.code} — ${s.titre}`);
       loadNotifs();
     }
