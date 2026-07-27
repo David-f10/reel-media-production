@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-24 (chantiers 16 et 17 mergés · chantier 19 vérifié, à tester · 18 et 20 cadrés, non lancés)
+> Dernière mise à jour : 2026-07-27 (chantiers 16/17/19 mergés · 20A vérifié, à tester · 20B et 18 à suivre)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -49,16 +49,46 @@ Le comportement **« ordre figé pendant la lecture »** de la vue Liste triée 
 
 **À tester sur la preview :** ① Louise dépose un retour → **Benjamin ET le journaliste** notifiés, **une seule fois chacun** ; ② valider un séquencier → **UNE seule** notification (plus de doublon `·` / `—`) ; ③ commentaire sur une carte Brand → contact Brand notifié (inerte tant que le champ est vide) ; ④ cliquer « Valider mes retours » → le bouton passe par **⏳ Envoi en cours… puis ✓ Retours transmis** ; ⑤ la liste du **lecteur** se rafraîchit après validation.
 
-### 🟢 CHANTIER 19 — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
-`index.html` **6670 lignes** (6588 → +82). `node --check` OK. Branche `retour-adapte`. **`index.html` seul.**
+### ✅ CHANTIER 19 — MERGÉ (24/07)
+Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
-**Les 3 champs Notion sont créés** sur 📋 Retours (data source `7817050d-ad51-45a3-bea2-6e6f7e2e0238`) : **`Reformulation`**, **`Reformulé par`**, **`Timecode reformulé`** — accents vérifiés côté code.
+### 🟢 CHANTIER 20A — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6684 lignes**. `node --check` OK. Branche `origine-retour`. **`index.html` seul, rien à créer dans Notion.**
 
-**À tester sur la preview :** ① un chef voit ✏️ Adapter sur un retour Ouvert dont il n'est pas l'auteur, **fiche ET lecteur** ; ② un non-chef ne le voit pas ; ③ après adaptation, le retour client apparaît en gris au-dessus et la reformulation en dessous ; ④ **une seule case à cocher** ; ⑤ le monteur peut toujours marquer Validé ou Impossible ; ⑥ le badge « N ouvert » ne change pas après une adaptation.
+**C'est le PRÉREQUIS du 20B (clarification).** Il rend fiable la distinction « retour client » vs « retour interne », qui n'existait pas.
 
-### 🔜 CHANTIERS 18 ET 20 — CADRÉS, NON LANCÉS
-- **18 — Modifier/supprimer les commentaires généraux** (patron du chantier 15 réappliqué). ⚠️ Question non tranchée : un commentaire n'a pas d'état brouillon — la fenêtre de modification est-elle illimitée ou limitée dans le temps ?
-- **20 — Le filtre de validation** (validation groupée par Benjamin + invisibilité pour le monteur jusque-là). S'appuie sur le 19.
+**À tester sur la preview :** ① un journaliste ou un monteur ne voit **aucun** choix d'origine ; ② Louise (Brand) et Benjamin (Chef) voient « 🙋 Mon retour / 👤 Retour client », défaut « Mon retour », sur fiche ET lecteur ; ③ un retour marqué « Retour client » porte bien la source Client ; ④ le chantier 19 (adapter) et le mécanisme impossible fonctionnent toujours.
+
+### 🔄 CHANTIER 20B — LA DEMANDE DE CLARIFICATION (prochain, après 20A)
+
+**⚠️ LA CONCEPTION INITIALE EST ABANDONNÉE.** Le 20 prévoyait que **le monteur ne voie RIEN tant que Benjamin n'a pas tout validé**. Benjamin a objecté, et son objection est juste : *si Louise dépose 10 retours dont 8 sont clairs, le monteur attendrait que Benjamin ait relu les 2 flous avant de pouvoir toucher aux 8 autres.* **Il ne veut pas bloquer la carte ni la mission.**
+
+**ÉTAT ACTUEL — IMPORTANT : IL N'Y A AUCUN FILTRE AUJOURD'HUI.** Le 20 n'étant pas fait, les retours de Louise partent **immédiatement** au journaliste **et** à Benjamin (chantier 17), et le monteur les voit **tous, tout de suite**. Benjamin peut adapter (chantier 19), mais son adaptation arrive **pendant** que le monteur travaille.
+→ Donc **le vrai risque actuel n'est PAS le blocage** — c'est le **travail inutile** : le monteur interprète « la vidéo est trop longue » à sa façon, coupe quelque chose, et Benjamin arrive après avec « couper de 2:35 à 3:00 ».
+
+**✅ NOUVELLE DIRECTION VALIDÉE PAR DAVID — LA DEMANDE DE CLARIFICATION.**
+**On inverse le mécanisme.** Au lieu que Benjamin relise tout par précaution, **c'est le monteur qui signale ce qu'il ne comprend pas**.
+*Fonctionnement :* sur un retour flou, le monteur clique **« Demander une clarification »** → le retour passe en attente → **Benjamin est notifié** → il attache sa reformulation **avec le mécanisme du chantier 19, qui existe déjà** → le monteur reprend.
+
+**Pourquoi c'est meilleur que le 20 initial :**
+- **Rien n'est jamais bloqué** — c'était l'objection de Benjamin. Personne n'attend.
+- Benjamin **ne relit que ce qui pose réellement problème** (2 cas au lieu de 10).
+- **C'est celui qui doit EXÉCUTER qui juge de la clarté.** Benjamin peut trouver un retour limpide alors que le monteur ne sait pas quoi en faire — et l'inverse est vrai.
+- Réutilise le chantier 19 au lieu d'ajouter une couche.
+
+**Ce que ça coûte :** un aller-retour quand ça arrive (le monteur attend Benjamin **sur ce retour précis**, mais continue sur les autres).
+
+**⚠️ RISQUE À SURVEILLER :** si les retours de Louise sont **souvent** flous, le monteur cliquera « clarification » 10 fois par carte et ça deviendra pénible pour Benjamin. Dans ce cas, **la vraie correction est en amont** : mieux formuler au moment de la recopie. **C'est un signal à surveiller, pas à coder.**
+
+**QUESTIONS OUVERTES POUR LUNDI :**
+1. Ce mécanisme **remplace-t-il** le chantier 20, ou faut-il garder les deux ?
+2. Est-ce que cela correspond à ce que **Benjamin** imagine ? (à lui confirmer — c'est lui qui vivra avec)
+3. Combien de temps s'écoule entre le dépôt de Louise et la relecture de Benjamin ? *Si c'est quelques minutes, le monteur n'a pas le temps de partir dans la mauvaise direction et le besoin est faible ; si c'est le lendemain, le mécanisme devient utile.*
+4. Un retour en attente de clarification est-il **cochable** entre-temps, ou gelé ?
+
+### 🔜 CHANTIER 18 — CADRÉ, NON LANCÉ
+**Modifier/supprimer les commentaires généraux** par leur auteur (patron du chantier 15 réappliqué : auteur modifie + supprime, chef supprime seulement, contrôle fail-closed au clic).
+⚠️ **Question tranchée par le Pilote, à confirmer par David :** un commentaire n'a **pas** d'état brouillon (il est publié immédiatement), donc la fenêtre de modification n'est pas naturelle. **Reco : illimitée** — un commentaire n'est pas un acte formel comme un retour transmis, personne ne dépend d'un commentaire figé pour travailler, et limiter ajouterait une règle à expliquer sans bénéfice.
 
 ### 🔜 PROCHAIN CHANTIER CADRÉ — RECHARGEMENT SILENCIEUX (ex- « bandeau de version »)
 L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du temps perdu à croire qu'un bug corrigé était revenu, et un chantier (13, point ④) devenu invérifiable.
@@ -68,6 +98,36 @@ L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du t
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 20A (27/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-27 — CHANTIER 20A : marquer l'origine d'un retour (client vs interne) (`index.html`)
+`index.html` 6670 → **6684 lignes** (+14). `node --check` OK. Branche `origine-retour`. `index.html` seul, **rien créé dans Notion** (`Source`/`Client` existaient déjà).
+
+**LE PROBLÈME — DÉCOUVERT PAR MASTER, PAS SUPPOSÉ.** On voulait restreindre une future « demande de clarification » aux **retours clients**. La garde évidente `Source === 'Client'` semblait suffire. **Master a vérifié les données réelles :** sur 140 retours, **117 ont une Source VIDE et 23 sont `Client`** — et les 23 viennent **tous de `review.html`** (surtout des tests). Les retours que **Louise recopie DANS L'APP sont VIDES**, indistinguables des retours internes. Cause : `submitRetour` / `submitPlayerRetour` **n'écrivaient jamais `Source`**. La garde aurait raté exactement les retours visés — **bug structurel, pas de libellé.**
+
+**FAUSSES PISTES ÉCARTÉES.** Faire passer Louise par `review.html` (qui écrit `Source='Client'`) a été envisagé **puis rejeté par David** : Benjamin adapte les retours **depuis l'app** (chantier 19), or un retour vivant dans `review.html` lui serait inaccessible → ça aurait **séparé le retour de l'outil qui le traite**.
+
+**LA SOLUTION VALIDÉE — LE MARQUAGE À LA SAISIE.** La personne qui saisit **dit** si c'est un retour client ou le sien — le code ne peut pas le deviner, elle seule le sait. Un select « Origine du retour » (🙋 Mon retour / 👤 Retour client) dans les deux formulaires (fiche + lecteur).
+
+**QUI VOIT LE CHOIX : `role === 'Brand' || role === 'Chef'`.**
+- **Brand** (Louise, Guillaume, Victor, Arnaud C) recopie les mails clients.
+- **Chef** ajouté après précision de David : *un chef (Benjamin) reçoit aussi des mails clients, mais quand il les saisit il écrit directement SA version corrigée* — pas la recopie brute. **Le texte brut reste dans le mail, sa version corrigée suffit dans l'app.** Conséquence logique : un retour client saisi par un chef est **déjà clair** → n'aura pas besoin du chantier 19 ni d'une clarification. Le 19 et le 20B serviront surtout aux retours que **Louise** recopie fidèlement.
+- **Journalistes et monteurs : ne voient rien** → leurs retours restent internes.
+*Identification vérifiée sur données live par Master :* `role` vient de Notion (select Role), et il **distingue proprement « Arnaud » (Chef) de « Arnaud C » (Brand)** — la paire préfixe qui inquiétait à l'audit du 23/07.
+
+**LE DÉFAUT EST « INTERNE » — garde-fou central.** *Un retour marqué client à tort déclencherait des clarifications inutiles vers Benjamin ; l'inverse est bénin.* Donc le défaut sûr est « Mon retour » (Source non écrit).
+
+**LIVRÉ.** Select masqué par défaut, réaffiché si Brand||Chef (`openAjoutRetour` l.1679 fiche, rendu conditionnel l.4047 lecteur). **Masqué en édition de brouillon** (un brouillon interne reste interne, origine non modifiable après coup). Écriture conditionnelle : `...(select?.value === 'Client' ? {'Source':{select:{name:'Client'}}} : {})` à la création (l.1721 fiche, l.1764 lecteur), **identique à `review.html` l.764** → les deux origines convergent sur `Source='Client'`.
+
+**Compteurs vérifiés :** `wc -l` = 6684 · `'Client'` = 7 (+2 écritures) · `ret-origine` = 6 · `player-origine` = 2 · garde Brand||Chef = 2 · `estAdapte` = 6 (**ch19 intact**) · `ouvrirAdapter` = 3 · `chefDest` = 11 (**ch17 intact**) · `createNotif` = 27 · `_editBrouillonId` = 7 (**ch15**) · `rechargerPropre` = 3 (**ch16**) · `CHEF_PAR_DEFAUT` = 10 · `EQUIPE_FALLBACK` = 2 · balises 4/4.
+
+**PREUVE A — LE DÉFAUT NE PRODUIT JAMAIS « CLIENT » PAR ACCIDENT, simulée par le Pilote.** Gardes extraites et exécutées : journaliste (select absent → `undefined`) → **interne** · Louise sans toucher (vide) → **interne** · Louise choisit client → **Client** · Benjamin choisit client → **Client** · valeur inattendue → **interne**. `Source='Client'` n'est écrit **que** sur choix explicite.
+
+**PREUVE V1/V2/V3 (constats de Claude Code, pour préparer le 20B) :** un retour `Source='Client'` — qu'il vienne de `review.html` **ou** de l'app — s'affiche dans la fiche ET le lecteur (filtre par `Sujet ID` seul, badge « Client »), reçoit le bouton « Adapter » pour un chef, et sera couvert par la clarification. **Les deux origines convergent** → le 20B n'aura qu'une seule valeur à tester.
 
 
 
