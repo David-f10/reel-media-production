@@ -397,7 +397,7 @@
       <div id="adapter-client" style="font-size:12px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:4px 10px;margin-bottom:14px;line-height:1.5"></div>
       <div class="field" style="max-width:130px">
         <div class="field-label">Timecode</div>
-        <input type="text" id="adapter-tc" placeholder="ex: 1:24" style="font-family:var(--mono)">
+        <input type="text" id="adapter-tc" placeholder="ex: 1:24" style="font-family:var(--mono)" onblur="formatTc(this)" onkeydown="tcKeydown(event,'adapter-reformulation')">
       </div>
       <div class="field">
         <div class="field-label">Ta reformulation *</div>
@@ -438,7 +438,7 @@
         </div>
         <div class="field">
           <div class="field-label">Timecode</div>
-          <input type="text" id="ret-timecode" placeholder="ex: 1:24" style="font-family:var(--mono)">
+          <input type="text" id="ret-timecode" placeholder="ex: 1:24" style="font-family:var(--mono)" onblur="formatTc(this)" onkeydown="tcKeydown(event,'ret-desc')">
         </div>
       </div>
       <div class="fg">
@@ -4134,9 +4134,9 @@ function openPlayer(url, label, sujetId, version) {
           <div style="font-size:10px;font-weight:600;color:#9898B0;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Laisser un retour</div>
           ${(currentUser?.role==='Brand'||currentUser?.role==='Chef') ? `<select id="player-origine" style="width:100%;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;margin-bottom:8px"><option value="">🙋 Mon retour</option><option value="Client">👤 Retour client</option></select>` : ''}
           <div style="display:flex;gap:8px;margin-bottom:8px">
-            <input type="text" id="player-tc" placeholder="1:24" onblur="formatPlayerTc(this)"
+            <input type="text" id="player-tc" placeholder="1:24"
               style="width:70px;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;font-family:monospace;transition:border-color 0.15s"
-              onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A';formatPlayerTc(this)">
+              onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A';formatTc(this)" onkeydown="tcKeydown(event,'player-desc')">
             <select id="player-cat"
               style="flex:1;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer">
               <option value="">— Catégorie —</option>
@@ -4171,13 +4171,23 @@ function openPlayer(url, label, sujetId, version) {
   loadPlayerRetours(sujetId, version);
 }
 
-function formatPlayerTc(input) {
-  let d = input.value.replace(/[^0-9]/g,'');
-  if(!d){input.value='';return;}
-  if(d.length<=2) input.value=`0:${d.padStart(2,'0')}`;
-  else if(d.length===3) input.value=`${d[0]}:${d.slice(1)}`;
-  else if(d.length===4) input.value=`${parseInt(d.slice(0,2))}:${d.slice(2)}`;
-  else input.value=`${d[0]}:${d.slice(1,3)}:${d.slice(3,5)}`;
+// Conversion timecode : chiffres seuls → M:SS (les 2 derniers = secondes, le reste = minutes).
+// "012"→"0:12", "5"→"0:05", "1025"→"10:25", "12345"→"123:45". UNE seule fonction pour les 5 champs.
+function formatTc(input) {
+  const d = String(input.value||'').replace(/[^0-9]/g,'');
+  if(!d){ input.value=''; return; }
+  const sec = d.slice(-2).padStart(2,'0');
+  const min = d.length>2 ? String(parseInt(d.slice(0,-2),10)) : '0';
+  input.value = min+':'+sec;
+}
+// ESPACE dans un champ timecode : convertit + saute à la description. L'espace est avalée.
+// Timecode vide + espace → saute quand même (timecode optionnel). Pas de touche Entrée ici (autre chantier).
+function tcKeydown(event, nextId) {
+  if(event.key === ' ') {
+    event.preventDefault();
+    formatTc(event.target);
+    document.getElementById(nextId)?.focus();
+  }
 }
 
 async function loadPlayerRetours(sujetId, version) {
@@ -4260,7 +4270,7 @@ async function loadPlayerRetours(sujetId, version) {
             <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
             ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}','${version}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:-apple-system,sans-serif">❓ Clarifier</button>`:''}
             ${(r.id===_inlineAdaptId && peutAdapter)?`<div style="margin-top:8px;padding:10px;background:rgba(55,138,221,0.06);border:1px solid rgba(55,138,221,0.25);border-radius:6px">
-              <input id="player-adapt-tc" value="${(tcReformule||tc).replace(/"/g,'&quot;')}" placeholder="Timecode (optionnel)" style="width:100%;box-sizing:border-box;background:#0E0E14;border:1px solid #2A2A3A;color:#C8C8D8;font-size:11px;padding:5px 8px;border-radius:4px;font-family:monospace;margin-bottom:6px">
+              <input id="player-adapt-tc" value="${(tcReformule||tc).replace(/"/g,'&quot;')}" placeholder="Timecode (optionnel)" onblur="formatTc(this)" onkeydown="tcKeydown(event,'player-adapt-desc')" style="width:100%;box-sizing:border-box;background:#0E0E14;border:1px solid #2A2A3A;color:#C8C8D8;font-size:11px;padding:5px 8px;border-radius:4px;font-family:monospace;margin-bottom:6px">
               <textarea id="player-adapt-desc" placeholder="Reformule le retour pour le monteur…" style="width:100%;box-sizing:border-box;background:#0E0E14;border:1px solid #2A2A3A;color:#C8C8D8;font-size:12px;padding:6px 8px;border-radius:4px;font-family:var(--font);resize:vertical;min-height:56px;line-height:1.5">${reformulation.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
               <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">
                 <button onclick="_inlineAdaptId=null;loadPlayerRetours('${sujetId}','${version}')" style="font-size:11px;color:#7A7A90;background:transparent;border:1px solid #2A2A3A;padding:4px 12px;border-radius:4px;cursor:pointer;font-family:var(--font)">Annuler</button>
