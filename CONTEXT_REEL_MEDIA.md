@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-28 (chantiers 16→21 traités · 20B + correctif UI vérifiés, à tester · reste le 18)
+> Dernière mise à jour : 2026-07-28 (chantiers 16→21 traités · 20B + 2 correctifs UI vérifiés, à tester · reste le 18)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -116,6 +116,13 @@ Deux déclencheurs, **une seule action** (adapter). Répondre à une clarificati
 - ❌ **« En attente de Benjamin » CODÉ EN DUR** (l.2412/4235) → **chef dynamique** `chefSujet = sujet.chef || CHEF_PAR_DEFAUT`. Sur une carte d'Arnaud : « En attente d'Arnaud ». *C'était le même défaut que tout `CHEF_PAR_DEFAUT` codé en dur : un nom figé là où il faut la valeur du sujet. Pertinent car Arnaud est chef sur 10 sujets, Chloé bientôt.*
 - ✅ **Bonus non demandé — élision française** : le code teste la 1ʳᵉ lettre du chef → « **d'**Arnaud » (voyelle/H) vs « **de** Benjamin » (consonne). Le texte sonne juste.
 - Logique du 20B **strictement intacte** après correctif : `demanderClarification`=3, `relireRetour`=3, `createNotif`=31, `verifierCompletionVersion`=5, `estAdapte`=10 — tous inchangés. `wc -l` = 6764. `En attente de Benjamin` = **0**.
+
+**CORRECTIF UI #2 (28/07, même branche) — ADAPTATION EN LIGNE DANS LE LECTEUR.**
+*Problème constaté par David sur la preview :* dans le **lecteur**, le modal `ov-adapter` s'ouvrait **derrière** la vidéo → inutilisable. **Même bug que le chantier 15** (édition de brouillon derrière le lecteur). La **carte (fiche) marchait bien** — non touchée.
+*Solution retenue — INLINE, pas z-index :* plutôt que faire remonter le modal, l'adaptation depuis le lecteur se fait dans un **mini-formulaire déplié dans le panneau des retours** (patron du formulaire « Laisser un retour » déjà présent). **La vidéo reste visible** pendant que Benjamin reformule — il décrit une coupe qu'il voit à l'écran, il a besoin de l'image. *Choix de David sur maquette, contre la simple correction z-index.*
+*⚠️ POINT CLÉ VÉRIFIÉ — logique NON dupliquée :* le modal (fiche, `confirmerAdapter`) et l'inline (lecteur, `attacherInline`) appellent **tous deux `attacherAdaptation`**, fonction **définie une seule fois** (l.2246, commentaire explicite « logique PARTAGÉE »). Le jour où on modifie l'adaptation, les deux chemins bougent ensemble — **pas de divergence possible**. C'était le risque n°1 de ce correctif.
+*Fail-closed préservé dans l'inline :* sur timeout/erreur, le mini-form **reste ouvert avec le texte saisi**, l'utilisateur réessaie sans rien perdre. Un seul form ouvert à la fois (`_inlineAdaptId`). La carte (fiche) garde son modal, intact.
+`wc -l` = 6791. Compteurs de logique inchangés (`demanderClarification`=3, `relireRetour`=3, `createNotif`=31, `verifierCompletionVersion`=5, `estAdapte`=10). `node --check` OK.
 
 **PREUVES VÉRIFIÉES PAR LE PILOTE :**
 - **Fail-closed** : `demanderClarification` (l.2304-2318) relit l'état frais et refuse sur source≠Client, `estAdapte`, statut≠Ouvert. Les deux portes ne se croisent pas.

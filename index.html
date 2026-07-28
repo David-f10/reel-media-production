@@ -2243,18 +2243,16 @@ async function ouvrirAdapter(retourId, sujetId, version) {
   } catch(e) { document.getElementById('adapter-client').textContent = '(impossible de charger le retour)'; }
 }
 
-async function confirmerAdapter() {
-  if(!currentUser) { toast('Non connecté','err'); return; }
-  const reformulation = document.getElementById('adapter-reformulation').value.trim();
-  if(!reformulation) { toast('Écris une reformulation','err'); return; }
-  const tc = document.getElementById('adapter-tc').value.trim();
-  const rid = _adapterRetourId, sid = _adapterSujetId, ver = _adapterVersion;
+// Logique d'écriture d'adaptation PARTAGÉE par le modal (fiche) ET le mini-formulaire inline (lecteur).
+// Fail-closed (relecture fraîche), dégel Statut→Ouvert, Description JAMAIS touchée, 1 notif si c'était
+// une Clarification. Ne rafraîchit PAS l'UI : les appelants s'en chargent (contexte modal vs inline différent).
+async function attacherAdaptation(rid, sid, ver, reformulation, tc){
+  if(!currentUser){ toast('Non connecté','err'); return {ok:false}; }
+  if(!reformulation){ toast('Écris une reformulation','err'); return {ok:false}; }
   try {
-    // Fail-closed : relire l'état FRAIS avant d'écrire. Si le monteur a validé/marqué impossible
-    // entre-temps, on REFUSE (jamais de « réveil » d'un retour déjà traité).
     const chk = await relireRetour(rid);
-    if(!chk){ toast('Impossible de vérifier l\'état du retour — réessaie','err'); return; }
-    if(chk.statut==='Corrigé' || chk.statut==='⛔ Impossible'){ toast('Ce retour a été traité entre-temps — adaptation annulée','err'); closeOv('ov-adapter'); loadRetours(sid); if(ver) loadPlayerRetours(sid,ver); return; }
+    if(!chk){ toast('Impossible de vérifier l\'état du retour — réessaie','err'); return {ok:false}; }
+    if(chk.statut==='Corrigé' || chk.statut==='⛔ Impossible'){ toast('Ce retour a été traité entre-temps — adaptation annulée','err'); return {ok:false, obsolete:true}; }
     const etaitClarif = chk.statut==='Clarification';
     // Les 3 champs d'adaptation + dégel (Statut→Ouvert) en UN seul PATCH. Description (client) jamais touchée.
     await api('/pages/'+rid,'PATCH',{properties:{
@@ -2263,11 +2261,7 @@ async function confirmerAdapter() {
       'Timecode reformulé':{rich_text:[{text:{content:tc}}]},
       'Statut':{select:{name:'Ouvert'}}
     }});
-    closeOv('ov-adapter');
     toast(etaitClarif ? 'Clarification envoyée — retour dégelé' : 'Reformulation attachée','ok');
-    loadRetours(sid); if(ver) loadPlayerRetours(sid, ver);
-    // Réponse à une clarification → UNE seule notif : au monteur de la version (le demandeur en attente).
-    // Le dégel (Statut→Ouvert) est un effet du MÊME PATCH, silencieux — pas de notif « clarification levée » séparée.
     if(etaitClarif){
       const s = sujets.find(x=>x.id===sid);
       const n = (chk.version||'V1').replace('V','');
@@ -2276,7 +2270,31 @@ async function confirmerAdapter() {
         await createNotif('clarification', sid, s?.code||'', s?.titre||'', monteurDest, currentUser.nom, `${currentUser.nom} a clarifié le retour que tu attendais sur ${s?.code||''}`);
       loadNotifs();
     }
-  } catch(e) { toast('Erreur : '+e.message,'err'); }
+    return {ok:true};
+  } catch(e){ toast('Erreur : '+e.message,'err'); return {ok:false}; }
+}
+
+// Modal (fiche) : lit ses champs, DÉLÈGUE l'écriture à attacherAdaptation, referme + rafraîchit.
+async function confirmerAdapter() {
+  const reformulation = document.getElementById('adapter-reformulation').value.trim();
+  const tc = document.getElementById('adapter-tc').value.trim();
+  const sid = _adapterSujetId, ver = _adapterVersion;
+  const res = await attacherAdaptation(_adapterRetourId, sid, ver, reformulation, tc);
+  if(res.ok || res.obsolete){ closeOv('ov-adapter'); loadRetours(sid); if(ver) loadPlayerRetours(sid, ver); }
+}
+
+// Adaptation INLINE dans le lecteur (la vidéo reste visible). Un seul mini-form ouvert à la fois.
+let _inlineAdaptId = null;
+function ouvrirAdapterInline(retourId, sujetId, version){
+  _inlineAdaptId = retourId;                // clic sur un 2e retour → le 1er mini-form se referme (re-render)
+  loadPlayerRetours(sujetId, version);      // re-render : le mini-form se déplie sous CE retour
+}
+async function attacherInline(rid, sid, ver){
+  const reformulation = (document.getElementById('player-adapt-desc')?.value || '').trim();
+  const tc = (document.getElementById('player-adapt-tc')?.value || '').trim();
+  const res = await attacherAdaptation(rid, sid, ver, reformulation, tc); // MÊME logique que le modal
+  if(res.ok || res.obsolete){ _inlineAdaptId = null; loadRetours(sid); loadPlayerRetours(sid, ver); }
+  // Sur timeout/erreur (fail-closed) : on NE re-render PAS → le mini-form et le texte saisi restent, l'utilisateur réessaie.
 }
 
 // ─── DEMANDE DE CLARIFICATION (monteur) ───
@@ -4054,6 +4072,7 @@ async function openPlayerInBrowser(url, label, sujetId, version) {
 }
 
 function openPlayer(url, label, sujetId, version) {
+  _inlineAdaptId = null;   // aucun mini-form d'adaptation déplié à l'ouverture du lecteur
   const existing = document.getElementById('video-player-modal');
   if(existing) existing.remove();
 
@@ -4240,9 +4259,17 @@ async function loadPlayerRetours(sujetId, version) {
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||''}</div>`:''}
             <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
             ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}','${version}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:-apple-system,sans-serif">❓ Clarifier</button>`:''}
+            ${(r.id===_inlineAdaptId && peutAdapter)?`<div style="margin-top:8px;padding:10px;background:rgba(55,138,221,0.06);border:1px solid rgba(55,138,221,0.25);border-radius:6px">
+              <input id="player-adapt-tc" value="${(tcReformule||tc).replace(/"/g,'&quot;')}" placeholder="Timecode (optionnel)" style="width:100%;box-sizing:border-box;background:#0E0E14;border:1px solid #2A2A3A;color:#C8C8D8;font-size:11px;padding:5px 8px;border-radius:4px;font-family:monospace;margin-bottom:6px">
+              <textarea id="player-adapt-desc" placeholder="Reformule le retour pour le monteur…" style="width:100%;box-sizing:border-box;background:#0E0E14;border:1px solid #2A2A3A;color:#C8C8D8;font-size:12px;padding:6px 8px;border-radius:4px;font-family:var(--font);resize:vertical;min-height:56px;line-height:1.5">${reformulation.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
+              <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">
+                <button onclick="_inlineAdaptId=null;loadPlayerRetours('${sujetId}','${version}')" style="font-size:11px;color:#7A7A90;background:transparent;border:1px solid #2A2A3A;padding:4px 12px;border-radius:4px;cursor:pointer;font-family:var(--font)">Annuler</button>
+                <button onclick="attacherInline('${r.id}','${sujetId}','${version}')" style="font-size:11px;color:#fff;background:#378ADD;border:none;padding:4px 14px;border-radius:4px;cursor:pointer;font-family:var(--font);font-weight:600">Attacher</button>
+              </div>
+            </div>`:''}
           </div>
-          ${brouillon?brouillonActions:clarification?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}','${version}')" title="Répondre (adapter la clarification)" style="width:18px;height:18px;border-radius:50%;border:2px solid #378ADD;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.background='rgba(55,138,221,0.15)'" onmouseout="this.style.background='transparent'">✏️</div>`:`<span style="font-size:9px;color:#378ADD;white-space:nowrap;text-align:center">⏳ En<br>attente</span>`}</div>`:!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
-            ${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}','${version}')" title="${estAdapte?'Modifier la reformulation':'Adapter (reformuler pour le monteur)'}" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#378ADD'" onmouseout="this.style.borderColor='#2A2A3A'">✏️</div>`:''}
+          ${brouillon?brouillonActions:clarification?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${peutAdapter?`<div onclick="ouvrirAdapterInline('${r.id}','${sujetId}','${version}')" title="Répondre (adapter la clarification)" style="width:18px;height:18px;border-radius:50%;border:2px solid #378ADD;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.background='rgba(55,138,221,0.15)'" onmouseout="this.style.background='transparent'">✏️</div>`:`<span style="font-size:9px;color:#378ADD;white-space:nowrap;text-align:center">⏳ En<br>attente</span>`}</div>`:!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+            ${peutAdapter?`<div onclick="ouvrirAdapterInline('${r.id}','${sujetId}','${version}')" title="${estAdapte?'Modifier la reformulation':'Adapter (reformuler pour le monteur)'}" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#378ADD'" onmouseout="this.style.borderColor='#2A2A3A'">✏️</div>`:''}
             <div onclick="toggleRetourPlayer('${r.id}','${sujetId}','${version}')" title="Marquer corrigé"
               style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all 0.15s;color:#1D9E75"
               onmouseover="this.style.borderColor='#1D9E75';this.style.background='rgba(29,158,117,0.1)'"
