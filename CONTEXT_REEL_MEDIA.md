@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-28 (chantiers 16→21 traités · 20B + 2 correctifs UI vérifiés, à tester · reste le 18)
+> Dernière mise à jour : 2026-07-28 (chantiers 16→21 mergés · 22 vérifié à tester · 23→26 + dashboard cadrés · reste le 18)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -69,16 +69,90 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔜 CHANTIER 18 — CADRÉ, NON LANCÉ
 **Modifier/supprimer les commentaires généraux** par leur auteur (patron du chantier 15 réappliqué : auteur modifie + supprime, chef supprime seulement, contrôle fail-closed au clic).
-⚠️ **Question tranchée par le Pilote, à confirmer par David :** un commentaire n'a **pas** d'état brouillon (il est publié immédiatement), donc la fenêtre de modification n'est pas naturelle. **Reco : illimitée** — un commentaire n'est pas un acte formel comme un retour transmis, personne ne dépend d'un commentaire figé pour travailler, et limiter ajouterait une règle à expliquer sans bénéfice.
+✅ **Fenêtre de modification ILLIMITÉE — validé par David le 28/07.** Un commentaire n'est pas un acte formel dont dépend le travail de quelqu'un ; limiter dans le temps ajouterait une règle à expliquer sans bénéfice.
 
-### 🔜 PROCHAIN CHANTIER CADRÉ — RECHARGEMENT SILENCIEUX (ex- « bandeau de version »)
-L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du temps perdu à croire qu'un bug corrigé était revenu, et un chantier (13, point ④) devenu invérifiable.
+### 🗺️ FEUILLE DE ROUTE — SÉRIE TIMECODE + NOTIFICATIONS → DASHBOARD (cadrée le 28/07)
 
-**L'argument de fond :** un bandeau passif suffit pour une amélioration de confort. Il ne suffit **pas** quand un chantier change ce que le code **ÉCRIT** dans Notion (notifications, codes, statuts). Dans ce cas, un utilisateur sur une version périmée ne rate pas une amélioration — il **produit des données incohérentes pour toute l'équipe**. C'est une catégorie de risque différente.
-⚠️ **Le CONTEXT dit par ailleurs de NE PAS désactiver ce bandeau** (sécurité multi-user). Le chantier consisterait à le **renforcer**, pas à le supprimer. **Décision non prise — David arbitre.**
+> Issue d'un audit global (lecture seule) de Claude Code le 28/07 sur 3 zones : notifications, versions, timecode. Aucun de ces chantiers n'est lancé. **Ordre recommandé par le Pilote, validé par David.** La vision « dashboard par action » (ci-dessous) est la **destination** vers laquelle ces chantiers convergent — les faire d'abord rend le dashboard beaucoup plus simple à construire.
+
+**CE QUE L'AUDIT A ÉTABLI (état des lieux, pas des suppositions) :**
+- **Notifs — le clic** ouvre déjà la carte (`notifOpenSujet`), mais **TOUTES ouvrent la même chose** — le type de notif n'est pas exploité pour aller à l'endroit précis.
+- **Notifs — traçabilité : DEUX plafonds.** L'API remonte **100** notifs max, l'affichage en montre **50**. Au-delà = **perdu** (pas caché). C'est la plainte de Benjamin (beaucoup de retours → perd les anciennes).
+- **Notifs — champ `Lu`** existe et **fonctionne dans les DEUX sens** → « marquer non-lu » est trivial.
+- **Versions — le panneau** montre DÉJÀ les retours des autres versions (le « AUTRE VERSION » visible dans l'UI). Le manque est **dans le LECTEUR** : on ne peut pas rebasculer sur la vidéo d'une version précédente.
+- **Timecode — la conversion `012 → 0:12` N'EXISTE NULLE PART.** **7 champs** timecode répartis sur `index.html` ET `review.html`, chacun son code. ⚠️ Les timecodes sont stockés en **texte libre**, pas en secondes → la plage `1:25 → 1:35` sera deux textes affichés, pas un calcul de durée.
+
+**✅ CHANTIER 22 — SAISIE TIMECODE UNIFIÉE — VÉRIFIÉ PAR LE PILOTE, À TESTER (voir historique 28/07). Volet PLAGE non fait (chantier séparé).**
+~~**CHANTIER 22 — SAISIE TIMECODE UNIFIÉE (le plus urgent, plainte concrète de Benjamin).~~**
+- Conversion `chiffres → M:SS` sur les **7 champs** (`012`→0:12, `1025`→10:25, `5`→0:05). **Une seule fonction** réutilisée partout (pas 7 copies).
+- Navigation clavier : **ESPACE** = convertir + sauter au champ suivant. **ENTRÉE** = convertir + ouvrir le champ « fin » (plage). ⚠️ **Entrée ne doit PAS envoyer le formulaire.**
+- Touche `index.html` + `review.html` (2 fichiers, 2 pushes).
+- **Mode « proposition d'abord »** : Claude Code recense les 7 champs, on vérifie que la liste est complète, PUIS il code. Sinon conversion à certains endroits et pas d'autres = l'incohérence qu'on veut supprimer.
+- **VOLET PLAGE (les 10% de retours sur un segment)** : champ « fin » optionnel. Affichage `1:25 → 1:35` si rempli, point sinon. **Nécessite un champ Notion « Timecode fin »** (Master, comme au ch19). *Décision : peut être un volet du 22 ou un chantier séparé — à trancher au lancement. Reco Pilote : saisie espace/Entrée d'abord, plage ensuite, pour ne pas mêler une correction urgente à un ajout qui demande Notion.*
+
+**CHANTIER 23 — MARQUER UNE NOTIF « NON-LUE ».** Trivial (le champ `Lu` marche déjà dans les 2 sens). Petit, rapide, satisfaction immédiate. Benjamin veut remettre en non-lu une notif vue mais pas encore traitée (rappel « à faire »).
+
+**CHANTIER 24 — TRAÇABILITÉ DES NOTIFS.** Relever/contourner les plafonds 100 (API) et 50 (affichage). ⚠️ **Touche la performance** (charger 500 notifs a un coût) — à cadrer avec soin (pagination ? « charger plus » ?).
+
+**CHANTIER 25 — NOTIFS QUI OUVRENT LE BON ENDROIT.** Utiliser le TYPE de chaque notif :
+- séquencier → carte sur la section séquencier
+- retour déposé → **lecteur vidéo** (là où sont les retours)
+- « tous retours traités » → carte au moment de valider (mais la personne peut vouloir la vidéo — cas le moins clair, à trancher)
+⚠️ L'audit dit que le contexte disponible est **inégal selon les types** — vérifier que chaque type a de quoi ouvrir un endroit précis.
+
+**CHANTIER 26 — REBASCULER ENTRE VERSIONS DANS LE LECTEUR.** Le seul vrai manque côté versions (le panneau montre déjà les retours des autres versions). Utile, moins urgent.
+
+**⚠️ ORDRE : 22 d'abord (vraie gêne quotidienne), puis 23 (rapide, gratifiant), puis 24/25/26 selon besoin. Aucun des 3 derniers n'est douloureux au point de passer devant.**
+
+---
+
+### 🎯 VISION STRUCTURANTE — LE DASHBOARD PAR ACTION (destination, pas prochain chantier)
+
+**L'idée de David (28/07) :** un tableau de bord **personnalisé par profil** qui, au lieu d'afficher « voici tes notifications », dit « voici ce que **TU** dois faire maintenant » : *uploader ce séquencier · valider cette version · répondre à cette clarification*, selon le **rôle** et les **missions en cours**.
+
+**Pourquoi c'est la bonne destination :** ça absorbe d'un coup la traçabilité (24), le « où aller » (25) et le lu/non-lu (23). Benjamin ne cherche plus dans 50 notifs — il voit sa liste de tâches.
+
+**Pourquoi le Pilote freine sur le TIMING (pas sur l'idée) :**
+- C'est le chantier **le plus ambitieux** envisagé. Il n'ajoute pas de l'affichage, il **agrège de l'intelligence** : lire qui est chef de quoi, quelles versions attendent validation, quels séquenciers manquent, quelles clarifications sont ouvertes, et en déduire les actions manquantes **par personne**.
+- **Ligne juste étroite :** s'il oublie une action → la personne rate quelque chose et perd confiance. S'il en montre trop → bruit. À faire **après** avoir posé les briques, pas avant.
+
+**LES CHANTIERS 22-26 SONT LES BRIQUES DU DASHBOARD.** Le dashboard aura besoin de : notifs typées vers le bon endroit (25), lu/non-lu propre (23), affichage sans plafond (24). **Les faire d'abord rend le dashboard simple ; le tenter avant, c'est bâtir sur du sable.**
+
+**MÉTHODE (comme pour l'architecture serveur) :** d'abord comprendre, puis décider. Quand les briques seront posées, on cadrera le dashboard avec une **vraie analyse** (audit des données disponibles par rôle, maquette, décision). **Ne pas lancer avant.**
+
+### 🔜 HORS SÉRIE — EN ATTENTE
+- **Chantier 18** — modifier/supprimer les commentaires généraux (patron ch15, fenêtre de modif **illimitée** validée par David le 28/07).
+- **Clarification côté VRAIS CLIENTS via `review.html`** — quand les clients entreront dans l'app. Le socle est prêt (`Source='Client'`), mais `review.html` devra permettre le DÉPÔT de retours clients, et il faudra vérifier que chef/contact Brand peuvent adapter + monteur demander clarification sur ces retours. Chantier à part, non urgent tant que Louise est le relais.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 22 (28/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-28 — CHANTIER 22 : saisie timecode unifiée (`index.html` + `review.html`)
+`index.html` 6791 → **6801** (+10). `review.html` → **924** (+11). `node --check` OK sur les deux. Branche `timecode-saisie`. **2 fichiers = 2 pushes.**
+
+**BESOIN (plainte de Benjamin) :** saisir un timecode obligeait à taper le deux-points puis TAB/clic. Il voulait taper des chiffres et enchaîner.
+
+**RÈGLE LIVRÉE :** conversion `chiffres → M:SS` (2 derniers chiffres = secondes, reste = minutes) : `012`→0:12, `5`→0:05, `1025`→10:25. **Touche ESPACE** = convertir + sauter à la description (espace avalée ; timecode vide → saute quand même car optionnel). **Pas de touche Entrée** (réservée au volet PLAGE, chantier séparé).
+
+**RECENSEMENT — 5 CHAMPS, PAS 8.** L'audit du 28/07 avait établi la liste ; le Pilote l'a **re-vérifiée indépendamment** avant de coder (un « 8 » traînait dans les échanges — c'était faux). Les 5 : `ret-timecode` (fiche), `player-tc` (lecteur), `adapter-tc` (modal), `player-adapt-tc` (inline), `r-tc` (review). *`mus-duree` (durée de musique) EXCLU — même format M:SS mais ce n'est pas un timecode de retour. La clarification n'a aucun champ timecode.*
+
+***LE PIÈGE PRINCIPAL, ÉVITÉ — LA CONVERSION DUPLIQUÉE.*** Avant : la conversion existait en **2 copies** (`formatPlayerTc` dans index, `formatTc` dans review) appliquées à **2 des 5 champs seulement** ; **absente** des 3 autres. Le risque en l'étendant était de créer une **3ᵉ variante**.
+*Vérifié par le Pilote :* les deux `formatTc` (index et review) sont désormais **strictement identiques, caractère pour caractère**, `formatPlayerTc` **supprimée** (0 résidu). Comme index et review ne partagent aucun JS, **1 copie dans review est inévitable** — mais c'est le **même code, même nom**. La touche espace passe par un handler **générique unique** `tcKeydown(event, nextId)`, pas 5 copies.
+
+**LES 5 SAUTS VÉRIFIÉS** (chaque cible existe, aucun focus dans le vide) : `ret-timecode`→`ret-desc` · `adapter-tc`→`adapter-reformulation` · `player-tc`→`player-desc` · `player-adapt-tc`→`player-adapt-desc` · `r-tc`→`r-desc`.
+
+**BUG BONUS CORRIGÉ :** `player-tc` avait un **double `onblur`** (seul le 1er comptait → bordure rouge de focus persistante). Fusionné en un seul `onblur` (reset bordure + `formatTc`).
+
+**Compteurs vérifiés :** index `wc -l`=6801, review=924 · `formatPlayerTc`=**0** (index et review) · `tcKeydown`=5 (index) / 2 (review) · `createNotif`=31 · `demanderClarification`=3 · `attacherAdaptation`=4 · `relireRetour`=3 · `estAdapte`=10 · `ret-origine`=6 · `contactBrand`=14 · `CHEF_PAR_DEFAUT`=13 · `EQUIPE_FALLBACK`=2. **Rien des ch15→21 touché.**
+
+**À TESTER :** dans un champ timecode, taper `1025` puis **espace** → devient 10:25 et le curseur saute à la description. Vérifier sur les 5 emplacements (fiche, lecteur, modal adaptation, inline lecteur, review). Et que la bordure de `player-tc` ne reste plus rouge après saisie.
+
+**RESTE À FAIRE (volet séparé) :** la **PLAGE** (touche Entrée → champ « fin », affichage `1:25 → 1:35`) nécessite un champ Notion « Timecode fin » (Master). Non fait ici — chantier distinct quand David voudra.
 
 
 
