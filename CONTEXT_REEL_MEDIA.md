@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-28 (chantiers 16→21 traités · 20B vérifié, à tester · reste le 18)
+> Dernière mise à jour : 2026-07-28 (chantiers 16→21 traités · 20B + correctif UI vérifiés, à tester · reste le 18)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -110,6 +110,12 @@ Deux déclencheurs, **une seule action** (adapter). Répondre à une clarificati
 **RETOUR DE MASTER BIEN INTÉGRÉ (la question de David).** L'option `Clarification` est écrite exactement (`{select:{name:'Clarification'}}`), et surtout le code lit **`⛔ Impossible` AVEC l'emoji** partout (l.2257, 2394, 2487, 4286…), pas `Impossible` seul — le piège signalé par le Pilote a été évité, comme les accents du ch19.
 
 **Compteurs vérifiés :** `wc -l` = 6762 · `Clarification` = 18 · `demanderClarification` = 3 · `relireRetour` = 3 · `createNotif` = **31** (29 +2 : notif au chef à la demande, notif au monteur au dégel — cycle symétrique) · `estAdapte` = 10 (ch19 étendu au dégel) · `verifierCompletionVersion` = **5 (INCHANGÉ — complétion gratuite)** · `ouvrirImpossible` = 4 (intact) · `ret-origine` = 6 (ch20A) · `contactBrand` = 14 (ch21) · `CHEF_PAR_DEFAUT` = 11 · `EQUIPE_FALLBACK` = 2 · balises 4/4.
+
+**CORRECTIF UI (28/07, même branche, avant merge) — 3 ajustements d'affichage, logique intacte :**
+- ❌ **« ? » rouge dans le groupe d'icônes** → remplacé par un **bouton texte « ❓ Clarifier »** bleu (#378ADD), placé **sous le retour**, hors du groupe d'icônes. *Raison (David) : l'équipe maîtrise déjà les 2 icônes valider/impossible ; une 3ᵉ icône encombrait, et le « ? » rouge ressemblait à une alerte. Les 2 icônes existantes NE bougent PAS.* Fiche l.2418 + lecteur l.4242, gardé par `peutDemander` (condition inchangée).
+- ❌ **« En attente de Benjamin » CODÉ EN DUR** (l.2412/4235) → **chef dynamique** `chefSujet = sujet.chef || CHEF_PAR_DEFAUT`. Sur une carte d'Arnaud : « En attente d'Arnaud ». *C'était le même défaut que tout `CHEF_PAR_DEFAUT` codé en dur : un nom figé là où il faut la valeur du sujet. Pertinent car Arnaud est chef sur 10 sujets, Chloé bientôt.*
+- ✅ **Bonus non demandé — élision française** : le code teste la 1ʳᵉ lettre du chef → « **d'**Arnaud » (voyelle/H) vs « **de** Benjamin » (consonne). Le texte sonne juste.
+- Logique du 20B **strictement intacte** après correctif : `demanderClarification`=3, `relireRetour`=3, `createNotif`=31, `verifierCompletionVersion`=5, `estAdapte`=10 — tous inchangés. `wc -l` = 6764. `En attente de Benjamin` = **0**.
 
 **PREUVES VÉRIFIÉES PAR LE PILOTE :**
 - **Fail-closed** : `demanderClarification` (l.2304-2318) relit l'état frais et refuse sur source≠Client, `estAdapte`, statut≠Ouvert. Les deux portes ne se croisent pas.
