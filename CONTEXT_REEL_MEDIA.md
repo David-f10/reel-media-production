@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-27 (chantiers 16/17/19 mergés · 20A et 21 vérifiés, à tester · 20B et 18 à suivre)
+> Dernière mise à jour : 2026-07-28 (chantiers 16→21 traités · 20B vérifié, à tester · reste le 18)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -62,32 +62,10 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 **À tester sur la preview :** ① un journaliste ou un monteur ne voit **aucun** choix d'origine ; ② Louise (Brand) et Benjamin (Chef) voient « 🙋 Mon retour / 👤 Retour client », défaut « Mon retour », sur fiche ET lecteur ; ③ un retour marqué « Retour client » porte bien la source Client ; ④ le chantier 19 (adapter) et le mécanisme impossible fonctionnent toujours.
 
-### 🔄 CHANTIER 20B — LA DEMANDE DE CLARIFICATION (prochain, après 20A)
+### 🟢 CHANTIER 20B — VÉRIFIÉ PAR LE PILOTE, À TESTER SUR LA PREVIEW
+`index.html` **6762 lignes**. `node --check` OK. Branche `clarification-retour`. **`index.html` seul.** La demande de clarification est **livrée** — voir l'entrée détaillée dans l'historique.
 
-**⚠️ LA CONCEPTION INITIALE EST ABANDONNÉE.** Le 20 prévoyait que **le monteur ne voie RIEN tant que Benjamin n'a pas tout validé**. Benjamin a objecté, et son objection est juste : *si Louise dépose 10 retours dont 8 sont clairs, le monteur attendrait que Benjamin ait relu les 2 flous avant de pouvoir toucher aux 8 autres.* **Il ne veut pas bloquer la carte ni la mission.**
-
-**ÉTAT ACTUEL — IMPORTANT : IL N'Y A AUCUN FILTRE AUJOURD'HUI.** Le 20 n'étant pas fait, les retours de Louise partent **immédiatement** au journaliste **et** à Benjamin (chantier 17), et le monteur les voit **tous, tout de suite**. Benjamin peut adapter (chantier 19), mais son adaptation arrive **pendant** que le monteur travaille.
-→ Donc **le vrai risque actuel n'est PAS le blocage** — c'est le **travail inutile** : le monteur interprète « la vidéo est trop longue » à sa façon, coupe quelque chose, et Benjamin arrive après avec « couper de 2:35 à 3:00 ».
-
-**✅ NOUVELLE DIRECTION VALIDÉE PAR DAVID — LA DEMANDE DE CLARIFICATION.**
-**On inverse le mécanisme.** Au lieu que Benjamin relise tout par précaution, **c'est le monteur qui signale ce qu'il ne comprend pas**.
-*Fonctionnement :* sur un retour flou, le monteur clique **« Demander une clarification »** → le retour passe en attente → **Benjamin est notifié** → il attache sa reformulation **avec le mécanisme du chantier 19, qui existe déjà** → le monteur reprend.
-
-**Pourquoi c'est meilleur que le 20 initial :**
-- **Rien n'est jamais bloqué** — c'était l'objection de Benjamin. Personne n'attend.
-- Benjamin **ne relit que ce qui pose réellement problème** (2 cas au lieu de 10).
-- **C'est celui qui doit EXÉCUTER qui juge de la clarté.** Benjamin peut trouver un retour limpide alors que le monteur ne sait pas quoi en faire — et l'inverse est vrai.
-- Réutilise le chantier 19 au lieu d'ajouter une couche.
-
-**Ce que ça coûte :** un aller-retour quand ça arrive (le monteur attend Benjamin **sur ce retour précis**, mais continue sur les autres).
-
-**⚠️ RISQUE À SURVEILLER :** si les retours de Louise sont **souvent** flous, le monteur cliquera « clarification » 10 fois par carte et ça deviendra pénible pour Benjamin. Dans ce cas, **la vraie correction est en amont** : mieux formuler au moment de la recopie. **C'est un signal à surveiller, pas à coder.**
-
-**QUESTIONS OUVERTES POUR LUNDI :**
-1. Ce mécanisme **remplace-t-il** le chantier 20, ou faut-il garder les deux ?
-2. Est-ce que cela correspond à ce que **Benjamin** imagine ? (à lui confirmer — c'est lui qui vivra avec)
-3. Combien de temps s'écoule entre le dépôt de Louise et la relecture de Benjamin ? *Si c'est quelques minutes, le monteur n'a pas le temps de partir dans la mauvaise direction et le besoin est faible ; si c'est le lendemain, le mécanisme devient utile.*
-4. Un retour en attente de clarification est-il **cochable** entre-temps, ou gelé ?
+**À tester sur la preview :** ① le monteur voit « Demander une clarification » **uniquement** sur un retour **client** ouvert (pas sur un interne, pas sur un déjà adapté) ; ② après la demande, le retour est **gelé** (badge « ⏳ En attente de Benjamin », plus de validé/impossible possible) et Benjamin est notifié ; ③ côté Benjamin, badge « 🙋 Clarification demandée » ; ④ Benjamin adapte → le retour **se dégèle** (repasse Ouvert), le monteur est notifié, la reformulation apparaît ; ⑤ un retour en clarification **empêche** la version d'être marquée complète ; ⑥ le monteur ne peut pas demander une clarification sur un retour que Benjamin vient d'adapter (fail-closed).
 
 ### 🔜 CHANTIER 18 — CADRÉ, NON LANCÉ
 **Modifier/supprimer les commentaires généraux** par leur auteur (patron du chantier 15 réappliqué : auteur modifie + supprime, chef supprime seulement, contrôle fail-closed au clic).
@@ -101,6 +79,44 @@ L'incident du 23/07 vient de montrer le **coût réel** du bandeau passif : du t
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 20B (28/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-28 — CHANTIER 20B : la demande de clarification (`index.html`)
+`index.html` 6696 → **6762 lignes** (+66). `node --check` OK. Branche `clarification-retour`. `index.html` seul (`review.html` **hors scope** : la clarification est un échange interne monteur↔chef, le client ne voit pas que son retour a semé le doute — même principe qu'au ch19).
+
+**LE BESOIN (issu d'un échange réel avec Benjamin).** Un retour client recopié par Louise peut être **peu clair**. Le monteur doit pouvoir **demander une clarification** à Benjamin plutôt que d'interpréter de travers. Benjamin répond en **adaptant** (chantier 19).
+⚠️ **Conception initiale ABANDONNÉE** (le monteur ne voit rien tant que Benjamin n'a pas tout validé) : Benjamin refusait de **bloquer la carte**. Retenu : le monteur travaille sur les retours clairs, et **lève la main seulement sur ceux qu'il ne comprend pas**.
+
+***LA SIMPLIFICATION CLÉ — RÉUTILISER `Statut`.*** Claude Code a proposé, plutôt qu'un champ Notion dédié, une **4ᵉ option du select `Statut`** existant : `Clarification`. Master l'a créée (IDs des 3 options d'origine **préservés** → aucun retour existant déclassé).
+*Bénéfice inattendu — la complétion devient GRATUITE :* un retour `Clarification` **n'est pas `Corrigé`**, donc `verifierCompletionVersion` le compte **déjà** comme non résolu (l.2481, filtre `['Ouvert','Clarification']`). **La fonction n'a PAS été modifiée** (reste à 5 occurrences) — le blocage de version est un effet de bord du choix de structure. Même élégance qu'au ch19.
+
+**LES DEUX PORTES VERS L'ADAPTATION, ET LEUR ANTI-CROISEMENT.**
+- Benjamin adapte **spontanément** (ch19, déjà en prod).
+- Le monteur **demande** → Benjamin adapte en réponse.
+Deux déclencheurs, **une seule action** (adapter). Répondre à une clarification **= adapter**, pas un second bouton.
+*Anti-croisement par FAIL-CLOSED* (`relireRetour`, calqué sur `relireBrouillon` du ch15) : `demanderClarification` **relit l'état frais** au clic et refuse dans 3 cas — source non-client, déjà adapté, plus `Ouvert`. Impossible d'écraser une adaptation par une demande tardive, ou l'inverse.
+
+**LE CYCLE COMPLET, LIVRÉ.**
+1. Monteur clique « Demander une clarification » (visible **si** `source==='Client' && !isChefUser && statut==='Ouvert' && !estAdapte`) → `Statut='Clarification'` → **notif au chef** (l.2316).
+2. Retour **gelé** : badge différencié — « ⏳ En attente de Benjamin » (monteur) / « 🙋 Clarification demandée » (chef), bordure bleue `#378ADD` (cohérent avec la maquette). Le monteur ne peut plus valider ni marquer impossible.
+3. Benjamin **adapte** → **UN SEUL PATCH** remplit les 3 champs d'adaptation **ET** repasse `Statut='Ouvert'` (dégel). `Description` (parole client) **jamais touchée**.
+4. **Notif au monteur** (l.2276) — **une seule**, pas de double « adaptation » + « dégel ». Point de vigilance du Pilote couvert.
+5. Version : un retour `Clarification` **bloque** la complétion.
+
+**RETOUR DE MASTER BIEN INTÉGRÉ (la question de David).** L'option `Clarification` est écrite exactement (`{select:{name:'Clarification'}}`), et surtout le code lit **`⛔ Impossible` AVEC l'emoji** partout (l.2257, 2394, 2487, 4286…), pas `Impossible` seul — le piège signalé par le Pilote a été évité, comme les accents du ch19.
+
+**Compteurs vérifiés :** `wc -l` = 6762 · `Clarification` = 18 · `demanderClarification` = 3 · `relireRetour` = 3 · `createNotif` = **31** (29 +2 : notif au chef à la demande, notif au monteur au dégel — cycle symétrique) · `estAdapte` = 10 (ch19 étendu au dégel) · `verifierCompletionVersion` = **5 (INCHANGÉ — complétion gratuite)** · `ouvrirImpossible` = 4 (intact) · `ret-origine` = 6 (ch20A) · `contactBrand` = 14 (ch21) · `CHEF_PAR_DEFAUT` = 11 · `EQUIPE_FALLBACK` = 2 · balises 4/4.
+
+**PREUVES VÉRIFIÉES PAR LE PILOTE :**
+- **Fail-closed** : `demanderClarification` (l.2304-2318) relit l'état frais et refuse sur source≠Client, `estAdapte`, statut≠Ouvert. Les deux portes ne se croisent pas.
+- **Gel** : `peutDemander` gardé, actions monteur bloquées sur un retour `Clarification` (fiche l.2402 + lecteur l.4224).
+- **Dégel en 1 PATCH** : `etaitClarif` (l.2258) → `Statut→Ouvert` + 3 champs d'adaptation ensemble (l.2264).
+- **Complétion gratuite** : filtre `['Ouvert','Clarification']` en amont, fonction inchangée.
+- **Une seule notif au dégel** : l.2276 unique sur ce chemin.
 
 
 
