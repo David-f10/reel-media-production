@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-28 (chantiers 16→21 mergés · 22 vérifié à tester · 23→26 + dashboard cadrés · reste le 18)
+> Dernière mise à jour : 2026-07-28 (chantiers 16→22 mergés · 18 vérifié à tester · double-notif lien à corriger · A/B/23-26 cadrés)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -121,11 +121,37 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 **MÉTHODE (comme pour l'architecture serveur) :** d'abord comprendre, puis décider. Quand les briques seront posées, on cadrera le dashboard avec une **vraie analyse** (audit des données disponibles par rôle, maquette, décision). **Ne pas lancer avant.**
 
 ### 🔜 HORS SÉRIE — EN ATTENTE
-- **Chantier 18** — modifier/supprimer les commentaires généraux (patron ch15, fenêtre de modif **illimitée** validée par David le 28/07).
+- ✅ **Chantier 18** — modifier/supprimer les commentaires généraux : **VÉRIFIÉ, à tester** (voir historique).
 - **Clarification côté VRAIS CLIENTS via `review.html`** — quand les clients entreront dans l'app. Le socle est prêt (`Source='Client'`), mais `review.html` devra permettre le DÉPÔT de retours clients, et il faudra vérifier que chef/contact Brand peuvent adapter + monteur demander clarification sur ces retours. Chantier à part, non urgent tant que Louise est le relais.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 18 (28/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-28 — CHANTIER 18 : modifier/supprimer les commentaires généraux (`index.html`)
+`index.html` 6801 → **6900** (+99). `node --check` OK. Branche `commentaires-editables`. Patron du **chantier 15** (brouillons éditables) réappliqué aux commentaires de carte (`loadComments` l.3702).
+
+**RÈGLES LIVRÉES (validées par David) :**
+- **Auteur** : modifie **et** supprime son commentaire.
+- **Chef** (`role === 'Chef'`) : supprime celui d'un autre, **PAS** de modification (on ne réécrit pas les mots d'autrui — principe ch15/19).
+- **Fenêtre de modification ILLIMITÉE** : aucune contrainte de temps (vérifié : 0 test temporel). Un commentaire n'est pas un acte formel dont dépend le travail de quelqu'un.
+- **Autres** : aucun bouton.
+
+**FONCTIONS** (nommées en français) : `modifierComment` (ouvre l'édition inline, auteur seul), `enregistrerComment` (PATCH), `annulerEditionComment`, `supprimerComment` (auteur ou chef), `relireComment` (fail-closed). État inline via `_editCommentId`.
+
+**FAIL-CLOSED DOUBLÉ SUR LA SUPPRESSION — mieux que demandé.** `relireComment` **avant** d'ouvrir la modale de confirmation (l.3855), **puis une SECONDE relecture** dans le `onConfirm` (l.3864). Donc si le commentaire est supprimé **pendant que la modale est ouverte**, refus propre. Claude Code a anticipé le cas entre l'ouverture de la modale et le clic « Confirmer ».
+
+**SUPPRESSION RÉCUPÉRABLE :** `archived:true` (l.3868), pas de destruction définitive → récupérable 30 j dans Notion, comme les brouillons du ch15. Le message dit « définitive » à l'utilisateur (bon niveau de prudence UX), mais c'est techniquement réversible.
+
+**Détails :** `Commentaire` est de type **TITLE** → PATCH en `{title:[{text:{content}}]}` (l.3842), respecté. **Aucune notification** ajoutée (un commentaire édité ne re-notifie personne) → `createNotif` reste à **31**. Confirmation avant suppression via `showConfirmModal`.
+
+**Compteurs vérifiés :** `wc -l`=6900 · `modifierComment`/`enregistrerComment`/`supprimerComment`/`relireComment` présents · `postComment`=3 (création **intacte**) · `loadComments`=13 · `createNotif`=**31** · `demanderClarification`=3, `tcKeydown`=5, `attacherAdaptation`=4 (**ch20B/22 intacts**) · `CHEF_PAR_DEFAUT`=13 · `EQUIPE_FALLBACK`=2 · balises 4/4.
+
+**À TESTER :** l'auteur voit ✏️+🗑 sur son commentaire, peut éditer inline et supprimer ; un chef voit 🗑 sur les commentaires des autres mais pas ✏️ ; un tiers ne voit rien ; supprimer demande confirmation.
 
 
 
