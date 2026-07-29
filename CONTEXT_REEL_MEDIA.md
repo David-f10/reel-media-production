@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-28 (chantiers 16→18 + 22 mergés · double-notif lien CORRIGÉ à tester · plage timecode prête, champ Notion créé)
+> Dernière mise à jour : 2026-07-29 (16→18/22/22B traités · plage timecode vérifiée à tester · chantier A audité, non lancé)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -126,6 +126,34 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 22B — PLAGE DE TIMECODE (29/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-29 — CHANTIER 22B : plage de timecode (début → fin) sur le lecteur (`index.html`)
+`index.html` 6909 → **6934** (+25). `node --check` OK. Branche `timecode-plage`. **`index.html` seul** (`review.html` non touché — voir plus bas). Champ Notion **« Timecode fin »** créé par Master au préalable.
+
+**BESOIN :** ~10% des retours portent sur un SEGMENT (« de 1:25 à 1:35 »), pas un instant. Benjamin veut marquer début + fin, **uniquement sur le lecteur** (là où il voit la vidéo et repère un segment).
+
+**MÉCANIQUE CLAVIER :** dans `player-tc`, **ESPACE** = convertir + sauter au commentaire (cas à 90%, pas de fin) ; **ENTRÉE** = convertir + ouvrir le champ fin + focus dedans. Dans le champ fin : **ESPACE** = convertir + sauter au commentaire.
+
+***`tcKeydown` GÉNÉRALISÉ, PAS DUPLIQUÉ.*** Un **3ᵉ paramètre optionnel `endId`** ajouté : `tcKeydown(event, nextId, endId)`. Espace = comportement ch22 inchangé. Entrée n'agit **QUE si `endId` fourni** (`event.key==='Enter' && endId`) → les 3 autres champs (`ret-timecode`, `adapter-tc`, `player-adapt-tc`), sans `endId`, gardent Entrée sans effet. **`formatTc` reste UNIQUE** (1 seule définition, vérifié) — le champ fin la réutilise. *La bataille du ch22 (une seule conversion) est préservée.*
+
+**ÉCRITURE conditionnelle** (`submitPlayerRetour` l.1769) : `...(tcFin ? {'Timecode fin':{rich_text:...}} : {})` — écrit seulement si non vide (patron identique au spread `Source` du ch20A). Reset après envoi : champ fin vidé + re-masqué.
+
+**AFFICHAGE `début → fin`** sur les 2 gabarits (fiche l.2435, lecteur l.4390), **gaté sur `tc`** : `${tc}${tcFin ? ' → '+tcFin : ''}`. **Un retour sans fin → aucune flèche, rien ne change** (les retours existants, tous sans fin, s'affichent comme avant).
+
+**`review.html` NON TOUCHÉ (vérifié par Claude Code) :** review filtre sur `Auteur === clientNom` (l.648-665). Une plage est créée par l'ÉQUIPE dans le lecteur → `Auteur` = membre d'équipe → jamais affichée côté client, qui n'a pas de champ fin. **1 fichier, 1 push.**
+
+**Détail soigné :** le champ `player-tc-fin` porte un `title` au survol (« Entrée = ajouter une fin (plage) · Espace = passer au commentaire ») — auto-documenté.
+
+**Point technique (E) :** `player-tc` est hors de tout `<form>` → Entrée n'a aucun submit natif ; `preventDefault()` ajouté par sécurité. Le textarea `player-desc` garde son propre `onkeydown` (Entrée=envoyer) — aucun conflit.
+
+**Compteurs vérifiés :** `wc -l`=6934 · `function formatTc`=**1 (UNIQUE)** · `Timecode fin`=4 (1 écriture + 2 affichages + 1 commentaire) · `tcKeydown`=6 · `player-tc-fin`=3 · `createNotif`=31 · `_lienNotifie`=6 (correctif intact) · `supprimerComment`=3 (ch18 intact) · `CHEF_PAR_DEFAUT`=13 · `EQUIPE_FALLBACK`=2 · balises 4/4.
+
+**À TESTER :** dans le lecteur, taper `125` **Entrée** → 1:25 + le champ fin apparaît ; `135` **espace** → 1:35 + curseur au commentaire ; envoyer → le retour affiche « 1:25 → 1:35 ». Et un retour sans fin (juste `125` espace) → affiche « 1:25 » comme avant.
 
 
 

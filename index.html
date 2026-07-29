@@ -1747,6 +1747,10 @@ async function submitPlayerRetour(sujetId, version) {
   const desc = document.getElementById('player-desc')?.value.trim();
   if(!desc) { toast('Ajoutez une description', 'err'); return; }
   const tc = document.getElementById('player-tc')?.value.trim() || '';
+  // Timecode fin (lecteur seul, plage optionnelle) : normalisé même si non bluré ; écrit UNIQUEMENT si non vide.
+  const finEl = document.getElementById('player-tc-fin');
+  if(finEl) formatTc(finEl);
+  const tcFin = finEl?.value.trim() || '';
   const cat = document.getElementById('player-cat')?.value || '';
   const sujet = sujets.find(s => s.id === sujetId);
   try {
@@ -1762,11 +1766,16 @@ async function submitPlayerRetour(sujetId, version) {
         'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
         'Sujet titre': {rich_text:[{text:{content:sujet?.titre||''}}]},
         'Brouillon': {checkbox: true},
+        ...(tcFin ? {'Timecode fin':{rich_text:[{text:{content:tcFin}}]}} : {}),
         ...(document.getElementById('player-origine')?.value === 'Client' ? {'Source':{select:{name:'Client'}}} : {})
       }
     });
     if(document.getElementById('player-desc')) document.getElementById('player-desc').value = '';
     if(document.getElementById('player-tc')) document.getElementById('player-tc').value = '';
+    // Reset de la plage : vider + re-masquer le champ fin et sa flèche (retour suivant = point par défaut)
+    if(finEl) { finEl.value = ''; finEl.style.display = 'none'; }
+    const arrowEl = document.getElementById('player-tc-arrow');
+    if(arrowEl) arrowEl.style.display = 'none';
     toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadPlayerRetours(sujetId, version);
     loadRetours(sujetId);
@@ -2423,7 +2432,7 @@ async function loadRetours(sujetId) {
         html += `<div class="retour-row" style="${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':clarification?'border-left:2px solid #378ADD':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
           <div style="flex:1;min-width:0${brouillon?';opacity:0.55':''}">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
-              ${tc?`<span class="retour-tc">${tc}</span>`:''}
+              ${tc?`<span class="retour-tc">${tc}${pr['Timecode fin']?.rich_text?.[0]?.plain_text?` → ${pr['Timecode fin'].rich_text[0].plain_text}`:''}</span>`:''}
               ${cat?`<span class="retour-cat">${cat}</span>`:''}
               ${source==='Client'?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(239,159,39,0.15);color:#EF9F27;border:1px solid rgba(239,159,39,0.3)">Client</span>`:''}
               ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Corrigé</span>`:''}
@@ -4240,6 +4249,10 @@ function openPlayer(url, label, sujetId, version) {
           <div style="display:flex;gap:8px;margin-bottom:8px">
             <input type="text" id="player-tc" placeholder="1:24"
               style="width:70px;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;font-family:monospace;transition:border-color 0.15s"
+              onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A';formatTc(this)" onkeydown="tcKeydown(event,'player-desc','player-tc-fin')" title="Entrée = ajouter une fin (plage) · Espace = passer au commentaire">
+            <span id="player-tc-arrow" data-tc-arrow="1" style="display:none;color:#5A5A70;font-size:12px;align-self:center">→</span>
+            <input type="text" id="player-tc-fin" placeholder="fin"
+              style="display:none;width:70px;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;font-family:monospace;transition:border-color 0.15s"
               onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A';formatTc(this)" onkeydown="tcKeydown(event,'player-desc')">
             <select id="player-cat"
               style="flex:1;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer">
@@ -4285,12 +4298,24 @@ function formatTc(input) {
   input.value = min+':'+sec;
 }
 // ESPACE dans un champ timecode : convertit + saute à la description. L'espace est avalée.
-// Timecode vide + espace → saute quand même (timecode optionnel). Pas de touche Entrée ici (autre chantier).
-function tcKeydown(event, nextId) {
+// Timecode vide + espace → saute quand même (timecode optionnel).
+// endId OPTIONNEL (lecteur seul) : ENTRÉE convertit le début, révèle le champ fin et y place le curseur
+// (sans envoyer le formulaire). Sans endId, ENTRÉE reste sans effet → comportement ch22 des 3 autres champs intact.
+function tcKeydown(event, nextId, endId) {
   if(event.key === ' ') {
     event.preventDefault();
     formatTc(event.target);
     document.getElementById(nextId)?.focus();
+  } else if(event.key === 'Enter' && endId) {
+    event.preventDefault();                 // ⚠️ n'envoie jamais le formulaire (input hors <form>, ceinture+bretelles)
+    formatTc(event.target);
+    const fin = document.getElementById(endId);
+    if(fin) {
+      fin.style.display = '';
+      const prev = fin.previousElementSibling;               // flèche optionnelle juste avant le champ fin
+      if(prev && prev.dataset && prev.dataset.tcArrow) prev.style.display = '';
+      fin.focus();
+    }
   }
 }
 
@@ -4362,7 +4387,7 @@ async function loadPlayerRetours(sujetId, version) {
           onmouseover="this.style.background='#16161F'" onmouseout="this.style.background='transparent'">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
-              ${tc?`<span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tc}</span>`:''}
+              ${tc?`<span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tc}${pr['Timecode fin']?.rich_text?.[0]?.plain_text?` → ${pr['Timecode fin'].rich_text[0].plain_text}`:''}</span>`:''}
               ${cat?`<span style="font-size:10px;color:#5A5A70;background:#1E1E2A;padding:1px 6px;border-radius:4px">${cat}</span>`:''}
               ${source==='Client'?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(239,159,39,0.15);color:#EF9F27;border:1px solid rgba(239,159,39,0.3)">Client</span>`:''}
               ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Corrigé</span>`:''}
