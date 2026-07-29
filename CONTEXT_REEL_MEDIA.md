@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-29 (16→18/22/22B traités · plage timecode vérifiée à tester · chantier A audité, non lancé)
+> Dernière mise à jour : 2026-07-29 (plage timecode + champ fin visible vérifiés à merger · chantier "séquencier→tournage" cadré · A audité)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -152,6 +152,8 @@ Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer exista
 **Point technique (E) :** `player-tc` est hors de tout `<form>` → Entrée n'a aucun submit natif ; `preventDefault()` ajouté par sécurité. Le textarea `player-desc` garde son propre `onkeydown` (Entrée=envoyer) — aucun conflit.
 
 **Compteurs vérifiés :** `wc -l`=6934 · `function formatTc`=**1 (UNIQUE)** · `Timecode fin`=4 (1 écriture + 2 affichages + 1 commentaire) · `tcKeydown`=6 · `player-tc-fin`=3 · `createNotif`=31 · `_lienNotifie`=6 (correctif intact) · `supprimerComment`=3 (ch18 intact) · `CHEF_PAR_DEFAUT`=13 · `EQUIPE_FALLBACK`=2 · balises 4/4.
+
+**AJUSTEMENT (29/07, même branche) — CHAMP FIN TOUJOURS VISIBLE.** David a préféré que le champ fin soit **visible en permanence** (placeholder « fin (option) ») plutôt que caché-révélé-sur-Entrée : *une fonctionnalité invisible n'est pas découvrable.* `display:none` retiré (l.4252). **Logique clavier INCHANGÉE (option 1) :** Espace=commentaire, Entrée=focus sur la fin (qui fait maintenant un simple `.focus()`, le champ étant déjà là). Reset après envoi : champ vidé (l.1776) **mais NON re-masqué**. `formatTc` toujours unique. `wc -l`=6926.
 
 **À TESTER :** dans le lecteur, taper `125` **Entrée** → 1:25 + le champ fin apparaît ; `135` **espace** → 1:35 + curseur au commentaire ; envoyer → le retour affiche « 1:25 → 1:35 ». Et un retour sans fin (juste `125` espace) → affiche « 1:25 » comme avant.
 
