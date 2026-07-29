@@ -146,7 +146,9 @@ Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer exista
 
 **Compteurs :** `wc -l`=7023 · `marquerNonLu`=2 · `stopPropagation` présent sur le bouton · `clickNotif`=2 (ouverture intacte) · `markAllRead`=2 · `createNotif`=31 (aucune notif créée, juste un champ modifié) · balises 4/4.
 
-**À TESTER :** ouvrir une notif (elle passe lue) → le bouton ⟲ apparaît → cliquer ⟲ → elle redevient non-lue (badge remonte) SANS rouvrir la fiche. Re-cliquer la notif la re-marque lue.
+**AJUSTEMENT UX (29/07, même branche) :** le bouton ⟲ était gris pâle quasi invisible. David a demandé (option A) un bouton **« ⟲ Non lu »** plus présent : texte+icône bleus (#378ADD), fond bleu léger, cadre, **toujours visible** (pas au survol → marche sur mobile). Le **point rouge** des non-lues est conservé (David le garde). Logique du 23 inchangée. `wc -l`=7023.
+
+**À TESTER :** ouvrir une notif (elle passe lue) → le bouton « ⟲ Non lu » (bleu) apparaît → cliquer ⟲ → elle redevient non-lue (badge remonte) SANS rouvrir la fiche. Re-cliquer la notif la re-marque lue.
 
 
 

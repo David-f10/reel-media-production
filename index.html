@@ -1589,7 +1589,7 @@ async function loadNotifs() {
           <div class="notif-msg">${msg}</div>
           <div class="notif-sub">${code}${titre?' · '+titre.substring(0,30)+(titre.length>30?'...':''):''} · ${date}</div>
         </div>
-        ${lu?`<button onclick="marquerNonLu(event,'${n.id}')" title="Marquer comme non lu" style="flex-shrink:0;align-self:center;background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;border-radius:4px" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text3)'">⟲</button>`:''}
+        ${lu?`<button onclick="marquerNonLu(event,'${n.id}')" title="Marquer comme non lu" style="flex-shrink:0;align-self:center;white-space:nowrap;background:rgba(55,138,221,0.12);border:1px solid rgba(55,138,221,0.35);color:#378ADD;cursor:pointer;font-size:11px;padding:4px 10px;line-height:1;border-radius:6px">⟲ Non lu</button>`:''}
       </div>`;
     }).join('');
   } catch(e) { console.warn('Erreur notifs:', e.message); }
