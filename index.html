@@ -4541,8 +4541,8 @@ async function autoStatut(id, field, value){
       `${currentUser.nom} a déposé le séquencier de ${s.code} — ${s.titre}`);
     loadNotifs();
   }
-  else if(field==='Séquencier validé' && value===true && cur < statutIndex('Séquencier validé'))
-    newStatut='Séquencier validé';
+  else if(field==='Séquencier validé' && value===true && cur < statutIndex('En tournage'))
+    newStatut='En tournage'; // tous formats : valider le séquencier fait passer En tournage (la date n'est plus le déclencheur)
   else if(field==='Date tournage J1' && cur < statutIndex('En tournage'))
     newStatut='En tournage';
   else if(field==='Stockage' && cur < statutIndex('Post-prod'))

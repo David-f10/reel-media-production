@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-29 (plage timecode + champ fin visible vérifiés à merger · chantier "séquencier→tournage" cadré · A audité)
+> Dernière mise à jour : 2026-07-29 (séquencier→tournage vérifié à tester · sélecteur versions carte/lecteur conçu, à lancer · A/B/23-26 en file)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -126,6 +126,31 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER SÉQUENCIER → EN TOURNAGE (29/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-29 — Validation séquencier → En tournage (tous formats) (`index.html`)
+`index.html` **6926** (inchangé, 1 ligne remplacée). `node --check` OK. Branche `sequencier-vers-tournage`. **UNE seule ligne modifiée** dans `autoStatut`.
+
+**LE TROU (audité) :** un sujet non-Brand au séquencier validé SANS date de tournage restait au statut « Séquencier validé » — statut sans bouton de filtre (9 statuts, 8 boutons) → carte invisible en vue cartes filtrée. Les Brand y échappaient déjà (validation client → En tournage direct).
+
+**LA CORRECTION (Piste 1, l.4544-4545) :** dans `autoStatut`, la branche `field==='Séquencier validé' && value===true` fait désormais passer directement à **`En tournage`** (garde `cur < statutIndex('En tournage')`) au lieu de s'arrêter à « Séquencier validé ». Corrigé **à la source** dans le moteur centralisé — pas de duplication du chemin Brand.
+
+**PREUVES VÉRIFIÉES PAR LE PILOTE :**
+- **Brand intact** : les cartes Brand n'écrivent JAMAIS le champ « Séquencier validé » (elles passent par `toggleValidationSeq('Brand'/'Client')` → PATCH direct En tournage l.3120, **non touché**). Seule la branche non-Brand emprunte la ligne modifiée. Vérifié : le PATCH Brand est intact.
+- **Pas de régression** : garde `cur < statutIndex('En tournage')` (idx 3) → une carte en Post-prod(4)/Montage(5)/Retours(6)/Validation(7)/PAD(8) ne régresse pas si on re-valide (faux → aucun PATCH).
+- **Date neutre** : après coup, renseigner Date tournage J1 (3<3 faux) ou la vider (`if(!value) return`) ne change plus le statut. La date n'est plus un déclencheur.
+
+**« Séquencier validé » GARDÉ dans STATUS_ORDER** (compteur 11) — le retirer décalerait les indices de `statutIndex` et casserait le rendu/Kanban. Inoffensif de le garder (plus auto-attribué, mais assignable manuellement au stepper).
+
+**Compteurs vérifiés :** `wc -l`=6926 · `En tournage`=12 (+1, la nouvelle cible) · `Séquencier validé`=11 (préservé) · `createNotif`=31 · `_lienNotifie`=6 · `supprimerComment`=3 · `Timecode fin`=4 · `CHEF_PAR_DEFAUT`=13 · `EQUIPE_FALLBACK`=2 · balises 4/4.
+
+**⚠️ MIGRATION (à faire, HORS code) :** la correction vaut pour les validations FUTURES. Les cartes DÉJÀ coincées à « Séquencier validé » ne migrent pas seules. **David doit demander à Master de COMPTER** combien de cartes ont `Statut = 'Séquencier validé'` (base 📹 Prod `01a8dc7d-...`) AVANT toute action. Si 2-3 → débloquer à la main (re-valider ou saisir une date). Si beaucoup → réfléchir. **Aucun bulk-PATCH.**
+
+**⚠️ PIÈGE UPLOAD ATTRAPÉ (encore) :** le 1er fichier uploadé était l'ANCIEN (ligne 4545 = `Séquencier validé`, `En tournage`=10). Le Pilote l'a détecté (ligne exacte + compteur) → re-upload → 2e fichier bon (`En tournage`=12).
 
 
 
