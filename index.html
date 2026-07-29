@@ -4266,12 +4266,14 @@ function openPlayer(url, label, sujetId, version) {
           <span style="font-size:12px;font-weight:600;color:#F0F0F5">📋 Retours équipe</span>
           <span id="player-retours-count" style="font-size:10px;color:#5A5A70;background:#1E1E2A;padding:2px 8px;border-radius:8px;font-family:monospace">...</span>
         </div>
+        <!-- Onglets de versions (rempli par loadPlayerRetours ; masqué pour les livrables / non-V) -->
+        <div id="player-version-tabs" style="display:none;padding:8px 12px;gap:5px;flex-wrap:wrap;border-bottom:1px solid #1E1E2A;background:#0F0F1A;flex-shrink:0"></div>
         <!-- Liste retours -->
         <div id="player-retours-list" style="flex:1;overflow-y:auto">
           <div style="padding:14px 16px;font-size:11px;color:#5A5A70">Chargement...</div>
         </div>
-        <!-- Formulaire -->
-        <div style="border-top:1px solid #1E1E2A;padding:12px 16px;background:#16161F;flex-shrink:0">
+        <!-- Formulaire (masqué par loadPlayerRetours si la version affichée n'est pas la courante) -->
+        <div id="player-form-wrap" style="border-top:1px solid #1E1E2A;padding:12px 16px;background:#16161F;flex-shrink:0">
           <div style="font-size:10px;font-weight:600;color:#9898B0;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Laisser un retour</div>
           ${(currentUser?.role==='Brand'||currentUser?.role==='Chef') ? `<select id="player-origine" style="width:100%;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;margin-bottom:8px"><option value="">🙋 Mon retour</option><option value="Client">👤 Retour client</option></select>` : ''}
           <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -4305,6 +4307,7 @@ function openPlayer(url, label, sujetId, version) {
             style="display:flex;align-items:center;justify-content:center;width:100%;margin-top:6px;background:transparent;border:1px solid #2A2A3A;color:#9898B0;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;font-family:-apple-system,sans-serif;box-sizing:border-box"
             onmouseover="this.style.color='#F0F0F5';this.style.borderColor='#5A5A70'" onmouseout="this.style.color='#9898B0';this.style.borderColor='#2A2A3A'">⬇ Télécharger</a>` : ''}
         </div>
+        <div id="player-readonly-note" style="display:none;border-top:1px solid #1E1E2A;padding:12px 16px;background:#16161F;flex-shrink:0;font-size:11px;color:#7A7A90;text-align:center">🔒 Version dépassée — lecture seule</div>
       </div>
     </div>
   `;
@@ -4314,6 +4317,14 @@ function openPlayer(url, label, sujetId, version) {
 
   // Charger les retours
   loadPlayerRetours(sujetId, version);
+}
+
+// Bascule le lecteur sur une autre version : reconstruction COMPLÈTE via openPlayer (iframe + Dossier +
+// Télécharger cohérents, jamais de lien périmé). L'état sélectionné = le paramètre `version` re-passé,
+// jamais lu dans le DOM. Le champ fin (plage) et _inlineAdaptId repartent à zéro à la reconstruction.
+function switchPlayerVersion(sujetId, version, url) {
+  if(!url) { toast('Cette version n\'a pas encore de lien vidéo','err'); return; }
+  openPlayer(url, version, sujetId, version);
 }
 
 // Conversion timecode : chiffres seuls → M:SS (les 2 derniers = secondes, le reste = minutes).
@@ -4351,17 +4362,61 @@ async function loadPlayerRetours(sujetId, version) {
       sorts: [{property:'Version', direction:'ascending'},{timestamp:'created_time', direction:'ascending'}]
     });
     const retours = data.results;
-    const ouverts = retours.filter(r => ['Ouvert','Clarification'].includes(r.properties.Statut?.select?.name)).length;
-    if(countEl) countEl.textContent = ouverts > 0 ? `${ouverts} ouvert${ouverts>1?'s':''}` : retours.length ? '✅ Tout corrigé' : '0 retour';
+    // ── Sélecteur de versions : actif UNIQUEMENT pour une vraie version (V1, V2…), jamais un livrable (L1…). ──
+    const isVVersion = /^V\d+$/.test(version||'');
+    let versionsList = [], maxVersionNum = 0;
+    if(isVVersion) {
+      try {
+        const vdata = await api('/databases/'+DB_VERSIONS+'/query','POST',{filter:{property:'Sujet ID',rich_text:{equals:sujetId}},sorts:[{timestamp:'created_time',direction:'ascending'}]});
+        versionsList = vdata.results;
+        const nums = versionsList.map(v=>parseInt(v.properties.Version?.rich_text?.[0]?.plain_text?.replace('V','')||'0')).filter(n=>!isNaN(n));
+        maxVersionNum = nums.length ? Math.max(...nums) : 0;
+      } catch(e) { versionsList = []; } // dégradation propre : pas d'onglets, mais les retours restent
+    }
+    // Retours AFFICHÉS = la version sélectionnée seule (V-version) ; sinon tous (comportement livrable INCHANGÉ).
+    const retoursAff = isVVersion ? retours.filter(r => (r.properties.Version?.select?.name||'') === version) : retours;
 
-    if(!retours.length) {
-      listEl.innerHTML = '<div style="padding:20px 16px;font-size:12px;color:#5A5A70;text-align:center">Aucun retour<br><span style="font-size:11px">Soyez le premier à en laisser un</span></div>';
+    // Onglets (dans player-version-tabs). Pastille = retours ouverts de CHAQUE version (depuis TOUS les retours).
+    const tabsEl = document.getElementById('player-version-tabs');
+    if(tabsEl) {
+      if(isVVersion && versionsList.length) {
+        const ouvertsParV = {};
+        retours.forEach(r => { const vv=r.properties.Version?.select?.name||''; if(['Ouvert','Clarification'].includes(r.properties.Statut?.select?.name)) ouvertsParV[vv]=(ouvertsParV[vv]||0)+1; });
+        tabsEl.innerHTML = versionsList.map(v => {
+          const vStr = v.properties.Version?.rich_text?.[0]?.plain_text || '';
+          const vUrl = (v.properties['Titre']?.title?.[0]?.plain_text || '').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+          const actif = vStr === version;
+          const nbOuv = ouvertsParV[vStr] || 0;
+          return `<button onclick="switchPlayerVersion('${sujetId}','${vStr}','${vUrl}')"
+            style="font-size:11px;font-family:monospace;padding:3px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;border:1px solid ${actif?'#E63946':'#2A2A3A'};background:${actif?'#E63946':'#1E1E2A'};color:${actif?'#fff':'#9898B0'};display:inline-flex;align-items:center;gap:5px">
+            ${vStr}${nbOuv>0?`<span title="${nbOuv} retour${nbOuv>1?'s':''} ouvert${nbOuv>1?'s':''}" style="font-size:9px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:${actif?'rgba(255,255,255,0.25)':'#EF9F27'};color:${actif?'#fff':'#1a1205'};display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:700">${nbOuv}</span>`:''}
+          </button>`;
+        }).join('');
+        tabsEl.style.display = 'flex';
+      } else {
+        tabsEl.innerHTML = ''; tabsEl.style.display = 'none';
+      }
+    }
+    // Formulaire de dépôt : visible SEULEMENT sur la version courante (dernière). Livrable/non-V : visible (inchangé).
+    const estCourante = !isVVersion || !versionsList.length || (version === 'V'+maxVersionNum);
+    const formWrap = document.getElementById('player-form-wrap');
+    if(formWrap) formWrap.style.display = estCourante ? '' : 'none';
+    const roNote = document.getElementById('player-readonly-note');
+    if(roNote) roNote.style.display = estCourante ? 'none' : '';
+
+    const ouverts = retoursAff.filter(r => ['Ouvert','Clarification'].includes(r.properties.Statut?.select?.name)).length;
+    if(countEl) countEl.textContent = ouverts > 0 ? `${ouverts} ouvert${ouverts>1?'s':''}` : retoursAff.length ? '✅ Tout corrigé' : '0 retour';
+
+    if(!retoursAff.length) {
+      listEl.innerHTML = isVVersion
+        ? '<div style="padding:20px 16px;font-size:12px;color:#5A5A70;text-align:center">Aucun retour sur cette version</div>'
+        : '<div style="padding:20px 16px;font-size:12px;color:#5A5A70;text-align:center">Aucun retour<br><span style="font-size:11px">Soyez le premier à en laisser un</span></div>';
       return;
     }
 
     // Grouper par version
     const byVersion = {};
-    retours.forEach(r => {
+    retoursAff.forEach(r => {
       const v = r.properties.Version?.select?.name || '—';
       if(!byVersion[v]) byVersion[v] = [];
       byVersion[v].push(r);
@@ -4369,9 +4424,9 @@ async function loadPlayerRetours(sujetId, version) {
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
     const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || CHEF_PAR_DEFAUT;
-    const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
+    const hasBrouillonEquipe = retoursAff.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
     const myName = (currentUser?.nom||'').trim();
-    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
+    const hasMesBrouillons = !!myName && retoursAff.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
     let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
       ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}', this, '${version}')" class="nav-btn primary" style="width:100%;font-size:11px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
