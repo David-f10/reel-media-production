@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-29 (sélecteur versions CARTE vérifié à tester · migration 8 cartes via Master · sélecteur LECTEUR + A/B/23-26 en file)
+> Dernière mise à jour : 2026-07-29 (sélecteur versions LECTEUR vérifié à tester · notifications/dashboard 23-26+B en file)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -121,11 +121,48 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 **MÉTHODE (comme pour l'architecture serveur) :** d'abord comprendre, puis décider. Quand les briques seront posées, on cadrera le dashboard avec une **vraie analyse** (audit des données disponibles par rôle, maquette, décision). **Ne pas lancer avant.**
 
 ### 🔜 HORS SÉRIE — EN ATTENTE
+
+**✅ NETTOYAGE B56A « Saumon Écosse » — FAIT (29/07).** Mission de test nettoyée par Master (versions de test supprimées, retours de test effacés, une seule version conservée). Réglé.
+
 - ✅ **Chantier 18** — modifier/supprimer les commentaires généraux : **VÉRIFIÉ, à tester** (voir historique).
 - **Clarification côté VRAIS CLIENTS via `review.html`** — quand les clients entreront dans l'app. Le socle est prêt (`Source='Client'`), mais `review.html` devra permettre le DÉPÔT de retours clients, et il faudra vérifier que chef/contact Brand peuvent adapter + monteur demander clarification sur ces retours. Chantier à part, non urgent tant que Louise est le relais.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 SÉLECTEUR DE VERSIONS DANS LE LECTEUR (29/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-29 — Sélecteur de versions dans le lecteur (`index.html`)
+`index.html` 6956 → **7011** (+55). `node --check` OK. Branche `selecteur-versions-lecteur`. **index.html seul.**
+
+**BESOIN :** dans le lecteur, les retours de toutes les versions s'empilaient, le formulaire repoussé en bas. Même principe que le sélecteur carte, adapté au lecteur (une version à la fois + bascule vidéo).
+
+**SOLUTION :** rangée d'onglets V1·V2·V3·V4 en haut du panneau, la dernière active par défaut. Cliquer un onglet → **charge la vidéo de cette version** + affiche ses retours. Ancienne version = **lecture seule** (formulaire caché, liseré « lecture seule »).
+
+***LA VOIE POUR BASCULER LA VIDÉO (le point critique) :*** `switchPlayerVersion(sujetId, version, url)` **ré-appelle `openPlayer`** (reconstruction complète) au lieu de muter l'iframe. *Pourquoi :* muter `iframe.src` seul aurait laissé le bouton Dossier ET Télécharger **périmés** sur l'ancienne URL (bug silencieux). La reconstruction met tout à jour ensemble (iframe + Dossier + Télécharger + retours + formulaire). Garde bonus : si la version n'a pas de lien → toast, pas de reconstruction vide.
+
+***⚠️ PIÈGE MAJEUR REPÉRÉ PAR CLAUDE CODE — LE LECTEUR EST POLYMORPHE.*** Il sert aussi les **livrables** (version='L1', l.1213) et un « voir version » différé (l.3630), pas seulement les vidéos de version. **Toute la nouveauté est confinée à `isVVersion = /^V\\d+$/.test(version)`** (l.4366) :
+- Requête DB_VERSIONS **seulement si** isVVersion (l.4368) — un livrable ne la déclenche pas.
+- Retours filtrés sur la version si V-version, **TOUS si livrable** (comportement inchangé, l.4377).
+- Onglets rendus **seulement si** isVVersion (l.4382), cachés sinon.
+- Formulaire : `estCourante = !isVVersion || ...` → un **livrable garde son formulaire visible** (l.4401). Pour une V-version, formulaire seulement sur la dernière.
+*Sans ce confinement, on aurait cassé les livrables sans le voir en testant les versions.*
+
+**PREUVES VÉRIFIÉES PAR LE PILOTE :**
+- **Livrables intacts** (le risque n°1) : `isVVersion` garde chaque branche ; un livrable traverse sans rien déclencher de nouveau. ✅
+- **Bascule propre** : `switchPlayerVersion` → `openPlayer` complet, pas de lien périmé.
+- **Formulaire sur la courante** : `estCourante` (l.4401), `submitPlayerRetour` inchangé (attache à la version affichée).
+- **État hors DOM** : le paramètre `version` threadé via `openPlayer`→`loadPlayerRetours` EST la source de vérité (pas de variable module nécessaire ici, contrairement à la carte — c'est un argument re-passé à chaque reconstruction, jamais lu du DOM).
+- **Correctifs intacts** : `_lienNotifie`=6 (le lecteur n'appelle jamais `updateVersionUrl`), champ fin (plage) reconstruit vide à chaque `openPlayer`.
+
+**BONUS :** pastille de retours ouverts par onglet (comme la carte). PWA/Drive géré (`openPlayerInBrowser` relaie, les onglets marchent dans l'onglet navigateur).
+
+**Compteurs vérifiés :** `wc -l`=7011 · `switchPlayerVersion`=2 · `player-form-wrap`=2 · `player-version-tabs`=3 · `createNotif`=31 · `_lienNotifie`=6 · `submitPlayerRetour`=3 · `_versionSelectionnee`=4 (sélecteur carte intact) · balises 4/4.
+
+**À TESTER :** ① dans le lecteur d'un sujet à plusieurs versions, cliquer un onglet → la vidéo bascule (prête à lancer) + les retours de cette version ; ② sur une ancienne version, pas de formulaire (lecture seule) ; ③ sur la dernière, formulaire présent, dépôt OK ; ④ **un LIVRABLE (bouton livrable) s'ouvre SANS onglets, formulaire visible, comme avant** (le point de régression) ; ⑤ Dossier et Télécharger pointent la bonne version après bascule.
 
 
 
