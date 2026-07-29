@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-29 (séquencier→tournage vérifié à tester · sélecteur versions carte/lecteur conçu, à lancer · A/B/23-26 en file)
+> Dernière mise à jour : 2026-07-29 (sélecteur versions CARTE vérifié à tester · migration 8 cartes via Master · sélecteur LECTEUR + A/B/23-26 en file)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -126,6 +126,38 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 SÉLECTEUR DE VERSIONS SUR LA CARTE (29/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-29 — Sélecteur de versions sur la carte (`index.html`)
+`index.html` 6926 → **6957** (+31). `node --check` OK. Branche `selecteur-versions-carte`. **Affichage seul, aucune écriture Notion nouvelle.**
+
+**BESOIN (David, captures à l'appui) :** le panneau MONTAGE affichait les versions en BLOCS EMPILÉS → carte trop haute avec 4 versions (pire sur Brand : 2 boutons de validation/bloc). Conçu ensemble via maquettes.
+
+**SOLUTION :** rangée d'ONGLETS (V1·V2·V3·V4) + **UN SEUL bloc affiché** (la version sélectionnée). Par défaut = la dernière. « + Ajouter » détaché à droite de la rangée. La hauteur ne dépend plus du nombre de versions.
+
+**RECENSEMENT EXHAUSTIF (Claude Code, 10 éléments)** : input lien, ▶ lecteur, 📁 dossier, 🔗 copier, badge lien invalide, responsable (select), zone validation (normal 1 bouton / Brand 2 boutons), ❌ annuler (Brand), date, style du bloc. **Tous les handlers portent déjà `v.id` + `version`** (jamais l'index) → l'action s'attache mécaniquement à la bonne version.
+
+***POINTS VÉRIFIÉS PAR LE PILOTE :***
+- **Action sur la BONNE version** (le point critique, crainte de David) : le bloc rendu = version sélectionnée (l.2654-2656, repli sur la dernière si elle disparaît). `renderBloc(v,i)` reçoit l'objet complet → handlers avec le bon `v.id`. Handlers **réutilisés, PAS réécrits** (compteurs inchangés : `updateVersionUrl`=2, `toggleVersionValidee`=5, etc.).
+- **État HORS DOM** : `let _versionSelectionnee = {}` variable module (l.2594, patron `_lienNotifie`). Survit aux re-renders (dépôt, validation). `selectVersion(sujetId, version)` bascule. Repli l.2655 si sélection disparue.
+- **Brand intact** : 2 validations + annuler + contact Brand = pure relocalisation, aucune condition changée. Chemin validation client séquencier (`toggleValidationSeq`, autre panneau) non touché.
+- **Cartes 0/1 version** : gérées (0 → juste « + Ajouter » ; 1 → un onglet actif).
+
+**DÉCISION MÉTIER (contradiction consignes 2/3 tranchée) :** la **validation reste réservée à la dernière version** (gating `isLastVersion` conservé) — valider une version dépassée n'a pas de sens. Le besoin de David (corriger le LIEN d'une ancienne version) est couvert : input lien/▶/📁/🔗/responsable marchent sur TOUTE version sélectionnée, seul « Valider » est gaté.
+
+**BONUS :** pastille de **retours ouverts** sur les onglets (réutilise `retoursOuvertsByVersion`) → voir d'un coup quelle version a du travail. « + Ajouter » garde son id `btn-add-version-${sujetId}` (logique disable préservée) + bascule auto sur la nouvelle version (l.2806).
+
+**Compteurs vérifiés :** `wc -l`=6957 · `_versionSelectionnee`=4 · `selectVersion`=2 · handlers inchangés · `_lienNotifie`=6 · `createNotif`=31 · balises 4/4.
+
+**AJUSTEMENT LIBELLÉS (29/07, même branche) :** « · actuelle » retiré de l'onglet sélectionné (l'onglet actif se distingue déjà par sa couleur ; « actuelle » devenait FAUX sur une version validée). Bouton remis en « + Ajouter une version » (libellé complet). Cosmétique seul, logique intacte. `wc -l`=6956.
+
+**À TESTER (surtout carte Brand à plusieurs versions) :** cliquer un onglet change le bloc ; déposer un lien / changer le responsable sur une version sélectionnée agit sur la BONNE version ; « Valider » n'apparaît que sur la dernière ; « + Ajouter » crée et bascule ; carte Brand → 2 validations bien présentes dans le bloc.
+
+**═══ MIGRATION SÉQUENCIER→TOURNAGE (Master, 29/07) ═══** 8 cartes étaient coincées à « Séquencier validé » (M694, M695, M697, M699, Y145, Y146, Y147, Y149 — que des MAG et YouTube, les formats à vraie étape séquencier). David a validé leur passage manuel à « En tournage » par Master (Statut seul, aucun autre champ). *Le trou est fermé : la correction gère le futur, cette migration rattrape le passé.*
 
 
 

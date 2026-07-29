@@ -1097,11 +1097,7 @@ function openDetail(id, forcePadOpen=false){
   html+=step('Montage',`p-gray <span id="montage-pill-${id}">Chargement...</span>`,
     `<div id="versions-list-${id}" style="margin-bottom:10px">
       <div style="font-size:11px;color:var(--text3)">Chargement...</div>
-    </div>
-    <button id="btn-add-version-${id}" onclick="ajouterVersion('${id}')"
-      class="nav-btn" style="width:100%;font-size:12px">
-      + Ajouter une version
-    </button>`,activeStep==='montage'||activeStep==='pad');
+    </div>`,activeStep==='montage'||activeStep==='pad');
   // Récupérer le dernier lien validé depuis la base Versions
   const lienRenduAffiche = s.lienRendu || '';
   const capDeposee = s.capDeposee;
@@ -2593,6 +2589,14 @@ async function validerTousRetours(sujetId, btnEl, version) {
 }
 
 // ─── VERSIONS DE MONTAGE ───
+// Onglet de version sélectionné, par carte. État HORS DOM (variable module) → survit aux
+// re-renders de loadVersions (dépôt de lien, validation…). Défaut = la version la plus récente.
+let _versionSelectionnee = {};
+function selectVersion(sujetId, version) {
+  _versionSelectionnee[sujetId] = version;
+  loadVersions(sujetId);
+}
+
 async function loadVersions(sujetId) {
   const el = document.getElementById('versions-list-'+sujetId);
   if(!el) return;
@@ -2637,12 +2641,21 @@ async function loadVersions(sujetId) {
       else pill.textContent = `${nbV} version${nbV>1?'s':''} disponible${nbV>1?'s':''}`;
     }
     if(!versions.length) {
-      el.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</div>';
+      el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</span>
+        <button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px">+ Ajouter une version</button>
+      </div>`;
       return;
     }
     // Liste dynamique Journalistes + Monteurs depuis `equipe` (Notion).
     const tousLesNoms = journMonteursNoms();
-    el.innerHTML = versions.map((v,i) => {
+    // Version affichée = sélection mémorisée hors DOM si elle existe encore, sinon la plus récente.
+    const versionStrings = versions.map((v,i) => v.properties.Version?.rich_text?.[0]?.plain_text || `V${i+1}`);
+    let selVer = _versionSelectionnee[sujetId];
+    if(!selVer || !versionStrings.includes(selVer)) selVer = versionStrings[versionStrings.length-1];
+    const selIdx = versionStrings.indexOf(selVer);
+    // Rendu d'UN bloc de version — logique IDENTIQUE à l'existant (handlers inchangés, portent v.id/version).
+    const renderBloc = (v, i) => {
       const pr = v.properties;
       const url = pr['Titre']?.title?.[0]?.plain_text || '';
       // Pré-charger le dossier Drive en arrière-plan
@@ -2732,7 +2745,23 @@ async function loadVersions(sujetId) {
           </button>
         </div>` : ''}
       </div>`;
+    };
+    // Rangée d'onglets V1→V4 (croissant) + « + Ajouter » détaché à droite. Un seul bloc affiché.
+    const onglets = versions.map((v,i) => {
+      const vStr = versionStrings[i];
+      const actif = vStr === selVer;
+      const nbOuv = retoursOuvertsByVersion[vStr] || 0;
+      return `<button onclick="selectVersion('${sujetId}','${vStr}')"
+        style="font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;border:1px solid ${actif?'var(--blue)':'var(--border)'};background:${actif?'var(--blue)':'var(--bg3)'};color:${actif?'#fff':'var(--text2)'};display:inline-flex;align-items:center;gap:5px">
+        ${vStr}${nbOuv>0?`<span title="${nbOuv} retour${nbOuv>1?'s':''} ouvert${nbOuv>1?'s':''}" style="font-size:9px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:${actif?'rgba(255,255,255,0.25)':'var(--amber)'};color:${actif?'#fff':'#1a1205'};display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:700">${nbOuv}</span>`:''}
+      </button>`;
     }).join('');
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">${onglets}</div>
+        <div style="width:1px;height:22px;background:var(--border);flex-shrink:0"></div>
+        <button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px;flex-shrink:0">+ Ajouter une version</button>
+      </div>
+      ${renderBloc(versions[selIdx], selIdx)}`;
   } catch(e) {
     const el2 = document.getElementById('versions-list-'+sujetId);
     if(el2) el2.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement versions</div>';
@@ -2773,6 +2802,7 @@ async function ajouterVersion(sujetId) {
       s.statut = 'Montage';
       renderCards();
     }
+    _versionSelectionnee[sujetId] = versionNum; // bascule automatiquement sur l'onglet de la nouvelle version
     await loadVersions(sujetId); // await : le verrou (finally) n'est libéré qu'après le re-render → pas de double-clic
     toast(`${versionNum} ajoutée`,'ok');
   } catch(e) { toast('Erreur : '+e.message,'err'); }
