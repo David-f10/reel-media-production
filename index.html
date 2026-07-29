@@ -2775,9 +2775,13 @@ async function ajouterVersion(sujetId) {
   }
 }
 
+// Registre anti-re-notif au niveau module : clé = id STABLE de la version. Il survit aux re-renders
+// de loadVersions ET aux relectures Notion en retard (read-after-write), contrairement à
+// el.dataset.saved qui est détruit/re-dérivé quand loadVersions reconstruit le champ.
+const _lienNotifie = {};
 async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
   if(!url) return;
-  if(el && url === (el.dataset.saved||'')) return; // garde : lien inchangé → pas de re-notif
+  if(url === _lienNotifie[versionId]) return; // garde : ce lien a déjà été notifié → pas de re-notif
   const s = sujets.find(x=>x.id===sujetId);
   // Vérifier que le lien est un lien Drive, Vimeo ou Frame.io
   const isDrive = url.includes('drive.google.com');
@@ -2790,7 +2794,8 @@ async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
   }
   try {
     await api('/pages/'+versionId,'PATCH',{properties:{'Titre':{title:[{text:{content:url}}]}}});
-    if(el) el.dataset.saved = url; // mémorisé APRÈS écriture réussie → pas de mensonge en cas d'échec
+    _lienNotifie[versionId] = url; // SOURCE DE VÉRITÉ de la garde, hors DOM → immunisée au re-render
+    if(el) el.dataset.saved = url; // (secondaire) mémorisé APRÈS écriture réussie → pas de mensonge si échec
     loadVersions(sujetId);
     // Notif au chef
     if(s && s.chef && currentUser && s.chef !== currentUser.nom) {
@@ -4624,12 +4629,16 @@ function toLocalISO(d){
 // Enregistre le lien ET timestamp automatique quand un lien est collé
 async function onLienBlur(input, id, v){
   const val=input.value.trim();
+  const _k = id+'V'+v;                          // clé STABLE (id de page + n° version) — invariante au re-render
+  if(val && val === _lienNotifie[_k]) return;   // garde : ce lien a déjà été déposé/notifié → ne rien refaire
   await upd(id,`Lien V${v}`,'url',val);
-  if(val){
+  if(!val){ _lienNotifie[_k] = ''; return; }    // lien effacé : un futur dépôt re-notifiera légitimement
+  {
     const iso=toLocalISO(new Date());
     await upd(id,`Date montage J${v}`,'datetime',iso);
     const tsEl=document.getElementById(`ts-${id}-${v}`);
     if(tsEl) tsEl.textContent=new Date().toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    _lienNotifie[_k] = val;                      // SOURCE DE VÉRITÉ, hors DOM → posée APRÈS les écritures, avant les notifs
     // Notif au chef
     const s = sujets.find(sx=>sx.id===id);
     const auteur = currentUser?.nom || 'Équipe';

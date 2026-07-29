@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-28 (chantiers 16→22 mergés · 18 vérifié à tester · double-notif lien à corriger · A/B/23-26 cadrés)
+> Dernière mise à jour : 2026-07-28 (chantiers 16→18 + 22 mergés · double-notif lien CORRIGÉ à tester · plage timecode prête, champ Notion créé)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -126,6 +126,31 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CORRECTIF — DOUBLE NOTIF DÉPÔT DE LIEN (28/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-28 — Correctif : double notification de dépôt de lien (`index.html`)
+`index.html` 6900 → **6909** (+9). `node --check` OK. Branche `fix-double-notif-lien`.
+
+**LE BUG (constaté par David, capture) :** Juliette dépose un lien → le chef reçoit **2 notifs identiques** à ~1 min d'écart. **Indépendant des chantiers récents** (défaut préexistant ; ch21 blanchi — les 2 notifs vont au chef, pas au contact Brand).
+
+**CAUSE (diagnostic Claude Code, hypothèse du Pilote confirmée) :** la garde anti-re-notif de `updateVersionUrl` vivait sur le **DOM** (`el.dataset.saved`). Or la fonction appelle `loadVersions` qui **détruit et recrée** le champ, avec un `dataset.saved` **re-dérivé d'une relecture Notion en retard** (read-after-write). Le nouveau champ croit que rien n'est sauvé → l'affichage semble vide → Juliette recolle → re-notifie. *L'écart d'1 min = sa réaction humaine au rendu périmé.* Second foyer : `onLienBlur` n'avait **aucune garde**.
+
+**LE CORRECTIF — SORTIR L'ÉTAT DU DOM.** Registre JS au niveau module `const _lienNotifie = {}` (l.2781), source de vérité de la garde, **immunisé au re-render et aux lectures périmées** :
+- `updateVersionUrl` : clé = `versionId` (id de page stable). Garde `url === _lienNotifie[versionId]` (l.2784), registre posé **après PATCH réussi** (l.2797).
+- `onLienBlur` : garde AJOUTÉE (il n'en avait aucune), clé = `id+'V'+v` (invariante au re-render). Détail soigné : lien effacé → registre remis à `''` → un futur dépôt re-notifie légitimement.
+
+**PREUVES (dont simulation par le Pilote) :**
+- **A — plus de doublon même avec re-render :** le registre survit à la destruction du champ. 2e blur du même lien → `return` avant notif.
+- **B — un vrai changement notifie toujours** (le risque : trop garder). *Simulé :* dépôt→NOTIFIE, re-blur→BLOQUÉ, re-render+re-blur→BLOQUÉ, **URL différente→NOTIFIE**, autre version→NOTIFIE. On tue le doublon, pas la notif légitime.
+- **C — `onLienBlur` clé stable** (`id+'V'+v`, aucun dérivé DOM).
+
+**Compteurs :** `wc -l`=6909 · `_lienNotifie`=6 (1 déf + 2 updateVersionUrl + 3 onLienBlur) · `createNotif`=**31 (inchangé — destinataires/libellés intacts, ch21 non touché)** · `updateVersionUrl`=2 · `onLienBlur`=1 · `supprimerComment`=3 (**ch18 intact**) · `tcKeydown`=5, `demanderClarification`=3 (**ch22/20B intacts**) · `EQUIPE_FALLBACK`=2 · balises 4/4.
+
+**À TESTER :** déposer un lien, quitter le champ, y revenir et re-quitter SANS changer le lien → **une seule** notif au chef. Puis changer le lien → une nouvelle notif (légitime).
 
 
 
