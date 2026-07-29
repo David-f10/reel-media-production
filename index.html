@@ -3714,20 +3714,38 @@ async function loadComments(sujetId) {
       listEl.innerHTML = "<div style=\"font-size:11px;color:var(--text3);font-style:italic\">Aucun commentaire pour l'instant</div>";
       return;
     }
+    const myName = (currentUser?.nom||'').trim();
+    const isChefUser = currentUser?.role === 'Chef';
     listEl.innerHTML = comments.map(c => {
       const pr = c.properties;
       const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || pr.Auteur?.text?.[0]?.plain_text || '?';
       const texte = pr.Commentaire?.title?.[0]?.plain_text || '';
       const date = new Date(c.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
       const initials = auteur.substring(0,2).toUpperCase();
+      const estAuteur = !!myName && auteur.trim() === myName;
+      const enEdition = c.id === _editCommentId && estAuteur;   // seul l'auteur édite ; le chef ne fait que supprimer
+      // AUTEUR → ✏️ modifier + 🗑 supprimer ; CHEF (non-auteur) → 🗑 supprimer seul ; sinon → aucun bouton
+      const boutons = estAuteur
+        ? `<span onclick="modifierComment('${c.id}','${sujetId}')" title="Modifier" style="font-size:11px;cursor:pointer;opacity:0.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">✏️</span>
+           <span onclick="supprimerComment('${c.id}','${sujetId}')" title="Supprimer" style="font-size:11px;cursor:pointer;opacity:0.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">🗑</span>`
+        : (isChefUser
+          ? `<span onclick="supprimerComment('${c.id}','${sujetId}')" title="Supprimer (chef)" style="font-size:11px;cursor:pointer;opacity:0.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">🗑</span>`
+          : '');
+      const corps = enEdition
+        ? `<textarea id="edit-comment-input" style="width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:12px;padding:6px 8px;border-radius:var(--r);font-family:var(--font);resize:vertical;min-height:48px;line-height:1.5">${texte.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
+           <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px">
+             <button onclick="annulerEditionComment('${sujetId}')" style="font-size:11px;color:var(--text3);background:transparent;border:1px solid var(--border2);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:var(--font)">Annuler</button>
+             <button onclick="enregistrerComment('${c.id}','${sujetId}')" style="font-size:11px;color:#fff;background:var(--blue);border:none;padding:3px 12px;border-radius:4px;cursor:pointer;font-family:var(--font)">Enregistrer</button>
+           </div>`
+        : `<div style="font-size:12px;color:var(--text2);line-height:1.5">${texte}</div>`;
       return `<div style="display:flex;gap:8px;margin-bottom:10px">
         <div style="width:26px;height:26px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0;font-family:var(--mono)">${initials}</div>
         <div style="flex:1;background:var(--bg3);border-radius:var(--r);padding:8px 10px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <span style="font-size:11px;font-weight:600;color:var(--text)">${auteur}</span>
-            <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">${date}</span>
+            <span style="display:flex;gap:8px;align-items:center"><span style="font-size:10px;color:var(--text3);font-family:var(--mono)">${date}</span>${boutons}</span>
           </div>
-          <div style="font-size:12px;color:var(--text2);line-height:1.5">${texte}</div>
+          ${corps}
         </div>
       </div>`;
     }).join('');
@@ -3772,6 +3790,87 @@ async function postComment(sujetId) {
   } catch(e) {
     toast('Erreur : ' + e.message,'err');
   }
+}
+
+// ─── COMMENTAIRES : ÉDITION / SUPPRESSION (patron du chantier 15) ───
+// Auteur → modifier ET supprimer son commentaire ; Chef → supprimer celui de n'importe qui (jamais
+// modifier le texte d'un autre). Fenêtre illimitée. Fail-closed : on relit l'état frais avant d'agir.
+// Aucune notification (une édition ne re-notifie personne). La création (envoi) n'est pas touchée.
+let _editCommentId = null;   // id du commentaire en cours d'édition inline (un seul à la fois)
+
+async function relireComment(commentId) {
+  try {
+    const page = await Promise.race([
+      api('/pages/' + commentId),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500))
+    ]);
+    if(!page || page.archived) return null;
+    const pr = page.properties || {};
+    return {
+      auteur: (pr.Auteur?.rich_text?.[0]?.plain_text || pr.Auteur?.text?.[0]?.plain_text || '').trim(),
+      texte: pr.Commentaire?.title?.[0]?.plain_text || ''   // ⚠️ Commentaire = type TITLE
+    };
+  } catch(e) { return null; }
+}
+
+// Ouvrir l'édition inline (AUTEUR uniquement). Re-vérif fail-closed puis re-render de la liste.
+async function modifierComment(commentId, sujetId) {
+  if(!currentUser) { toast('Non connecté','err'); return; }
+  const myName = (currentUser?.nom||'').trim();
+  const chk = await relireComment(commentId);
+  if(!chk) { toast('Ce commentaire a été supprimé entre-temps','err'); loadComments(sujetId); return; }
+  if(chk.auteur !== myName) { toast('Vous ne pouvez modifier que vos propres commentaires','err'); return; }
+  _editCommentId = commentId;
+  loadComments(sujetId);
+}
+
+function annulerEditionComment(sujetId) {
+  _editCommentId = null;
+  loadComments(sujetId);
+}
+
+// Enregistrer le texte édité (AUTEUR uniquement). PATCH sur 'Commentaire' (title). Aucune notif.
+async function enregistrerComment(commentId, sujetId) {
+  if(!currentUser) { toast('Non connecté','err'); return; }
+  const myName = (currentUser?.nom||'').trim();
+  const texte = (document.getElementById('edit-comment-input')?.value || '').trim();
+  if(!texte) { toast('Le commentaire ne peut pas être vide','err'); return; }
+  const chk = await relireComment(commentId);
+  if(!chk) { toast('Ce commentaire a été supprimé entre-temps','err'); _editCommentId = null; loadComments(sujetId); return; }
+  if(chk.auteur !== myName) { toast('Vous ne pouvez modifier que vos propres commentaires','err'); _editCommentId = null; loadComments(sujetId); return; }
+  try {
+    await api('/pages/'+commentId,'PATCH',{properties:{'Commentaire':{title:[{text:{content:texte}}]}}});
+    _editCommentId = null;
+    toast('Commentaire modifié','ok');
+    loadComments(sujetId);
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+// Supprimer (AUTEUR ou CHEF). Confirmation (destructif) + double re-vérif fail-closed. archived:true
+// (récupérable 30 j dans Notion, comme les brouillons du chantier 15).
+async function supprimerComment(commentId, sujetId) {
+  if(!currentUser) { toast('Non connecté','err'); return; }
+  const estChef = currentUser?.role === 'Chef';
+  const myName = (currentUser?.nom||'').trim();
+  const chk = await relireComment(commentId);
+  if(!chk) { toast('Ce commentaire a déjà été supprimé','err'); loadComments(sujetId); return; }
+  if(!estChef && chk.auteur !== myName) { toast('Vous ne pouvez supprimer que vos propres commentaires','err'); return; }
+  const apercu = chk.texte.slice(0,80) + (chk.texte.length>80?'…':'');
+  showConfirmModal({
+    title:'Supprimer ce commentaire ?',
+    message:'« '+apercu+' »\n\nCette action est définitive.',
+    confirmText:'Supprimer', confirmStyle:'danger',
+    onConfirm: async () => {
+      const rechk = await relireComment(commentId);
+      if(!rechk) { toast('Ce commentaire a déjà été supprimé','err'); loadComments(sujetId); return; }
+      if(!estChef && rechk.auteur !== myName) { toast('Action refusée','err'); return; }
+      try {
+        await api('/pages/'+commentId,'PATCH',{archived:true});
+        toast('Commentaire supprimé','ok');
+        loadComments(sujetId);
+      } catch(e) { toast('Erreur : '+e.message,'err'); }
+    }
+  });
 }
 
 // ─── BADGES NOTIFS SUR CARTES ───
