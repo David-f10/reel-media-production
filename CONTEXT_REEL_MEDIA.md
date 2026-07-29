@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-29 (sélecteur versions LECTEUR vérifié à tester · notifications/dashboard 23-26+B en file)
+> Dernière mise à jour : 2026-07-29 (chantier 23 non-lu vérifié à tester · reste 24/25/B du bloc notifications)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -129,6 +129,24 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 23 — MARQUER UNE NOTIF NON-LUE (29/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-29 — Chantier 23 : marquer une notification comme non-lue (`index.html`)
+`index.html` 7011 → **7023** (+12). `node --check` OK. Branche `notif-non-lue`. Premier des 4 chantiers du bloc notifications (23/24/25/B).
+
+**BESOIN (Benjamin) :** cliquer une notif la marque lue automatiquement → il veut pouvoir la REMETTRE en non-lue (rappel « à traiter »).
+
+**SOLUTION :** bouton ⟲ (« marquer non lu ») visible **seulement sur les notifs lues** (l.1592, `${lu?...:''}`). `marquerNonLu(event, notifId)` : PATCH `{Lu:{checkbox:false}}` puis `loadNotifs()` + `loadRetoursBadges()` (cohérence badges).
+
+**PIÈGE ÉVITÉ — `stopPropagation` :** le bouton est DANS le conteneur de la notif qui a un `onclick=clickNotif` (ouvre la fiche). `marquerNonLu` fait `event.stopPropagation()` en 1ʳᵉ ligne → cliquer ⟲ ne rouvre PAS la fiche (sinon la notif serait re-marquée lue immédiatement, annulant l'action). Vérifié.
+
+**Compteurs :** `wc -l`=7023 · `marquerNonLu`=2 · `stopPropagation` présent sur le bouton · `clickNotif`=2 (ouverture intacte) · `markAllRead`=2 · `createNotif`=31 (aucune notif créée, juste un champ modifié) · balises 4/4.
+
+**À TESTER :** ouvrir une notif (elle passe lue) → le bouton ⟲ apparaît → cliquer ⟲ → elle redevient non-lue (badge remonte) SANS rouvrir la fiche. Re-cliquer la notif la re-marque lue.
 
 
 

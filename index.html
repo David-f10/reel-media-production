@@ -1589,6 +1589,7 @@ async function loadNotifs() {
           <div class="notif-msg">${msg}</div>
           <div class="notif-sub">${code}${titre?' · '+titre.substring(0,30)+(titre.length>30?'...':''):''} · ${date}</div>
         </div>
+        ${lu?`<button onclick="marquerNonLu(event,'${n.id}')" title="Marquer comme non lu" style="flex-shrink:0;align-self:center;background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;border-radius:4px" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--text3)'">⟲</button>`:''}
       </div>`;
     }).join('');
   } catch(e) { console.warn('Erreur notifs:', e.message); }
@@ -1607,6 +1608,17 @@ async function clickNotif(notifId, sujetId) {
     setTimeout(() => openDetail(sujetId), alreadyProd ? 50 : 350);
   }
   loadNotifs();
+}
+
+// Remettre une notif en NON-LUE (rappel « à traiter plus tard »). On stoppe la propagation pour ne PAS
+// déclencher l'ouverture de la fiche, puisque le bouton est dans le conteneur cliquable de la notif.
+async function marquerNonLu(event, notifId) {
+  if(event) event.stopPropagation();
+  try {
+    await api('/pages/' + notifId, 'PATCH', {properties:{'Lu':{checkbox:false}}});
+  } catch(e) { toast('Erreur','err'); return; }
+  loadNotifs();         // re-render panneau + recalcul du badge non-lues (depuis Lu)
+  loadRetoursBadges();  // recalcul des badges de cartes (non-lues par sujet) — cohérence
 }
 
 async function markAllRead() {
