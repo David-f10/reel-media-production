@@ -153,6 +153,8 @@ Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer exista
 
 **Compteurs vérifiés :** `wc -l`=6957 · `_versionSelectionnee`=4 · `selectVersion`=2 · handlers inchangés · `_lienNotifie`=6 · `createNotif`=31 · balises 4/4.
 
+**AJUSTEMENT LIBELLÉS (29/07, même branche) :** « · actuelle » retiré de l'onglet sélectionné (l'onglet actif se distingue déjà par sa couleur ; « actuelle » devenait FAUX sur une version validée). Bouton remis en « + Ajouter une version » (libellé complet). Cosmétique seul, logique intacte. `wc -l`=6956.
+
 **À TESTER (surtout carte Brand à plusieurs versions) :** cliquer un onglet change le bloc ; déposer un lien / changer le responsable sur une version sélectionnée agit sur la BONNE version ; « Valider » n'apparaît que sur la dernière ; « + Ajouter » crée et bascule ; carte Brand → 2 validations bien présentes dans le bloc.
 
 **═══ MIGRATION SÉQUENCIER→TOURNAGE (Master, 29/07) ═══** 8 cartes étaient coincées à « Séquencier validé » (M694, M695, M697, M699, Y145, Y146, Y147, Y149 — que des MAG et YouTube, les formats à vraie étape séquencier). David a validé leur passage manuel à « En tournage » par Master (Statut seul, aucun autre champ). *Le trou est fermé : la correction gère le futur, cette migration rattrape le passé.*

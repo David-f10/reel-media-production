@@ -2643,7 +2643,7 @@ async function loadVersions(sujetId) {
     if(!versions.length) {
       el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span style="font-size:11px;color:var(--text3);font-style:italic">Aucune version déposée</span>
-        <button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px">+ Ajouter</button>
+        <button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px">+ Ajouter une version</button>
       </div>`;
       return;
     }
@@ -2750,17 +2750,16 @@ async function loadVersions(sujetId) {
     const onglets = versions.map((v,i) => {
       const vStr = versionStrings[i];
       const actif = vStr === selVer;
-      const estActuelle = parseInt(vStr.replace('V','')) === maxVersionNum;
       const nbOuv = retoursOuvertsByVersion[vStr] || 0;
       return `<button onclick="selectVersion('${sujetId}','${vStr}')"
         style="font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;border:1px solid ${actif?'var(--blue)':'var(--border)'};background:${actif?'var(--blue)':'var(--bg3)'};color:${actif?'#fff':'var(--text2)'};display:inline-flex;align-items:center;gap:5px">
-        ${vStr}${estActuelle?' · actuelle':''}${nbOuv>0?`<span title="${nbOuv} retour${nbOuv>1?'s':''} ouvert${nbOuv>1?'s':''}" style="font-size:9px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:${actif?'rgba(255,255,255,0.25)':'var(--amber)'};color:${actif?'#fff':'#1a1205'};display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:700">${nbOuv}</span>`:''}
+        ${vStr}${nbOuv>0?`<span title="${nbOuv} retour${nbOuv>1?'s':''} ouvert${nbOuv>1?'s':''}" style="font-size:9px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:${actif?'rgba(255,255,255,0.25)':'var(--amber)'};color:${actif?'#fff':'#1a1205'};display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:700">${nbOuv}</span>`:''}
       </button>`;
     }).join('');
     el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">${onglets}</div>
         <div style="width:1px;height:22px;background:var(--border);flex-shrink:0"></div>
-        <button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px;flex-shrink:0">+ Ajouter</button>
+        <button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px;flex-shrink:0">+ Ajouter une version</button>
       </div>
       ${renderBloc(versions[selIdx], selIdx)}`;
   } catch(e) {
