@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-30 (24 + fix fausse-alerte vérifiés à tester · reste 25/B du bloc notifications)
+> Dernière mise à jour : 2026-07-30 (DASHBOARD journaliste = socle vérifié à tester · reste Brand + Chef à décliner)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -144,6 +144,41 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 DASHBOARD PERSONNEL — JOURNALISTE (LE SOCLE) (30/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-30 — Dashboard perso journaliste, le socle réutilisable (`index.html`)
+`index.html` 7059 → **7229** (+170). `node --check` OK. Branche `dashboard-perso-journaliste`. **Premier des 3 rôles ; crée le SOCLE que Brand et Chef réutiliseront.** index.html seul, on AJOUTE (le dashboard global n'est pas remplacé).
+
+**GENÈSE (longue conception, plusieurs sessions de maquettes) :** dashboard PERSONNEL à 3 rôles, chacun voyant « ce que TOI tu dois faire ». Décidé avec David : 3 rôles (Journaliste/Brand/Chef), un socle commun décliné. Mode **EXACT** (vrai compte de retours via DB_RETOURS, pas le proxy imprécis). **Pas de sélecteur de rôle** (David = journaliste/monteur, une seule casquette ; le prédicat journaliste réunit déjà journaliste|monteur|monteur1/2/3).
+
+**LE SOCLE (réutilisable par les 3 rôles) :**
+- `mesCartes(role, nom)` **GÉNÉRIQUE** (l. socle) : 3 prédicats définis (`journaliste`: j|monteur|monteur1/2/3 ; `chef`: s.chef ; `brand`: s.contactBrand), sélection par le paramètre `role`. **Brand/Chef appelleront `mesCartes('brand'/'chef', nom)` sans réécrire.** ⚠️ Ne PAS coder en dur — c'est le point de réutilisation.
+- `chargerRetoursActionnables()` : **1 requête DB_RETOURS** (Statut ∈ {Ouvert, Clarification}), regroupée par Sujet ID en `{ouverts, clarifications}`. **Sert le journaliste (ouverts) ET le chef plus tard (clarifications)** — requête partagée.
+- `activiteRecente(nom)` : source DÉDIÉE (requête DB_NOTIFS Destinataire===nom, top ~8). ⚠️ NE réutilise PAS `loadActiviteDashboard` (= fil GLOBAL, pas « mes notifs » — Claude Code a corrigé cette hypothèse).
+- `renderDashJournaliste()` : assemble la vue 2 colonnes.
+
+**LE ROUTING (point critique, zéro régression) :** `appRenderDashboard()` (l.6941, point d'entrée unique) DISPATCHE : si `role ∈ {Journaliste, Monteur}` → `renderDashJournaliste()` ; **SINON → le corps global INCHANGÉ** (`renderDashboard()` existant appelé comme avant, via #vue-wrap off-screen). Chef/Brand voient EXACTEMENT le dashboard d'aujourd'hui tant que leurs vues perso ne sont pas construites. **`renderDashboard` (l.5385) reste intact et appelable** (le chef le réutilisera dans son onglet « Vue globale »).
+
+**LA VUE JOURNALISTE (maquette validée) :** 2 colonnes. GAUCHE : « À faire » (retours à traiter [compte EXACT], séquencier à déposer = `!lienSeq`) + « Tes projets » (liste + barre de répartition par statut). DROITE : « Cette semaine » (tournages/montages **lundi→dimanche** via tourJ1/montJ + diffJ) + « Activité récente » (mes notifs) + « Ton mois » (PAD / en cours / à surveiller via moteur d'alertes scopé). Tout cliquable → `openDetail(id)`.
+
+**PREUVES VÉRIFIÉES PAR LE PILOTE :**
+- **A — socle générique** : `mesCartes(role, nom)` prend le rôle en paramètre, 3 prédicats prêts. Réutilisable Brand/Chef sans refacto. ✅
+- **B — dashboard global intact** : `function renderDashboard`=1 (non modifié) ; dispatch `else` → non-journalistes voient l'actuel. ✅
+- **C — compte exact** : requête DB_RETOURS filtrée Ouvert/Clarification, groupée par Sujet ID, ouverts/clarifications séparés. Pas le proxy.
+- **D — cliquable** : `openDetail`=24 occurrences.
+- **E — non-régression** : createNotif 31, _lienNotifie 6, switchPlayerVersion 2, _notifPages 6. Intacts.
+
+**Compteurs :** `wc -l`=7229 · `mesCartes`=1 · `renderDashJournaliste`=2 · `chargerRetoursActionnables`=2 · `activiteRecente`=2 · `renderDashboard`=1 (global intact) · `createNotif`=31 · balises 4/4.
+
+**APPROXIMATIONS ASSUMÉES (libellées honnêtement) :** « à surveiller »/âges = approximés (pas de timestamp d'entrée en statut) ; « cette semaine » = d'après dates saisies (peut être vide) ; « activité » = événements qui m'ont notifié (pas tout sur mes cartes).
+
+**À TESTER :** se connecter comme journaliste/monteur → le dashboard perso s'affiche (à faire, projets, semaine, activité, mois) ; les comptes de retours sont exacts ; tout est cliquable → ouvre la carte. Se connecter comme AUTRE rôle (chef/brand) → le dashboard GLOBAL actuel, inchangé.
+
+**RESTE À FAIRE (dashboard) :** ② **Chef** (réutilise le socle pour « Mon travail » + onglet « Vue globale » = renderDashboard existant) ; ③ **Brand** (réduit : validations + missions + derniers validés ; réutilise socle + une requête DB_VERSIONS pour « vidéo à valider »). Maquettes des 3 rôles déjà validées par David.
 
 
 

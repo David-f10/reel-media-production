@@ -6938,7 +6938,177 @@ function sbCatClick(fmt) {
 }
 
 // ── Dashboard ──
+// ═══════════ DASHBOARD PERSONNEL — SOCLE (réutilisable Journaliste / Brand / Chef) ═══════════
+
+// Cartes où `nom` est impliqué selon `role` (paramétré → Brand/Chef appelleront avec leur prédicat).
+// journaliste = journaliste|monteur|monteur1/2/3 (chez David journaliste = monteur, même casquette).
+function mesCartes(role, nom) {
+  if(!nom) return [];
+  const preds = {
+    journaliste: s => [s.journaliste, s.monteur, s.monteur1, s.monteur2, s.monteur3].includes(nom),
+    chef:        s => s.chef === nom,
+    brand:       s => s.contactBrand === nom
+  };
+  const pred = preds[role] || preds.journaliste;
+  return sujets.filter(s => !s.archive && pred(s));
+}
+
+// UNE requête DB_RETOURS : retours ACTIONNABLES (Statut ∈ {Ouvert, Clarification}) groupés par Sujet ID.
+// Compte EXACT (pas le proxy retoursOuverts). Partageable : le journaliste lit .ouverts, le chef .clarifications.
+async function chargerRetoursActionnables() {
+  const map = {};
+  try {
+    const data = await apiQueryAll('/databases/' + DB_RETOURS + '/query', {
+      filter: {or:[
+        {property:'Statut', select:{equals:'Ouvert'}},
+        {property:'Statut', select:{equals:'Clarification'}}
+      ]}
+    });
+    data.results.forEach(r => {
+      const sid = r.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '';
+      if(!sid) return;
+      const st = r.properties.Statut?.select?.name || '';
+      if(!map[sid]) map[sid] = {ouverts:0, clarifications:0};
+      if(st === 'Ouvert') map[sid].ouverts++;
+      else if(st === 'Clarification') map[sid].clarifications++;
+    });
+  } catch(e) { console.warn('Retours actionnables:', e.message); }
+  return map;
+}
+
+// Items « à faire » dérivés des champs + du compte exact. role paramétré (extension Brand/Chef à venir).
+function actionsAttendues(role, cartes, retoursMap) {
+  const items = [];
+  cartes.forEach(s => {
+    const r = retoursMap[s.id] || {ouverts:0, clarifications:0};
+    if(r.ouverts > 0) items.push({id:s.id, code:s.code, titre:s.titre, label:`${r.ouverts} retour${r.ouverts>1?'s':''} à traiter`, accent:'#E63946'});
+    if(!s.lienSeq && (s.statut==='Brief / Idée' || s.statut==='Séquencier en cours' || !s.statut))
+      items.push({id:s.id, code:s.code, titre:s.titre, label:'Séquencier à déposer', accent:'#EF9F27'});
+  });
+  return items;
+}
+
+// « Activité récente » = MES notifs (source DÉDIÉE, découplée de loadRetoursBadges). Top 8.
+async function activiteRecente(nom) {
+  if(!nom) return [];
+  try {
+    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
+      filter: {property:'Destinataire', rich_text:{equals: nom}},
+      sorts: [{timestamp:'created_time', direction:'descending'}],
+      page_size: 8
+    });
+    return data.results.map(n => ({
+      id: n.properties['Sujet ID']?.rich_text?.[0]?.plain_text || '',
+      code: n.properties['Sujet code']?.rich_text?.[0]?.plain_text || '',
+      msg: n.properties.Message?.title?.[0]?.plain_text || '',
+      type: n.properties.Type?.select?.name || '',
+      date: n.created_time
+    }));
+  } catch(e) { console.warn('Activité récente:', e.message); return []; }
+}
+
+// Lundi 00:00 de la semaine courante (semaine de travail lun→dim).
+function lundiDeCetteSemaine() {
+  const d = new Date();
+  const jour = (d.getDay() + 6) % 7; // 0 = lundi … 6 = dimanche
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - jour);
+  return d;
+}
+
+// Vue perso JOURNALISTE (assemble le socle). Tout item cliquable → openDetail(id).
+async function renderDashJournaliste() {
+  const mc = document.getElementById('main-content');
+  if(!mc) return;
+  const nom = currentUser?.nom || '';
+  const cartes = mesCartes('journaliste', nom);
+  mc.innerHTML = '<div style="padding:24px;color:var(--text3);font-size:13px">Chargement de ton tableau de bord…</div>';
+  const [retoursMap, activite] = await Promise.all([chargerRetoursActionnables(), activiteRecente(nom)]);
+
+  const actives = cartes.filter(s => s.statut !== 'PAD');
+  const actions = actionsAttendues('journaliste', cartes, retoursMap);
+
+  // Répartition par statut (barre)
+  const parStatut = {};
+  actives.forEach(s => { const k = s.statut || '—'; parStatut[k] = (parStatut[k]||0)+1; });
+  const barre = Object.entries(parStatut).map(([st,n]) =>
+    `<div title="${n} ${st}" style="flex:${n};background:${stColor(st)};height:8px"></div>`).join('');
+
+  // Cette semaine (lun→dim)
+  const lundi = lundiDeCetteSemaine();
+  const dimanche = new Date(lundi); dimanche.setDate(lundi.getDate()+7);
+  const dansSemaine = ds => { if(!ds) return false; const d=new Date(ds); return d>=lundi && d<dimanche; };
+  const fmtJ = ds => new Date(ds).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
+  const semaine = [];
+  cartes.forEach(s => {
+    if(dansSemaine(s.tourJ1)) semaine.push({id:s.id, code:s.code, titre:s.titre, kind:'🎥 Tournage', d:s.tourJ1});
+    if(dansSemaine(s.tourJ2)) semaine.push({id:s.id, code:s.code, titre:s.titre, kind:'🎥 Tournage', d:s.tourJ2});
+    [s.montJ1,s.montJ2,s.montJ3].forEach(m => { if(dansSemaine(m)) semaine.push({id:s.id, code:s.code, titre:s.titre, kind:'✂️ Montage', d:m}); });
+  });
+  semaine.sort((a,b)=> new Date(a.d)-new Date(b.d));
+
+  // Ton mois
+  const now = new Date();
+  const memeMois = ds => { if(!ds) return false; const d=new Date(ds); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); };
+  const padMois = cartes.filter(s => s.statut==='PAD' && memeMois(s.diffusion)).length;
+  const enCours = actives.length;
+  const dJ = (a,b) => { if(!a||!b) return null; return Math.round((new Date(b)-new Date(a))/86400000); };
+  const nowISO = now.toISOString();
+  let aSurveiller = 0;
+  cartes.forEach(s => {
+    const age = dJ(s.created, nowISO);
+    if((s.statut==='Brief / Idée'||!s.statut) && age>7) aSurveiller++;
+    else if(s.statut==='Montage' && s.lien1) { const a1=dJ(s.montJ1, nowISO); if(a1&&a1>5) aSurveiller++; }
+    else if(s.statut==='Validation chef') { const a2=dJ(s.montJ2||s.montJ1, nowISO); if(a2&&a2>3) aSurveiller++; }
+  });
+
+  const carte = (contenu) => `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px">${contenu}</div>`;
+  const titreBloc = (t, n) => `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:10px">${t}${n!==undefined?` · ${n}`:''}</div>`;
+  const ligne = (id, gauche, droite) => `<div onclick="openDetail('${id}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer">${gauche}${droite||''}</div>`;
+  const vide = t => `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 0">${t}</div>`;
+
+  const blocAFaire = carte(titreBloc('À faire maintenant', actions.length) + (actions.length
+    ? actions.map(a => ligne(a.id,
+        `<span style="font-size:12px;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${a.accent};margin-right:7px"></span>${a.label}</span>`,
+        `<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${a.code||''}</span>`)).join('')
+    : vide('Rien à traiter — tu es à jour ✅')));
+
+  const blocProjets = carte(titreBloc('Tes projets en cours', actives.length)
+    + (actives.length ? `<div style="display:flex;border-radius:4px;overflow:hidden;margin-bottom:10px">${barre}</div>` : '')
+    + (actives.length
+      ? actives.map(s => ligne(s.id,
+          `<span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-family:var(--mono);color:var(--text3);margin-right:6px">${s.code||'—'}</span>${escapeHtml(s.titre)}</span>`,
+          `<span class="pill" style="background:var(--bg4);color:${stColor(s.statut)};white-space:nowrap;font-size:10px">${s.statut||'—'}</span>`)).join('')
+      : vide('Aucun projet actif')));
+
+  const blocSemaine = carte(titreBloc('Cette semaine', semaine.length) + (semaine.length
+    ? semaine.map(e => ligne(e.id,
+        `<span style="font-size:12px;color:var(--text)">${e.kind} <span style="font-family:var(--mono);color:var(--text3);margin:0 6px">${e.code||''}</span>${escapeHtml(e.titre)}</span>`,
+        `<span style="font-size:11px;color:var(--text3);white-space:nowrap">${fmtJ(e.d)}</span>`)).join('')
+    : vide('Aucun tournage ni montage cette semaine (d\'après les dates renseignées)')));
+
+  const blocActivite = carte(titreBloc('Activité récente') + (activite.length
+    ? activite.map(e => ligne(e.id,
+        `<span style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${NOTIF_ICONS[e.type]||'🔔'} ${escapeHtml(e.msg)}</span>`,
+        `<span style="font-size:10px;color:var(--text3);white-space:nowrap">${new Date(e.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</span>`)).join('')
+    : vide('Aucune activité récente')));
+
+  const stat = (n, label, col) => `<div style="flex:1;text-align:center"><div style="font-size:22px;font-weight:700;color:${col}">${n}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em">${label}</div></div>`;
+  const blocMois = carte(titreBloc('Ton mois') + `<div style="display:flex;gap:8px">${stat(padMois,'PAD livrés','var(--green)')}${stat(enCours,'En cours','var(--blue)')}${stat(aSurveiller,'À surveiller','var(--amber)')}</div><div style="font-size:9px;color:var(--text3);margin-top:8px;text-align:center;font-style:italic">« à surveiller » = estimation d'ancienneté, pas un délai exact</div>`);
+
+  mc.innerHTML = `<div style="padding:20px 24px;max-width:1080px;margin:0 auto">
+    <div style="font-size:18px;font-weight:700;color:var(--text)">Bonjour ${escapeHtml(nom.split(' ')[0]||nom)}</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:18px">Ton tableau de bord</div>
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:16px">${blocAFaire}${blocProjets}</div>
+      <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:16px">${blocSemaine}${blocActivite}${blocMois}</div>
+    </div>
+  </div>`;
+}
+
 function appRenderDashboard() {
+  // Dispatch perso : Journaliste/Monteur → vue personnelle. Autres rôles → dashboard global INCHANGÉ (ci-dessous).
+  if(currentUser && (currentUser.role === 'Journaliste' || currentUser.role === 'Monteur')) { renderDashJournaliste(); return; }
   const mc = document.getElementById('main-content');
   let tmp = document.getElementById('__dash-tmp');
   if(!tmp) {
