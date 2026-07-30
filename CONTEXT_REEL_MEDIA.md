@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-30 (24 traçabilité vérifié à tester · fausse alerte "modifiée par un autre" à auditer · reste 25/B)
+> Dernière mise à jour : 2026-07-30 (24 + fix fausse-alerte vérifiés à tester · reste 25/B du bloc notifications)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -148,6 +148,34 @@ Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer exista
 
 
 ═══════════════════════════════════════════════════════════════
+## 📝 FIX — FAUSSE ALERTE « FICHE MODIFIÉE PAR UN AUTRE » (30/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-30 — Fix : fausse alerte de conflit sur ses propres modifs (`index.html`)
+`index.html` 7055 → **7059**. `node --check` OK. Branche `fix-fausse-alerte-conflit`. **UNE ligne modifiée.**
+
+**LE BUG (David) :** « ⚠️ Cette fiche vient d'être modifiée par quelqu'un d'autre » apparaissait sur les **propres modifs de David** (faux positif récurrent).
+
+**CAUSE (audit) :** `empreinteSujet` (le hash qui détecte les changements) incluait `lastEdited` (= `last_edited_time` Notion). Quand David modifie un champ, `upd` resynchronise le CHAMP dans le cache local **mais pas `s.lastEdited`**. Or son PATCH **bumpe** `last_edited_time` côté Notion. Au poll suivant (18s, `fichePollTick`), le `lastEdited` frais ≠ le périmé du cache → empreinte différente → `changed:true` → et comme il vient d'interagir (`ficheEnEdition` vrai < 30s) → alerte, sur sa propre modif.
+
+**POURQUOI PAS « comparer l'auteur » :** toutes les écritures passent par **un seul token d'intégration Notion** → `last_edited_by` = le bot pour tout le monde, jamais l'humain. Impasse. Le seul signal exploitable est le **contenu**.
+
+**LE FIX (1 ligne) :** exclure `lastEdited` du hash, comme `retoursOuverts` l'était déjà :
+`function empreinteSujet(s) { const {retoursOuverts, lastEdited, ...rest} = s; return JSON.stringify(rest); }`
+
+**PREUVES VÉRIFIÉES PAR LE PILOTE (le bruit retiré, pas le signal) :**
+- **A — faux positif éliminé** : `lastEdited` hors du hash ; la propre modif de David (champ de contenu resynchronisé par `upd`) ne crée plus de diff fantôme → plus d'alerte sur soi-même.
+- **B — vraie détection préservée** : une modif d'un AUTRE change un champ de CONTENU (statut/lien/responsable) → dans `...rest` → empreinte diffère → alerte TOUJOURS levée. On a retiré la métadonnée bruyante, pas le signal.
+- `lastEdited` **reste dans l'objet sujet** (compteur 12) → tri « Modif » (l.6155, 6507) intact.
+
+**Impact du bug (rappel) :** nuisance visuelle seule — le bandeau n'effaçait aucune saisie, ne rechargeait pas la fiche (rechargement seulement si clic). Mais faux positif récurrent = risque d'ignorer l'alerte le jour d'un VRAI conflit.
+
+**Compteurs :** `wc -l`=7059 · `empreinteSujet`=4 · `lastEdited`=12 (reste dans l'objet) · `montrerConflitFiche`=4 · `createNotif`=31 · `_notifPages`=6 (ch24 intact) · `marquerNonLu`=2 (ch23 intact) · balises 4/4.
+
+**À TESTER :** modifier un champ soi-même (statut/lien/responsable) → attendre 18s → **PLUS d'alerte** « modifiée par un autre ». (Vraie détection : impossible à tester seul, mais garantie par le fait qu'un champ de contenu diffère toujours.)
+
+
+
+═══════════════════════════════════════════════════════════════
 ## 📝 CHANTIER 24 — TRAÇABILITÉ DES NOTIFS (30/07)
 ═══════════════════════════════════════════════════════════════
 ### 2026-07-30 — Chantier 24 : traçabilité des notifications / « charger plus » (`index.html`)
@@ -173,7 +201,7 @@ Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer exista
 
 **À TESTER :** ouvrir le panneau (20 notifs) → « Charger plus » ajoute 20 (reste déplié) ; marquer une notif « ⟲ Non lu » → l'historique NE se replie PAS ; le badge affiche le vrai nombre de non-lues (« 20+ » au-delà) même sans ouvrir le panneau ; « Tout marquer lu » → badge à 0.
 
-**⚠️ NOUVEAU BUG À AUDITER (30/07, AVANT de coder 25/B) — FAUSSE ALERTE « fiche modifiée par quelqu'un d'autre ».** David voit « ⚠️ Cette fiche vient d'être modifiée par quelqu'un d'autre » alors que **c'est LUI** qui vient de modifier (faux positif : le mécanisme confond ses propres écritures avec celles d'un autre). Hypothèse Pilote : le PATCH de David change le `last_edited_time` Notion → le poll suivant le détecte sans savoir que c'est lui ; il faudrait resynchroniser le timestamp de référence après chaque écriture locale, OU comparer `last_edited_by` à l'utilisateur courant. **Audit lecture seule à lancer.** Risque : à force de fausses alertes, on ignore l'alerte le jour d'un vrai conflit.
+**✅ BUG RÉSOLU (30/07, voir entrée dédiée) — FAUSSE ALERTE « fiche modifiée par quelqu'un d'autre ».** David voit « ⚠️ Cette fiche vient d'être modifiée par quelqu'un d'autre » alors que **c'est LUI** qui vient de modifier (faux positif : le mécanisme confond ses propres écritures avec celles d'un autre). Hypothèse Pilote : le PATCH de David change le `last_edited_time` Notion → le poll suivant le détecte sans savoir que c'est lui ; il faudrait resynchroniser le timestamp de référence après chaque écriture locale, OU comparer `last_edited_by` à l'utilisateur courant. **Audit lecture seule à lancer.** Risque : à force de fausses alertes, on ignore l'alerte le jour d'un vrai conflit.
 
 
 

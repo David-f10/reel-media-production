@@ -3380,7 +3380,11 @@ function editionEnCours() {
 // Empreinte PAR SUJET : retoursOuverts est EXCLU (rempli côté client par les badges
 // après coup — l'inclure rendrait le diff toujours "changé" et l'application des
 // données fraîches effacerait les badges 🔔).
-function empreinteSujet(s) { const {retoursOuverts, ...rest} = s; return JSON.stringify(rest); }
+// Métadonnée d'horodatage EXCLUE du hash (comme retoursOuverts) : elle est bumpée par TOUTE écriture,
+// y compris la sienne propre — l'inclure déclenchait un faux « modifiée par quelqu'un d'autre » sur ses
+// propres modifs. Une vraie modif d'un autre change forcément un champ de CONTENU → toujours détectée.
+// Le champ reste dans l'objet sujet (tri « Modif » intact) ; seul le hash l'ignore.
+function empreinteSujet(s) { const {retoursOuverts, lastEdited, ...rest} = s; return JSON.stringify(rest); }
 
 function diffSujets(anciens, nouveaux) {
   const avant = new Map(anciens.map(s => [s.id, empreinteSujet(s)]));
