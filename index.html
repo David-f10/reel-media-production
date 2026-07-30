@@ -1548,27 +1548,51 @@ function sendBrowserNotif(titre, body, sujetId) {
   } catch(e) { console.warn('Notif navigateur:', e.message); }
 }
 
+// État de pagination — variables MODULE (jamais dans le DOM) : nombre de tranches de 20 affichées
+// (garde l'historique DÉPLIÉ à travers les re-render de la liste) + reste-t-il des pages à charger.
+let _notifPages = 1;
+let _notifHasMore = false;
+
+// Badge non-lues EXACT partout (même panneau fermé, même au-delà de 20) : requête filtrée dédiée, plafond « 20+ ».
+async function majBadgeNotifs() {
+  const badge = document.getElementById('notif-badge');
+  if(!badge || !currentUser) return;
+  try {
+    const d = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
+      filter: {and:[
+        {property:'Destinataire', rich_text:{equals: currentUser.nom}},
+        {property:'Lu', checkbox:{equals: false}}
+      ]},
+      page_size: 21
+    });
+    const n = d.results.length;
+    badge.textContent = n > 20 ? '20+' : n;
+    badge.style.display = n > 0 ? 'flex' : 'none';
+  } catch(e) { /* silencieux : le badge garde sa valeur précédente */ }
+}
+
 async function loadNotifs() {
   if(!currentUser) return;
+  majBadgeNotifs(); // TOUJOURS (léger) → badge exact, y compris panneau fermé
+  const list = document.getElementById('notif-list');
+  if(!list || !notifsOuvertes) return; // panneau fermé : on ne recharge PAS la liste (évite N appels inutiles)
   try {
-    const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', {
-      filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
-      sorts: [{timestamp:'created_time', direction:'descending'}],
-      page_size: 20
-    });
-    const notifs = data.results;
-    const nonLues = notifs.filter(n => !n.properties.Lu?.checkbox).length;
-    
-    // Badge
-    const badge = document.getElementById('notif-badge');
-    if(badge) {
-      badge.textContent = nonLues > 9 ? '9+' : nonLues;
-      badge.style.display = nonLues > 0 ? 'flex' : 'none';
+    // Vraie pagination Notion : recharge _notifPages tranches de 20 en enchaînant start_cursor.
+    let notifs = [], cursor = null;
+    _notifHasMore = false;
+    for(let p = 0; p < _notifPages; p++) {
+      const q = {
+        filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
+        sorts: [{timestamp:'created_time', direction:'descending'}],
+        page_size: 20
+      };
+      if(cursor) q.start_cursor = cursor;
+      const data = await api('/databases/' + DB_NOTIFS + '/query', 'POST', q);
+      notifs = notifs.concat(data.results);
+      _notifHasMore = data.has_more;
+      cursor = data.has_more ? data.next_cursor : null;
+      if(!cursor) break; // plus de pages côté Notion
     }
-    
-    // Liste
-    const list = document.getElementById('notif-list');
-    if(!list) return;
     if(!notifs.length) {
       list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Aucune notification</div>';
       return;
@@ -1591,8 +1615,16 @@ async function loadNotifs() {
         </div>
         ${lu?`<button onclick="marquerNonLu(event,'${n.id}')" title="Marquer comme non lu" style="flex-shrink:0;align-self:center;white-space:nowrap;background:rgba(55,138,221,0.12);border:1px solid rgba(55,138,221,0.35);color:#378ADD;cursor:pointer;font-size:11px;padding:4px 10px;line-height:1;border-radius:6px">⟲ Non lu</button>`:''}
       </div>`;
-    }).join('');
+    }).join('')
+    + (_notifHasMore ? `<div style="padding:10px 16px;text-align:center"><button onclick="chargerPlusNotifs()" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;padding:6px 14px;border-radius:6px">Charger plus</button></div>` : '');
   } catch(e) { console.warn('Erreur notifs:', e.message); }
+}
+
+// « Charger plus » : une tranche de 20 supplémentaire. _notifPages en variable module → l'historique
+// reste déplié même quand loadNotifs est rappelé (remise en non-lu, dépôt…), il ne se replie pas à 20.
+async function chargerPlusNotifs() {
+  _notifPages++;
+  await loadNotifs();
 }
 
 async function clickNotif(notifId, sujetId) {
@@ -1651,7 +1683,7 @@ function toggleNotifs(force) {
   notifsOuvertes = force !== undefined ? force : !notifsOuvertes;
   const panel = document.getElementById('notif-panel');
   if(panel) panel.style.display = notifsOuvertes ? 'flex' : 'none';
-  if(notifsOuvertes) loadNotifs();
+  if(notifsOuvertes) { _notifPages = 1; loadNotifs(); } // chaque ouverture repart à la 1re tranche (20)
 }
 
 // Fermer en cliquant ailleurs

@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-29 (chantier 23 non-lu vérifié à tester · reste 24/25/B du bloc notifications)
+> Dernière mise à jour : 2026-07-30 (24 traçabilité vérifié à tester · fausse alerte "modifiée par un autre" à auditer · reste 25/B)
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -106,6 +106,21 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ---
 
+### 📍 ÉTAT DU BLOC NOTIFICATIONS (arrêt de session 29/07)
+
+**Audit commun « vu/non-vu » FAIT** (rapport dans le transcript). Constats clés :
+- **DB_NOTIFS = coquille SUJET-SEUL** : aucun champ Version/Timecode. Le clic (`clickNotif` l.1597) ouvre TOUJOURS la fiche, jamais un endroit précis. → **obstacle central du 25.**
+- **Plafond = AFFICHAGE 20** (`loadNotifs` l.1557), PAS 50. **Rien n'est perdu en base** (rétention infinie, `apiQueryAll` voit tout). → le 24 = « afficher plus », pas « récupérer du perdu ». Badge non-lues faux au-delà de 20 (l.1560, « 9+ »).
+- **Champ `Lu` réversible** (checkbox) → le 23 était trivial. **✅ FAIT (23 + ajustement UX).**
+- **« Vu » n'existe PAS** proprement : seule trace = `Lu` des notifs (par notif, pas par personne×statut). `loadRetoursBadges` (l.3919) compte les non-lues par Sujet ID = **modèle réutilisable** pour B.
+
+**✅ CHANTIER 23 (non-lu) — FAIT, vérifié, à tester/merger** (bouton « ⟲ Non lu » bleu, `stopPropagation`, point rouge conservé).
+
+**RESTE À FAIRE (ordre recommandé) :**
+- **24 — traçabilité** : afficher plus que 20 (pagination / « charger plus »), corriger le badge non-lues faux au-delà de 20. Plus simple que prévu (rien n'est perdu).
+- **B — badge par filtre de statut** (compteur de non-vus sur les boutons de filtre en VUE CARTES). ⚠️ **DÉCISION EN SUSPENS, à trancher avant de coder :** *version SIMPLE* (badge = cartes avec **notif non-lue** dans ce statut ; coût quasi nul, réutilise `loadRetoursBadges` agrégé par statut ; imparfait — rate les cartes non-notifiées) VS *version PROPRE* (trace « vu par personne×statut » indépendante des notifs ; précise mais lourde — nouvelle base/champ + **règle de réinitialisation à définir**, le point piège : quand le compteur retombe-t-il ?). **Reco Pilote : commencer SIMPLE, vivre avec, puis décider.** David hésitait vers la propre — à retrancher à froid. Point d'ancrage code : boutons `appFilter('s',<statut>)` barre l.213-219 ; modèle `renderSidebarCats` (compte par format) l.6869.
+- **25 — bon endroit** : LE PLUS LOURD. Les notifs n'ont ni version ni timecode → clic = fiche seule. Ouvrir le lecteur/section précise exige **d'enrichir DB_NOTIFS + notify.js** (serveur) OU d'inférer+requêter. **Se demander si le jeu en vaut la chandelle** (ouvrir la fiche est peut-être suffisant). À cadrer sérieusement.
+
 ### 🎯 VISION STRUCTURANTE — LE DASHBOARD PAR ACTION (destination, pas prochain chantier)
 
 **L'idée de David (28/07) :** un tableau de bord **personnalisé par profil** qui, au lieu d'afficher « voici tes notifications », dit « voici ce que **TU** dois faire maintenant » : *uploader ce séquencier · valider cette version · répondre à cette clarification*, selon le **rôle** et les **missions en cours**.
@@ -129,6 +144,36 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 
 ### 🔧 ACTION MASTER FAITE LE 23/07
 Compteur Brand corrigé **53 → 55** (B54 Danone Gallia et B55 Energizer existaient déjà, créés hors app sans incrémenter le compteur — 3ᵉ occurrence du problème). Le prochain client prendra B56. ⚠️ **B56 « Saumon Écosse » existe dans le Google Sheet de David mais PAS dans Notion** — angle mort que le chantier 12 ne couvre pas (voir la limite documentée).
+
+
+
+═══════════════════════════════════════════════════════════════
+## 📝 CHANTIER 24 — TRAÇABILITÉ DES NOTIFS (30/07)
+═══════════════════════════════════════════════════════════════
+### 2026-07-30 — Chantier 24 : traçabilité des notifications / « charger plus » (`index.html`)
+`index.html` 7023 → **7055** (+32). `node --check` OK. Branche `notif-tracabilite`. 2ᵉ des 4 chantiers notifications.
+
+**BESOIN :** le panneau n'affichait que 20 notifs, au-delà invisible (mais **jamais perdu** en base). Benjamin veut remonter dans l'historique.
+
+**SOLUTION :** bouton « Charger plus » → +20 par clic (batch), **vraie pagination Notion** (`start_cursor`, pas de slice ni de chargement massif). Plus correction du badge non-lues.
+
+***LE PIÈGE ANTICIPÉ PAR CLAUDE CODE — le repli d'historique.*** Accumuler les notifs dans un tableau aurait fait que **tout appel `loadNotifs()` de rafraîchissement** (dont `marquerNonLu` du ch23, dont un dépôt) **replierait l'historique à 20**. Régression UX. *Solution :* mémoriser le **NOMBRE de tranches dépliées** dans une variable module `_notifPages` (l.1553, jamais le DOM). `loadNotifs` recharge `_notifPages` tranches via `start_cursor` (l.1583) → l'historique **reste déplié** après marquerNonLu/dépôt/markAllRead. Reset `_notifPages=1` à l'ouverture (l.1686).
+
+**BADGE NON-LUES CORRIGÉ** (`majBadgeNotifs` l.1557) : requête filtrée dédiée `Destinataire=user AND Lu=false`, `page_size:21` → plafond « 20+ » sinon exact, masqué si 0, **silencieux sur erreur** (garde valeur précédente). Appelé **TOUJOURS** (même panneau fermé) → badge exact partout. Remplace l'ancien comptage sur les 20 chargées (faux au-delà).
+
+**OPTIMISATION PERF** (l.1576-1578) : `loadNotifs` appelle `majBadgeNotifs()` toujours, mais **ne recharge la LISTE que si le panneau est ouvert** (`if(!list || !notifsOuvertes) return`). Évite les N appels inutiles quand personne ne regarde le panneau (loadNotifs est appelé après chaque dépôt/notif).
+
+**PREUVES VÉRIFIÉES PAR LE PILOTE :**
+- **Historique ne se replie pas** : `_notifPages` en variable module, `loadNotifs` recharge N tranches. Le point critique du modèle, tenu.
+- **Vraie pagination** : `start_cursor` enchaîné (l.1583-1592), pas un slice client.
+- **Badge exact partout** : requête dédiée, même panneau fermé, retombe à 0 sur markAllRead.
+- **Ch23 intact** : `marquerNonLu`=2, le .map de rendu (bouton « ⟲ Non lu », point rouge) inchangé.
+
+**Compteurs :** `wc -l`=7055 · `_notifPages`=6 · `chargerPlusNotifs`=2 · `majBadgeNotifs`=2 · `start_cursor`=4 · `marquerNonLu`=2 (ch23) · `createNotif`=31 · `markAllRead`=2 · `clickNotif`=2 · balises 4/4.
+
+**À TESTER :** ouvrir le panneau (20 notifs) → « Charger plus » ajoute 20 (reste déplié) ; marquer une notif « ⟲ Non lu » → l'historique NE se replie PAS ; le badge affiche le vrai nombre de non-lues (« 20+ » au-delà) même sans ouvrir le panneau ; « Tout marquer lu » → badge à 0.
+
+**⚠️ NOUVEAU BUG À AUDITER (30/07, AVANT de coder 25/B) — FAUSSE ALERTE « fiche modifiée par quelqu'un d'autre ».** David voit « ⚠️ Cette fiche vient d'être modifiée par quelqu'un d'autre » alors que **c'est LUI** qui vient de modifier (faux positif : le mécanisme confond ses propres écritures avec celles d'un autre). Hypothèse Pilote : le PATCH de David change le `last_edited_time` Notion → le poll suivant le détecte sans savoir que c'est lui ; il faudrait resynchroniser le timestamp de référence après chaque écriture locale, OU comparer `last_edited_by` à l'utilisateur courant. **Audit lecture seule à lancer.** Risque : à force de fausses alertes, on ignore l'alerte le jour d'un vrai conflit.
 
 
 
