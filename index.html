@@ -1259,7 +1259,6 @@ function openDetail(id, forcePadOpen=false){
       <span class="step-ttl">📋 Retours équipe</span>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:8px;font-family:var(--mono)" id="retours-count-${id}">...</span>
-        <button onclick="openAjoutRetour('${id}')" class="nav-btn primary" style="font-size:10px;padding:3px 10px">+ Ajouter</button>
       </div>
     </div>
     <div id="retours-list-${id}" style="min-height:40px">
@@ -1697,29 +1696,6 @@ document.addEventListener('click', e => {
 let retourSujetId = null;
 let _editBrouillonId = null;      // null = CRÉATION ; non-null = ÉDITION d'un brouillon (PATCH en place)
 let _editBrouillonVersion = null; // version pour rafraîchir la liste du lecteur après édition
-
-function openAjoutRetour(sujetId) {
-  retourSujetId = sujetId;
-  _editBrouillonId = null; _editBrouillonVersion = null; // mode CRÉATION : reset du flag édition (reset #1)
-  const _t=document.getElementById('ret-modal-title'); if(_t) _t.textContent='📋 Nouveau retour';
-  const _b=document.getElementById('ret-submit-btn'); if(_b) _b.textContent='Envoyer →';
-  // Pré-sélectionner la dernière version disponible depuis la base Versions
-  const versionsEl = document.getElementById('versions-list-'+sujetId);
-  if(versionsEl) {
-    const titres = [...versionsEl.querySelectorAll('[style*="font-weight:600"]')].map(e=>e.textContent.trim().replace(/\s.*$/,''));
-    const nums = titres.map(t=>parseInt(t.replace('V',''))).filter(n=>!isNaN(n));
-    if(nums.length > 0) {
-      const lastV = `V${Math.max(...nums)}`;
-      document.getElementById('ret-version').value = lastV;
-    }
-  }
-  document.getElementById('ret-desc').value = '';
-  document.getElementById('ret-timecode').value = '';
-  // Choix d'origine : visible pour Brand ET Chef (peuvent être en contact client) ; défaut « Mon retour »
-  const _og = document.getElementById('ret-origine'); if(_og) _og.value = '';
-  const _ogf = document.getElementById('ret-origine-field'); if(_ogf) _ogf.style.display = (currentUser?.role==='Brand'||currentUser?.role==='Chef') ? 'block' : 'none';
-  openOv('ov-retour');
-}
 
 async function submitRetour() {
   if(!currentUser) { toast("Connectez-vous pour laisser un retour", 'err'); return; }
@@ -2405,6 +2381,11 @@ async function copierLienClient(sujetId, version, lienVideo) {
   }
 }
 
+// État « bloc des autres versions déplié/replié » sur la fiche — variable MODULE (jamais DOM :
+// loadRetours est rappelé à chaque action ET par le polling 18s/60s, un état DOM serait écrasé).
+let _retoursAutresDeplie = {};
+function toggleRetoursAutres(sujetId) { _retoursAutresDeplie[sujetId] = !_retoursAutresDeplie[sujetId]; loadRetours(sujetId); }
+
 async function loadRetours(sujetId) {
   try {
     const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
@@ -2444,30 +2425,30 @@ async function loadRetours(sujetId) {
     let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
       ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}', this)" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
-    Object.entries(byVersion).forEach(([version, items]) => {
-      html += `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:var(--bg3);border-bottom:1px solid var(--border);position:sticky;top:0">${version} <span style="font-weight:400;opacity:0.6">${items.length} retour${items.length>1?'s':''}</span></div>`;
-      items.forEach(r => {
-        const pr = r.properties;
-        const desc = pr.Description?.title?.[0]?.plain_text || '';
-        const cat = pr['Catégorie']?.select?.name || '';
-        const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
-        const statut = pr.Statut?.select?.name || 'Ouvert';
-        const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
-        const source = pr.Source?.select?.name || 'Équipe';
-        const brouillon = source==='Équipe' && (pr.Brouillon?.checkbox||false);
-        const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
-        const corrige = statut === 'Corrigé';
-        const impossible = statut === '⛔ Impossible';
-        const estMoi = (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim() === myName;
-        const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border2)'">🗑</div>`:''}</div>` : '';
-        const reformulation = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
-        const reformulePar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
-        const tcReformule = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
-        const estAdapte = !!reformulation;
-        const peutAdapter = isChefUser && !corrige && !impossible && !brouillon && !estMoi;
-        const clarification = statut === 'Clarification';
-        const peutDemander = source==='Client' && !isChefUser && statut==='Ouvert' && !estAdapte;
-        html += `<div class="retour-row" style="${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':clarification?'border-left:2px solid #378ADD':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
+    // Rendu d'UNE ligne de retour (réutilisé par la version sélectionnée, les ouverts d'autres versions,
+    // et le bloc replié). Mêmes variables de closure qu'avant : myName, isChefUser, chefSujet, sujetId.
+    const renderRetourRow = (r) => {
+      const pr = r.properties;
+      const desc = pr.Description?.title?.[0]?.plain_text || '';
+      const cat = pr['Catégorie']?.select?.name || '';
+      const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+      const statut = pr.Statut?.select?.name || 'Ouvert';
+      const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
+      const source = pr.Source?.select?.name || 'Équipe';
+      const brouillon = source==='Équipe' && (pr.Brouillon?.checkbox||false);
+      const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
+      const corrige = statut === 'Corrigé';
+      const impossible = statut === '⛔ Impossible';
+      const estMoi = (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim() === myName;
+      const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border2)'">🗑</div>`:''}</div>` : '';
+      const reformulation = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
+      const reformulePar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
+      const tcReformule = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
+      const estAdapte = !!reformulation;
+      const peutAdapter = isChefUser && !corrige && !impossible && !brouillon && !estMoi;
+      const clarification = statut === 'Clarification';
+      const peutDemander = source==='Client' && !isChefUser && statut==='Ouvert' && !estAdapte;
+      return `<div class="retour-row" style="${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':clarification?'border-left:2px solid #378ADD':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
           <div style="flex:1;min-width:0${brouillon?';opacity:0.55':''}">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
               ${tc?`<span class="retour-tc">${tc}${pr['Timecode fin']?.rich_text?.[0]?.plain_text?` → ${pr['Timecode fin'].rich_text[0].plain_text}`:''}</span>`:''}
@@ -2492,8 +2473,52 @@ async function loadRetours(sujetId) {
               onmouseover="this.style.borderColor='#ff6b35'" onmouseout="this.style.borderColor='var(--border2)'">⛔</div>
           </div>`:`${corrige?`<div class="retour-check done" onclick="toggleRetour('${r.id}','${sujetId}','Ouvert')" title="Réouvrir">✓</div>`:''}`)}
         </div>`;
+    };
+    const entete = (label) => `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:var(--bg3);border-bottom:1px solid var(--border);position:sticky;top:0">${label}</div>`;
+    const compteV = (n, mot) => `<span style="font-weight:400;opacity:0.6">${n} ${mot}${n>1?'s':''}</span>`;
+    const estTraite = r => ['Corrigé','⛔ Impossible'].includes(r.properties.Statut?.select?.name);
+
+    // Version sélectionnée + gating défensif /^V\d+$/. selVer=null → repli désactivé (tout affiché comme avant).
+    const versionsVn = Object.keys(byVersion).filter(v => /^V\d+$/.test(v)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+    let selVer = _versionSelectionnee[sujetId];
+    if(!selVer || !/^V\d+$/.test(selVer) || !byVersion[selVer]) selVer = versionsVn.length ? versionsVn[versionsVn.length-1] : null;
+
+    if(!selVer) {
+      // Aucune Vn valide → comportement historique : tout groupé, rien de replié.
+      Object.entries(byVersion).forEach(([version, items]) => {
+        html += entete(`${version} ${compteV(items.length,'retour')}`);
+        items.forEach(r => { html += renderRetourRow(r); });
       });
-    });
+    } else {
+      const traitesAutres = []; // {version, r} — traités des AUTRES versions, repliables
+      Object.entries(byVersion).forEach(([version, items]) => {
+        if(version === selVer) {
+          html += entete(`${version} ${compteV(items.length,'retour')}`);
+          items.forEach(r => { html += renderRetourRow(r); });
+        } else {
+          const ouvertsItems = items.filter(r => !estTraite(r)); // Ouvert/Clarification = SIGNAL, toujours visible
+          if(ouvertsItems.length) {
+            html += entete(`${version} ${compteV(ouvertsItems.length,'ouvert')}`);
+            ouvertsItems.forEach(r => { html += renderRetourRow(r); });
+          }
+          items.filter(estTraite).forEach(r => traitesAutres.push({version, r}));
+        }
+      });
+      // Barre repliable des traités des autres versions — état dans la variable module _retoursAutresDeplie.
+      if(traitesAutres.length) {
+        const vs = [...new Set(traitesAutres.map(x=>x.version))].sort((a,b)=>parseInt((a.match(/\d+/)||[0])[0])-parseInt((b.match(/\d+/)||[0])[0]));
+        const deplie = !!_retoursAutresDeplie[sujetId];
+        html += `<div onclick="toggleRetoursAutres('${sujetId}')" style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;background:var(--bg3);border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:6px">${deplie?'▾':'▸'} Autres versions (${vs.join(', ')}) ${compteV(traitesAutres.length,'traité')}</div>`;
+        if(deplie) {
+          const parV = {};
+          traitesAutres.forEach(({version,r}) => { (parV[version]=parV[version]||[]).push(r); });
+          Object.keys(parV).sort((a,b)=>parseInt((a.match(/\d+/)||[0])[0])-parseInt((b.match(/\d+/)||[0])[0])).forEach(version => {
+            html += entete(`${version} ${compteV(parV[version].length,'traité')}`);
+            parV[version].forEach(r => { html += renderRetourRow(r); });
+          });
+        }
+      }
+    }
     listEl.innerHTML = html;
   } catch(e) {
     const listEl = document.getElementById('retours-list-' + sujetId);
@@ -2639,6 +2664,7 @@ let _versionSelectionnee = {};
 function selectVersion(sujetId, version) {
   _versionSelectionnee[sujetId] = version;
   loadVersions(sujetId);
+  loadRetours(sujetId); // le bloc Retours de la fiche suit la version sélectionnée
 }
 
 async function loadVersions(sujetId) {
