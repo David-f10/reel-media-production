@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-19 (nettoyage bloc Retours équipe livré · export relevé en PAD mergé · dossier codes Brand B09 clos · chantier A conso cadré)
+> Dernière mise à jour : 2026-08-19 (en-tête version courante mis en valeur · nettoyage bloc Retours mergé · export relevé en PAD mergé · codes Brand B09 clos · chantier A conso cadré)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,17 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-19 — Mise en valeur de l'en-tête de version (bloc Retours) — purement visuel
+- **Le constat :** l'en-tête de la version sélectionnée et la barre d'historique avaient le **même traitement visuel** — rien ne signalait laquelle était la section active.
+- **La règle implémentée, 4 états :** version **courante avec ouverts** → fond `--bg4` + libellé `--text`, décompte des ouverts en `--red` ; version **courante tout traité** → fond vert **opaque** + libellé et décompte en `--green` ; **autre version avec ouverts** → `--bg3` inchangé, décompte en rouge ; **autre version tout traité** → repliée dans la barre (inchangé).
+- **⚠️ POURQUOI PAS LE ROUGE pour « version courante » :** l'audit de palette a établi deux idiomes « actif » dans l'app — l'accent rouge (onglets, version courante du **lecteur**) et l'élévation neutre (`--bg4` + `--text`, sidebar). On a retenu **l'élévation neutre** : dans ce bloc précis, le rouge signifie déjà **« ouvert / urgent »**. Deux emplois du rouge à quelques pixels d'écart auraient brouillé le signal qu'on venait de protéger.
+- **⚠️ PAS de « Tout corrigé ✅ » sur l'en-tête :** cette formule existe déjà sur le **compteur global** du bloc. La reprendre aurait créé deux « Tout corrigé » superposés disant des choses différentes (l'un pour la carte, l'autre pour cette version). L'en-tête vert affiche « **V3 · 2 traités** ».
+- **⚠️ PIÈGE STICKY RÉSOLU (détecté par Claude Code) :** les en-têtes sont `position:sticky`. `--green-dim` est **semi-transparent** (`rgba(...,0.15)`) → un en-tête vert sticky aurait laissé **transparaître le contenu défilant dessous**. Correctif : double-fond `linear-gradient(var(--green-dim),var(--green-dim)),var(--bg3)` = teinte verte **opaque** sur la même base que les autres en-têtes.
+- **« Ouvert » = rouge partout** (nouveau helper `compteOuvert`, l.2479) : le décompte des ouverts des **autres** versions était grisé (`opacity:0.6`), il passe en `--red`. Signal uniforme.
+- **Le helper `entete` est paramétré avec des valeurs par défaut** (`--bg3`, `--text3`) → tous les appels neutres existants restent inchangés, aucun risque de régression sur les autres en-têtes.
+- **Cas limites confirmés :** « tout traité » = 0 Ouvert **ni** Clarification (un **brouillon** compte comme non traité → pas de vert tant qu'il traîne) ; une **version courante vide est impossible** (`byVersion` ne contient que les versions ayant ≥1 retour) donc jamais d'en-tête vert trompeur ; **gating null** (aucune Vn valide) → toutes les versions restent neutres, aucune n'est « courante ».
+- **Vérification Pilote :** `wc -l` **7255 → 7261 (+6)**, `CHEF_PAR_DEFAUT`=13, `createNotif`=31, script 4/4, `node --check` OK. **Logique du chantier précédent intacte** : `_retoursAutresDeplie`=4, `toggleRetoursAutres`=2, gating `/^V\d+$/`=4, câblage `selectVersion→loadRetours` présent, commentaire « SIGNAL, toujours visible » l.2505 intact, compteur global l.2405 intact.
 
 ### 2026-08-19 — Nettoyage du bloc Retours équipe (fiche) — 2 volets, 1 branche
 - **Volet 1 — retrait du bouton « + Ajouter »** de l'en-tête du bloc Retours de la fiche (ancienne l.1262). **Pourquoi :** les retours équipe se saisissent dans le LECTEUR, avec la vidéo et le timecode ; créer un retour depuis la fiche produisait un retour **avec version mais sans timecode**, ce qui vide l'outil de sa valeur. La **visualisation reste** (compteur + liste, rendus par `loadRetours`, indépendants du bouton).

@@ -2474,8 +2474,9 @@ async function loadRetours(sujetId) {
           </div>`:`${corrige?`<div class="retour-check done" onclick="toggleRetour('${r.id}','${sujetId}','Ouvert')" title="Réouvrir">✓</div>`:''}`)}
         </div>`;
     };
-    const entete = (label) => `<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:var(--bg3);border-bottom:1px solid var(--border);position:sticky;top:0">${label}</div>`;
+    const entete = (label, bg='var(--bg3)', col='var(--text3)') => `<div style="font-size:10px;font-weight:600;color:${col};text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px 4px;background:${bg};border-bottom:1px solid var(--border);position:sticky;top:0">${label}</div>`;
     const compteV = (n, mot) => `<span style="font-weight:400;opacity:0.6">${n} ${mot}${n>1?'s':''}</span>`;
+    const compteOuvert = (n) => `<span style="font-weight:400;color:var(--red)">${n} ouvert${n>1?'s':''}</span>`; // « ouvert » = rouge partout (le signal)
     const estTraite = r => ['Corrigé','⛔ Impossible'].includes(r.properties.Statut?.select?.name);
 
     // Version sélectionnée + gating défensif /^V\d+$/. selVer=null → repli désactivé (tout affiché comme avant).
@@ -2493,12 +2494,17 @@ async function loadRetours(sujetId) {
       const traitesAutres = []; // {version, r} — traités des AUTRES versions, repliables
       Object.entries(byVersion).forEach(([version, items]) => {
         if(version === selVer) {
-          html += entete(`${version} ${compteV(items.length,'retour')}`);
+          // Version COURANTE mise en valeur : des ouverts → élévation neutre (--bg4) + décompte ouverts rouge ;
+          // tout traité → fond vert OPAQUE (double-fond = sticky safe) + libellé/décompte verts.
+          const ouvertsSel = items.filter(r => !estTraite(r)).length;
+          html += ouvertsSel > 0
+            ? entete(`${version} ${compteOuvert(ouvertsSel)}`, 'var(--bg4)', 'var(--text)')
+            : entete(`${version} ${compteV(items.length,'traité')}`, 'linear-gradient(var(--green-dim),var(--green-dim)),var(--bg3)', 'var(--green)');
           items.forEach(r => { html += renderRetourRow(r); });
         } else {
           const ouvertsItems = items.filter(r => !estTraite(r)); // Ouvert/Clarification = SIGNAL, toujours visible
           if(ouvertsItems.length) {
-            html += entete(`${version} ${compteV(ouvertsItems.length,'ouvert')}`);
+            html += entete(`${version} ${compteOuvert(ouvertsItems.length)}`);
             ouvertsItems.forEach(r => { html += renderRetourRow(r); });
           }
           items.filter(estTraite).forEach(r => traitesAutres.push({version, r}));
