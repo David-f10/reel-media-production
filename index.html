@@ -1267,19 +1267,6 @@ function openDetail(id, forcePadOpen=false){
 
   </div>`;
 
-  // Tâches de sujet
-  html+=`<div class="step" style="padding:0;overflow:hidden" id="taches-section-${id}">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
-      <span class="step-ttl">✅ Tâches</span>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:8px;font-family:var(--mono)" id="taches-count-${id}">...</span>
-        <button onclick="openAjoutTacheSujet('${id}')" class="nav-btn primary" style="font-size:10px;padding:3px 10px">+ Ajouter</button>
-      </div>
-    </div>
-    <div id="taches-list-${id}" style="min-height:40px">
-      <div style="padding:14px 16px;font-size:11px;color:var(--text3)">Chargement...</div>
-    </div>
-  </div>`;
 
   // Commentaires
   html+=`<div class="step" id="comments-section-${id}">
@@ -1316,7 +1303,6 @@ function openDetail(id, forcePadOpen=false){
   if(s.releveMusique) setTimeout(()=>loadMusiques(id), 100);
   // Charger les retours et commentaires
   loadRetours(id);
-  loadTachesSujet(id);
   loadComments(id);
 }
 
@@ -6424,116 +6410,6 @@ function updateBadgeTaches() {
   if (badge) badge.style.display = urgent > 0 ? 'inline-block' : 'none';
 }
 
-// ─── TÂCHES DE SUJET (Système 2 — fiche détail partagée) ───
-
-let tacheSujetIdCourant = null;
-
-async function loadTachesSujet(sujetId) {
-  const listEl = document.getElementById('taches-list-' + sujetId);
-  const countEl = document.getElementById('taches-count-' + sujetId);
-  if (!listEl) return;
-  try {
-    const data = await apiQueryAll('/databases/' + DB_TACHES + '/query', {
-      filter: {and: [
-        {property: 'Archivé', checkbox: {equals: false}},
-        {property: 'Sujet lié', rich_text: {equals: sujetId}}
-      ]},
-      sorts: [{property: 'Date échéance', direction: 'ascending'}]
-    });
-    const items = data.results.map(parseTache);
-    const aFaire = items.filter(t => t.statut === 'À faire').length;
-    if (countEl) {
-      countEl.textContent = aFaire > 0 ? `${aFaire} à faire` : items.length > 0 ? 'Tout fait ✅' : '0';
-      countEl.className = 'pill ' + (aFaire > 0 ? 'p-amber' : 'p-green');
-    }
-    if (!items.length) {
-      listEl.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 14px">Aucune tâche sur ce sujet</div>';
-      return;
-    }
-    let html = '';
-    items.forEach(t => {
-      const isDone = t.statut === 'Fait';
-      html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);${isDone ? 'opacity:0.45' : ''}"
-        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-        <div class="retour-check${isDone ? ' done' : ''}" onclick="toggleTacheSujet('${t.id}','${sujetId}','${t.statut}')" title="${isDone ? 'Rouvrir' : 'Marquer fait'}">${isDone ? '✓' : ''}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:12px;color:var(--text);${isDone ? 'text-decoration:line-through' : ''}">${t.titre}</div>
-        </div>
-        <span style="font-size:10px;color:var(--text3);white-space:nowrap">${t.creePar ? 'par ' + t.creePar : ''}</span>
-        <span style="font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;flex-shrink:0">${fmtDate(t.dateEcheance)}</span>
-        <button onclick="archiverTacheSujet('${t.id}','${sujetId}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0 4px;flex-shrink:0" title="Archiver">🗑</button>
-      </div>`;
-    });
-    listEl.innerHTML = html;
-  } catch (e) {
-    listEl.innerHTML = `<div style="font-size:11px;color:var(--red);padding:4px 14px">${e.message}</div>`;
-  }
-}
-
-function openAjoutTacheSujet(sujetId) {
-  tacheSujetIdCourant = sujetId;
-  const modal = document.createElement('div');
-  modal.className = 'overlay open';
-  modal.id = 'ov-tache-sujet';
-  const today = new Date().toISOString().slice(0, 10);
-  modal.innerHTML = `<div class="modal" style="max-width:420px">
-    <div class="modal-hdr">
-      <div class="modal-title">✅ Nouvelle tâche sujet</div>
-      <button class="modal-close" onclick="document.getElementById('ov-tache-sujet').remove()">×</button>
-    </div>
-    <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
-      <div class="field"><div class="field-label">Titre *</div>
-        <input type="text" id="nts-titre" placeholder="Ex: Vérifier les rushs"></div>
-      <div class="field"><div class="field-label">Date d'échéance *</div>
-        <input type="date" id="nts-date" value="${today}"></div>
-    </div>
-    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
-      <button class="nav-btn" onclick="document.getElementById('ov-tache-sujet').remove()">Annuler</button>
-      <button class="nav-btn primary" onclick="creerTacheSujet()">Créer →</button>
-    </div>
-  </div>`;
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-  document.body.appendChild(modal);
-}
-
-async function creerTacheSujet() {
-  const titre = document.getElementById('nts-titre')?.value.trim();
-  const date = document.getElementById('nts-date')?.value;
-  if (!titre) { toast('Ajoutez un titre', 'err'); return; }
-  if (!date) { toast('Choisissez une date', 'err'); return; }
-  try {
-    await api('/pages', 'POST', {parent: {database_id: DB_TACHES}, properties: {
-      'Titre': {title: [{text: {content: titre}}]},
-      'Statut': {select: {name: 'À faire'}},
-      'Date échéance': {date: {start: date}},
-      'Assigné': {rich_text: [{text: {content: currentUser.nom}}]},
-      'Créé par': {rich_text: [{text: {content: currentUser.nom}}]},
-      'Sujet lié': {rich_text: [{text: {content: tacheSujetIdCourant}}]},
-      'Archivé': {checkbox: false}
-    }});
-    toast('✓ Tâche ajoutée', 'ok');
-    document.getElementById('ov-tache-sujet')?.remove();
-    loadTachesSujet(tacheSujetIdCourant);
-  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
-}
-
-async function toggleTacheSujet(tacheId, sujetId, currentStatut) {
-  const newStatut = currentStatut === 'Fait' ? 'À faire' : 'Fait';
-  try {
-    await api('/pages/' + tacheId, 'PATCH', {properties: {'Statut': {select: {name: newStatut}}}});
-    loadTachesSujet(sujetId);
-  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
-}
-
-async function archiverTacheSujet(tacheId, sujetId) {
-  const ok = await confirmerAction('Archiver cette tâche ?', 'Archiver', 'Annuler');
-  if (!ok) return;
-  try {
-    await api('/pages/' + tacheId, 'PATCH', {properties: {'Archivé': {checkbox: true}}});
-    loadTachesSujet(sujetId);
-    toast('Tâche archivée', 'ok');
-  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
-}
 
 async function renderArchives() {
   const mc = document.getElementById('main-content');
