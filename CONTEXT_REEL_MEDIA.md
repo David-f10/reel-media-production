@@ -1,6 +1,29 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-07-30 (DASHBOARD journaliste = socle vérifié à tester · reste Brand + Chef à décliner)
+> Dernière mise à jour : 2026-08-19 (chantier export relevé musical en PAD livré et vérifié · dossier codes Brand B09 clos · chantier A conso cadré)
+
+---
+## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
+Quand David écrit le mot **`Succession`** (ou « fais une succession ») → le chat arrive à sa fin, préparer la passation pour le prochain chat. Le Pilote doit AUTOMATIQUEMENT :
+1. Régénérer `PASSATION_CHAT.md` à jour (rappel de lire le prompt projet + CONTEXT initial ; architecture 3 chats ; protocole de vérif ; pièges ; section « OÙ ON EN EST » réactualisée avec LE sujet chaud du moment et tout prompt en attente).
+2. Régénérer ce `CONTEXT_REEL_MEDIA.md` si du code a été livré depuis la dernière génération.
+3. Présenter les 2 fichiers via present_files et dire : « Ouvre un nouveau chat dans ce projet, uploade PASSATION_CHAT.md, le nouveau Pilote reprendra ici. »
+Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire la passation sans poser de question.
+
+## 📌 SUJET CHAUD À LA REPRISE (2026-08-19)
+
+**Chantier A conso Netlify — cadré, prêt à lancer.** Alerte Netlify 75 % (94K/125K en juillet, sur ~2 semaines de rodage ; août non représentatif, congés). Plan **Free Legacy** confirmé plus avantageux que le nouveau modèle en crédits (qui facture 15 crédits par déploiement de production — punitif vu la cadence de David). **Ne pas migrer d'hébergeur** : le gaspillage suivrait ailleurs.
+
+**Cadrage arrêté par David — ZÉRO dégradation UX :**
+- `autoRefreshTick` : filtre incrémental `last_edited_time`, **fréquence inchangée à 60s**, avec **refresh complet périodique obligatoire** (sinon un sujet supprimé/archivé ne revient jamais comme « modifié » → sujet fantôme).
+- **Détection d'inactivité** : suspension du poll après ~3 min sans clic/frappe, **refresh complet à la reprise**. L'état d'inactivité vit dans une **variable module**, jamais dans le DOM.
+- **Badge de notifications : INTOUCHÉ.** David refuse toute perte de réactivité sur les notifs (le push ne couvre pas toutes les configs).
+- `fichePollTick` : non touché, réservé au chantier B.
+
+**Mesures encore à faire :** ventilation Netlify par projet (7 projets partagent le quota, dont Rushup.AI — on ignore la part réelle de Réel Média) + mesure DevTools 10 min à vide / 10 min d'usage, au premier plan.
+
+---
+
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
@@ -120,6 +143,23 @@ Le retour adapté par Benjamin est **en production**. `index.html` 6670 lignes.
 - **24 — traçabilité** : afficher plus que 20 (pagination / « charger plus »), corriger le badge non-lues faux au-delà de 20. Plus simple que prévu (rien n'est perdu).
 - **B — badge par filtre de statut** (compteur de non-vus sur les boutons de filtre en VUE CARTES). ⚠️ **DÉCISION EN SUSPENS, à trancher avant de coder :** *version SIMPLE* (badge = cartes avec **notif non-lue** dans ce statut ; coût quasi nul, réutilise `loadRetoursBadges` agrégé par statut ; imparfait — rate les cartes non-notifiées) VS *version PROPRE* (trace « vu par personne×statut » indépendante des notifs ; précise mais lourde — nouvelle base/champ + **règle de réinitialisation à définir**, le point piège : quand le compteur retombe-t-il ?). **Reco Pilote : commencer SIMPLE, vivre avec, puis décider.** David hésitait vers la propre — à retrancher à froid. Point d'ancrage code : boutons `appFilter('s',<statut>)` barre l.213-219 ; modèle `renderSidebarCats` (compte par format) l.6869.
 - **25 — bon endroit** : LE PLUS LOURD. Les notifs n'ont ni version ni timecode → clic = fiche seule. Ouvrir le lecteur/section précise exige **d'enrichir DB_NOTIFS + notify.js** (serveur) OU d'inférer+requêter. **Se demander si le jeu en vaut la chandelle** (ouvrir la fiche est peut-être suffisant). À cadrer sérieusement.
+
+### ⚡ CONSO NETLIFY — AUDIT FAIT, OPTIM EN ATTENTE (31/07)
+
+**ALERTE :** Netlify a signalé 75% du quota de FONCTIONS (juillet). 18 personnes utilisent l'app depuis ~2 semaines. Risque de suspension si dépassement (mais quota se réinitialise le 1er du mois).
+
+**⏸️ DÉCISION DAVID : NE RIEN CODER avant de voir les VRAIES stats Netlify de début août.** Mesurer avant d'optimiser. L'audit est une estimation (Claude Code n'avait pas les volumes exacts). Observer le rythme de conso sur le nouveau mois, puis décider.
+
+**DIAGNOSTIC (audit lecture seule, prêt à servir) :** chaque `api()` = 1 invocation de `/.netlify/functions/notion`, amplifiée par la pagination (250 sujets = 3 pages = 3 invocations). 95% du volume = le proxy Notion. **Le POLLING est le coupable** (~300-700k appels/mois pour 18 pers) :
+- **Poste #1 (le plus gros) — `autoRefreshTick` l.3592 :** recharge TOUT DB_PROD toutes les 60s même si rien n'a changé (~1000 appels/j/pers). Piste : espacer 60→180s + **filtre incrémental** (last_edited_time > dernierTick → 0 résultat le plus souvent = 1 page). Gain −80/90%.
+- **Poste #2 — badge notifs `loadNotifs` l.3702 :** majBadge toutes les 60s (~480/j/pers). Le push web couvre déjà le temps réel. Piste : 60→300s. Gain −80%, zéro coût UX.
+- **Poste #3 — `fichePollTick` l.3497 :** conflit toutes les 18s fiche ouverte (bursty). Piste : 18→45s ou fusionner avec autoRefreshTick.
+- **Poste #4 — `loadRetoursBadges` :** scan complet DB_NOTIFS paginé, grossit avec le temps (rétention infinie). Piste : filtrer Lu=false / N derniers jours ; mutualiser avec majBadge.
+**#1 + #2 seuls suffiraient à repasser sous le quota** (~500k → ~70k/mois, ÷7). **Ni le ch24 ni le dashboard ne sont responsables** (audit explicite).
+
+**IMPACT VITESSE analysé (favorable) :** #1 (60→180s) = le rafraîchissement AUTO passif passe de 1 à 3 min ; les ACTIONS de l'utilisateur restent immédiates ; le filtre incrémental allège même chaque tick. #2 = quasi nul (push temps réel couvre l'urgence). #3 = négligeable (alerte conflit rare). **Curseur ajustable : 180s ou 120s si 3 min jugé trop long.** ⚠️ Piège à traiter au moment de coder : un sujet SUPPRIMÉ/archivé ne « revient » jamais comme modifié avec le filtre incrémental → prévoir refresh complet périodique ou détection des disparitions.
+
+**Branche prévue quand on lancera :** `perf-polling-netlify` (postes #1+#2 d'abord, en proposition).
 
 ### 🎯 VISION STRUCTURANTE — LE DASHBOARD PAR ACTION (destination, pas prochain chantier)
 
