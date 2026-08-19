@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-19 (en-tête version courante mis en valeur · nettoyage bloc Retours mergé · export relevé en PAD mergé · codes Brand B09 clos · chantier A conso cadré)
+> Dernière mise à jour : 2026-08-19 (bloc Tâches retiré de la fiche · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos · chantier A conso cadré)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,18 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-19 — Retrait du bloc Tâches de la fiche carte (page menu conservée)
+- **Ce qui a été retiré :** le bloc `.step` Tâches de la fiche (titre, compteur, liste, bouton « + Ajouter »), l'appel `loadTachesSujet(id)` dans `openDetail`, et **5 fonctions + 1 variable module** devenues orphelines : `loadTachesSujet`, `openAjoutTacheSujet`, `creerTacheSujet`, `toggleTacheSujet`, `archiverTacheSujet`, `tacheSujetIdCourant`, plus le modal dynamique `ov-tache-sujet`.
+- **La PAGE TÂCHES du menu est CONSERVÉE** : `loadTachesPerso`, `openNouvelleTache`, `creerTachePerso`, `loadTachesBadgeSilent`, `parseTache`, l'entrée sidebar et le badge. Les gens peuvent toujours créer leurs tâches personnelles.
+- **Pourquoi :** le bloc fiche faisait doublon avec les **commentaires**, le canal réellement vivant (40 commentaires / 8 auteurs / actifs, contre 10 tâches / 3 auteurs apparents / arrêtées mi-juillet). **Audit Master décisif :** les 10 tâches de DB_TACHES se sont révélées être **des tests de David** créés depuis les espaces d'Augustin, Benjamin et Thierry — l'usage réel du mécanisme est **nul**.
+- **⚠️ ARCHITECTURE DÉCOUVERTE — deux vues DISJOINTES sur la même base :** `DB_TACHES` est partagée mais séparée par le champ **`Sujet lié`**. Bloc fiche = `Sujet lié equals sujetId` ; page menu = **`Sujet lié is_empty`**. Elles ne se recoupent **jamais** — une tâche créée depuis une fiche n'apparaît **pas** dans le menu. Retirer une entrée orpheline donc sa tranche de données.
+- **⚠️ PIÈGE ÉVITÉ — `confirmerAction` est PARTAGÉ :** appelé par `archiverTacheSujet` (retiré) **mais aussi l.4057 (retrait d'un membre d'équipe)** et l.6347 (archivage d'une tâche perso du menu). Le retirer aurait cassé « Gérer l'équipe » sans qu'on s'en aperçoive. **Conservé.** `parseTache` et `fmtDate` également conservés (helpers partagés avec le menu).
+- **Méthode appliquée — prouver avant de supprimer :** pour chaque élément candidat, grep exhaustif des appelants dans `index.html` **et** `review.html` (aucune référence tâche dans review.html). On ne retire que ce qui est prouvé orphelin *après* le retrait du bloc. Même méthode que pour `openAjoutRetour`.
+- **Conséquence assumée :** les 4 tâches rattachées à une carte restent dans DB_TACHES (aucune écriture, aucune suppression) mais ne sont **plus affichées nulle part** — ni le menu ni le badge ne les voient (`is_empty`), les archives affichent des sujets. Ce sont toutes des tâches de test, aucune perte réelle.
+- **Aucun CSS touché** : le `.step` est autonome, le retrait produit un simple reflow des blocs voisins.
+- **Vérification Pilote :** `wc -l` **7261 → 7137 (−124)**, `CHEF_PAR_DEFAUT`=13, `createNotif`=31, script 4/4, `node --check` OK. Les 8 retraits confirmés à **0 occurrence**. `confirmerAction` présent avec ses 2 appelants légitimes. Page menu intacte. Non-régression des chantiers du jour vérifiée (`_retoursAutresDeplie`=4, `compteOuvert`=3, `exporterReleve`=2, `openAjoutRetour`=0).
+- **À revoir plus tard :** la page menu est conservée sur décision de David (« laisser la possibilité aux gens »), mais elle n'a jamais servi en 3 mois. Question à reposer si elle reste vide.
 
 ### 2026-08-19 — Mise en valeur de l'en-tête de version (bloc Retours) — purement visuel
 - **Le constat :** l'en-tête de la version sélectionnée et la barre d'historique avaient le **même traitement visuel** — rien ne signalait laquelle était la section active.
