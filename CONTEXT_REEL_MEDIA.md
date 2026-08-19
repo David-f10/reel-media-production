@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-19 (chantier export relevé musical en PAD livré et vérifié · dossier codes Brand B09 clos · chantier A conso cadré)
+> Dernière mise à jour : 2026-08-19 (nettoyage bloc Retours équipe livré · export relevé en PAD mergé · dossier codes Brand B09 clos · chantier A conso cadré)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -24,6 +24,37 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 
 ---
 
+
+═══════════════════════════════════════════════════════════════
+## 📝 HISTORIQUE DES MODIFS
+═══════════════════════════════════════════════════════════════
+
+### 2026-08-19 — Nettoyage du bloc Retours équipe (fiche) — 2 volets, 1 branche
+- **Volet 1 — retrait du bouton « + Ajouter »** de l'en-tête du bloc Retours de la fiche (ancienne l.1262). **Pourquoi :** les retours équipe se saisissent dans le LECTEUR, avec la vidéo et le timecode ; créer un retour depuis la fiche produisait un retour **avec version mais sans timecode**, ce qui vide l'outil de sa valeur. La **visualisation reste** (compteur + liste, rendus par `loadRetours`, indépendants du bouton).
+- **`openAjoutRetour` RETIRÉE** — orphelinat **prouvé par grep** avant retrait (index.html : l'appel du bouton + la définition ; **0 dans review.html**). Principe : on ne laisse pas de code mort qui *ressemble* à du code vivant. `ov-retour`, `submitRetour` et `ouvrirEditionBrouillon` **conservés** (édition de brouillon). Bouton Tâches (`openAjoutTacheSujet`) **intouché**.
+- **Volet 2 — filtrage par version sélectionnée.** `loadRetours` ne lisait pas `_versionSelectionnee` : les deux étaient indépendants. Désormais la version sélectionnée est rendue entièrement, et les **traités** (Corrigé / ⛔ Impossible) des autres versions partent dans une barre repliable **« ▸ Autres versions (V1, V3) · N traités »**.
+- **⚠️ RÈGLE CENTRALE — le signal ne se replie JAMAIS :** les retours **Ouvert / Clarification** des autres versions restent **toujours visibles**, sous un en-tête `Vx · N ouvert`. Un retour ouvert est une action à faire ; le cacher parce qu'on regarde une autre version reviendrait à perdre du travail.
+- **Compteur global INCHANGÉ** : compte toujours les ouverts **toutes versions**. Le restreindre à la version affichée aurait fait disparaître un ouvert ancien du compteur ET de la liste = double perte de signal.
+- **Deux pièges du projet évités :** (1) état de pliage dans la **variable module** `_retoursAutresDeplie` (l.2386, hors de toute fonction) — `loadRetours` est re-rendu à chaque action **et par le polling 18s/60s** ; (2) **gating défensif `/^V\d+$/`** — si `selVer` est nul (livrable L1, « voir version » différé), le repli est désactivé et tout s'affiche.
+- **Câblage ajouté :** `loadRetours(sujetId)` dans `selectVersion` — sans lui le filtre n'aurait suivi le clic qu'au prochain poll (18 s de décalage).
+- **Vérif Pilote :** `wc -l` **7229 → 7255 (+26)**, `CHEF_PAR_DEFAUT`=13, `createNotif`=31, script 4/4, `node --check` OK, `openAjoutRetour`=0.
+
+### 2026-08-19 — Export du relevé musical accessible en PAD (MERGÉ)
+- **Ce qui a changé :** à la l.1117, le bouton « 📄 Exporter le relevé » a été **sorti du bloc conditionnel** `${s.statut!=='PAD'?…:''}` où il était empaqueté avec les champs de saisie. Rendu désormais **inconditionnellement**.
+- **Pourquoi :** le relevé devenait inexportable dès le passage en PAD — or c'est au moment de la livraison qu'on en a besoin. `exporterReleve` (l.1993) n'avait **aucune garde de statut** : seul le bouton n'était pas rendu.
+- **Périmètre volontairement limité :** la **saisie** reste masquée en PAD. La **suppression** (`×`) reste disponible à tous les statuts — **incohérence assumée**, non corrigée sur décision de David.
+- **Vérif Pilote :** `wc -l` 7229 inchangé, compteurs OK, `node --check` OK.
+
+### 2026-08-19 — Dossier codes Brand B09 (Notion, aucun code)
+- **Cause racine :** le Google Sheet appliquait un **doublement de lettre** après Z (AA, BB, CC, DD) ; l'app applique une **vraie base 26** via `nextLetter` (l.4885-4897 : Z→AA→AB→AC, retenue ZZ→AAA). David avait créé AA et BB **manuellement dans Notion** en recopiant le Sheet ; l'app a ensuite généré BC à partir de l'état BB. **Le générateur n'a jamais eu tort** — il a correctement incrémenté une valeur d'entrée fausse.
+- **Corrections Notion (Master) :** B09BB → **B09AB**, B09BC → **B09AC**, fiche client B09 `Dernière lettre` BC → **AC**, `Prochaine déclinaison` → **B09AD**. B09AA inchangé.
+- **Le Sheet garde BB/CC/DD** (déclarés en compta). Référence tableur notée en 1re ligne du brief (`Réf. tableau : B09CC`). `Nom fichier officiel` de « Pause brindille » (`B09BC_Mathilde_29072026`) **délibérément inchangé**.
+- **⚠️ Test EN ATTENTE :** créer « Melting Pot » **dans l'app** (jamais dans Notion) → doit produire **B09AD**.
+
+### 2026-08-19 — Incident Master : écrasement d'un code sur la mauvaise carte
+- Master a réutilisé un `page_id` d'un **audit antérieur** sans revérifier le titre, et a écrit `B09AB` sur la carte B48 « Match IA VS E.C ». Valeur d'origine **B48C** confirmée par **deux sources** (historique Notion + Sheet), restaurée manuellement.
+- **⚠️ LIMITE STRUCTURELLE :** le **MCP Notion n'expose PAS l'historique des propriétés**. Master ne peut **jamais** récupérer une valeur qu'il a écrasée.
+- **RÈGLES PERMANENTES pour Master :** (1) avant toute écriture, fetch + annoncer « la page X a actuellement CHAMP = VALEUR, je le passe à NOUVELLE », puis **attendre le feu vert** ; (2) aucun `page_id` d'une étape antérieure sans revérification ; (3) toujours annoncer la valeur d'origine — l'annonce dans le chat est la **seule sauvegarde** ; (4) limite de requêtes active → **aucune écriture**.
 
 ═══════════════════════════════════════════════════════════════
 ## 🚨 À LIRE EN PREMIER — REPRISE DANS UN NOUVEAU CHAT
