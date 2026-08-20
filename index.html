@@ -3360,6 +3360,10 @@ async function doLogin(){
 // ── Rafraîchissement automatique v2 (diff par sujet, application silencieuse,
 //    conflit signalé DANS la fiche — saisie toujours sacrée) ──
 let _autoRefreshTimer = null, _notifsTimer = null, _autoRefreshBusy = false, _lastVisTick = 0;
+// Filtre incrémental d'autoRefreshTick — variables MODULE (jamais DOM). Bornes avancées SEULEMENT sur succès.
+let _lastEditWatermark = null;   // ISO : borne haute des éditions déjà vues (on_or_after au tick suivant)
+let _lastFullRefresh = 0;        // ms : date du dernier COMPLET (réconcilie suppressions/archivages)
+let _forceFullRefresh = false;   // force un COMPLET (1er tick, retour d'onglet caché)
 let _ecrituresEnVol = 0;            // écritures Notion (non-GET) en vol — garde-fou : jamais de reload pendant une écriture
 let _nouvelleVersionDispo = false;  // détecté en VISIBLE par checkAppVersion ; l'action se fait au masquage / inactivité
 let _derniereActivite = Date.now(); // horodatage de la dernière interaction utilisateur (seuil d'inactivité)
@@ -3613,24 +3617,46 @@ async function autoRefreshTick() {
   tenterReloadSilencieux(); // visible-idle : recharge si version prête + inactif ≥ 10 min
   _autoRefreshBusy = true;
   try {
-    const prod = await apiQueryAll('/databases/' + DB_PROD + '/query',
-      {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}]});
-    const fresh = prod.results.map(parsePage);
-    const diff = diffSujets(sujets, fresh);
-    const rien = !diff.modifies.length && !diff.ajoutes.length && !diff.supprimes.length;
+    // COMPLET si forcé (1er tick / retour d'onglet), pas de borne, ou ≥ 5 min depuis le dernier COMPLET.
+    const complet = _forceFullRefresh || !_lastEditWatermark || (Date.now() - _lastFullRefresh >= 5*60*1000);
+    const borne = new Date(Date.now() - 120000).toISOString(); // capturée AVANT le fetch (marge anti-skew horloge)
+    // Instantané AVANT fusion (un sujet qui SORT du filtre doit disparaître) — pré-merge pour les 2 modes.
+    const visiblesAvant = idsVisibles(sujets);
+    const ancienStatutFiche = _detailSujetId ? (sujets.find(s => s.id === _detailSujetId) || {}).statut : null;
 
+    let diff;
+    if(complet) {
+      const prod = await apiQueryAll('/databases/' + DB_PROD + '/query',
+        {filter:{property:'Archivé',checkbox:{equals:false}},sorts:[{timestamp:'created_time',direction:'descending'}]});
+      const fresh = prod.results.map(parsePage);
+      diff = diffSujets(sujets, fresh); // détecte AUSSI les supprimes/archivés → réconciliation
+      const badges = {}; sujets.forEach(s => badges[s.id] = s.retoursOuverts);
+      sujets = fresh.map(s => ({...s, retoursOuverts: badges[s.id] || 0}));
+      _lastFullRefresh = Date.now(); _lastEditWatermark = borne; _forceFullRefresh = false; // SUCCÈS complet
+    } else {
+      // Incrémental : seulement les sujets édités depuis la dernière borne (souvent 0 → 1 petite page).
+      const prod = await apiQueryAll('/databases/' + DB_PROD + '/query',
+        {filter:{and:[{property:'Archivé',checkbox:{equals:false}},{timestamp:'last_edited_time',last_edited_time:{on_or_after:_lastEditWatermark}}]},sorts:[{timestamp:'last_edited_time',direction:'descending'}]});
+      const changed = prod.results.map(parsePage);
+      const modifies = [], ajoutes = [];
+      changed.forEach(fraisS => {
+        const idx = sujets.findIndex(s => s.id === fraisS.id);
+        if(idx === -1) { sujets.push({...fraisS, retoursOuverts: 0}); ajoutes.push(fraisS.id); }
+        else if(empreinteSujet(fraisS) !== empreinteSujet(sujets[idx])) { sujets[idx] = {...fraisS, retoursOuverts: sujets[idx].retoursOuverts || 0}; modifies.push(fraisS.id); }
+        // sinon : empreinte de CONTENU identique (seul lastEdited a bougé) → no-op, aucun faux conflit
+      });
+      diff = {modifies, ajoutes, supprimes: []}; // pas de supprimes en incrémental → géré par le COMPLET
+      _lastEditWatermark = borne; // SUCCÈS incrémental (fenêtre couverte même si vide)
+    }
+
+    const rien = !diff.modifies.length && !diff.ajoutes.length && !diff.supprimes.length;
     if(rien) {
       // Rattrapage d'un rendu différé par la garde absolue au tick précédent
       if(_renderDiffere && !editionEnCours()) { renderVueAvecScroll(); _renderDiffere = false; }
       return;
     }
 
-    // ── 1. TOUJOURS : appliquer les données en mémoire ──
-    const visiblesAvant = idsVisibles(sujets); // AVANT remplacement (un sujet qui SORT du filtre doit disparaître)
-    const ancienStatutFiche = _detailSujetId ? (sujets.find(s => s.id === _detailSujetId) || {}).statut : null;
-    // Recopier les badges 🔔 actuels (remplis par loadRetoursBadges) dans les données fraîches
-    const badges = {}; sujets.forEach(s => badges[s.id] = s.retoursOuverts);
-    sujets = fresh.map(s => ({...s, retoursOuverts: badges[s.id] || 0}));
+    // ── 1. TOUJOURS : rafraîchir compteur + sidebar ──
     const cntAll = document.getElementById('cnt-all');
     if(cntAll) cntAll.textContent = sujets.length;
     renderSidebarCats();
@@ -3664,6 +3690,7 @@ document.addEventListener('visibilitychange', () => {
   const now = Date.now();
   if(now - _lastVisTick < 15000) return;
   _lastVisTick = now;
+  _forceFullRefresh = true; // retour d'onglet : le poll était suspendu → COMPLET pour réconcilier les suppressions
   autoRefreshTick();
 });
 
