@@ -3708,7 +3708,9 @@ function showApp() {
   requestNotifPermission().then(granted => { if(granted) subscribePush(); });
   // Baseline du contrôle de version dès le démarrage (avant le premier tick)
   checkAppVersion();
-  // Charger les données
+  // Charger les données. currentPage fixé à 'production' AVANT appLoadData : sinon son appRender() interne
+  // rend le dashboard (défaut) → course avec le navTo('production') qui suit. (a)
+  currentPage = 'production';
   appLoadData().then(() => {
     const params = new URLSearchParams(location.search);
     const sujetParam = params.get('sujet');
@@ -5836,6 +5838,7 @@ const IDEE_STATUTS = ['💡 Idée', '✅ Validée', '🚀 Démarrée', '❌ Déc
 const IDEE_COLORS = {'💡 Idée':'#EF9F27','✅ Validée':'#1D9E75','🚀 Démarrée':'#378ADD','❌ Déclinée':'#e63946'};
 
 async function loadIdees() {
+  const seq = ++_mainRenderSeq;
   const mc = document.getElementById('main-content');
   mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
   try {
@@ -5855,11 +5858,13 @@ async function loadIdees() {
         created: p.created_time||''
       };
     });
+    if(seq !== _mainRenderSeq) return; // superseded pendant l'await → ne pas peindre
     const badge = document.getElementById('cnt-idees');
     const actives = idees.filter(i => i.statut !== '❌ Déclinée').length;
     if(badge) badge.textContent = actives;
     renderIdees('cartes');
   } catch(e) {
+    if(seq !== _mainRenderSeq) return;
     mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`;
   }
 }
@@ -6207,6 +6212,7 @@ function parseTache(p) {
 
 async function loadTachesPerso() {
   if (!currentUser) return;
+  const seq = ++_mainRenderSeq;
   const mc = document.getElementById('main-content');
   mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
   try {
@@ -6218,10 +6224,12 @@ async function loadTachesPerso() {
       ]},
       sorts: [{property: 'Date échéance', direction: 'ascending'}]
     });
+    if(seq !== _mainRenderSeq) return; // superseded pendant l'await → ne pas peindre
     taches = data.results.map(parseTache);
     updateBadgeTaches();
     renderTachesPerso();
   } catch (e) {
+    if(seq !== _mainRenderSeq) return;
     mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`;
   }
 }
@@ -6439,14 +6447,16 @@ function updateBadgeTaches() {
 
 
 async function renderArchives() {
+  const seq = ++_mainRenderSeq;
   const mc = document.getElementById('main-content');
   if(!sujetsArchives.length) {
     mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
     try {
       const data = await apiQueryAll('/databases/' + DB_PROD + '/query', {filter:{property:'Archivé',checkbox:{equals:true}},sorts:[{timestamp:'last_edited_time',direction:'descending'}]});
       sujetsArchives = data.results.map(parsePage);
-    } catch(e) { mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`; return; }
+    } catch(e) { if(seq !== _mainRenderSeq) return; mc.innerHTML = `<div class="empty"><h3>Erreur</h3><p>${e.message}</p></div>`; return; }
   }
+  if(seq !== _mainRenderSeq) return; // superseded pendant l'await → ne pas peindre
   const badge = document.getElementById('cnt-archives');
   if(badge) badge.textContent = sujetsArchives.length;
   if(!sujetsArchives.length) {
@@ -6683,6 +6693,9 @@ function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalend
 // ════════════════════════════════════════════
 
 let currentPage = 'dashboard';
+// Jeton de rendu de main-content — variable MODULE (jamais DOM). Chaque peinture « claim » ++_mainRenderSeq ;
+// un rendu ASYNC ne commet son écriture QUE s'il détient encore le dernier jeton (anti « stale render »).
+let _mainRenderSeq = 0;
 let currentVue = 'cards';
 
 // ── Chargement des données ──
@@ -6799,6 +6812,7 @@ function appRender() {
 
 // ── Production : render selon la vue ──
 function appRenderProduction() {
+  ++_mainRenderSeq; // claim (synchrone : rien ne peut le périmer entre ici et l'écriture)
   const mc = document.getElementById('main-content');
   // Ensure containers
   if(!document.getElementById('cards-wrap')) {
@@ -6953,6 +6967,7 @@ function lundiDeCetteSemaine() {
 
 // Vue perso JOURNALISTE (assemble le socle). Tout item cliquable → openDetail(id).
 async function renderDashJournaliste() {
+  const seq = _mainRenderSeq; // hérité du bump d'appRenderDashboard
   const mc = document.getElementById('main-content');
   if(!mc) return;
   const nom = currentUser?.nom || '';
@@ -7031,6 +7046,7 @@ async function renderDashJournaliste() {
   const stat = (n, label, col) => `<div style="flex:1;text-align:center"><div style="font-size:22px;font-weight:700;color:${col}">${n}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em">${label}</div></div>`;
   const blocMois = carte(titreBloc('Ton mois') + `<div style="display:flex;gap:8px">${stat(padMois,'PAD livrés','var(--green)')}${stat(enCours,'En cours','var(--blue)')}${stat(aSurveiller,'À surveiller','var(--amber)')}</div><div style="font-size:9px;color:var(--text3);margin-top:8px;text-align:center;font-style:italic">« à surveiller » = estimation d'ancienneté, pas un délai exact</div>`);
 
+  if(seq !== _mainRenderSeq) return; // superseded pendant les await → ne pas peindre par-dessus la nouvelle vue
   mc.innerHTML = `<div style="padding:20px 24px;max-width:1080px;margin:0 auto">
     <div style="font-size:18px;font-weight:700;color:var(--text)">Bonjour ${escapeHtml(nom.split(' ')[0]||nom)}</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:18px">Ton tableau de bord</div>
@@ -7042,6 +7058,7 @@ async function renderDashJournaliste() {
 }
 
 function appRenderDashboard() {
+  ++_mainRenderSeq; // claim (hérité par renderDashJournaliste ; couvre aussi le chemin global synchrone)
   // Dispatch perso : Journaliste/Monteur → vue personnelle. Autres rôles → dashboard global INCHANGÉ (ci-dessous).
   if(currentUser && (currentUser.role === 'Journaliste' || currentUser.role === 'Monteur')) { renderDashJournaliste(); return; }
   const mc = document.getElementById('main-content');

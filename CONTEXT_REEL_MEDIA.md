@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-20 (CHANTIER A CONSO LIVRÉ — filtre incrémental autoRefreshTick · bloc Tâches retiré · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
+> Dernière mise à jour : 2026-08-20 (fix vue au démarrage + jeton anti stale-render · chantier A conso livré · bloc Tâches retiré · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,22 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-20 — Fix « Production surligné / Dashboard affiché » au démarrage (+ jeton anti stale-render)
+- **Le symptôme :** au login, la sidebar surlignait **Production** pendant que le contenu affichait le **Dashboard**. Il fallait recliquer, parfois plusieurs fois. Apparu avec le dashboard perso.
+- **La cause racine :** `appLoadData` appelle `appRender()` alors que `currentPage` vaut encore son défaut `'dashboard'` → ça lance `renderDashJournaliste`, **ASYNCHRONE** (2 appels réseau avant de peindre). Juste après, `navTo('production')` peint Production **synchroniquement**. Puis la peinture **tardive** du dashboard **écrase `main-content`**. La sidebar, elle, dit toujours Production.
+- **⚠️ CE N'ÉTAIT PAS le piège « état dans le DOM » :** `currentPage` est bien une variable module et la sidebar la lit correctement. Le fautif est un **rendu async périmé qui n'obéit pas à l'état module** (« stale async render »). La sidebar n'avait pas tort — c'est le contenu qui était en retard.
+- **Correctif (a) — la cause immédiate :** `currentPage = 'production'` posé dans `showApp` **AVANT** `appLoadData()` (l.3713). L'`appRender()` interne peint alors Production, le dashboard n'est jamais lancé au démarrage → plus de course, **2 appels réseau économisés**, et plus de flash « Chargement… » au login.
+- **⚠️ L'`appRender()` de `appLoadData` N'EST PAS MORT — ne pas le supprimer.** Le Pilote avait suggéré de le retirer ; Claude Code a vérifié les appelants et prouvé qu'il sert au **bouton ↻ « Actualiser » (l.94)** et à 3 autres flux de rechargement **sans `navTo` derrière**. Le retirer aurait cassé le rafraîchissement manuel. Exemple type de pourquoi on exige une PROPOSITION avant de coder.
+- **Correctif (b) — la CLASSE de bugs : jeton `_mainRenderSeq`.** Corriger le seul dashboard aurait traité le symptôme en laissant 3 autres rendus async avec le même défaut, découverts un par un dans les mois suivants.
+- **Mécanisme du jeton :** chaque peinture de `main-content` fait `++_mainRenderSeq` (« claim ») ; un rendu **async** ne commet son écriture **que s'il détient encore le dernier jeton** (`if(seq !== _mainRenderSeq) return;`). Couvre le **cross-page** (dashboard peignant par-dessus production) **et** le **même-page** (deux rendus dashboard en vol, le premier écrasant le second).
+- **⚠️ `_mainRenderSeq` est une variable MODULE** (l.6698, à côté de `currentPage`), jamais dans le DOM.
+- **4 rendus async protégés :** `renderDashJournaliste` (capture 6970 → recheck 7049), `loadIdees` (5841 → 5861 + 5867 catch), `loadTachesPerso` (6215 → 6227 + 6232 catch), `renderArchives` (6450 → 6459 + 6457 catch inline). **Les rechecks sont AUSSI dans les `catch`** — un message d'erreur peint par-dessus une vue déjà changée produirait le même symptôme.
+- **2 rendus synchrones** (`appRenderProduction` l.6815, `appRenderDashboard` l.7061) font le **bump seul, sans recheck** : rien ne peut les périmer entre la capture et l'écriture.
+- **`renderDashJournaliste` HÉRITE le jeton** d'`appRenderDashboard` (l.6970) au lieu de le bumper — sinon elle invaliderait son propre appelant.
+- **Dispatch par rôle INTACT** (l.7063) : `if(currentUser && (role === 'Journaliste' || role === 'Monteur')) { renderDashJournaliste(); return; }`. Le bump est **avant** l'early-return → le chemin global chef/brand hérite du jeton. Un chef ou un brand obtient toujours son dashboard global.
+- **Pourquoi « souvent » et pas « toujours » :** quasi déterministe pour Journaliste/Monteur (2 allers-retours réseau → peint presque toujours après le `navTo` synchrone) ; les autres rôles passent par `renderDashboard` **synchrone** → pas de course. Et auto-guérison : tout `autoRefreshTick` (60 s) appelait `renderVueAvecScroll()` qui repeignait Production — d'où « ça se remet tout seul à un moment ».
+- **Vérification Pilote :** `wc -l` **7164 → 7181 (+17)**, `CHEF_PAR_DEFAUT`=13, `createNotif`=31, script 4/4, `node --check` OK. Dispatch par rôle vérifié par lecture du code (l.7063). `_mainRenderSeq` au niveau module confirmé (l.6698). 5 bumps + 7 rechecks confirmés. `appRender()` conservé (4 occurrences).
 
 ### 2026-08-20 — CHANTIER A CONSO : filtre incrémental sur `autoRefreshTick`
 - **Le problème :** `autoRefreshTick` rechargeait l'**intégralité** de DB_PROD toutes les 60 s, soit **3 pages** de pagination (304 sujets), que quelque chose ait changé ou non. Alerte Netlify à 75 % du quota (94K/125K en juillet, sur ~2 semaines de rodage seulement).
