@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-19 (bloc Tâches retiré de la fiche · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos · chantier A conso cadré)
+> Dernière mise à jour : 2026-08-20 (CHANTIER A CONSO LIVRÉ — filtre incrémental autoRefreshTick · bloc Tâches retiré · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,22 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-20 — CHANTIER A CONSO : filtre incrémental sur `autoRefreshTick`
+- **Le problème :** `autoRefreshTick` rechargeait l'**intégralité** de DB_PROD toutes les 60 s, soit **3 pages** de pagination (304 sujets), que quelque chose ait changé ou non. Alerte Netlify à 75 % du quota (94K/125K en juillet, sur ~2 semaines de rodage seulement).
+- **Le mécanisme livré — 2 modes décidés par tick :** **INCRÉMENTAL** (cas normal) = requête filtrée `last_edited_time on_or_after` la borne, ne ramène que les sujets modifiés (souvent 0 → 1 petite page), fusionnés **en place** dans `sujets` ; **COMPLET** (périodique + événements) = comportement d'origine exact, seul capable de **réconcilier les suppressions/archivages**.
+- **⚠️ LE PIÈGE DU SUJET FANTÔME, traité d'emblée :** un sujet **supprimé ou archivé ne revient JAMAIS comme « modifié »** — avec un filtre incrémental seul, il resterait affiché indéfiniment. D'où le **refresh COMPLET périodique obligatoire, toutes les 5 minutes**. Justification chiffrée : 10 min ne gagnerait que 12 appels/h de plus mais **doublerait** la fenêtre du fantôme. Mauvais échange.
+- **Gain mesuré en appels : 180 → 84 appels/heure par session active (−53 %)**, refresh complet inclus (12 COMPLET × 3 pages + 48 INCRÉMENTAL × 1 page). Estimation ~**30K appels/mois** économisés. **Le gain croît avec le temps** : quand DB_PROD grossit, le COMPLET s'alourdit mais l'incrémental reste à ~1 page.
+- **La FRÉQUENCE reste à 60 SECONDES.** Aucune dégradation de fraîcheur. Décision de David : zéro impact UX.
+- **Trois variables MODULE** (l.3364-3366, jamais dans le DOM) : `_lastEditWatermark` (ISO, borne haute des éditions vues), `_lastFullRefresh` (ms, date du dernier COMPLET), `_forceFullRefresh` (bool).
+- **COMPLET forcé dans 3 cas :** 1er tick après ouverture (`_lastEditWatermark` null → pose la baseline), **retour d'onglet caché** (`_forceFullRefresh = true` ajouté dans le handler `visibilitychange` — pendant l'absence le poll était suspendu, des suppressions ont pu survenir), et toutes les 5 min.
+- **⚠️ GESTION DE L'ÉCHEC — vérifiée dans le code par le Pilote :** les deux bornes sont écrites **UNIQUEMENT après le `await apiQueryAll`**, à l'intérieur du `try`. Un fetch qui throw saute au `catch` avant toute affectation → `_lastEditWatermark` non avancée → le tick suivant **re-interroge la même fenêtre**, **zéro modification perdue**. Idem pour `_lastFullRefresh` : un COMPLET échoué laisse la condition `≥ 5 min` vraie → re-tenté au tick suivant, **pas décalé de 5 min**. Sans cette précaution, un hoquet réseau aurait fait disparaître des modifications silencieusement pendant 5 minutes.
+- **Borne anti-skew horloge :** `new Date(Date.now() - 120000)` capturée **AVANT** le fetch. L'overlap d'un tick est sans conséquence : un sujet re-fetché avec une empreinte de contenu identique est un **no-op**.
+- **⚠️ Fausse alerte « modifié par un autre » PRÉSERVÉE :** `empreinteSujet` **exclut toujours `lastEdited`** (l.3409, vérifié). Le filtre utilise `last_edited_time` pour **FETCHER**, mais la détection de conflit reste basée sur l'**empreinte de CONTENU**. Un sujet dont seule la métadonnée a bougé → aucun faux conflit.
+- **Dashboard et compteurs non faussés :** l'incrémental **fusionne** (ne remplace pas) → `sujets` reste complet → `mesCartes` et les compteurs restent corrects. Seule limite bornée : un sujet supprimé persiste ≤ 5 min.
+- **DÉTECTION D'INACTIVITÉ ÉCARTÉE** de ce chantier, sur décision de David : elle introduit un délai au retour de l'utilisateur (refresh complet à la reprise). Compromis refusé. **Gardée en réserve** si la mesure de septembre montre qu'on est encore trop haut.
+- **Intouchés :** badge de notifications (`loadNotifs`, `majBadgeNotifs`), `fichePollTick` (18 s), `loadRetoursBadges` (chantier B séparé).
+- **Vérification Pilote :** `wc -l` **7137 → 7164 (+27)**, `CHEF_PAR_DEFAUT`=13, `createNotif`=31, script 4/4, `node --check` OK. Variables au niveau module confirmées (l.3364-3366). Écriture des bornes après le `await` confirmée par lecture du code. `setInterval(autoRefreshTick, 60000)` inchangé. Non-régression des 4 chantiers du 19/08 vérifiée.
 
 ### 2026-08-19 — Retrait du bloc Tâches de la fiche carte (page menu conservée)
 - **Ce qui a été retiré :** le bloc `.step` Tâches de la fiche (titre, compteur, liste, bouton « + Ajouter »), l'appel `loadTachesSujet(id)` dans `openDetail`, et **5 fonctions + 1 variable module** devenues orphelines : `loadTachesSujet`, `openAjoutTacheSujet`, `creerTacheSujet`, `toggleTacheSujet`, `archiverTacheSujet`, `tacheSujetIdCourant`, plus le modal dynamique `ov-tache-sujet`.
