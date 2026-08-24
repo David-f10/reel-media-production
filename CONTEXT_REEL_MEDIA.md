@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-20 (fix vue au démarrage + jeton anti stale-render · chantier A conso livré · bloc Tâches retiré · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
+> Dernière mise à jour : 2026-08-20 (porte anti-rafale notifs de retour · fix vue au démarrage · chantier A conso · bloc Tâches retiré · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,25 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-20 — Porte anti-rafale sur les notifications de retour (stratégie S2)
+- **Le problème :** Louise a découpé un mail client en 8 retours sur la même vidéo → **8 notifications** pour Benjamin. Aucun anti-doublon **temporel** n'existait : l'anti-doublon en place était uniquement **spatial** (ne pas notifier deux fois la même personne pour UN dépôt).
+- **⚠️ MESURE DÉCISIVE (Claude Code, sur les 300 retours réels) :** contrairement à l'intuition du Pilote, **l'isolé n'est PAS le cas fréquent**. 71 % des sessions (auteur × sujet × jour) sont des **rafales**, 91 % des retours arrivent accompagnés, 52 % suivent un précédent à moins de 90 s. Le « mail découpé » est le **régime normal** de l'équipe, pas une exception.
+- **DEUX STRATÉGIES COMPARÉES, l'une écartée :**
+  - **S1 — coalescence** (rien ne part, un délai se réarme à chaque dépôt, une notif groupée « 8 retours » à la fin) : **ÉCARTÉE**. Si l'utilisateur ferme l'onglet ou perd le réseau avant l'échéance, **la notif est perdue silencieusement** alors que les retours sont écrits. Le chef n'est jamais prévenu et personne ne s'en aperçoit. Le risque **grandit avec la durée de la rafale** — donc avec le cas normal. Violation directe du principe « retirer le bruit, jamais le signal ».
+  - **S2 — immédiat puis silence** (retenue) : la notif part **au premier retour**, comme aujourd'hui ; les dépôts suivants du même couple auteur+sujet sont muets pendant **5 minutes**.
+- **Les deux stratégies produisent le MÊME nombre de notifications** (rafale de 8 : 16 appels → 2). La conso ne départageait rien — **seule la fiabilité tranchait**.
+- **TTL de 5 minutes**, choisi sur mesure et non au jugé : 90 s ne capte que 72 % des retours suiveurs et **scinderait un long mail en 2 notifs** ; 5 min en capte 87 % tout en re-notifiant un vrai lot ultérieur. Réduction globale attendue ≈ **−62 %** de notifications de retour.
+- **`createNotif` retourne désormais un booléen** : elle avalait ses erreurs et ne retournait rien, le caller ne pouvait pas savoir si `notify.js` avait réussi. `true` = HTTP 2xx **et** `{ok:true}` ; `false` sur timeout/5xx/`{ok:false}` et sur le self-skip.
+- **⚠️ LA PORTE NE S'ARME QU'APRÈS SUCCÈS.** Sans ça, un premier appel échoué armerait quand même la porte → on perdrait **le premier ET les suivants**. C'était le seul mode d'échec de S2, il est évité.
+- **⚠️ DISTINCTION « échec » / « personne à prévenir »** (correction demandée par le Pilote) : deux drapeaux `tente` / `reussi`, armement `if(reussi || !tente)`. Trois cas — envoi réussi → arme ; **aucun destinataire à notifier** (tous skippés, ex. Benjamin chef ET journaliste de sa propre carte) → **arme aussi**, c'est un état stable, pas un échec ; envoi tenté mais échoué → **n'arme pas**, on réessaiera. Sans cette distinction, la porte ne se serait jamais armée dans le second cas.
+- **⚠️ CLÉ COMPOSITE `auteur|||sujetId`** — une clé par sujet seul aurait fusionné Louise et Benjamin en un message trompeur, et le second aurait été muselé par le premier.
+- **`_notifRetourGate` est une variable MODULE** (l.537, juste après `CHEF_PAR_DEFAUT`), jamais dans le DOM. Objet `{clé → horodatage}`. Une entrée périmée est inoffensive.
+- **Périmètre (ii) : les DEUX chemins de dépôt** partagent la même porte — `submitPlayerRetour` (lecteur) et `submitRetour` (modale, édition de brouillon). Sinon une rafale mixte aurait produit des notifs non groupées sans qu'on comprenne pourquoi.
+- **`review.html` INTOUCHÉ** : le chemin client a son propre signal de fin (`marquerFini` / `confirmerEnvoi`), sujet séparé. Note : c'est l'empreinte `CHEF_PAR_DEFAUT` qui a permis d'identifier que Louise passait par le lecteur de l'app — `review.html` n'a pas ce fallback.
+- **Message inchangé** (« … a laissé un retour sur … ») : on tire au premier, on ne compte pas.
+- **Destinataires MOT POUR MOT inchangés**, vérifié aux deux endroits : `chefDest = sujet.chef || CHEF_PAR_DEFAUT` ; journaliste si `≠ currentUser.nom` ; chef si `≠ auteur` et `≠ journaliste`. La porte décide **si** on entre dans le bloc, jamais **qui** est notifié.
+- **Vérification Pilote :** `wc -l` **7181 → 7217 (+36)**, `CHEF_PAR_DEFAUT`=13, `createNotif`=31, script 4/4, `node --check` OK. Conditions de destinataires vérifiées par grep aux l.1747-1753 et 1813-1819. `_notifRetourGate` au niveau module confirmé. Non-régression des 6 chantiers de la semaine vérifiée.
 
 ### 2026-08-20 — Fix « Production surligné / Dashboard affiché » au démarrage (+ jeton anti stale-render)
 - **Le symptôme :** au login, la sidebar surlignait **Production** pendant que le contenu affichait le **Dashboard**. Il fallait recliquer, parfois plusieurs fois. Apparu avec le dashboard perso.

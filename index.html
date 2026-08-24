@@ -532,6 +532,10 @@ if (typeof Sentry !== 'undefined' && Sentry.onLoad) {
 
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const CHEF_PAR_DEFAUT = 'Benjamin';
+// Porte anti-rafale des notifs de retour (S2) : horodatage ms du dernier envoi RÉUSSI
+// par couple "auteur|||sujetId". Variable module (jamais le DOM). Fenêtre 5 min.
+let _notifRetourGate = {};
+const NOTIF_RETOUR_TTL_MS = 5 * 60 * 1000;
 const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
@@ -1428,7 +1432,7 @@ const NOTIF_ICONS = {
 async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message) {
   if(!destinataire || destinataire === auteur) {
     console.log('Notif annulée:', {destinataire, auteur});
-    return;
+    return false;
   }
   console.log('Envoi notif:', {type, destinataire, auteur, message});
   try {
@@ -1441,8 +1445,11 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
     const data = await res.json().catch(() => ({}));
     if(!res.ok || !data.ok) throw new Error(data.error || 'HTTP ' + res.status);
     console.log('Notif créée:', data.notifId, '/ pushed:', data.pushed);
+    // Succès = ligne atteinte sans throw = HTTP 2xx ET {ok:true} renvoyé par notify.js.
+    return true;
   } catch(e) {
     console.error('Notif échouée:', e.message, {type, destinataire, message});
+    return false;
   }
 }
 
@@ -1727,17 +1734,30 @@ async function submitRetour() {
     closeOv('ov-retour');
     toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadRetours(retourSujetId);
-    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués
+    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués.
+    // Même porte anti-rafale (S2) que le lecteur, partagée via _notifRetourGate : une
+    // rafale mixte modale+lecteur sur un même couple auteur+sujet est groupée ensemble.
     if(sujet) {
-      const cat = document.getElementById('ret-categorie').value;
-      const tc = document.getElementById('ret-timecode').value.trim();
-      const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`;
-      const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
-      if(sujet.journaliste && sujet.journaliste !== currentUser.nom)
-        await createNotif('retour', retourSujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour);
-      if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste)
-        await createNotif('retour', retourSujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour);
-      loadNotifs();
+      const gateKey = currentUser.nom + '|||' + retourSujetId;
+      const now = Date.now();
+      if(now - (_notifRetourGate[gateKey] || 0) >= NOTIF_RETOUR_TTL_MS) {
+        const cat = document.getElementById('ret-categorie').value;
+        const tc = document.getElementById('ret-timecode').value.trim();
+        const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`;
+        const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
+        let tente = false, reussi = false;
+        if(sujet.journaliste && sujet.journaliste !== currentUser.nom) {
+          tente = true;
+          if(await createNotif('retour', retourSujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour)) reussi = true;
+        }
+        if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste) {
+          tente = true;
+          if(await createNotif('retour', retourSujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour)) reussi = true;
+        }
+        // Arme si un envoi a réussi, ou si personne n'était à prévenir ; pas si tout a échoué.
+        if(reussi || !tente) _notifRetourGate[gateKey] = now;
+        loadNotifs();
+      }
     }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
@@ -1779,15 +1799,31 @@ async function submitPlayerRetour(sujetId, version) {
     toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadPlayerRetours(sujetId, version);
     loadRetours(sujetId);
-    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués
+    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués.
+    // Porte anti-rafale (S2) : au 1er retour d'un couple auteur+sujet on notifie ;
+    // les dépôts suivants dans la fenêtre (5 min) restent muets. La porte ne s'arme
+    // qu'après un envoi réussi — ou s'il n'y avait personne à prévenir (état stable) —,
+    // jamais après un échec (on réessaie au prochain dépôt). Destinataires identiques
+    // à avant : la porte décide SI on entre dans le bloc, jamais QUI est notifié.
     if(sujet) {
-      const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code}${tc?' — '+tc:''}`;
-      const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
-      if(sujet.journaliste && sujet.journaliste !== currentUser.nom)
-        await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour);
-      if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste)
-        await createNotif('retour', sujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour);
-      loadNotifs();
+      const gateKey = currentUser.nom + '|||' + sujetId;
+      const now = Date.now();
+      if(now - (_notifRetourGate[gateKey] || 0) >= NOTIF_RETOUR_TTL_MS) {
+        const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code}${tc?' — '+tc:''}`;
+        const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
+        let tente = false, reussi = false;
+        if(sujet.journaliste && sujet.journaliste !== currentUser.nom) {
+          tente = true;
+          if(await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour)) reussi = true;
+        }
+        if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste) {
+          tente = true;
+          if(await createNotif('retour', sujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour)) reussi = true;
+        }
+        // Arme si un envoi a réussi, ou si personne n'était à prévenir ; pas si tout a échoué.
+        if(reussi || !tente) _notifRetourGate[gateKey] = now;
+        loadNotifs();
+      }
     }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
