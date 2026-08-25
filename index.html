@@ -99,6 +99,10 @@
       <span style="font-size:13px;font-weight:600">Notifications</span>
       <button id="mark-all-btn" onclick="markAllRead()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">Tout marquer lu</button>
     </div>
+    <div id="notif-filtre" style="display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border)">
+      <span id="notif-filtre-nonlues" onclick="setNotifFiltre(true)" style="cursor:pointer;font-size:11px;color:var(--text2);padding:3px 10px;border-radius:6px;background:transparent">Non lues · <span id="notif-filtre-count">0</span></span>
+      <span id="notif-filtre-toutes" onclick="setNotifFiltre(false)" style="cursor:pointer;font-size:11px;color:var(--text2);padding:3px 10px;border-radius:6px;background:var(--bg3)">Toutes</span>
+    </div>
     <div id="notif-list" style="overflow-y:auto;max-height:400px;padding:6px 0">
       <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Chargement...</div>
     </div>
@@ -1544,6 +1548,8 @@ function sendBrowserNotif(titre, body, sujetId) {
 // (garde l'historique DÉPLIÉ à travers les re-render de la liste) + reste-t-il des pages à charger.
 let _notifPages = 1;
 let _notifHasMore = false;
+let _notifFiltreNonLues = false; // bascule cloche : false = « Toutes » (défaut). Variable module, JAMAIS le DOM.
+let _notifNonLuesCount = 0;      // compteur non-lues réutilisé du badge (posé par majBadgeNotifs) — aucune requête dédiée
 
 // Badge non-lues EXACT partout (même panneau fermé, même au-delà de 20) : requête filtrée dédiée, plafond « 20+ ».
 async function majBadgeNotifs() {
@@ -1558,8 +1564,11 @@ async function majBadgeNotifs() {
       page_size: 21
     });
     const n = d.results.length;
+    _notifNonLuesCount = n; // réutilisé par la bascule « Non lues · N » (pas de requête en plus)
     badge.textContent = n > 20 ? '20+' : n;
     badge.style.display = n > 0 ? 'flex' : 'none';
+    const c = document.getElementById('notif-filtre-count');
+    if(c) c.textContent = n > 20 ? '20+' : n;
   } catch(e) { /* silencieux : le badge garde sa valeur précédente */ }
 }
 
@@ -1568,13 +1577,20 @@ async function loadNotifs() {
   majBadgeNotifs(); // TOUJOURS (léger) → badge exact, y compris panneau fermé
   const list = document.getElementById('notif-list');
   if(!list || !notifsOuvertes) return; // panneau fermé : on ne recharge PAS la liste (évite N appels inutiles)
+  majFiltreUI(); // reflète l'onglet actif + le compteur à chaque rendu
   try {
     // Vraie pagination Notion : recharge _notifPages tranches de 20 en enchaînant start_cursor.
     let notifs = [], cursor = null;
     _notifHasMore = false;
     for(let p = 0; p < _notifPages; p++) {
+      const filtreBase = {property:'Destinataire', rich_text:{equals: currentUser.nom}};
       const q = {
-        filter: {property:'Destinataire', rich_text:{equals: currentUser.nom}},
+        // Filtre « Non lues » appliqué À LA REQUÊTE (clause Lu=false en `and`, même motif que
+        // majBadgeNotifs) : Notion ne renvoie que les non-lues, anciennes incluses — jamais un
+        // filtrage après chargement. La pagination porte donc sur l'ensemble filtré.
+        filter: _notifFiltreNonLues
+          ? {and:[filtreBase, {property:'Lu', checkbox:{equals: false}}]}
+          : filtreBase,
         sorts: [{timestamp:'created_time', direction:'descending'}],
         page_size: 20
       };
@@ -1586,7 +1602,9 @@ async function loadNotifs() {
       if(!cursor) break; // plus de pages côté Notion
     }
     if(!notifs.length) {
-      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Aucune notification</div>';
+      list.innerHTML = _notifFiltreNonLues
+        ? '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Aucune notification non lue<br><button onclick="setNotifFiltre(false)" style="margin-top:8px;background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;padding:5px 12px;border-radius:6px">Voir toutes</button></div>'
+        : '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Aucune notification</div>';
       return;
     }
     list.innerHTML = notifs.map(n => {
@@ -1599,7 +1617,7 @@ async function loadNotifs() {
       const lu = pr.Lu?.checkbox || false;
       const date = new Date(n.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
       const icon = NOTIF_ICONS[type] || '🔔';
-      return `<div class="notif-item ${lu?'':'unread'}" onclick="clickNotif('${n.id}','${sujetId}')">
+      return `<div class="notif-item ${lu?'':'unread'}" onclick="clickNotif('${n.id}','${sujetId}',${lu})">
         <div class="notif-icon">${icon}</div>
         <div class="notif-content">
           <div class="notif-msg">${msg}</div>
@@ -1619,11 +1637,41 @@ async function chargerPlusNotifs() {
   await loadNotifs();
 }
 
-async function clickNotif(notifId, sujetId) {
+// Bascule « Non lues / Toutes ». État en variable module ; on remet _notifPages=1 pour ne pas
+// afficher N tranches d'un autre ensemble. Le filtre lui-même part À LA REQUÊTE (voir loadNotifs).
+function setNotifFiltre(nonLues) {
+  if(_notifFiltreNonLues === nonLues) return;
+  _notifFiltreNonLues = nonLues;
+  _notifPages = 1;
+  majFiltreUI();
+  loadNotifs();
+}
+// Reflète l'onglet actif (fond légèrement élevé) + le compteur (même plafond « 20+ » que le badge).
+function majFiltreUI() {
+  const bN = document.getElementById('notif-filtre-nonlues');
+  const bT = document.getElementById('notif-filtre-toutes');
+  if(bN) bN.style.background = _notifFiltreNonLues ? 'var(--bg3)' : 'transparent';
+  if(bT) bT.style.background = _notifFiltreNonLues ? 'transparent' : 'var(--bg3)';
+  const c = document.getElementById('notif-filtre-count');
+  if(c) c.textContent = _notifNonLuesCount > 20 ? '20+' : _notifNonLuesCount;
+}
+// Décalage LOCAL immédiat du compteur non-lues (clic sur une non-lue = -1 ; « Non lu » = +1),
+// sans attendre le tick 60 s. majBadgeNotifs réconcilie la valeur exacte au passage suivant.
+function majCompteurNonLues(delta) {
+  _notifNonLuesCount = Math.max(0, _notifNonLuesCount + delta);
+  const txt = _notifNonLuesCount > 20 ? '20+' : String(_notifNonLuesCount);
+  const c = document.getElementById('notif-filtre-count');
+  if(c) c.textContent = txt;
+  const badge = document.getElementById('notif-badge');
+  if(badge) { badge.textContent = txt; badge.style.display = _notifNonLuesCount > 0 ? 'flex' : 'none'; }
+}
+
+async function clickNotif(notifId, sujetId, etaitLu) {
   // Marquer comme lu
   try {
     await api('/pages/' + notifId, 'PATCH', {properties:{'Lu':{checkbox:true}}});
   } catch(e) {}
+  if(!etaitLu) majCompteurNonLues(-1); // décalage local immédiat (n'attend pas le tick de majBadgeNotifs)
   // Fermer panneau et ouvrir la fiche
   toggleNotifs(false);
   if(sujetId) {
@@ -1641,6 +1689,7 @@ async function marquerNonLu(event, notifId) {
   try {
     await api('/pages/' + notifId, 'PATCH', {properties:{'Lu':{checkbox:false}}});
   } catch(e) { toast('Erreur','err'); return; }
+  majCompteurNonLues(1); // décalage local immédiat (n'attend pas le tick de majBadgeNotifs)
   loadNotifs();         // re-render panneau + recalcul du badge non-lues (depuis Lu)
   loadRetoursBadges();  // recalcul des badges de cartes (non-lues par sujet) — cohérence
 }
