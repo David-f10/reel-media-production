@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-20 (porte anti-rafale notifs de retour · fix vue au démarrage · chantier A conso · bloc Tâches retiré · en-tête version courante · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
+> Dernière mise à jour : 2026-08-25 (contact Brand obligatoire à l'Édito + suppression notif « retours traités » · porte anti-rafale · fix vue au démarrage · chantier A conso · bloc Tâches retiré · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,34 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-25 — Suppression de la notification « retours traités »
+- **La plainte de Benjamin :** trop de notifications. Capture à l'appui — 09:50 « ✅ Tous les retours de la V7 de B55C ont été traités », 09:51 « Mickaël a déposé un lien de montage sur B55C ». Deux notifs à une minute d'écart pour le même événement. Et la première apparaissait **en double**.
+- **⚠️ LEÇON DE MÉTHODE — une première mesure biaisée, corrigée par la bonne question de David.** Claude Code avait d'abord mesuré « 67 versions sur 100 sans suite » → la notif semblait indispensable. Mais « sans suite » signifiait « aucune version supérieure **ayant reçu des retours** » : une V8 déposée puis validée du premier coup tombait dans cette catégorie alors qu'un lien avait bien été posé. David a senti l'incohérence avec la règle métier (« dès que les corrections sont faites, un nouveau lien doit être créé ») et a demandé la mesure par **comparaison de numéros de version**. Résultat : **94-98 % de redondance**, deux méthodes convergentes. La notif est bien superflue.
+- **Décision : suppression.** Le signal « le travail est fait » est déjà porté par la notif de dépôt de version dans ~95 % des cas. Les ~5 % résiduels sont surtout des retours « tous impossibles », où le chef n'a rien à faire de plus.
+- **Bénéfice secondaire : le doublon disparaît par soustraction.** `verifierCompletionVersion` souffrait d'une **course TOCTOU** — lecture du marqueur « Complétion notifiée » → `await` → écriture. Deux exécutions concurrentes (double-clic sur « corrigé », ou fiche + lecteur ouverts ensemble) lisaient toutes deux `false` avant que l'une écrive `true`. Le commentaire du code l'admettait : « pose le marqueur AVANT l'envoi **(rétrécit la course)** ». Mesuré : 8 groupes de doublons n=2, sur le chef **et** les auteurs. Plus de fonction, plus de course.
+- **Les auteurs de retours ne perdent rien** : David a confirmé que Louise ne dépose des retours que sur les cartes dont elle est **contact Brand** — elle reçoit donc déjà la notif de dépôt de version. Aucune compensation nécessaire, on n'ajoute pas les auteurs aux destinataires du dépôt.
+- **L'information reste visible en PULL, seul le PUSH disparaît** : statut de chaque retour sur la fiche, et badge **« ✓ Pris en compte »** dans `review.html` (l.706/728), y compris pour les versions antérieures.
+- **⚠️ `NOTIF_ICONS['retours_traites']` CONSERVÉ** — il rend les **74 notifications historiques** déjà en base. Le retirer aurait cassé leur affichage dans la cloche sans qu'on s'en aperçoive. Détection de Claude Code.
+- **Retraits (orphelinat prouvé par grep) :** `verifierCompletionVersion`, `effacerMarqueurCompletion`, le bloc `if/else` de `toggleRetour`, la ligne de `toggleRetourPlayer`, le bloc de `confirmerImpossible`, et le `loadNotifs()` de ces branches (il ne servait qu'à faire remonter la notif supprimée — vérifié : aucune autre notif n'est créée en marquant un retour).
+- **Le champ Notion « Complétion notifiée »** (53 versions cochées) devient inerte. Non nettoyé, ne gêne rien — plus aucun lecteur dans le code.
+- **⚠️ NON RÉGLÉ, chantier séparé :** les doublons de **`nouveau_sujet`** et **`version_validee`** (jusqu'à **n=6**) subsistent. Même famille de bug — un handler qui tire deux fois — mais eux n'ont **aucune garde**.
+- **Vérification Pilote :** `wc -l` **7316 → 7225 (−91)**, `CHEF_PAR_DEFAUT`=13, script 4/4, `node --check` OK. Orphelinat confirmé (0 occurrence). Les 3 handlers gardent PATCH + toast + `loadRetours` + rechargement player : marquer Corrigé / Ouvert / Impossible fonctionne à l'identique.
+
+### 2026-08-25 — Contact Brand OBLIGATOIRE à la validation Édito
+- **⚠️ CE CHANTIER A ÉTÉ LIVRÉ DANS LE MÊME FICHIER que la suppression ci-dessus** — la règle « un chantier = une branche » n'a pas été respectée. Sans conséquence ici (zones disjointes), mais en cas de problème on ne saurait pas lequel des deux l'a causé.
+- **Le problème :** Louise ne recevait pas la notif de validation du séquencier B58A. Cause vérifiée en base : le champ **Contact Brand était VIDE** sur cette carte → la garde `s.contactBrand` faisait sauter la notif, **silencieusement**. Éloise (journaliste) avait bien été notifiée, pas le contact Brand.
+- **Trou systématique :** **41 cartes Brand sur 53 (77 %) n'ont aucun contact assigné.** Le code était correct — il inclut le contact Brand sur les 5 événements qui le concernent (validation séquencier ×2, dépôt de version ×2, commentaire). C'est la **donnée** qui manquait.
+- **Incohérence relevée :** les étapes **Brand** et **Client** bloquent avec un toast « Assignez d'abord un contact Brand ». L'étape **Édito**, elle, passait sans rien dire.
+- **La solution :** au clic sur « Édito » d'une carte Brand sans contact, un **popup** s'ouvre. Le contact devient **OBLIGATOIRE** — deux sorties seulement : « Assigner [Nom] et valider », ou la **croix** qui laisse le séquencier **non validé**. Pas de « valider sans contact ».
+- **PATCH COMBINÉ ATOMIQUE** : `Contact Brand` et `Validation RM` écrits dans **un seul** appel. Succès → mémoire → notifs. Échec → toast, `return`, **rien en mémoire, aucune notif, pas validé**. Sans cette atomicité, on aurait pu obtenir un séquencier validé et toujours aucun contact — le problème d'origine avec un popup en plus. `upd` ne convenait pas : elle avale ses erreurs.
+- **Coût conso : +0 appel** (les deux champs dans le même PATCH), +1 notif — celle qui manquait.
+- **Cas « aucun membre de rôle Brand »** : le popup n'affiche ni liste ni bouton, seulement l'explication (« Ajoute un membre depuis Gérer l'équipe »). Conséquence assumée : aucun séquencier Brand ne peut alors être validé.
+- **⚠️ Le popup s'ouvre pour TOUS LES RÔLES.** `toggleValidationSeq` n'a aucune garde de rôle sur l'Édito — et c'est **volontaire** : chez David, un journaliste valide parfois à la place du chef. S'il ne s'ouvrait que pour les chefs, le trou se reproduirait.
+- **La liste vient de `equipe.filter(m => m.role === 'Brand')`**, variable module déjà en mémoire — **0 requête**. Aucun filtre spécial pour l'entrée parasite « archived » : son rôle sera vidé côté Notion, elle disparaîtra d'elle-même.
+- **⚠️ RÉSERVE : les 41 cartes existantes ne sont PAS rattrapées.** Leur `Validation RM` est déjà cochée → recliquer « Édito » dé-valide au lieu d'ouvrir le popup. Le popup protège **les nouvelles** cartes. Le stock existant demande une saisie manuelle ou un backfill.
+- **`_assignBrand` est une variable module**, jamais dans le DOM. Refactor `_validerEditoRM(id, opts)` partagé entre les deux chemins.
+- **Vérification Pilote :** les deux notifs du séquencier présentes (l.3157 journaliste, l.3162 contact Brand), PATCH atomique confirmé par lecture du code, `node --check` OK.
 
 ### 2026-08-20 — Porte anti-rafale sur les notifications de retour (stratégie S2)
 - **Le problème :** Louise a découpé un mail client en 8 retours sur la même vidéo → **8 notifications** pour Benjamin. Aucun anti-doublon **temporel** n'existait : l'anti-doublon en place était uniquement **spatial** (ne pas notifier deux fois la même personne pour UN dépôt).
