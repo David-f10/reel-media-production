@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-25 (DÉDUP SERVEUR des notifications · contact Brand obligatoire à l'Édito · suppression notif « retours traités » · porte anti-rafale · fix vue au démarrage · chantier A conso · bloc Tâches retiré · nettoyage bloc Retours · codes Brand B09 clos)
+> Dernière mise à jour : 2026-08-25 (filtre « Non lues » dans la cloche · dédup serveur des notifications · contact Brand obligatoire à l'Édito · suppression notif « retours traités » · porte anti-rafale · fix vue au démarrage · chantier A conso · bloc Tâches retiré · codes Brand B09 clos)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,19 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-25 — Filtre « Non lues » dans la cloche (demande de Benjamin)
+- **La demande :** « Mettre une fonctionnalité afficher les messages non lus. J'ai deux notifs qui datent, compliqué d'aller les rechercher à la main, beaucoup de scroll. » Le badge affichait le bon nombre, mais les non-lues étaient noyées dans le flux chronologique.
+- **Une bascule statique « Non lues · N / Toutes »** insérée entre l'en-tête du panneau et `#notif-list`. **Statique volontairement** : `loadNotifs` ne réécrit que la liste, donc la bascule survit aux re-renders sans reconstruction.
+- **⚠️ LE FILTRE PART À LA REQUÊTE, PAS APRÈS CHARGEMENT** (l.1591-1593) — c'est tout l'enjeu du chantier. Un filtrage côté app n'aurait montré que les non-lues **déjà chargées** ; les anciennes seraient restées invisibles et le problème de Benjamin entier. La clause `{property:'Lu', checkbox:{equals:false}}` est envoyée en `and` à Notion, **motif exact déjà éprouvé par `majBadgeNotifs`**. La pagination porte donc sur l'**ensemble filtré** : « Charger plus » déroule les non-lues anciennes, jamais les lues.
+- **⚠️ LE PIÈGE DE L'ÉTAT VIDE SOUS FILTRE :** filtre actif + « Tout marquer lu » → la liste se vide. Le message « Aucune notification » aurait été **trompeur** (il y en a, toutes lues) et Benjamin aurait pu croire les avoir perdues. L'empty-state est **conscient du filtre** : « Aucune notification non lue » + bouton **« Voir toutes »** qui bascule. Même code pour la liste qui se vide progressivement en cliquant les notifs une à une.
+- **Deux variables MODULE** (l.1551-1552), jamais dans le DOM : `_notifFiltreNonLues` (défaut `false` = « Toutes ») et `_notifNonLuesCount`. Pas de `sessionStorage` → le filtre **survit à fermer/rouvrir la cloche** mais **revient à « Toutes » au chargement de l'app**.
+- **⚠️ `_notifPages = 1` AU BASCULEMENT** — sinon on afficherait N tranches d'un autre ensemble.
+- **Le compteur réutilise celui du badge — aucune requête ajoutée.** `majBadgeNotifs` pose `_notifNonLuesCount` au passage. Même plafond « 20+ » que le badge : deux nombres différents pour la même information auraient été déroutants.
+- **⚠️ DÉCALAGE LOCAL IMMÉDIAT du compteur** (ajustement demandé par le Pilote) : `majBadgeNotifs` tourne toutes les 60 s. Sans correction, cliquer une notif sur deux laissait le compteur afficher « 2 » pendant une minute — le genre de détail qui fait douter de l'app. `majCompteurNonLues(delta)` ajuste la valeur **et le badge** instantanément : `-1` au clic (conditionné à `if(!etaitLu)` — cliquer une déjà-lue ne bouge rien), `+1` sur « ⟲ Non lu ». Clampé à 0. `majBadgeNotifs` réconcilie au tick suivant.
+- **`clickNotif` reçoit désormais l'état `lu`** en 3ᵉ argument (`clickNotif('…','…',${lu})`) pour savoir s'il faut décrémenter.
+- **Intacts, vérifiés :** « Tout marquer lu », « ⟲ Non lu » (n'apparaît pas sous filtre — il ne s'affiche que sur les lues, cohérent sans effort), le badge et sa requête indépendante, le clic qui ouvre la carte, « Charger plus » avec `_notifPages` / `_notifHasMore`.
+- **Vérification Pilote :** `wc -l` **7225 → 7274 (+49)**, `CHEF_PAR_DEFAUT`=13, `createNotif`=29, script 4/4, `node --check` OK. Clause `Lu=false` confirmée **dans le `q.filter`** du POST `databases/…/query`. Variables au niveau module confirmées. Non-régression des 8 chantiers de la semaine vérifiée.
 
 ### 2026-08-25 — Déduplication SERVEUR des notifications (tue la classe de doublons)
 - **⚠️ CE CHANTIER NE TOUCHE PAS `index.html`.** Deux fichiers : **`netlify/functions/notify.js`** et **`review.html`**.
