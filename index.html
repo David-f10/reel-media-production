@@ -2561,101 +2561,15 @@ async function toggleRetour(retourId, sujetId, newStatut) {
     });
     toast(newStatut === 'Corrigé' ? '✅ Marqué corrigé' : 'Retour réouvert', 'ok');
     loadRetours(sujetId);
-    if(newStatut==='Corrigé'){
-      if(currentUser) await verifierCompletionVersion(sujetId, retourId, 'Corrigé');
-      loadNotifs();
-    } else if(newStatut==='Ouvert'){
-      await effacerMarqueurCompletion(sujetId, retourId);
-    }
   } catch(e) {
     toast('Erreur : ' + e.message, 'err');
   }
 }
 
-// ─── COMPLÉTION DES RETOURS (UNE notif quand TOUS traités) ───
-// Recompte les retours OUVERTS de la version contre Notion (source autoritaire) après
-// chaque traitement. Si aucun ne reste ouvert → UNE notif aux auteurs (non-brouillon)
-// + chef, dédupliqués par Set. 4 parades : exclusion du retour traité (read-after-write),
-// comptage Notion (jamais la mémoire), brouillons exclus, statut vide = ouvert.
-// Marqueur "Complétion notifiée" sur DB_VERSIONS en BEST-EFFORT : son échec (propriété
-// absente / Notion HS) est loggué mais N'EMPÊCHE JAMAIS la notif de partir.
-async function verifierCompletionVersion(sujetId, retourId, statutApplique){
-  try {
-    const s = sujets.find(x=>x.id===sujetId);
-    if(!s) return;
-    // 1. Relire les retours du sujet (autoritaire)
-    const data = await api('/databases/'+DB_RETOURS+'/query','POST',{
-      filter:{property:'Sujet ID',rich_text:{equals:sujetId}}, page_size:100
-    });
-    const retours = data.results || [];
-    // 2. Version du retour traité
-    const traite = retours.find(r=>r.id===retourId);
-    const versionName = traite?.properties?.Version?.select?.name || '';
-    if(!versionName) return; // impossible de cadrer → on ne notifie pas à l'aveugle
-    const estBrouillon = r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false);
-    const memeVersion = r => (r.properties.Version?.select?.name||'')===versionName;
-    // 3. Compter les ouverts (exclut le retour traité, brouillons ; statut vide = ouvert)
-    const ouverts = retours.filter(r =>
-      r.id!==retourId && memeVersion(r) && !estBrouillon(r) &&
-      ['Ouvert','Clarification'].includes((r.properties.Statut?.select?.name)||'Ouvert')
-    ).length;
-    if(ouverts>0) return; // pas encore complet
-    // 4. Décompte pour le message : les AUTRES depuis Notion + le retour traité selon statutApplique
-    const autres = retours.filter(r => r.id!==retourId && memeVersion(r) && !estBrouillon(r));
-    let nbCorriges = autres.filter(r=>(r.properties.Statut?.select?.name||'')==='Corrigé').length;
-    let nbImpossibles = autres.filter(r=>(r.properties.Statut?.select?.name||'')==='⛔ Impossible').length;
-    if(statutApplique==='Corrigé') nbCorriges++; else if(statutApplique==='⛔ Impossible') nbImpossibles++;
-    // 5. Marqueur (BEST-EFFORT) : trouver la/les page(s) version, dédupliquer
-    let dejaPoste = false, versionPages = [];
-    try {
-      const vdata = await api('/databases/'+DB_VERSIONS+'/query','POST',{
-        filter:{property:'Sujet ID',rich_text:{equals:sujetId}}, page_size:100
-      });
-      versionPages = (vdata.results||[]).filter(v => (v.properties.Version?.rich_text?.[0]?.plain_text||'')===versionName);
-      dejaPoste = versionPages.some(v => v.properties['Complétion notifiée']?.checkbox===true);
-    } catch(e){ console.warn('Complétion : lecture marqueur échouée (on continue)', e.message); }
-    if(dejaPoste) return; // déjà notifié pour cette version
-    // Poser le marqueur AVANT l'envoi (rétrécit la course) — best-effort
-    for(const v of versionPages){
-      try { await api('/pages/'+v.id,'PATCH',{properties:{'Complétion notifiée':{checkbox:true}}}); }
-      catch(e){ console.warn('Complétion : pose marqueur échouée (on continue)', e.message); }
-    }
-    // 6. Destinataires = auteurs non-brouillon de la version + chef, dédupliqués
-    const dest = new Set();
-    retours.filter(r=>memeVersion(r) && !estBrouillon(r)).forEach(r=>{
-      const a = r.properties.Auteur?.rich_text?.[0]?.plain_text || '';
-      if(a) dest.add(a);
-    });
-    if(s.chef) dest.add(s.chef);
-    // 7. Envoi (createNotif s'auto-annule si destinataire vide ou == auteur courant)
-    const auteur = currentUser?.nom || '';
-    const message = `✅ Tous les retours de la ${versionName} de ${s.code} ont été traités (${nbCorriges} corrigé${nbCorriges>1?'s':''} · ${nbImpossibles} impossible${nbImpossibles>1?'s':''})`;
-    for(const d of dest){
-      await createNotif('retours_traites', sujetId, s.code, s.titre, d, auteur, message);
-    }
-  } catch(e){
-    console.error('verifierCompletionVersion échouée :', e.message);
-  }
-}
-
-// Réouverture d'un retour → efface le marqueur pour réarmer un futur cycle (best-effort).
-async function effacerMarqueurCompletion(sujetId, retourId){
-  try {
-    const r = await api('/pages/'+retourId,'GET');
-    const versionName = r?.properties?.Version?.select?.name || '';
-    if(!versionName) return;
-    const vdata = await api('/databases/'+DB_VERSIONS+'/query','POST',{
-      filter:{property:'Sujet ID',rich_text:{equals:sujetId}}, page_size:100
-    });
-    const versionPages = (vdata.results||[]).filter(v => (v.properties.Version?.rich_text?.[0]?.plain_text||'')===versionName);
-    for(const v of versionPages){
-      try { await api('/pages/'+v.id,'PATCH',{properties:{'Complétion notifiée':{checkbox:false}}}); }
-      catch(e){ console.warn('Complétion : effacement marqueur échoué (on continue)', e.message); }
-    }
-  } catch(e){
-    console.warn('effacerMarqueurCompletion échouée (on continue) :', e.message);
-  }
-}
+// (Notif « retours traités » supprimée : redondante à ~95 % avec le dépôt de version,
+// et source du doublon TOCTOU. L'état des retours reste visible en pull — statut sur la
+// fiche, « ✓ Pris en compte » dans review.html. Le champ DB_VERSIONS « Complétion
+// notifiée » n'est plus lu ni écrit ; laissé inerte en base.)
 
 async function validerTousRetours(sujetId, btnEl, version) {
   if(!currentUser) { toast('Non connecté','err'); return; }
@@ -3206,6 +3120,112 @@ async function setLieuTour(sujetId, valeur) {
   await upd(sujetId, 'Lieu tournage', 'sel', newVal);
 }
 
+// ─── VALIDATION ÉDITO (RM) : écriture + notifs, factorisée ───
+// État du popup d'assignation : variable module (jamais le DOM). choix = nom sélectionné.
+let _assignBrand = { sujetId:null, choix:'' };
+
+// Deux modes. Sans opts : bascule simple de Validation RM (gère aussi la dé-validation).
+// Avec opts.assignerContact : écriture ATOMIQUE (Contact Brand + Validation RM en UN seul
+// PATCH) puis notifs. Échec du PATCH → toast, return : rien en mémoire, aucune notif, non validé.
+async function _validerEditoRM(id, opts={}) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  const auteur = currentUser?.nom || '';
+  const assigner = opts.assignerContact || null;
+  if(assigner) {
+    // Atomique : les deux champs dans le même PATCH — soit tout passe, soit rien.
+    try {
+      await api('/pages/'+id,'PATCH',{properties:{
+        'Contact Brand':{select:{name:assigner}},
+        'Validation RM':{checkbox:true}
+      }});
+    } catch(e) {
+      toast('Erreur : '+e.message,'err');
+      return; // échec : aucune écriture mémoire, aucune notif, séquencier NON validé
+    }
+    s.contactBrand = assigner; // mémoire mise à jour APRÈS succès uniquement
+    s.validationRM = true;
+  } else {
+    const newVal = !s.validationRM;
+    await upd(id,'Validation RM','cb',newVal);
+    s.validationRM = newVal;
+    if(!newVal) { refreshUI(id); return; } // dé-validation : aucune notif
+  }
+  // Notifs identiques à l'existant ; la garde contact voit s.contactBrand désormais à jour.
+  if(s.journaliste && s.journaliste !== auteur) {
+    await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
+      `${auteur} a validé le séquencier côté Réel Média — ${s.code} · ${s.titre}`);
+    loadNotifs();
+  }
+  if(s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
+    await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
+      `Édito validé sur le séquencier de ${s.code}, à toi de valider`);
+    loadNotifs();
+  }
+  refreshUI(id);
+}
+
+// Popup d'assignation obligatoire. S'ouvre pour TOUS les rôles (comme la validation Édito,
+// qui n'a aucune garde de rôle — un journaliste valide parfois à la place du chef).
+function ouvrirAssignBrand(id) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  const brands = equipe.filter(m => m.role === 'Brand'); // source en mémoire, 0 requête
+  _assignBrand = { sujetId:id, choix: brands[0]?.nom || '' };
+
+  const existing = document.getElementById('assign-brand-modal');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'assign-brand-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  let onEsc;
+  const close = () => { overlay.remove(); if(onEsc) document.removeEventListener('keydown', onEsc); };
+  onEsc = e => { if(e.key === 'Escape') close(); };
+
+  if(brands.length) {
+    const options = brands.map(m => `<option value="${escapeHtml(m.nom)}" ${m.nom===_assignBrand.choix?'selected':''}>${escapeHtml(m.nom)}</option>`).join('');
+    overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+        <div style="font-size:15px;font-weight:600;color:var(--text)">Assigner un contact Brand</div>
+        <button id="assign-brand-x" class="nav-btn" style="font-size:14px;padding:2px 8px" title="Fermer">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">${escapeHtml(s.code)} · ${escapeHtml(s.titre||'')}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.5">Le contact Brand sera prévenu que le séquencier est validé côté Réel Média, et qu'il doit valider à son tour.</div>
+      <select id="assign-brand-select" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;margin-bottom:16px">${options}</select>
+      <div style="display:flex;justify-content:flex-end">
+        <button id="assign-brand-ok" class="nav-btn primary" style="font-size:12px">Assigner ${escapeHtml(_assignBrand.choix)} et valider</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:right">Fermer avec ✕ laisse le séquencier non validé</div>
+    </div>`;
+  } else {
+    // Aucun membre Brand : on ne peut pas continuer. Aucune liste, aucune action.
+    overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:15px;font-weight:600;color:var(--text)">Aucun contact Brand disponible</div>
+        <button id="assign-brand-x" class="nav-btn" style="font-size:14px;padding:2px 8px" title="Fermer">✕</button>
+      </div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.5">Personne n'a le rôle Brand dans l'équipe. Ajoute un membre depuis « Gérer l'équipe », puis reviens valider le séquencier.</div>
+    </div>`;
+  }
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if(e.target===overlay) close(); });
+  document.addEventListener('keydown', onEsc);
+  document.getElementById('assign-brand-x').addEventListener('click', close);
+
+  if(brands.length) {
+    const sel = document.getElementById('assign-brand-select');
+    const okBtn = document.getElementById('assign-brand-ok');
+    sel.addEventListener('change', () => {
+      _assignBrand.choix = sel.value; // état lu depuis la variable module, pas le DOM
+      okBtn.textContent = `Assigner ${_assignBrand.choix} et valider`;
+    });
+    okBtn.addEventListener('click', async () => {
+      close();
+      await _validerEditoRM(_assignBrand.sujetId, {assignerContact:_assignBrand.choix});
+    });
+  }
+}
+
 // ─── VALIDATION SÉQUENCIER ───
 async function toggleValidationSeq(id, type) {
   const s = sujets.find(x=>x.id===id);
@@ -3214,18 +3234,11 @@ async function toggleValidationSeq(id, type) {
 
   if(type==='RM') {
     const newVal = !s.validationRM;
-    await upd(id,'Validation RM','cb',newVal);
-    s.validationRM = newVal;
-    if(newVal && s.journaliste && s.journaliste !== auteur) {
-      await createNotif('nouveau_sujet', id, s.code, s.titre, s.journaliste, auteur,
-        `${auteur} a validé le séquencier côté Réel Média — ${s.code} · ${s.titre}`);
-      loadNotifs();
-    }
-    if(newVal && s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
-      await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
-        `Édito validé sur le séquencier de ${s.code}, à toi de valider`);
-      loadNotifs();
-    }
+    // Contact Brand OBLIGATOIRE : valider l'Édito d'un Brand sans contact ouvre le popup
+    // d'assignation et s'arrête là. Plus aucun chemin ne valide un Brand sans contact.
+    if(newVal && s.format==='Brand' && !s.contactBrand) { ouvrirAssignBrand(id); return; }
+    await _validerEditoRM(id); // dé-validation, ou Brand déjà pourvu en contact
+    return;
   } else if(type==='Brand') {
     if(!s.validationRM) return; // bouton désactivé : garde silencieuse
     if(!s.contactBrand) { toast("Assignez d'abord un contact Brand à cette carte",'err'); return; }
@@ -4640,7 +4653,6 @@ async function toggleRetourPlayer(retourId, sujetId, version) {
     toast('✓ Marqué corrigé','ok');
     loadPlayerRetours(sujetId, version);
     loadRetours(sujetId); // Sync avec la fiche
-    await verifierCompletionVersion(sujetId, retourId, 'Corrigé');
   } catch(e) { toast('Erreur','err'); }
 }
 
@@ -4663,10 +4675,6 @@ async function confirmerImpossible() {
         'Raison impossible': {rich_text:[{text:{content:raison}}]}
       }
     });
-    if(currentUser) {
-      await verifierCompletionVersion(impossibleSujetId, impossibleRetourId, '⛔ Impossible');
-      loadNotifs();
-    }
     closeOv('ov-impossible');
     toast('Retour marqué impossible', 'ok');
     loadRetours(impossibleSujetId);
