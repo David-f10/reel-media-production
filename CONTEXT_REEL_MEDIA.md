@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-25 (contact Brand obligatoire à l'Édito + suppression notif « retours traités » · porte anti-rafale · fix vue au démarrage · chantier A conso · bloc Tâches retiré · nettoyage bloc Retours · export relevé en PAD · codes Brand B09 clos)
+> Dernière mise à jour : 2026-08-25 (DÉDUP SERVEUR des notifications · contact Brand obligatoire à l'Édito · suppression notif « retours traités » · porte anti-rafale · fix vue au démarrage · chantier A conso · bloc Tâches retiré · nettoyage bloc Retours · codes Brand B09 clos)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,22 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-25 — Déduplication SERVEUR des notifications (tue la classe de doublons)
+- **⚠️ CE CHANTIER NE TOUCHE PAS `index.html`.** Deux fichiers : **`netlify/functions/notify.js`** et **`review.html`**.
+- **Le problème :** la même notification apparaissait 2 fois, parfois **6** (B09Y). Types touchés mesurés : `nouveau_sujet` (~14 groupes n=2), `version_validee` (jusqu'à **n=6**), `v1_deposee` (n=2).
+- **⚠️ DÉCOUVERTE QUI DISQUALIFIE LES GARDES CLIENT :** le code **était** partiellement gardé (`_createEnCours`, `_lienNotifie`) — mais **une variable module ne survit pas au rechargement de page**. Preuve mesurée : `v1_deposee` a doublé **malgré** `_lienNotifie` (dépôt → notif → gate posé → reload → re-blur du champ pré-rempli → gate vidé → 2ᵉ notif). Une garde client ne peut donc **jamais** être la solution générale.
+- **⚠️ LE COÛT NE DISQUALIFIE PAS LA PISTE SERVEUR** (le Pilote le croyait) : `notify.js` interroge Notion **directement** via son `NOTION_TOKEN`, **hors du proxy `/notion`**. La dédup ajoute **+1 requête Notion (~150-300 ms)** et **ZÉRO invocation Netlify** — le chantier conso (94K/125K) n'est pas menacé.
+- **DEUX CAUSES DISTINCTES sous le même mot « doublon » :** (i) **double-fire quasi-simultané** — double-clic, deux handlers, re-blur post-reload — quelques **secondes** ; (ii) **répétition lente** — un client de `review.html` qui reclique faute de feedback — plusieurs **minutes**. Aucune solution unique ne couvre les deux.
+- **VOLET 1 (traite (i), et c'est lui qui règle le problème de Benjamin) — dédup dans `notify.js` :** helper `notifDoublonRecent(destinataire, message)` inséré **après** le garde `destinataire===auteur`, **avant** `createNotionNotif`. Filtre `and:[Destinataire rich_text equals, Message title equals, created_time on_or_after now−20s]`, `page_size:1`. Si trouvé → `{ok:true, deduped:true}`, rien n'est écrit.
+- **⚠️ TTL COURT : 20 SECONDES, et c'est le cœur du raisonnement.** Deux notifications **identiques** (même destinataire, même message mot pour mot) à moins de 20 s **ne peuvent pas** être deux vrais événements — personne ne valide, annule et revalide en 15 secondes. Au-delà, ça redevient plausible (V2 annulée puis redéposée = minutes) et il **faut** notifier. La fenêtre courte est ce qui rend la dédup **sûre**. **NE PAS reprendre les 5 min de la porte anti-rafale** : là-bas on groupe volontairement des événements distincts, ici on supprime ce qui n'aurait jamais dû exister. Deux mécanismes, deux logiques, deux fenêtres.
+- **⚠️ FAIL-OPEN, vérifié dans le code (3 chemins) :** token absent, réponse non-OK, exception → `return false` = **on envoie**. Mieux vaut un doublon qu'une notification perdue. **Aucun retry** sur la vérif : retenter n'ajouterait que de la latence à une vérification qui laisse passer de toute façon.
+- **Message vide → envoyé SANS vérification** (`if (message && await notifDoublonRecent(...))`) : un `equals ''` aurait sur-matché.
+- **`createNotionNotif` INTACT** : Message, Destinataire, Auteur inchangés. La dédup ne touche qu'au *si on écrit*, jamais au *quoi* ni *à qui*. Rien à changer côté clients : `createNotif` teste `data.ok`, qui reste `true`.
+- **VOLET 2 (traite (ii)) — `review.html confirmerValidation` durci :** garde de ré-entrée `_validationEnvoi` (variable module), bouton désactivé + **« ⏳ Validation… »**, et **`fermerPopup` déplacé APRÈS les `await`** — c'est l'absence de feedback qui poussait le client à recliquer, cause du n=6. Verrou `sessionStorage`.
+- **⚠️ LA CLÉ DU VERROU INCLUT LA VERSION** : `'review-validee-' + sujetId + '-' + versionActive`. Une clé par sujet seul aurait **bloqué la validation d'une V3** déposée après une V2 validée — on aurait remplacé un excès de notifications par une perte fonctionnelle.
+- **Réserve honnête sur le volet 2 (soulevée par David) :** `review.html` **n'est plus utilisé** — 26 retours client contre 244 équipe, et rien depuis le **28 juillet**. Le n=6 est historique. Le volet 2 ne participe donc **pas** à résoudre le problème de Benjamin ; il protège un usage futur. Poussé car déjà écrit et sans risque. **Question ouverte : pourquoi l'équipe n'utilise-t-elle plus le lien de review ?** Louise transcrit les mails clients à la main dans l'app (d'où les rafales de 8 retours) alors que review.html devait justement l'éviter.
+- **Vérification Pilote :** `node --check` OK sur `notify.js` (181 l.) et sur le JS inline de `review.html` (943 l.). Fail-open confirmé aux l.69/87/92. TTL l.18. Clé du verrou avec version confirmée l.844. `fermerPopup` après les `await` confirmé l.858. `index.html` non concerné.
 
 ### 2026-08-25 — Suppression de la notification « retours traités »
 - **La plainte de Benjamin :** trop de notifications. Capture à l'appui — 09:50 « ✅ Tous les retours de la V7 de B55C ont été traités », 09:51 « Mickaël a déposé un lien de montage sur B55C ». Deux notifs à une minute d'écart pour le même événement. Et la première apparaissait **en double**.
