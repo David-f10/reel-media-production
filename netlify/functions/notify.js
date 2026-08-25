@@ -15,6 +15,9 @@ const webpush = require('web-push');
 const { getPushStore } = require('./_blobs');
 
 const DB_NOTIFS = '4398775b-c11f-4d73-99c4-9fc31c33ce8b';
+const DEDUP_TTL_MS = 20000; // dédup serveur : 20 s. Assez pour absorber un double-fire (double-clic,
+                            // deux handlers, re-blur post-reload), bien trop court pour manger un vrai
+                            // ré-événement (V2 annulée puis redéposée = minutes).
 
 function configureVapid() {
   const pub = process.env.VAPID_PUBLIC_KEY;
@@ -53,6 +56,41 @@ async function createNotionNotif({ type, sujetId, sujetCode, sujetTitre, destina
     throw new Error('Notion create page: ' + res.status + ' ' + t);
   }
   return res.json();
+}
+
+// Dédup best-effort (clé destinataire + message, fenêtre DEDUP_TTL_MS) : neutralise les
+// doublons quasi-simultanés, tous types confondus, y compris ceux que les gardes client
+// (variables module) ratent au rechargement de page. FAIL-OPEN : toute erreur de vérif →
+// retourne false (on envoie). Mieux vaut un doublon qu'une notification perdue. Une seule
+// tentative, pas de retry : retenter ne ferait qu'ajouter de la latence à une vérif qui
+// laisse passer de toute façon en cas d'échec.
+async function notifDoublonRecent(destinataire, message) {
+  const token = process.env.NOTION_TOKEN;
+  if (!token) return false;
+  try {
+    const res = await fetch('https://api.notion.com/v1/databases/' + DB_NOTIFS + '/query', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        page_size: 1,
+        filter: { and: [
+          { property: 'Destinataire', rich_text: { equals: destinataire } },
+          { property: 'Message', title: { equals: message } },
+          { timestamp: 'created_time', created_time: { on_or_after: new Date(Date.now() - DEDUP_TTL_MS).toISOString() } }
+        ] }
+      })
+    });
+    if (!res.ok) return false; // fail-open
+    const data = await res.json();
+    return Array.isArray(data.results) && data.results.length > 0;
+  } catch (e) {
+    console.warn('Dédup : vérification échouée (on envoie) :', e.message);
+    return false; // fail-open
+  }
 }
 
 async function sendPushes(destinataire, payload) {
@@ -109,6 +147,11 @@ exports.handler = async (event) => {
   // Garde-fou identique à l'ancien createNotif côté client : pas se notifier soi-même
   if (!destinataire || destinataire === auteur) {
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, skipped: true }) };
+  }
+
+  // Dédup (message vide → on n'interroge pas, ça sur-matcherait, et on envoie quand même).
+  if (message && await notifDoublonRecent(destinataire, message)) {
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, deduped: true }) };
   }
 
   let notifId = null;

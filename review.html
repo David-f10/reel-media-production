@@ -317,7 +317,7 @@
     <div id="popup-valider-warn" style="display:none;font-size:12px;color:var(--amber);background:rgba(239,159,39,0.12);border:1px solid var(--amber);border-radius:var(--r);padding:8px 10px;margin-bottom:16px;line-height:1.4"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="popup-btn" onclick="fermerPopup('popup-valider')" style="flex:1">Annuler</button>
-      <button onclick="confirmerValidation()" style="flex:1;background:var(--green);border:none;color:#fff;padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500">✅ Confirmer</button>
+      <button id="btn-confirmer-validation" onclick="confirmerValidation()" style="flex:1;background:var(--green);border:none;color:#fff;padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500">✅ Confirmer</button>
     </div>
   </div>
 </div>
@@ -346,6 +346,7 @@ let clientNom = '';
 let sujetCode = '';
 let sujetId = '';
 let versionActive = 'V1';
+let _validationEnvoi = false; // garde de ré-entrée de confirmerValidation (variable module, jamais le DOM)
 let videoUrl = '';
 let sujetData = null;
 let tousRetours = [];
@@ -837,14 +838,32 @@ function ouvrirValidation() {
 }
 
 async function confirmerValidation() {
-  fermerPopup('popup-valider');
+  if(_validationEnvoi) return; // garde de ré-entrée : bloque le double-fire synchrone
+  // Verrou de session par sujet + VERSION : ne pas re-notifier une version déjà validée cette
+  // session, SANS bloquer la validation d'une autre version (ex. V3 déposée plus tard).
+  const cleValidee = 'review-validee-' + sujetId + '-' + versionActive;
+  if(sessionStorage.getItem(cleValidee) === '1') {
+    fermerPopup('popup-valider');
+    document.getElementById('popup-final').style.display = 'flex';
+    return;
+  }
+  _validationEnvoi = true;
+  const btn = document.getElementById('btn-confirmer-validation');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Validation…'; }
   try {
     if(sujetId) await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Validation chef'}}}});
     // Notif équipe (cloche + push via notify.js), mêmes destinataires dédupliqués.
     await notifierEquipe('version_validee', `${clientNom} a validé la ${versionActive} de ${sujetCode} — ${sujetData?.titre||''}`);
+    sessionStorage.setItem(cleValidee, '1');
+    fermerPopup('popup-valider'); // fermé APRÈS succès → le « ⏳ Validation… » reste visible pendant l'envoi
     document.getElementById('popup-final').style.display = 'flex';
     toast('Version validée 🎉');
-  } catch(e){toast('Erreur : '+e.message);}
+  } catch(e){
+    toast('Erreur : '+e.message);
+  } finally {
+    _validationEnvoi = false;
+    if(btn){ btn.disabled = false; btn.textContent = '✅ Confirmer'; } // reset : réessai après erreur / réouverture propre
+  }
 }
 
 // ── A : « J'ai fini mes retours » — signal INDIVIDUEL, informatif, réversible ──
