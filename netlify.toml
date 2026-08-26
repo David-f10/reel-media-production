@@ -10,6 +10,11 @@
 [functions."drive-permsweep"]
   schedule = "*/10 * * * *"
 
+# Archivage automatique PAD + rattrapage du fonds ancien : datation (last_edited_time) des
+# PAD sans date de diffusion, puis archivage des PAD diffusées depuis > 30 jours. Chaque nuit à 3h.
+[functions."pad-sweep"]
+  schedule = "0 3 * * *"
+
 [[headers]]
   for = "/css/*"
   [headers.values]
