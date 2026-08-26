@@ -3360,7 +3360,10 @@ function peuplerSelect(liste) {
     if(!membres.length) return;
     html += `<optgroup label="${g.label}">` + membres.map(opt).join('') + '</optgroup>';
   });
-  const autres = liste.filter(m => !connus.includes(m.role));
+  // « Autres » : uniquement les rôles RENSEIGNÉS mais hors des 4 connus (faute de frappe, rôle
+  // exotique) → gardés visibles au login pour ne pas verrouiller quelqu'un par erreur de saisie.
+  // Un rôle VIDE = désactivation volontaire (vidé dans Notion) → exclu, n'apparaît nulle part.
+  const autres = liste.filter(m => (m.role || '').trim() && !connus.includes(m.role));
   if(autres.length) html += '<optgroup label="Autres">' + autres.map(opt).join('') + '</optgroup>';
   sel.innerHTML = html;
 }
