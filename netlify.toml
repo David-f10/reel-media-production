@@ -11,9 +11,11 @@
   schedule = "*/10 * * * *"
 
 # Archivage automatique PAD + rattrapage du fonds ancien : datation (last_edited_time) des
-# PAD sans date de diffusion, puis archivage des PAD diffusées depuis > 30 jours. Chaque nuit à 3h.
+# PAD sans date de diffusion, puis archivage des PAD diffusées depuis > 30 jours.
+# ⚠️ TEMPORAIRE : cadence 10 min pour drainer le fonds de 217 cartes (80/passe).
+# REMETTRE "0 3 * * *" (chaque nuit à 3h) une fois le drainage terminé.
 [functions."pad-sweep"]
-  schedule = "0 3 * * *"
+  schedule = "*/10 * * * *"
 
 [[headers]]
   for = "/css/*"
