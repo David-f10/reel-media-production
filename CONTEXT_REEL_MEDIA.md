@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-25 (filtre « Non lues » dans la cloche · dédup serveur des notifications · contact Brand obligatoire à l'Édito · suppression notif « retours traités » · porte anti-rafale · fix vue au démarrage · chantier A conso · bloc Tâches retiré · codes Brand B09 clos)
+> Dernière mise à jour : 2026-08-26 (membres sans rôle exclus du login · désactivation Thierry et « archived » · filtre « Non lues » · dédup serveur des notifications · contact Brand obligatoire à l'Édito · chantier A conso · codes Brand B09 clos)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,30 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-26 — Membres sans rôle exclus du sélecteur de login
+- **Le constat :** après avoir vidé le rôle de « archived » et de Thierry côté Notion, ils n'ont pas disparu — ils sont apparus dans une catégorie **« Autres »** du sélecteur.
+- **⚠️ Le problème était plus petit qu'il n'y paraissait :** la capture montrait le sélecteur de **LOGIN**, pas une liste d'assignation. **Tous les vrais sélecteurs d'assignation filtrent déjà par rôle** — journaliste et monteur via `journMonteursNoms()`, contact Brand via `role === 'Brand'`, chef **hardcodé** (Benjamin/Arnaud/Chloé). Personne ne pouvait assigner un travail à Thierry. Restait le menu de connexion, où une fiche sans code d'accès n'a rien à faire.
+- **La cause :** l'optgroup « Autres » de `peuplerSelect` est le **bucket par défaut** de tout rôle absent de `['Chef','Journaliste','Monteur','Brand']`. Un rôle vidé y tombait automatiquement. `peuplerSelect` ne remplit que `#login-nom`.
+- **⚠️ LA CORRECTION DISTINGUE DEUX CAS, et c'est ce qui compte :**
+  - **Rôle VIDE** (`''`, blanc, absent) = **désactivation volontaire** → exclu, disparaît du login.
+  - **Rôle RENSEIGNÉ mais inconnu** (faute de frappe « Jounaliste », rôle exotique) = **erreur de saisie** → reste sous « Autres ».
+  Une seule condition (l.3366) : `liste.filter(m => (m.role || '').trim() && !connus.includes(m.role))`.
+- **Pourquoi ne PAS retirer « Autres » entièrement :** ça aurait transformé une simple faute de frappe dans Notion en **verrouillage silencieux** — la personne ne pourrait plus se connecter sans que personne comprenne pourquoi. La voir dans « Autres » signale d'ailleurs la faute. La distinction coûte une condition et évite ce piège.
+- **⚠️ AUCUN AFFICHAGE D'ASSIGNATION TOUCHÉ** — on exclut de la **sélection future**, jamais de l'**affichage** d'une assignation existante. Les deux gardes de préservation sont intactes : fiche journaliste (l.942, `if(s.journaliste && !noms.includes(...)) noms.push(...)`) et monteur des versions (l.2762). **B17I Gastronomie continue d'afficher « Thierry ».**
+- **« Gérer l'équipe » non élargie (option A).** Claude Code a corrigé une prémisse fausse du Pilote : cette vue **n'affiche déjà pas** les membres sans rôle (elle n'itère que les 4 rôles) et n'a **aucun éditeur de rôle**. La réactivation se fait dans **Notion** — cohérent avec la façon dont on désactive.
+- **Vérification Pilote :** `wc -l` **7274 → 7277 (+3)**, compteurs inchangés, `node --check` OK. `peuplerSelect` cible bien `#login-nom` uniquement.
+
+### 2026-08-26 — Désactivation de Thierry et de « archived » (Notion, aucun code)
+- **« archived »** — origine identifiée : c'est le **doublon Guillaume** que Master avait neutralisé le **29 mai** en le renommant `__archived__` et en vidant son code, **mais sans vider son rôle « Brand »** — d'où sa présence dans le sélecteur Contact Brand. Vérifié avant écriture : **aucune carte assignée, aucune notification adressée**. Rôle vidé, fiche conservée.
+- **Thierry** — option (b) retenue : **code d'accès et rôle vidés, fiche conservée**. Plus d'accès au site, disparition des sélecteurs, nom préservé partout.
+- **⚠️ POURQUOI (b) PLUTÔT QUE LA SUPPRESSION :** les noms sont stockés en **texte simple** partout (select ou text dans DB_PROD, DB_VERSIONS, DB_RETOURS, DB_NOTIFS), **jamais en relation** vers DB_EQUIPE. Supprimer la fiche ne casserait donc rien — mais (b) est **réversible**, et le MCP ne supprime pas proprement (il faudrait passer par la corbeille Notion à la main). Même résultat, moins de risque.
+- **Vérification finale par fetch :** B17I Gastronomie affiche toujours « Thierry » en journaliste, ses 2 versions le portent toujours en monteur. **Démonstration concrète** que désactiver une fiche membre n'affecte aucune donnée produite.
+- **Aucun sujet ACTIF n'était attribué à Thierry** (sa seule carte, B17I, est en PAD) — rien à réassigner.
+- **M685 — DOSSIER CLOS :** la carte n'a **jamais existé**. Aucune trace dans DB_PROD, DB_VERSIONS, DB_RETOURS ni DB_NOTIFS. Le 15 juillet, la ligne M685 de la liste était **vide (sans titre)** et a été délibérément sautée. C'est un **trou volontaire** dans la séquence, pas une suppression.
+- **Écart corrigé :** les « 211 retours de Thierry » évoqués par le Pilote étaient en réalité ceux de **Benjamin** (211 des 244 retours équipe). Thierry avait créé **une tâche**, pas des retours.
+- **État de l'équipe :** 22 membres actifs + 2 fiches neutralisées (`__archived__`, Thierry) conservées pour l'historique.
+- **Note pratique :** une session déjà ouverte continue de fonctionner (le code est stocké dans le navigateur). Sans gravité ici, mais c'est ce que traiterait le chantier **« expiration de session »** du backlog.
 
 ### 2026-08-25 — Filtre « Non lues » dans la cloche (demande de Benjamin)
 - **La demande :** « Mettre une fonctionnalité afficher les messages non lus. J'ai deux notifs qui datent, compliqué d'aller les rechercher à la main, beaucoup de scroll. » Le badge affichait le bon nombre, mais les non-lues étaient noyées dans le flux chronologique.
