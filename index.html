@@ -221,13 +221,8 @@
       <button class="sb-filter" onclick="appFilter('s','Retours',this)"><span class="sb-dot" style="background:var(--red)"></span>Retours</button>
       <button class="sb-filter" onclick="appFilter('s','Validation chef',this)"><span class="sb-dot" style="background:var(--purple)"></span>Validation</button>
       <button class="sb-filter" onclick="appFilter('s','PAD',this)"><span class="sb-dot" style="background:var(--green)"></span>PAD</button>
-      <button class="sb-filter" data-fmt="MAG" onclick="appFilter('f','MAG',this)"><span class="sb-dot" style="background:#378ADD"></span>MAG</button>
-      <button class="sb-filter" data-fmt="Brand" onclick="appFilter('f','Brand',this)"><span class="sb-dot" style="background:#EF9F27"></span>Brand</button>
-      <button class="sb-filter" data-fmt="Face Cam" onclick="appFilter('f','Face Cam',this)"><span class="sb-dot" style="background:#e63946"></span>Face Cam</button>
-      <button class="sb-filter" data-fmt="Desk" onclick="appFilter('f','Desk',this)"><span class="sb-dot" style="background:#888780"></span>Desk</button>
-      <button class="sb-filter" data-fmt="YouTube" onclick="appFilter('f','YouTube',this)"><span class="sb-dot" style="background:#1D9E75"></span>YouTube</button>
-      <button class="sb-filter" data-fmt="Prodige" onclick="appFilter('f','Prodige',this)"><span class="sb-dot" style="background:#D4537E"></span>Prodige</button>
-      <button class="sb-filter" data-fmt="Interne" onclick="appFilter('f','Interne',this)"><span class="sb-dot" style="background:#5A5A70"></span>⚙️ Interne</button>
+      <button class="sb-filter" onclick="appFilter('d','stock',this)"><span class="sb-dot" style="background:var(--amber)"></span>Stock <span class="sb-badge" id="cnt-stock">0</span></button>
+      <button class="sb-filter" onclick="appFilter('d','diffusee',this)"><span class="sb-dot" style="background:var(--green)"></span>Diffusée (30 j)</button>
     </div>
     <!-- Compteur résultats recherche -->
     <div id="search-count" style="display:none;padding:4px 24px;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0"></div>
@@ -740,6 +735,7 @@ function parsePage(p){
     typeL2:pr['Type L2']?.select?.name||'',
     typeL3:pr['Type L3']?.select?.name||'',
     archive:pr['Archivé']?.checkbox||false,
+    enStock:pr['En stock']?.checkbox||false,
     sujetParentId:pr['Sujet parent ID']?.rich_text?.[0]?.plain_text||'',
     sujetParentCode:pr['Sujet parent code']?.rich_text?.[0]?.plain_text||'',
     declinaisonNum:pr['Déclinaison n°']?.number||null,
@@ -762,9 +758,7 @@ function parsePage(p){
 }
 
 function renderCards(){
-  let list=sujets;
-  if(curFilter.t==='s'&&curFilter.v)list=list.filter(s=>s.statut===curFilter.v);
-  if(curFilter.t==='f'&&curFilter.v)list=list.filter(s=>s.format===curFilter.v);
+  let list=sujets.filter(matchFiltre);
   if(!list.length){document.getElementById('cards-wrap').innerHTML='<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';return;}
   document.getElementById('cards-wrap').innerHTML='<div class="cards cards--c">'+list.map(cardHTML).join('')+'</div>';
 }
@@ -1113,8 +1107,7 @@ function openDetail(id, forcePadOpen=false){
   const sansMusique = s.sansMusique;
   const padPret = capDeposee && (sansMusique || releveMusique);
   html+=step('Validation · PAD',s.statut==='PAD'?'p-green PAD':'p-gray En attente',
-    `<div class="field"><div class="field-label">Date diffusion <span style="color:var(--text3);font-size:10px">(optionnel)</span></div><div class="date-wrap"><input type="date" value="${s.diffusion}" onchange="upd('${id}','Date de diffusion','date',this.value)"><button type="button" class="date-clear" onclick="clearDate('${id}','Date de diffusion',this)" title="Effacer" style="${s.diffusion?'':'display:none'}">×</button></div></div>
-    <div style="margin-top:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
+    `<div style="margin-top:0;margin-bottom:12px;display:flex;flex-direction:column;gap:8px">
       <label style="display:flex;align-items:center;gap:10px;cursor:${s.statut==='PAD'?'default':'pointer'};padding:10px;border-radius:8px;border:1px solid ${capDeposee?'var(--green)':'var(--border)'};background:${capDeposee?'var(--green-dim)':'var(--bg3)'}">
         <input type="checkbox" ${capDeposee?'checked':''} ${s.statut==='PAD'?'disabled':''} style="accent-color:var(--green);width:16px;height:16px;flex-shrink:0" onchange="const v=this.checked;upd('${id}','Cap d\u00e9pos\u00e9e','cb',v).then(()=>{const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.capDeposee=v;refreshUI('${id}',true)})">
         <div>
@@ -1129,7 +1122,29 @@ function openDetail(id, forcePadOpen=false){
       ${!padPret?'disabled':''}>
       ${padPret?'✅ Marquer PAD':'⏳ Cap + relevé requis'}
     </button>`:''}`,activeStep==='pad');
-  // Step archivage dans fiche PAD
+
+  // ─── Section DIFFUSION (distincte du bloc Validation · PAD) ───
+  if(s.statut==='PAD') {
+    let corpsDiff, pillDiff;
+    if(s.diffusion) {
+      const dArch = fmtDate(new Date(new Date(s.diffusion).getTime() + 30*86400000));
+      corpsDiff = `<div style="font-size:13px;color:var(--green);margin-bottom:4px">📅 Diffusée le ${fmtDate(s.diffusion)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Archivage automatique le ${dArch}</div>
+        <div class="field"><div class="field-label" style="margin-bottom:6px">Corriger la date</div><div class="date-wrap"><input type="date" value="${s.diffusion.slice(0,10)}" onchange="upd('${id}','Date de diffusion','date',this.value);const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.diffusion=this.value;refreshUI('${id}')"></div></div>`;
+      pillDiff = 'p-green Diffusée';
+    } else if(s.enStock) {
+      corpsDiff = `<div style="font-size:13px;color:var(--text2);margin-bottom:12px">📦 En attente de programmation</div>
+        <button onclick="ouvrirPopupDiffusion('${id}')" class="nav-btn primary" style="width:100%;font-size:12px">Marquer comme diffusée</button>`;
+      pillDiff = 'p-blue En stock';
+    } else {
+      corpsDiff = `<div style="font-size:13px;color:var(--amber);margin-bottom:12px">À décider — ni diffusée, ni en stock</div>
+        <button onclick="ouvrirPopupDiffusion('${id}')" class="nav-btn primary" style="width:100%;font-size:12px">Renseigner la diffusion</button>`;
+      pillDiff = 'p-amber À décider';
+    }
+    html += step('Diffusion', pillDiff, corpsDiff, !s.diffusion);
+  }
+
+  // Step archivage média (rangement fichiers sources — OPTIONNEL, hors du flux de validation PAD)
   if(s.statut==='PAD') {
     const emplacArchiv = s.emplacementArchivage || s.stockage || '';
     const archConfirme = s.archivageConfirme;
@@ -1137,7 +1152,7 @@ function openDetail(id, forcePadOpen=false){
     const stockageOptions = ['RM-VISUALS-01','RM-VISUALS-02','RM-VISUALS-03','RM-VISUALS-04','RM-VISUALS-05','RM-VISUALS-06','RM-VISUALS-07','RM-VISUALS-08','RM-VISUALS-09','RM-VISUALS-10','DD rédaction','NexisAvid'];
     html+=`<div class="step" style="${archConfirme?'background:var(--green-dim);border-color:rgba(29,158,117,0.2)':''}">
       <div class="step-hdr" style="cursor:default">
-        <span class="step-ttl">📦 Archivage média</span>
+        <span class="step-ttl">📦 Archivage média <span style="font-size:10px;color:var(--text3);font-weight:400">· optionnel · rangement fichiers sources</span></span>
         <span class="pill ${archConfirme?'p-green':'p-gray'}">${archConfirme?'✅ Archivé':'En attente'}</span>
       </div>
       <div style="padding:0 22px 18px">${archConfirme ? `
@@ -3526,8 +3541,7 @@ function diffSujets(anciens, nouveaux) {
 function idsVisibles(list) {
   if(currentPage !== 'production') return new Set();
   let l = list;
-  if(curFilter && curFilter.t === 's' && curFilter.v) l = l.filter(s => s.statut === curFilter.v);
-  if(curFilter && curFilter.t === 'f' && curFilter.v) l = l.filter(s => s.format === curFilter.v);
+  l = l.filter(matchFiltre);
   return new Set(applySearch(l).map(s => s.id));
 }
 
@@ -4837,6 +4851,91 @@ async function autoStatut(id, field, value){
   }
 }
 
+// ─── DIFFUSION AU PAD ───
+// État du popup diffusion : variable module (jamais le DOM). date = date choisie (YYYY-MM-DD).
+let _padDiffusion = { sujetId:null, date:'' };
+
+// Popup ouvert à la transition vers PAD (via updStatut) ET depuis la section Diffusion
+// (« Marquer comme diffusée » / « Renseigner la diffusion »). S'ouvre pour TOUS les rôles.
+function ouvrirPopupDiffusion(id) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  const auj = toLocalISO(new Date()).slice(0,10);
+  const dParDefaut = (s.diffusion || auj).slice(0,10); // pré-rempli avec la date existante (re-PAD), sinon aujourd'hui
+  const j7 = (() => { const d = new Date(); d.setDate(d.getDate()+7); return toLocalISO(d).slice(0,10); })();
+  _padDiffusion = { sujetId:id, date:dParDefaut };
+
+  const existing = document.getElementById('popup-diffusion');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'popup-diffusion';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  let onEsc;
+  const close = () => { overlay.remove(); if(onEsc) document.removeEventListener('keydown', onEsc); };
+  onEsc = e => { if(e.key === 'Escape') close(); };
+
+  overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+      <div style="font-size:15px;font-weight:600;color:var(--text)">Diffusion</div>
+      <button id="diff-x" class="nav-btn" style="font-size:14px;padding:2px 8px" title="Fermer">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px">${escapeHtml(s.code)} · ${escapeHtml(s.titre||'')}</div>
+    <div class="field" style="margin-bottom:8px">
+      <div class="field-label" style="margin-bottom:6px">Date de diffusion</div>
+      <input type="date" id="diff-date" value="${dParDefaut}" style="width:100%">
+    </div>
+    <button id="diff-j7" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:11px;text-decoration:underline;padding:0;margin-bottom:16px">Diffusion dans la semaine (J+7)</button>
+    <button id="diff-ok" class="nav-btn primary" style="width:100%;background:var(--green);border-color:var(--green);font-size:12px;margin-bottom:8px">Diffusée à cette date</button>
+    <button id="diff-stock" class="nav-btn" style="width:100%;font-size:12px;color:var(--text2)">📦 Garder en stock</button>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center">Fermer avec ✕ laisse le sujet non passé en PAD</div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if(e.target===overlay) close(); });
+  document.addEventListener('keydown', onEsc);
+
+  const dateEl = document.getElementById('diff-date');
+  document.getElementById('diff-x').addEventListener('click', close);
+  dateEl.addEventListener('change', () => { _padDiffusion.date = dateEl.value; }); // état lu depuis la variable module
+  document.getElementById('diff-j7').addEventListener('click', () => { dateEl.value = j7; _padDiffusion.date = j7; });
+  document.getElementById('diff-ok').addEventListener('click', async () => {
+    if(!_padDiffusion.date) { toast('Choisis une date','err'); return; }
+    close();
+    await _padAppliquer(_padDiffusion.sujetId, { diffusee:true, date:_padDiffusion.date });
+  });
+  document.getElementById('diff-stock').addEventListener('click', async () => {
+    close();
+    await _padAppliquer(_padDiffusion.sujetId, { diffusee:false });
+  });
+}
+
+// Écriture ATOMIQUE de la transition PAD + décision de diffusion (UN seul PATCH).
+// Succès → mémoire → refreshUI. Échec → toast, return : rien en mémoire, PAD NON validé
+// (jamais de PAD validé sans décision de diffusion). « Garder en stock » efface la date
+// (modèle non ambigu : date présente ⇒ Diffusée).
+async function _padAppliquer(id, { diffusee, date }) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  const props = { 'Statut': { select:{ name:'PAD' } } };
+  if(diffusee) {
+    props['Date de diffusion'] = { date:{ start: date } };
+    props['En stock'] = { checkbox: false };
+  } else {
+    props['En stock'] = { checkbox: true };
+    props['Date de diffusion'] = { date: null };
+  }
+  try {
+    await api('/pages/'+id, 'PATCH', { properties: props });
+  } catch(e) {
+    toast('Erreur : '+e.message, 'err');
+    return; // échec : aucune écriture mémoire, PAD non validé
+  }
+  s.statut = 'PAD';
+  if(diffusee) { s.diffusion = date; s.enStock = false; }
+  else { s.enStock = true; s.diffusion = ''; }
+  toast('PAD validé','ok');
+  refreshUI(id);
+}
+
 async function updStatut(id,statut,btnEl){
   const s=sujets.find(x=>x.id===id);
   const oldLabel = btnEl ? btnEl.textContent : '';
@@ -4854,6 +4953,11 @@ async function updStatut(id,statut,btnEl){
       refreshUI(id); // fiche + vue re-rendues sur l'état frais (déjà mergé) — AUCUNE écriture
       return;
     }
+    // Transition vers PAD → popup diffusion (AUCUNE garde de rôle : tous les rôles y passent,
+    // un journaliste peut passer une carte en PAD). Le popup écrit lui-même Statut=PAD via un
+    // PATCH atomique et gère la décision de diffusion ; on diffère donc l'écriture ici.
+    const sPad = sujets.find(x=>x.id===id);
+    if(statut==='PAD' && sPad?.statut!=='PAD'){ ouvrirPopupDiffusion(id); return; }
     await upd(id,'Statut','sel',statut);
     const s2=sujets.find(x=>x.id===id);if(s2)s2.statut=statut;
     refreshUI(id);
@@ -5316,7 +5420,7 @@ function setVue(vue){
 function renderStatut(){
   const cols=STATUS_ORDER;
   let html='<div class="vue-kanban">';
-  const allFiltered=applySearch(sujets.filter(s=>!curFilter?.v||(curFilter.t==='s'?s.statut===curFilter.v:s.format===curFilter.v)));
+  const allFiltered=applySearch(sujets.filter(matchFiltre));
   cols.forEach(st=>{
     const items=allFiltered.filter(s=>s.statut===st);
     const col=stColor(st);
@@ -5341,7 +5445,7 @@ function renderStatut(){
 
 // ─── VUE KANBAN PAR JOURNALISTE ───
 function renderJournaliste(){
-  const filtered=applySearch(sujets.filter(s=>!curFilter?.v||(curFilter.t==='s'?s.statut===curFilter.v:s.format===curFilter.v)));
+  const filtered=applySearch(sujets.filter(matchFiltre));
   const journalistes=[...new Set(filtered.map(s=>s.journaliste||'Non attribué'))].sort();
   let html='<div class="vue-kanban">';
   journalistes.forEach(j=>{
@@ -6602,9 +6706,7 @@ function ouvrirFicheArchive(id) {
 }
 
 function renderListe() {
-  let list = sujets;
-  if(curFilter && curFilter.t === 's' && curFilter.v) list = list.filter(s => s.statut === curFilter.v);
-  if(curFilter && curFilter.t === 'f' && curFilter.v) list = list.filter(s => s.format === curFilter.v);
+  let list = sujets.filter(matchFiltre);
   list = applySearch(list);
 
   // Tri « Modif » : ordre FIGÉ pendant la lecture. Une action utilisateur (clic en-tête, filtre,
@@ -6922,6 +7024,7 @@ function appSetVue(vue) {
   currentVue = vue;
   vueActive = vue; // sync avec l'ancien système
   curFilter = curFilter || {t:null, v:null};
+  majCompteurStock(); // compteur Stock à jour à chaque rendu Production (chargement, tick, filtre, popup, dé-PAD)
 
   // Update onglets
   ['cards','liste','statut','journaliste','calendrier'].forEach(v => {
@@ -6944,6 +7047,25 @@ function appSetVue(vue) {
 }
 
 // ── Filtres sidebar ──
+// Prédicat de filtrage UNIQUE (barre + toutes les vues Production). Une seule source de vérité :
+// statut ('s'), format ('f'), ou diffusion ('d' : Stock / Diffusée, restreints au PAD).
+function matchFiltre(s) {
+  if(!curFilter || !curFilter.v) return true;
+  if(curFilter.t === 's') return s.statut === curFilter.v;
+  if(curFilter.t === 'f') return s.format === curFilter.v;
+  if(curFilter.t === 'd') {
+    if(s.statut !== 'PAD') return false;
+    if(curFilter.v === 'diffusee') return !!s.diffusion;          // la date prime : datée = Diffusée
+    if(curFilter.v === 'stock')    return s.enStock && !s.diffusion;
+  }
+  return true;
+}
+// Compteur du bouton Stock (cartes PAD en attente de décision). Rafraîchi via appSetVue.
+function majCompteurStock() {
+  const el = document.getElementById('cnt-stock');
+  if(!el) return;
+  el.textContent = sujets.filter(s => s.statut === 'PAD' && s.enStock && !s.diffusion).length;
+}
 function appFilter(t, v, el) {
   document.querySelectorAll('.sb-filter').forEach(i => i.classList.remove('active'));
   if(el) el.classList.add('active');
@@ -6977,9 +7099,8 @@ function renderSidebarCats() {
 
 function sbCatClick(fmt) {
   if(currentPage !== 'production') navTo('production');
-  // Même chemin que cliquer la pilule du bandeau → cohérence pilules ↔ sidebar
-  const pill = document.querySelector(`#sb-filters .sb-filter[data-fmt="${fmt}"]`);
-  appFilter('f', fmt, pill);
+  // Le pill format a été retiré de la barre → on filtre directement (sidebar surlignée par renderSidebarCats).
+  appFilter('f', fmt, null);
 }
 
 // ── Dashboard ──
@@ -7180,9 +7301,7 @@ function flt(t, v, el) { appFilter(t, v, el); }
 // ── Override renderCards pour utiliser curFilter ──
 const _rc = renderCards;
 function renderCards() {
-  let list = sujets;
-  if(curFilter && curFilter.t === 's' && curFilter.v) list = list.filter(s => s.statut === curFilter.v);
-  if(curFilter && curFilter.t === 'f' && curFilter.v) list = list.filter(s => s.format === curFilter.v);
+  let list = sujets.filter(matchFiltre);
   list = applySearch(list);
   const count = document.getElementById('search-count');
   if(count) {
