@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-26 (ARCHIVAGE AUTOMATIQUE PAD — pad-sweep.js · membres sans rôle exclus du login · désactivation Thierry et « archived » · filtre « Non lues » · dédup serveur des notifications · contact Brand obligatoire à l'Édito · chantier A conso)
+> Dernière mise à jour : 2026-08-27 (correctif pad-sweep + ligne de statut Notion · 319→134 cartes · popup diffusion · membres sans rôle exclus du login · filtre « Non lues » · dédup serveur des notifications · contact Brand obligatoire à l'Édito)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,45 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-27 — Correctif pad-sweep : passes découplées + ligne de statut Notion
+- **DEUX FICHIERS :** `netlify/functions/pad-sweep.js` (réécrit) et `netlify.toml` (cron **remis à `0 3 * * *`** après le drainage temporaire à 10 min).
+- **⚠️ RÉSULTAT DU PREMIER PASSAGE NOCTURNE : 319 → 134 cartes.** 185 archivées. Ventilé : Desk 138→37, MAG 64→31, Face Cam 33→2, YouTube 29→9. **Le Brand est resté à 54** — l'exclusion de la passe 1 tient parfaitement.
+- **LE BUG DIAGNOSTIQUÉ :** en journée, la passe 2 (archivage) n'archivait **rien** alors que **133 cartes étaient éligibles** (mesuré). Cause : elle était gardée par `if (!summary.rateLimited)`, un **flag partagé** posé par la passe 1. Comme la passe 1 (datation, gros backlog) tournait **en premier** et prenait un 429 en journée — contention sur le rate limit Notion avec le trafic de l'app — elle **affamait** systématiquement la passe 2.
+- **Confirmé par le cron de 3h** : sans trafic concurrent, la passe 1 n'a pas rate-limité, la passe 2 a pu tourner, 185 cartes archivées. Hypothèse (a) validée.
+- **⚠️ MÉTHODE — une hypothèse du Pilote réfutée par la mesure.** Le Pilote pensait que `last_edited_time` était trop récent sur les cartes datées, donc que rien n'était archivable. Claude Code a mesuré : **133 cartes avec une date > 30 jours**, et `Archivé=true` = **0**. Le critère n'était pas en cause — c'était l'exécution. Sans cette mesure, on aurait changé le critère pour rien.
+- **CORRECTIF 1 — ORDRE INVERSÉ :** la **passe 2 (archivage, le BUT) passe AVANT la passe 1 (datation, le prérequis)**. Avec un budget de requêtes limité, c'est le but qui doit servir en premier. La datation peut attendre le run suivant sans conséquence.
+- **CORRECTIF 2 — FLAGS INDÉPENDANTS :** `archiveRateLimited` et `rattrapageRateLimited`, un par passe. **Le gate croisé a disparu** (grep : 0 occurrence de `rateLimited` seul). Chaque passe tourne inconditionnellement.
+- **CORRECTIF 3 — ERREURS EXPOSÉES :** `archiveErreur` et `rattrapageErreur` capturent message + code HTTP au lieu d'avaler l'exception en `erreurs++`.
+- **⚠️ LIGNE DE STATUT NOTION — la leçon de visibilité.** David **n'a pas accès aux logs Netlify**, et l'invocation HTTP d'une fonction planifiée renvoie **403** (Netlify la réserve au cron — testé). Il n'avait donc aucun moyen de savoir pourquoi rien ne se passait : juste un compteur qui ne bougeait pas. D'où une base Notion **« 🧹 Statut pad-sweep »** (base `a52e38a2-0e4d-47b4-8606-8823171cb23d`, **ligne `3c975d81-5951-81ba-aefd-d56e5ddd94e8`**) que la fonction PATCHe à chaque run.
+- **10 propriétés**, noms exacts avec accents : `Résumé` (title) · `Dernier passage` (date) · `Archivées` · `Vues archivage` · `Datées` · `Vues datation` (number) · `Erreur archivage` · `Erreur datation` (rich_text) · `Rate-limited archivage` · `Rate-limited datation` (checkbox). **La fonction ne crée JAMAIS de ligne** — elle met à jour celle-ci.
+- **`Vues archivage` est le chiffre diagnostic clé** : s'il vaut 0 alors qu'il reste des cartes éligibles, la requête de la passe 2 est en cause.
+- **⚠️ L'ÉCRITURE DU STATUT EST LA DERNIÈRE OPÉRATION**, dans un `try/catch` **best-effort**, une seule tentative, avec une pause de 500 ms avant (fenêtre de débit). Vérifié : l.101 archivage → l.129 datation → **l.154 statut**. Son échec ne perd que **l'enregistrement de ce run**, jamais le travail déjà effectué.
+- **Note création de la base :** le MCP Notion **exige un parent explicite** et n'expose pas de façon fiable la page conteneur d'une base. Master a d'abord échoué, puis découvert que le paramètre `parent` est **optionnel** (omis → création à la racine de l'espace privé) et que le tool attend un **schéma SQL DDL**, pas un format `nom:type`. À retenir pour toute future création de base.
+- **Vérification Pilote :** `node --check` OK. Gate croisé absent confirmé par grep. Ordre des passes vérifié. Noms de propriétés exacts. ID de ligne conforme. Cron `0 3 * * *` restauré, `drive-permsweep` inchangé à 10 min.
+
+### 2026-08-26 — Popup diffusion au PAD + section Diffusion + archivage média dé-imbriqué
+- **DEUX FICHIERS, à pousser ENSEMBLE :** `index.html` (**7277 → 7389, +112**) et `netlify/functions/pad-sweep.js` (une clause ajoutée).
+- **⚠️ L'ORDRE DE DÉPLOIEMENT COMPTE :** la clause `En stock` de pad-sweep doit être en production **avant** que quiconque puisse mettre une carte en stock — sinon elle serait rattrapée au passage suivant.
+- **NOUVEAU CHAMP NOTION :** `En stock` (checkbox) sur DB_PROD, créé par Master. Vérifié : nom exact au caractère près (le code lit `pr['En stock']`), type checkbox, **aucune carte cochée**.
+- **⚠️⚠️ LE CONFLIT DÉCOUVERT PAR L'AUDIT — pourquoi un champ dédié et pas un modèle dérivé.** On voulait dériver l'état : date vide = stock, date remplie = diffusée. **Impossible :** `pad-sweep` est un cron **PERMANENT**, pas un one-shot. Sa passe 1 rattrape toute carte `PAD + Archivé=false + diffusion is_empty + Format≠Brand`. Une carte **non-Brand mise volontairement en stock** aurait donc été **datée dès le lendemain puis archivée 30 jours après** — le « Garder en stock » défait sans qu'on comprenne pourquoi. D'où le champ dédié + la clause `En stock = false` en passe 1.
+- **LE POPUP, greffé dans `updStatut`** (l.4968) : `if(statut==='PAD' && sPad?.statut!=='PAD'){ ouvrirPopupDiffusion(id); return; }`. Point d'ancrage **unique** — les 3 déclencheurs (stepper, « Marquer PAD », panneau Interne) y passent tous, et `autoStatut` ne met **jamais** PAD.
+- **⚠️ `'Statut': {select:{name:'PAD'}}` n'apparaît QU'UNE FOIS dans tout le fichier** (l.4926, dans `_padAppliquer`). Aucun chemin ne contourne le popup — vérifié par grep.
+- **⚠️ ÉCRITURE ATOMIQUE :** `_padAppliquer` fait **un SEUL PATCH** contenant Statut + Date de diffusion + En stock. Succès → mémoire → `refreshUI`. Échec → toast, `return`, **rien en mémoire, PAD NON validé**. Sans ça on aurait pu obtenir un PAD validé sans décision de diffusion — exactement le problème qu'on cherche à éviter.
+- **TROIS CHOIX au popup :** « Diffusée le [date] » (champ pré-rempli avec `s.diffusion` ou aujourd'hui), lien rapide **« Dans la semaine (J+7) »**, et « Garder en stock » (bouton discret). **✕ / Échap / clic hors = annuler → le PAD n'est PAS validé.**
+- **⚠️ « Garder en stock » EFFACE la date** (`date: null`) : le modèle doit rester non ambigu — **date présente ⇒ Diffusée**, quel que soit `En stock`.
+- **⚠️ Le popup s'ouvre pour TOUS LES RÔLES** — `updStatut` n'a aucune garde de rôle, et c'est volontaire : chez David un journaliste passe parfois une carte en PAD. S'il ne s'ouvrait que pour les chefs, des cartes échapperaient au mécanisme.
+- **SECTION DIFFUSION** (step distinct du bloc PAD, rendu si `statut==='PAD'`), **3 états** — le troisième est une trouvaille de Claude Code que le Pilote n'avait pas prévue :
+  - **Diffusée** : « Diffusée le … » + **« Archivage automatique le … »** (date + 30 j, pour que la disparition ne surprenne pas) + input de correction
+  - **En stock** : « En attente de programmation » + bouton « Marquer comme diffusée » (**sans notification** — la diffusion est un état interne, une notif serait du bruit)
+  - **À décider** (ni date ni stock) : le fonds legacy et les 41 Brand → bouton « Renseigner la diffusion ». Rien d'automatique ne les touche.
+- **PAS de champ « Date mise en stock »** : « En attente de programmation » s'affiche sans date. Un champ de plus pour une information décorative ne vaut pas le coût, et `last_edited_time` serait faux (toute modification le déplacerait).
+- **L'input Date de diffusion RETIRÉ du bloc PAD** → il ne vit plus que dans la section Diffusion. **Une seule source d'écriture** : le laisser aux deux endroits aurait créé deux points d'écriture concurrents.
+- **AU DÉCOCHAGE du PAD : on GARDE la date.** Sûr, parce que la passe 2 de pad-sweep exige `Statut=PAD` → une carte sortie du PAD n'est jamais auto-archivée. Au retour en PAD, le popup se rouvre **pré-rempli**. Lossless.
+- **ARCHIVAGE MÉDIA dé-imbriqué** du bloc PAD, titré « · optionnel · rangement fichiers sources ». Il y était imbriqué, ce qui laissait croire qu'il fallait le remplir pour finir un sujet — et personne ne le faisait (0 carte sur 318). Reste rendu si `statut==='PAD'` (non conditionné à la diffusion : le rangement peut se faire dès la fin de post-prod). `Archivé` (la porte de visibilité Production), `confirmerArchivage` et `archiverSujet` intacts.
+- **Dashboard « Ton mois · PAD livrés » AMÉLIORÉ, pas cassé** : il lit `statut==='PAD' && memeMois(s.diffusion)`. Aujourd'hui la plupart des PAD n'ont pas de date → sous-compté. Avec le popup les dates deviennent réelles ; les cartes en stock (sans date) ne comptent pas, ce qui est correct.
+- **`_padDiffusion` est une variable MODULE** (l.4864), jamais dans le DOM. L'input date l'écrit sur `change`, les boutons la lisent.
+- **Vérification Pilote :** `node --check` OK sur les deux fichiers. Atomicité confirmée par lecture du code (un seul `api(...PATCH...)` dans `_padAppliquer`). `'Statut':{select:{name:'PAD'}}` = 1 seule occurrence. `enStock` parsé l.743 avec la bonne clé. Clause `En stock` en **passe 1 seulement**, passe 2 inchangée. Non-régression des chantiers de la semaine vérifiée.
 
 ### 2026-08-26 — Archivage automatique PAD + rattrapage du fonds ancien (`pad-sweep.js`)
 - **⚠️ DEUX FICHIERS, aucun dans `index.html` :** `netlify/functions/pad-sweep.js` (nouveau) et `netlify.toml` (déclaration du cron, **conserve `drive-permsweep`**).
