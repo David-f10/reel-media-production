@@ -29,6 +29,26 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
 
+### 2026-08-27 — Correction : les 3 filtres après-PAD rendus EXCLUSIFS (PAD / Stock / Diffusée)
+- **`index.html` seul, 7396 → 7399 (+3).** Corrige un défaut du chantier précédent, constaté en production.
+- **⚠️ LE DÉFAUT — une erreur d'arbitrage du Pilote.** Le filtre PAD était resté en type `'s'` (statut), donc il montrait **toutes** les cartes en PAD — y compris les Diffusée et les Stock. Résultat en production : les filtres **PAD et Diffusée affichaient la même chose à une carte près** (seule B09AD, Brand sans date, les distinguait).
+- **Ce n'était PAS ce qu'on avait décidé.** Le Pilote avait posé plus tôt que le filtre PAD ne devait contenir que les cartes « validées, décision non prise » — puis a validé l'audit de Claude Code qui affirmait « PAD reste utile, c'est le sur-ensemble », sans revenir à la décision initiale. **David l'a repéré en regardant l'app** : « les cartes ne doivent pas être en 2 statuts ». Leçon : une décision de conception prise en amont doit être re-vérifiée quand un audit propose l'inverse.
+- **LA CORRECTION — deux lignes**, grâce à la factorisation `matchFiltre` de la veille : le bouton passe de `appFilter('s','PAD')` à `appFilter('d','pad')`, et une branche est ajoutée : `if(curFilter.v === 'pad') return !s.diffusion && !s.enStock;`
+- **LES TROIS FILTRES, exclusifs ET exhaustifs :**
+  | diffusion | enStock | Filtre |
+  |---|---|---|
+  | présente | (peu importe) | **Diffusée** — la date prime |
+  | absente | true | **Stock** |
+  | absente | false | **PAD** |
+  Toute carte en statut PAD tombe dans **exactement un** des trois. Aucune n'échappe aux trois, aucune n'apparaît dans deux.
+- **⚠️ LE MOT « PAD » A DEUX SENS, assumé :** sur la **carte**, le badge PAD signifie **prêt à diffuser** (vidéo validée, cap déposée, musique renseignée) — état de **fabrication**, il reste sur toutes les cartes finies. Dans la **barre**, le filtre PAD signifie « validée, et personne n'a encore dit ce qu'elle devenait ». David a choisi de garder le mot, que l'équipe emploie déjà. **À dire clairement à l'équipe** — c'est le genre d'ambiguïté qui a fait perdre le fil pendant la conception.
+- **Le workflow à expliquer, en trois phrases :** quand tu coches PAD, l'app demande si c'est diffusé ou si ça attend. Si c'est diffusé, la carte part aux archives un mois après. Si ça attend, elle reste dans « Stock » jusqu'à ce que tu dises qu'elle est sortie. Si tu n'as pas répondu, elle reste dans « PAD ».
+- **COMPTEUR AJOUTÉ SUR PAD** (en plus de Stock) : ce filtre isole surtout les cartes **Brand**, exclues du rattrapage automatique de pad-sweep, donc celles qui peuvent **stagner sans que personne ne les voie** — même risque de cimetière invisible que le stock. Diffusée reste sans compteur (consultation, pas d'action attendue).
+- **`majCompteurStock` étendu en `majCompteursBarre`** : les deux comptes sont calculés **dans la même fonction**, appelée **une seule fois** dans `appSetVue` (l.7027) → impossible qu'ils se désynchronisent. Ancien nom éliminé (0 occurrence).
+- **⚠️ Prédicats des compteurs IDENTIQUES à ceux de `matchFiltre`** — vérifié : un compteur ne peut pas afficher un nombre différent de ce que son filtre montre.
+- **`appFilter('s','PAD')` n'existait qu'au bouton** (vérifié par grep) — aucun lien profond, raccourci dashboard ou `flt()` ne l'utilisait. Changement sans effet de bord.
+- **Vérification Pilote :** `wc -l` 7399, compteurs de préservation intacts, `node --check` OK, les 6 sites toujours routés vers `matchFiltre`, sidebar intacte, non-régression des chantiers de la semaine vérifiée.
+
 ### 2026-08-27 — Barre de filtres nettoyée + filtres Stock / Diffusée (dernier volet de l'après-PAD)
 - **`index.html` seul, 7389 → 7396 (+7).** Le chantier après-PAD est **complet** : pad-sweep + popup diffusion + section Diffusion + barre de filtres.
 - **Le constat :** la barre mélangeait des **statuts** (Brief/Idée → PAD) et des **formats** (MAG, Brand, Face Cam, Desk, YouTube, Prodige, Interne). Or les formats sont **déjà dans la sidebar avec leurs compteurs** — même liste, deux endroits.
