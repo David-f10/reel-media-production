@@ -220,7 +220,7 @@
       <button class="sb-filter" onclick="appFilter('s','Montage',this)"><span class="sb-dot" style="background:var(--green)"></span>Montage</button>
       <button class="sb-filter" onclick="appFilter('s','Retours',this)"><span class="sb-dot" style="background:var(--red)"></span>Retours</button>
       <button class="sb-filter" onclick="appFilter('s','Validation chef',this)"><span class="sb-dot" style="background:var(--purple)"></span>Validation</button>
-      <button class="sb-filter" onclick="appFilter('s','PAD',this)"><span class="sb-dot" style="background:var(--green)"></span>PAD</button>
+      <button class="sb-filter" onclick="appFilter('d','pad',this)"><span class="sb-dot" style="background:var(--green)"></span>PAD <span class="sb-badge" id="cnt-pad">0</span></button>
       <button class="sb-filter" onclick="appFilter('d','stock',this)"><span class="sb-dot" style="background:var(--amber)"></span>Stock <span class="sb-badge" id="cnt-stock">0</span></button>
       <button class="sb-filter" onclick="appFilter('d','diffusee',this)"><span class="sb-dot" style="background:var(--green)"></span>Diffusée (30 j)</button>
     </div>
@@ -7024,7 +7024,7 @@ function appSetVue(vue) {
   currentVue = vue;
   vueActive = vue; // sync avec l'ancien système
   curFilter = curFilter || {t:null, v:null};
-  majCompteurStock(); // compteur Stock à jour à chaque rendu Production (chargement, tick, filtre, popup, dé-PAD)
+  majCompteursBarre(); // compteurs PAD + Stock à jour à chaque rendu Production (chargement, tick, filtre, popup, dé-PAD)
 
   // Update onglets
   ['cards','liste','statut','journaliste','calendrier'].forEach(v => {
@@ -7057,14 +7057,17 @@ function matchFiltre(s) {
     if(s.statut !== 'PAD') return false;
     if(curFilter.v === 'diffusee') return !!s.diffusion;          // la date prime : datée = Diffusée
     if(curFilter.v === 'stock')    return s.enStock && !s.diffusion;
+    if(curFilter.v === 'pad')      return !s.diffusion && !s.enStock; // validée, décision non prise
   }
   return true;
 }
-// Compteur du bouton Stock (cartes PAD en attente de décision). Rafraîchi via appSetVue.
-function majCompteurStock() {
-  const el = document.getElementById('cnt-stock');
-  if(!el) return;
-  el.textContent = sujets.filter(s => s.statut === 'PAD' && s.enStock && !s.diffusion).length;
+// Compteurs des boutons PAD et Stock (cartes PAD en attente d'une action). Calculés et
+// rafraîchis ENSEMBLE via appSetVue — mêmes prédicats que les branches 'pad'/'stock' de matchFiltre.
+function majCompteursBarre() {
+  const elP = document.getElementById('cnt-pad');
+  if(elP) elP.textContent = sujets.filter(s => s.statut === 'PAD' && !s.diffusion && !s.enStock).length;
+  const elS = document.getElementById('cnt-stock');
+  if(elS) elS.textContent = sujets.filter(s => s.statut === 'PAD' && s.enStock && !s.diffusion).length;
 }
 function appFilter(t, v, el) {
   document.querySelectorAll('.sb-filter').forEach(i => i.classList.remove('active'));
