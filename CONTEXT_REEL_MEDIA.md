@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-27 (correctif pad-sweep + ligne de statut Notion · 319→134 cartes · popup diffusion · membres sans rôle exclus du login · filtre « Non lues » · dédup serveur des notifications · contact Brand obligatoire à l'Édito)
+> Dernière mise à jour : 2026-08-27 (APRÈS-PAD TERMINÉ — barre de filtres nettoyée + Stock/Diffusée · correctif pad-sweep + ligne de statut · 319→134 cartes · popup diffusion · filtre « Non lues » · dédup serveur des notifications)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,26 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-08-27 — Barre de filtres nettoyée + filtres Stock / Diffusée (dernier volet de l'après-PAD)
+- **`index.html` seul, 7389 → 7396 (+7).** Le chantier après-PAD est **complet** : pad-sweep + popup diffusion + section Diffusion + barre de filtres.
+- **Le constat :** la barre mélangeait des **statuts** (Brief/Idée → PAD) et des **formats** (MAG, Brand, Face Cam, Desk, YouTube, Prodige, Interne). Or les formats sont **déjà dans la sidebar avec leurs compteurs** — même liste, deux endroits.
+- **Retrait sans perte, prouvé :** le filtre est **exclusif** (`curFilter = {t,v}`, un seul couple, `appFilter` écrase). « MAG en PAD » n'a jamais existé → retirer les formats ne supprime **aucun croisement**.
+- **⚠️ « Prodige » était un BOUTON MORT.** C'est un **sous-format de Desk** (`s.format==='Desk' && s.sousFormat==='Prodige'`), jamais un format de premier niveau. Mesuré : **0 carte n'a `format='Prodige'`** → `appFilter('f','Prodige')` ne matchait rien. Il part avec les formats, sans perte. Les 7 occurrences restantes dans le code sont normales (FMT_COLORS, NEEDS_TOUR, sélecteur de sous-format, couleurs de badge).
+- **⚠️ LA FACTORISATION — le vrai enjeu du chantier.** Le filtre était appliqué à **6 endroits**, chacun avec le même idiome dupliqué. Ajouter le type `'d'` (diffusion) aurait signifié dupliquer la logique une 7ᵉ fois — et si un site avait été oublié, le filtre aurait marché dans une vue et pas dans l'autre. **Bug discret et pénible à traquer.**
+  Un prédicat unique `matchFiltre(s)` (l.7052) route désormais les **6 sites** : `renderCards` mort (761), `idsVisibles` (3544), `renderStatut` (5423), `renderJournaliste` (5448), `renderListe` (6709), `renderCards` override (7304). Vérifié : `curFilter.t === 'f'` ne subsiste **que** dans `matchFiltre` et dans l'état-actif de la sidebar (lecture seule).
+- **Correction utile en cours d'audit :** les sites l.5431/5456 n'étaient pas `renderCalendrier` mais **`renderStatut` / `renderJournaliste`**. Le calendrier a son propre `calFilterJournaliste` et **n'utilise pas `curFilter`**. La lecture du code a évité une mauvaise cible.
+- **Le site MORT (l.761) routé quand même** : deux `function renderCards()` existent (765 et 7294) — en JS la seconde écrase la première, donc la l.765 n'est **jamais** exécutée. Prouvé mort, mais routé : coût nul, et le comportement reste juste si l'override disparaît un jour.
+- **DEUX NOUVEAUX FILTRES**, restreints à `statut === 'PAD'` (ce sont des sous-états du PAD ; une carte dé-PADée qui garde sa date ne doit pas polluer « Diffusée ») :
+  - **Stock** (dot **amber**) = `enStock && !diffusion`, avec un **compteur** `#cnt-stock`
+  - **Diffusée (30 j)** (dot vert) = `!!diffusion` — **la date prime** sur `En stock`
+- **⚠️ COMPTEUR SUR STOCK SEUL, et affiché même à 0.** Le stock est le seul des deux qui **demande une action humaine** : une carte mise en attente et oubliée serait invisible — c'est le **cimetière** qu'on cherche à éviter. « Diffusée » n'appelle aucune action, c'est de la consultation. Un « 0 » explicite vaut mieux qu'une absence ambiguë : il montre que le mécanisme est vivant.
+- **Rafraîchi via `appSetVue`** (l.7027), l'entrée de rendu **universelle** : couvre chargement, `autoRefreshTick`, changement de filtre, popup diffusion et dé-PAD d'un seul appel.
+- **⚠️ « Diffusée » ne montre que les diffusées de MOINS de 30 jours** — au-delà, pad-sweep les a archivées et elles ont quitté `sujets`. C'est le comportement voulu (Production = pipeline actif), mais il **devait être dit** : d'où le libellé **« Diffusée (30 j) »** sur le bouton lui-même, pas en sous-titre (la barre est déjà chargée).
+- **Le filtre PAD est CONSERVÉ** : c'est le **sur-ensemble** (Stock + Diffusée + « à décider »), il ne se réduit pas à leur union.
+- **`sbCatClick` simplifié** : il cherchait un pill `data-fmt` dans la barre pour y déléguer — ce pill a disparu. Il appelle désormais `appFilter('f', fmt, null)` directement. Sans cette détection, un lookup mort serait resté.
+- **⚠️ Sidebar et compteurs INTACTS** — `renderSidebarCats` (l.7084) et `#sb-cats` (l.151) non touchés. Les formats y gardent leurs chiffres. C'était le point de contrôle n°1 du Pilote.
+- **Vérification Pilote :** `wc -l` 7396, `CHEF_PAR_DEFAUT`=13, `createNotif`=29, script 4/4, `node --check` OK. Les 6 sites routés confirmés par grep. `data-fmt` = 0. Filtre PAD présent l.223. Non-régression des chantiers de la semaine vérifiée.
 
 ### 2026-08-27 — Correctif pad-sweep : passes découplées + ligne de statut Notion
 - **DEUX FICHIERS :** `netlify/functions/pad-sweep.js` (réécrit) et `netlify.toml` (cron **remis à `0 3 * * *`** après le drainage temporaire à 10 min).
