@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-02 (createSujet fiabilisé + erreurs d'écriture visibles · SyntaxError sur les onclick corrigée — escJs · nettoyage compteurs B60/M722 · APRÈS-PAD TERMINÉ · correctif pad-sweep + ligne de statut)
+> Dernière mise à jour : 2026-09-02 (fermeture des overlays en pointerdown · createSujet fiabilisé · SyntaxError sur les onclick corrigée — escJs · nettoyage compteurs B60/M722 · APRÈS-PAD TERMINÉ)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,21 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-02 — La fiche se fermait pendant une sélection de texte (pointerdown)
+- **`index.html` seul, 7457 → 7470 (+13).**
+- **LE SYMPTÔME :** sélectionner du texte dans un champ de la fiche — clic sur le dernier caractère, glisser vers le début du mot — **fermait la fiche**.
+- **LA CAUSE :** un listener **`click`** posé sur chaque `.overlay` fermait si `e.target === overlay`. Or le navigateur émet un `click` dont la cible est **l'ancêtre commun** du `mousedown` et du `mouseup`. Un glisser démarré dans le champ et relâché sur le fond a pour ancêtre commun… l'overlay. Donc fermeture.
+- **⚠️ VÉRIFIÉ AVANT DE CORRIGER : la saisie n'était PAS perdue.** Les champs de la fiche écrivent sur `blur`, et le `blur` précède le `click` de fermeture — l'appel `api()` est déjà parti. Le mal était purement **UX**. C'est ce qui a permis de traiter ce bug après les autres plutôt qu'en urgence.
+- **⚠️⚠️ `pointerdown`, PAS `mousedown` — la vérification qui a changé la solution.** Le Pilote avait proposé `mousedown` ; Claude Code a vérifié le cas tactile **avant de coder** : **Safari iOS ne synthétise les événements souris que sur les éléments jugés « cliquables »**, avec des aléas de timing — un `<div>` de fond pourrait ne **pas** recevoir de `mousedown` au tap. La fermeture par appui aurait été **cassée en PWA iOS**, et on l'aurait découvert par un retour d'équipe.
+  **`pointerdown`** (Pointer Events, Safari iOS **13+**) unifie souris, tactile et stylet, se déclenche à l'appui initial sur **n'importe quel** élément. Fermeture préservée au tap comme au clic.
+- **La fermeture légitime est intacte** : un appui franc sur le fond ferme toujours (desktop et iOS). Seul changement perceptible : la fermeture a lieu à l'**appui** plutôt qu'au relâchement. Un appui **commencé dans un champ** a pour cible le champ → ne ferme plus.
+- **⚠️ LE RECENSEMENT ÉTAIT INCOMPLET : 12 sites, pas 7.** L'audit initial en avait listé 7 ; le grep en a révélé **12** — des modales dynamiques oubliées (tâches, idées, stats) **plus `montrerErreurEcriture`, créée le matin même**. Sans ce recensement, plusieurs modales auraient continué à se fermer pendant une sélection sans qu'on comprenne pourquoi.
+- **HELPER UNIQUE `fermerSurClicFond(el, onClose)` (l.3014)** : les 12 sites y sont routés, dont le binding en bloc `document.querySelectorAll('.overlay')` (l.5432) qui couvre à lui seul les **8 overlays statiques** (fiche, nouveau sujet, confirmation, impossible, adapter, retour, équipe, changer-code — tous présents dans le HTML initial). **Un seul point pour tout futur overlay → le bug ne peut pas revenir par un treizième site.**
+- **L'inline `onclick="if(event.target===this)closeChangerCode()"` SUPPRIMÉ** : redondant, le binding en bloc le couvrait déjà (`closeChangerCode` ≡ `classList.remove('open')`). La fonction reste utilisée par son bouton croix.
+- **Double-clic et triple-clic non concernés** : `mousedown` et `mouseup` restent dans le champ, la cible du `click` est le champ.
+- **Vérification Pilote :** `wc -l` 7470, compteurs intacts, `node --check` OK. **Les deux greps promis sont à zéro** — aucun `addEventListener('click')` sur un fond d'overlay (les 13 restants visent des **boutons**, ce qui est correct), aucun inline `event.target===this`. 12 appels au helper confirmés.
+- **⚠️ RESTE À TESTER EN VRAI : le tactile.** La justification de `pointerdown` est solide mais non vérifiable depuis le poste — à confirmer sur iPhone/iPad en PWA : ouvrir une fiche, taper sur le fond, elle doit se fermer.
 
 ### 2026-09-02 — `createSujet` fiabilisé : flag débloqué + échecs d'écriture visibles
 - **`index.html` seul, 7415 → 7457 (+42).**
