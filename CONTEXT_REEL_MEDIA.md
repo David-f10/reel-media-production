@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-08-27 (APRÈS-PAD TERMINÉ — barre de filtres nettoyée + Stock/Diffusée · correctif pad-sweep + ligne de statut · 319→134 cartes · popup diffusion · filtre « Non lues » · dédup serveur des notifications)
+> Dernière mise à jour : 2026-09-02 (createSujet fiabilisé + erreurs d'écriture visibles · SyntaxError sur les onclick corrigée — escJs · nettoyage compteurs B60/M722 · APRÈS-PAD TERMINÉ · correctif pad-sweep + ligne de statut)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,48 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-02 — `createSujet` fiabilisé : flag débloqué + échecs d'écriture visibles
+- **`index.html` seul, 7415 → 7457 (+42).**
+- **LE SYMPTÔME :** David et Louise n'arrivaient plus à créer un client Brand — « Création en cours… » à chaque tentative, sans qu'aucune carte n'apparaisse. Aucun résidu en base (vérifié : aucune carte orpheline).
+- **⚠️ LA CAUSE — pas une erreur Notion, un ÉTAT BLOQUÉ.** Trois guards de validation faisaient `return` **sans** remettre `_createEnCours` à `false`. Cliquer « Créer » avant d'avoir tout rempli laissait le flag à `true` → toutes les tentatives suivantes affichaient « Création en cours… » et ne faisaient rien. **Seule la fermeture de la modale** (`closeOv` remet le flag) débloquait — sans qu'aucun message ne le dise. David s'en est sorti sans le savoir en refermant la fenêtre.
+- **⚠️ LE DÉFAUT DE FOND : `createSujet` n'avait AUCUN try/catch.** Le wrapper `api()` n'affiche son bandeau que pour une erreur **réseau** ; une **400** est re-jetée → rejection non gérée → **ni toast, ni bandeau**. Le vrai message n'existait que dans la console. Une création pouvait échouer en **silence total**.
+- **LE CORRECTIF — `try/catch/finally`, meilleur que les 3 edits demandés.** Le Pilote demandait de réinitialiser le flag dans les trois guards ; Claude Code a proposé un **`finally`** qui le fait sur **tous** les chemins — succès, guards, exception — **et protège aussi les guards futurs qu'on n'a pas encore écrits**. Éditer les trois un par un aurait laissé la porte ouverte au quatrième. Vérifié : il ne reste que **deux** manipulations du flag dans la fonction (`true` l.5260, `false` l.5389 dans le finally), le reset dispersé a été retiré.
+- **`montrerErreurEcriture(contexte, e)` (l.3010)** : overlay dédié **dans la DA de l'app**, un seul bouton « Fermer », ✕/Échap/clic-hors. Choisi **plutôt qu'un toast** parce qu'une 400 Notion est verbeuse — un toast de 3 secondes la tronquerait et disparaîtrait avant lecture. **Aucun `alert()`/`confirm()` natif.**
+- **⚠️ LE TEXTE N'AFFIRME PAS L'ÉTAT SERVEUR** : « L'action n'a pas abouti. Vérifie et réessaie. » Claude Code proposait « Rien n'a été enregistré côté serveur » — **refusé** : si l'échec survient APRÈS la POST carte (au compteur ou au client), la carte existe déjà. Dire le contraire enverrait quelqu'un chercher une carte qu'il croit inexistante.
+- **CAS MINEURS INCLUS — `saveLivrable` et `setTypeLivrable`** : sans try/catch, et surtout **la mémoire était mise à jour AVANT l'écriture** → un échec laissait la mémoire divergente du serveur. Corrigé : `api()` PATCH d'abord, `catch` → `montrerErreurEcriture` + `return`, mémoire ensuite.
+- **Réponse à la question « est-ce une CLASSE ? » : NON.** Survol de ~20 fonctions d'écriture — la quasi-totalité enveloppent déjà leurs écritures dans un try/catch qui toast l'erreur (`upd`, `submitRetour`, `postComment`, `confirmerArchivage`, `ajouterVersion`, `creerDeclinaison`, idées, tâches…). `createSujet` était l'anomalie, plus deux cas mineurs. Pas de chantier de masse à prévoir.
+- **⚠️ SIGNALÉ, PRÉ-EXISTANT, HORS PÉRIMÈTRE :** un **`confirm()` natif l.2287** dans `confirmerArchivage` (« Confirmer l'archivage ? »). Il contredit la DA — tout le reste de l'app utilise `confirmerAction`/`showConfirmModal`. Une ligne à corriger un jour.
+- **Vérification Pilote :** `wc -l` 7457, compteurs intacts, `node --check` OK (le try/catch/finally équilibre les accolades), flag confirmé sur deux points seulement, ordre écriture→mémoire vérifié l.2325 et 2335, aucun dialogue natif ajouté, non-régression (`escJs`, `matchFiltre`, popups) vérifiée.
+
+### 2026-09-02 — SyntaxError en production : valeurs textuelles dans les `onclick` (escJs)
+- **`index.html` seul, 7397 → 7415 (+18).** Bug **actif en production**, remonté par **Sentry** (`SyntaxError: missing ) after argument list`, non géré, priorité haute).
+- **⚠️ LA CAUSE — un échappement qui AVAIT L'AIR juste.** `s.titre.replace(/'/g,"\'")` est un **NO-OP** : en source JS, la chaîne `"\'"` vaut l'apostrophe elle-même (le backslash y est redondant), donc on remplaçait `'` par `'`. **Rien n'était échappé.** L'auteur voulait `"\\'"`. Le bug était **latent depuis des mois**, sans rapport avec les chantiers récents.
+- **Ampleur mesurée :** des **dizaines** de titres contiennent une apostrophe — « frapper l'Iran », « j'ai oublié toute ma vie », « robot-loup… l'arme » — c'est le régime normal en français. Et deux clients Brand : **« L'Occitane »**, **« Apprentis d'Auteuil »**. Chaque clic sur 🗑 d'une de ces cartes cassait l'app.
+- **⚠️ LES BREADCRUMBS SENTRY ÉTAIENT TROMPEURS** : ils montraient le formulaire Brand (fmt-opt → brand-format-livraison → modal-close). Or ce formulaire ne met **aucun titre** dans un `onclick`. Un handler inline est compilé **paresseusement au dispatch de l'événement** — le déclencheur réel était ailleurs. Leçon : ne pas conclure d'un fil d'Ariane sans vérifier le code.
+- **⚠️ DÉCOUVERTE DE CLAUDE CODE — deux contextes imbriqués, pas un.** Un `escJs` classique protège la **chaîne JS** (`'`), mais un **guillemet double** fermerait l'**attribut HTML** `onclick="…"` avant même d'atteindre la chaîne. La valeur vit dans `attribut double-quote > chaîne single-quote` : il faut échapper les **deux couches**.
+- **`escJs` (l.579), une seule implémentation auditée**, dans cet ordre : `\` → `\\` (**backslash EN PREMIER**, sinon on redouble ce qu'on vient d'ajouter), `'` → `\'`, retours ligne, puis `&` → `&amp;` (**AVANT** `"`, sinon le `&` de `&quot;` serait ré-encodé), puis `"` → `&quot;`.
+- **⚠️ VÉRIFIÉ PAR ROUND-TRIP, pas par lecture.** Le Pilote a exigé la **sortie exécutée**, pas le code — précisément parce qu'on corrigeait un échappement qui semblait correct. Testé indépendamment (décodage HTML → compilation JS → **égalité de la valeur reçue avec l'entrée**) sur : `l'Iran`, `chiens "dangereux"`, backslash+apostrophe+guillemet+`&`, `https://x?a=1&b=2`, `j'ai dit "non"\jamais`. **Les 5 ressortent identiques.**
+- **DEUX TRAITEMENTS SELON LA NATURE de la valeur** (distinction de Claude Code) :
+  - **Valeur d'AFFICHAGE, dérivable de la mémoire → passage par ID.** `deleteSujet(id)` et `equipeSupprimerJournaliste(id)` relisent la valeur côté JS (`sujets` / `equipe`). Un UUID Notion ne contient jamais de caractère dangereux → **la classe entière disparaît**.
+  - **Valeur PAYLOAD non dérivable → `escJs`.** Les **URL** de version ne sont pas dans `sujets` (cache séparé chargé par `loadVersions`) : elles doivent transiter. `escJs` sur `openPlayer` (url + label), `openDriveFolderSync` ×2, `copierLienClient`, `switchPlayerVersion`, et les 4 boutons de validation de version.
+- **⚠️ LA CLASSE URL était le « cinquième site » non listé** au premier audit. Le Pilote avait exigé un recensement exhaustif « pour ne pas découvrir le cinquième dans trois semaines » — il existait bien.
+- **`urlEsc` (l.2800) était le SEUL échappement CORRECT du fichier** (`replace(/'/g,"\\'")`). Éliminé quand même au profit d'`escJs` : **deux implémentations dont une fausse, c'est exactement la dispersion qui a laissé le no-op survivre des mois**. Une seule fonction auditée.
+- **`escapeHtml(c.nom)` sur l'option client (l.5004)** — contexte HTML pur, pas une SyntaxError, mais un `<` casserait l'affichage. Le bon outil pour CE contexte.
+- **VALEUR INTROUVABLE → ABORT** : si la carte ou le membre a disparu entre le rendu et le clic, toast + `return`. On ne confirme pas une suppression à l'aveugle, on n'archive pas un id périmé.
+- **Les 6 `titre.replace(/"/g,'&quot;')` restants sont CORRECTS** — ce sont des attributs `title="…"`, du HTML pur, aucun JavaScript.
+- **Vérification Pilote :** `wc -l` 7415, compteurs de préservation intacts, `node --check` OK, **round-trip `escJs` ré-exécuté indépendamment (5/5)**, no-op disparu, `urlEsc` disparu (ne subsiste qu'en commentaire de doc), non-régression vérifiée.
+
+### 2026-09-02 — Nettoyage des compteurs : client fantôme B60 et code M722
+- **Aucun code applicatif** — opérations Notion via Master, plus deux suppressions manuelles par David.
+- **RÈGLE DE DAVID, posée à cette occasion :** un code sauté parce qu'un **client renonce** est légitime (trace d'un projet abandonné). Un code sauté par **erreur de saisie** ne l'est pas.
+- **INCIDENT 1 — le client fantôme B60.** Louise a recréé « Prévention VSS » en retapant le nom du client avec un **trait d'union** : « Région Nouvelle-**A**quitaine » au lieu de « Région Nouvelle Aquitaine ». L'app a donc créé un **nouveau client B60**, 15 minutes après le B59 de David. Louise a supprimé la carte en voyant le doublon — **mais le client B60 a survécu, orphelin** (0 carte rattachée, vérifié).
+- **INCIDENT 2 — le code M722.** Maÿllis (stagiaire de Louise) a créé « Famileo : Parcours d'une gazette » en **MAG**, puis a changé le format en **Brand** depuis le sélecteur de la fiche — **sans que le code soit recalculé**. Résultat : une carte au format Brand portant un code MAG, sans sous-format ni client.
+- **QUATRE OPÉRATIONS, dans un ORDRE STRICT** (une création de carte au milieu aurait réattribué un code déjà pris) : supprimer le client B60 → compteur Brand 60→59 → supprimer la carte M722 (vérifiée vierge : 0 version, 0 retour, 0 notification) → compteur MAG 722→721.
+- **M722 était bien le DERNIER code MAG attribué** (vérifié : aucun M723+) — reculer le compteur ne créait aucun trou. Master a refusé d'écrire tant qu'il ne pouvait pas le re-vérifier (limite de requêtes active), conformément à la règle post-B48.
+- **Le MCP Notion ne supprime pas proprement** (corbeille) : David a supprimé B60 et M722 à la main, Master a recalé les compteurs.
+- **B59 et B59A « Prévention VSS » intacts** — jamais touchés.
+- **⚠️ DÉFAUT NON CORRIGÉ, à traiter :** le **sélecteur de format de la fiche permet de passer un MAG en Brand sans recalculer le code**, sans demander de client ni de sous-format. C'est la cause de tout ce nettoyage, et rien n'empêche que ça se reproduise demain.
 
 ### 2026-08-27 — Correction : les 3 filtres après-PAD rendus EXCLUSIFS (PAD / Stock / Diffusée)
 - **`index.html` seul, 7396 → 7399 (+3).** Corrige un défaut du chantier précédent, constaté en production.
