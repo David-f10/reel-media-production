@@ -2319,16 +2319,20 @@ async function saveLivrable(sujetId, n, val) {
   if(!s) return;
   const key = `livrable${n}`;
   if(val === (s[key]||'')) return;
-  s[key] = val;
-  await api('/pages/'+sujetId,'PATCH',{properties:{[`Livrable L${n}`]:{url: val||null}}});
+  try {
+    await api('/pages/'+sujetId,'PATCH',{properties:{[`Livrable L${n}`]:{url: val||null}}});
+  } catch(e) { montrerErreurEcriture('Enregistrement du livrable', e); return; }
+  s[key] = val; // mémoire mise à jour APRÈS l'écriture réussie
   openDetail(sujetId);
 }
 
 async function setTypeLivrable(sujetId, n, type) {
   const s = sujets.find(s => s.id === sujetId);
   if(!s) return;
-  s[`typeL${n}`] = type;
-  await api('/pages/'+sujetId,'PATCH',{properties:{[`Type L${n}`]:{select:{name:type}}}});
+  try {
+    await api('/pages/'+sujetId,'PATCH',{properties:{[`Type L${n}`]:{select:{name:type}}}});
+  } catch(e) { montrerErreurEcriture('Enregistrement du type de livrable', e); return; }
+  s[`typeL${n}`] = type; // mémoire mise à jour APRÈS l'écriture réussie
   openDetail(sujetId);
 }
 
@@ -3003,6 +3007,39 @@ async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, 
 }
 
 // Modale de confirmation réutilisable
+// Affiche une erreur d'écriture DANS la DA de l'app (jamais alert()/confirm() natifs). Overlay
+// dédié à un bouton, dismissible (✕ / Échap / clic-hors), qui montre le message Notion complet
+// (souvent verbeux). Le texte n'AFFIRME PAS l'état serveur (« L'action n'a pas abouti »), car
+// un échec après la POST peut laisser une ressource créée.
+function montrerErreurEcriture(contexte, e) {
+  const detail = (e && e.message) ? String(e.message) : 'Erreur inconnue';
+  console.error(contexte + ' — échec :', e);
+  const existing = document.getElementById('err-ecriture-modal');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'err-ecriture-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px';
+  let onEsc;
+  const close = () => { overlay.remove(); if(onEsc) document.removeEventListener('keydown', onEsc); };
+  onEsc = ev => { if(ev.key === 'Escape') close(); };
+  overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:460px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:15px;font-weight:600;color:var(--text)">⚠️ ${escapeHtml(contexte)} — échec</div>
+      <button id="err-ecriture-x" class="nav-btn" style="font-size:14px;padding:2px 8px" title="Fermer">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">L'action n'a pas abouti. Vérifie et réessaie.</div>
+    <div style="font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:var(--mono);white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto">${escapeHtml(detail)}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <button id="err-ecriture-ok" class="nav-btn primary" style="font-size:12px">Fermer</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', ev => { if(ev.target === overlay) close(); });
+  document.addEventListener('keydown', onEsc);
+  document.getElementById('err-ecriture-x').addEventListener('click', close);
+  document.getElementById('err-ecriture-ok').addEventListener('click', close);
+}
+
 function showConfirmModal({title, message, confirmText='Confirmer', confirmStyle='primary', onConfirm}) {
   const existing = document.getElementById('confirm-modal-custom');
   if(existing) existing.remove();
@@ -5221,6 +5258,7 @@ let _createEnCours=false;
 async function createSujet(){
   if(_createEnCours){toast('Création en cours...','err');return;}
   _createEnCours=true;
+  try {
   const titre=document.getElementById('n-titre').value.trim();
   let chef=document.getElementById('n-chef').value;
   if(!chef || !chef.trim()) chef=CHEF_PAR_DEFAUT; // fallback à l'écriture : un sujet a TOUJOURS un chef (vide ou blanc → défaut)
@@ -5239,7 +5277,7 @@ async function createSujet(){
   if(activeFmt==='Brand'){
     if(!brandMode){toast('Choisissez nouveau client ou déclinaison','err');return;}
     const formatLivraison=document.getElementById('brand-format-livraison').value;
-    if(!formatLivraison){toast('Choisissez un format de livraison','err');_createEnCours=false;return;}
+    if(!formatLivraison){toast('Choisissez un format de livraison','err');return;} // _createEnCours réinitialisé par le finally
     const c=compteurs['Brand'];
     if(brandMode==='nouveau'){
       // Relecture autoritaire des clients + calcul depuis le réel + anti-collision (bump silencieux)
@@ -5341,11 +5379,15 @@ async function createSujet(){
         `${auteurNom} t'a assigné un nouveau sujet : ${codeVal} — ${titre}`);
     }
   }
-  _createEnCours=false;
-  closeOv('ov-new');
-  toast(`Sujet créé — code ${codeVal}`,'ok');
-  await appLoadData();
-  loadNotifs();
+    closeOv('ov-new');
+    toast(`Sujet créé — code ${codeVal}`,'ok');
+    await appLoadData();
+    loadNotifs();
+  } catch(e) {
+    montrerErreurEcriture('Création du sujet', e); // erreur RÉELLE affichée (plus d'échec silencieux)
+  } finally {
+    _createEnCours=false; // ← réinitialisé sur TOUS les chemins : succès, guards de validation (return), exception
+  }
 }
 
 function exportExcel(){
