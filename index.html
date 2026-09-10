@@ -788,6 +788,7 @@ function parsePage(p){
     validationClient:pr['Validation Client']?.checkbox||false,
     validationBrand:pr['Validation Brand']?.checkbox||false,
     contactBrand:pr['Contact Brand']?.select?.name||'',
+    contactBrand2:pr['Contact Brand 2']?.select?.name||'',
     priorite:pr['Priorité']?.select?.name||'',
     retoursOuverts:0};  // rempli après chargement
 }
@@ -1016,6 +1017,13 @@ function openDetail(id, forcePadOpen=false){
         <select onchange="upd('${id}','Contact Brand','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
           <option value="">— Aucun —</option>
           ${equipe.filter(m=>m.role==='Brand').map(m=>`<option value="${escapeHtml(m.nom)}" ${s.contactBrand===m.nom?'selected':''}>${escapeHtml(m.nom)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Contact Brand 2 <span style="color:var(--text3);font-size:10px">(optionnel)</span></span>
+        <select onchange="upd('${id}','Contact Brand 2','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
+          <option value="">— Aucun —</option>
+          ${equipe.filter(m=>m.role==='Brand').map(m=>`<option value="${escapeHtml(m.nom)}" ${s.contactBrand2===m.nom?'selected':''}>${escapeHtml(m.nom)}</option>`).join('')}
         </select>
       </div>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
@@ -1545,6 +1553,25 @@ async function notifierVersion(type, sujetId, sujet, auteur, message, {version=n
     if(await createNotif(type, sujetId, sujet?.code||'', sujet?.titre||'', d, auteur, message)) sent++;
   }
   return { tried: dests.size, sent };
+}
+
+// Contact Brand par défaut = premier membre de rôle Brand ayant « Contact Brand défaut » coché.
+// equipe est triée par Nom ascendant à la lecture → find() renvoie le premier alphabétique,
+// DÉTERMINISTE si Master en coche plusieurs (l'anomalie est logguée une fois au chargement).
+// '' si aucun → la carte naît sans contact (dégradation sûre). JAMAIS de nom en dur.
+function contactBrandParDefaut(){
+  return equipe.find(m => m.role === 'Brand' && m.contactBrandDefaut)?.nom || '';
+}
+
+// Contacts Brand à notifier pour un événement : {contactBrand, contactBrand2} dédupliqués,
+// privés de ceux déjà notifiés par ailleurs dans le même événement (dejaNotifies = auteur, et
+// chef/journaliste là où le site les notifie déjà — voir chaque appelant). Un seul point de
+// filtrage : le 2ᵉ contact hérite EXACTEMENT du traitement du 1er.
+function contactsBrandANotifier(s, dejaNotifies){
+  if(!s || s.format !== 'Brand') return [];
+  const set = new Set([s.contactBrand, s.contactBrand2].filter(Boolean));
+  for(const n of dejaNotifies) set.delete(n);
+  return [...set];
 }
 
 // Demander permission notifications navigateur
@@ -2982,10 +3009,14 @@ async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
         `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
       loadNotifs();
     }
-    // Notif au contact Brand (carte Brand uniquement ; dédup vs auteur/chef/journaliste ; silencieux si vide)
-    if(s && s.format==='Brand' && s.contactBrand && currentUser && s.contactBrand !== currentUser.nom && s.contactBrand !== s.chef && s.contactBrand !== s.journaliste) {
-      await createNotif(`v${(versionNum||'V1').replace('V','')}_deposee`, sujetId, s.code, s.titre, s.contactBrand, currentUser.nom,
-        `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
+    // Notif aux contacts Brand (1er + 2e), dédupliqués. dejaNotifies = auteur + chef + journaliste
+    // (exclusions historiques PRÉSERVÉES : ce site excluait déjà le journaliste). Silencieux si vides.
+    if(s && s.format==='Brand' && currentUser) {
+      const deja = new Set([currentUser.nom, s.chef, s.journaliste]);
+      for(const c of contactsBrandANotifier(s, deja)) {
+        await createNotif(`v${(versionNum||'V1').replace('V','')}_deposee`, sujetId, s.code, s.titre, c, currentUser.nom,
+          `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
+      }
       loadNotifs();
     }
   } catch(e) { toast('Erreur : '+e.message,'err'); }
@@ -3361,9 +3392,12 @@ async function _validerEditoRM(id, opts={}) {
       `${auteur} a validé le séquencier côté Réel Média — ${s.code} · ${s.titre}`);
     loadNotifs();
   }
-  if(s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
-    await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
-      `Édito validé sur le séquencier de ${s.code}, à toi de valider`);
+  // Contacts Brand (1er + 2e), dédup. dejaNotifies = auteur seul (exclusion historique préservée).
+  if(s.format==='Brand') {
+    for(const c of contactsBrandANotifier(s, new Set([auteur]))) {
+      await createNotif('validation', id, s.code, s.titre, c, auteur,
+        `Édito validé sur le séquencier de ${s.code}, à toi de valider`);
+    }
     loadNotifs();
   }
   refreshUI(id);
@@ -3375,7 +3409,8 @@ function ouvrirAssignBrand(id) {
   const s = sujets.find(x=>x.id===id);
   if(!s) return;
   const brands = equipe.filter(m => m.role === 'Brand'); // source en mémoire, 0 requête
-  _assignBrand = { sujetId:id, choix: brands[0]?.nom || '' };
+  _assignBrand = { sujetId:id, choix: '' }; // AUCUNE présélection : choix explicite obligatoire
+                                            // (pré-sélectionner assignerait par accident un contact aux anciennes cartes)
 
   const existing = document.getElementById('assign-brand-modal');
   if(existing) existing.remove();
@@ -3387,7 +3422,7 @@ function ouvrirAssignBrand(id) {
   onEsc = e => { if(e.key === 'Escape') close(); };
 
   if(brands.length) {
-    const options = brands.map(m => `<option value="${escapeHtml(m.nom)}" ${m.nom===_assignBrand.choix?'selected':''}>${escapeHtml(m.nom)}</option>`).join('');
+    const options = `<option value="" selected>Choisir un contact…</option>` + brands.map(m => `<option value="${escapeHtml(m.nom)}">${escapeHtml(m.nom)}</option>`).join('');
     overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
         <div style="font-size:15px;font-weight:600;color:var(--text)">Assigner un contact Brand</div>
@@ -3397,7 +3432,7 @@ function ouvrirAssignBrand(id) {
       <div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.5">Le contact Brand sera prévenu que le séquencier est validé côté Réel Média, et qu'il doit valider à son tour.</div>
       <select id="assign-brand-select" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-size:13px;margin-bottom:16px">${options}</select>
       <div style="display:flex;justify-content:flex-end">
-        <button id="assign-brand-ok" class="nav-btn primary" style="font-size:12px">Assigner ${escapeHtml(_assignBrand.choix)} et valider</button>
+        <button id="assign-brand-ok" class="nav-btn primary" style="font-size:12px" disabled>Assigner et valider</button>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:10px;text-align:right">Fermer avec ✕ laisse le séquencier non validé</div>
     </div>`;
@@ -3421,9 +3456,11 @@ function ouvrirAssignBrand(id) {
     const okBtn = document.getElementById('assign-brand-ok');
     sel.addEventListener('change', () => {
       _assignBrand.choix = sel.value; // état lu depuis la variable module, pas le DOM
-      okBtn.textContent = `Assigner ${_assignBrand.choix} et valider`;
+      okBtn.disabled = !_assignBrand.choix;
+      okBtn.textContent = _assignBrand.choix ? `Assigner ${_assignBrand.choix} et valider` : 'Assigner et valider';
     });
     okBtn.addEventListener('click', async () => {
+      if(!_assignBrand.choix) return; // garde : bouton désactivé tant qu'aucun choix réel
       close();
       await _validerEditoRM(_assignBrand.sujetId, {assignerContact:_assignBrand.choix});
     });
@@ -3471,9 +3508,12 @@ async function toggleValidationSeq(id, type) {
           `✅ Séquencier validé client — ${s.code} · ${s.titre} · Tournage peut démarrer !`);
         loadNotifs();
       }
-      if(s.format==='Brand' && s.contactBrand && s.contactBrand !== auteur) {
-        await createNotif('validation', id, s.code, s.titre, s.contactBrand, auteur,
-          `Le client a validé le séquencier de ${s.code}`);
+      // Contacts Brand (1er + 2e), dédup. dejaNotifies = auteur seul (exclusion historique préservée).
+      if(s.format==='Brand') {
+        for(const c of contactsBrandANotifier(s, new Set([auteur]))) {
+          await createNotif('validation', id, s.code, s.titre, c, auteur,
+            `Le client a validé le séquencier de ${s.code}`);
+        }
         loadNotifs();
       }
     }
@@ -3535,11 +3575,19 @@ async function initLogin() {
       id: p.id,
       nom: p.properties.Nom?.title?.[0]?.plain_text || '',
       code: p.properties['Code acces']?.rich_text?.[0]?.plain_text || '',
-      role: p.properties.Role?.select?.name || ''
+      role: p.properties.Role?.select?.name || '',
+      contactBrandDefaut: p.properties['Contact Brand défaut']?.checkbox || false
     })).filter(m => m.nom);
     if(notionEquipe.length > 0) {
       equipe = notionEquipe;
       peuplerSelect(equipe);
+      // Diagnostic de config « Contact Brand défaut » — UNE fois au chargement, console seulement
+      // (erreur Master rare, diagnosticable ; pas de toast imposé à tous). Jamais bloquant.
+      const _cbFlag = equipe.filter(m => m.contactBrandDefaut);
+      const _cbNonBrand = _cbFlag.filter(m => m.role !== 'Brand');
+      const _cbBrand = _cbFlag.filter(m => m.role === 'Brand');
+      if(_cbNonBrand.length) console.warn('« Contact Brand défaut » coché sur un membre non-Brand (ignoré) :', _cbNonBrand.map(m => m.nom));
+      if(_cbBrand.length > 1) console.warn('« Contact Brand défaut » : plusieurs membres Brand cochés — retenu = premier par nom (' + _cbBrand[0].nom + ') :', _cbBrand.map(m => m.nom));
     }
   } catch(e) {
     console.warn('Notion indisponible, liste locale utilisée:', e.message);
@@ -4175,8 +4223,9 @@ async function postComment(sujetId) {
         await createNotif('commentaire', sujetId, s.code, s.titre, chefDest, currentUser.nom, msg);
       if(s.journaliste && s.journaliste !== currentUser.nom && s.journaliste !== chefDest)
         await createNotif('commentaire', sujetId, s.code, s.titre, s.journaliste, currentUser.nom, msg);
-      if(s.format==='Brand' && s.contactBrand && s.contactBrand !== currentUser.nom && s.contactBrand !== chefDest && s.contactBrand !== s.journaliste)
-        await createNotif('commentaire', sujetId, s.code, s.titre, s.contactBrand, currentUser.nom, msg);
+      // Contacts Brand (1er + 2e), dédup. dejaNotifies = auteur + chefDest + journaliste (identique à l'existant).
+      for(const c of contactsBrandANotifier(s, new Set([currentUser.nom, chefDest, s.journaliste])))
+        await createNotif('commentaire', sujetId, s.code, s.titre, c, currentUser.nom, msg);
       loadNotifs();
     }
   } catch(e) {
@@ -5368,6 +5417,10 @@ async function createSujet(){
     const formatLivraison=document.getElementById('brand-format-livraison').value;
     if(!formatLivraison){toast('Choisissez un format de livraison','err');return;} // _createEnCours réinitialisé par le finally
     const c=compteurs['Brand'];
+    // Contact Brand par défaut (flag DB_EQUIPE, jamais de nom en dur ; '' si aucun coché → carte sans contact).
+    // Règle 2e contact : si le créateur a le rôle Brand et n'est PAS le principal, il devient le 2e contact.
+    const contactPrincipal = contactBrandParDefaut();
+    const contactSecond = (currentUser?.role === 'Brand' && currentUser.nom && currentUser.nom !== contactPrincipal) ? currentUser.nom : '';
     if(brandMode==='nouveau'){
       // Relecture autoritaire des clients + calcul depuis le réel + anti-collision (bump silencieux)
       let clientsFrais=clients;
@@ -5388,6 +5441,8 @@ async function createSujet(){
       if(contactNom)props['Contact Nom']={rich_text:[{text:{content:contactNom}}]};
       if(contactMail)props['Contact Mail']={email:contactMail};
       if(contactTel)props['Contact Tél']={phone_number:contactTel};
+      if(contactPrincipal)props['Contact Brand']={select:{name:contactPrincipal}};
+      if(contactSecond)props['Contact Brand 2']={select:{name:contactSecond}};
       const newPageBrand = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
       // Incrémenter compteur Brand
       await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
@@ -5418,6 +5473,8 @@ async function createSujet(){
       if(contactNom)props['Contact Nom']={rich_text:[{text:{content:contactNom}}]};
       if(contactMail)props['Contact Mail']={email:contactMail};
       if(contactTel)props['Contact Tél']={phone_number:contactTel};
+      if(contactPrincipal)props['Contact Brand']={select:{name:contactPrincipal}};
+      if(contactSecond)props['Contact Brand 2']={select:{name:contactSecond}};
       const newPageDecli = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
       // Notif au journaliste
       const auteurDecli = currentUser?.nom || 'Inconnu';
@@ -7273,7 +7330,7 @@ function mesCartes(role, nom) {
   const preds = {
     journaliste: s => [s.journaliste, s.monteur, s.monteur1, s.monteur2, s.monteur3].includes(nom),
     chef:        s => s.chef === nom,
-    brand:       s => s.contactBrand === nom
+    brand:       s => s.contactBrand === nom || s.contactBrand2 === nom
   };
   const pred = preds[role] || preds.journaliste;
   return sujets.filter(s => !s.archive && pred(s));
