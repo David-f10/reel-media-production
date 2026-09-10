@@ -578,6 +578,26 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Rendu SÛR d'un texte libre saisi par l'utilisateur, DANS un conteneur block (div).
+// Emballe les DEUX préoccupations en un seul geste : échappement HTML (anti-injection)
+// ET préservation des sauts de ligne (white-space:pre-line porté par le span). Impossible
+// d'échapper sans pre-line, ou l'inverse — le prochain champ n'a qu'à appeler texteLibre().
+// ⚠️ NE PAS utiliser dans une <textarea> (contexte texte brut, une balise s'y afficherait
+//    littéralement) : y employer escapeHtml() seul — la textarea gère les \n nativement.
+function texteLibre(s) {
+  return '<span style="white-space:pre-line">' + escapeHtml(s) + '</span>';
+}
+
+// Validation de SCHÉMA d'URL avant insertion dans un href. escapeHtml NE protège PAS ici :
+// « javascript:alert(1) » ne contient aucun caractère échappé et resterait exécutable au clic.
+// On n'autorise donc QUE http(s) ; tout autre schéma (javascript:, data:, vbscript:…) → ''
+// (lien neutralisé, rendu en texte non cliquable par l'appelant). La valeur retenue reste
+// ensuite passée à escapeHtml pour le contexte attribut (un " dans l'URL casserait le href).
+function urlSure(u) {
+  const s = String(u == null ? '' : u).trim();
+  return /^https?:\/\//i.test(s) ? s : '';
+}
+
 // Échappement pour une valeur insérée dans onclick="f('${escJs(v)}')". Elle vit dans DEUX
 // contextes imbriqués : attribut HTML (double-quote) > chaîne JS (single-quote). On couvre
 // les deux. ⚠️ ORDRE : backslash D'ABORD (sinon on re-doublerait les backslash ajoutés pour
@@ -1010,7 +1030,7 @@ function openDetail(id, forcePadOpen=false){
 
   const hasContact = ['Brand','MAG'].includes(s.format);
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
-    `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)" style="margin-bottom:14px">${s.notes}</textarea>
+    `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)" style="margin-bottom:14px">${escapeHtml(s.notes)}</textarea>
     ${refsHTML(id,'refs-prod-'+id)}
     ${hasContact ? `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
@@ -2563,8 +2583,8 @@ async function loadRetours(sujetId) {
               ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
               ${clarification?`<span style="font-size:10px;color:#378ADD;background:rgba(55,138,221,0.12);border:1px solid rgba(55,138,221,0.3);padding:1px 6px;border-radius:3px">${isChefUser?'🙋 Clarification demandée':`⏳ En attente ${'AEIOUYaeiouyÉÈÀÂHÎ'.includes((chefSujet||'?')[0])?"d'":"de "}${chefSujet}`}</span>`:''}
             </div>
-            ${estAdapte?`<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${desc}</div><div class="retour-desc"><span style="font-size:9px;color:var(--blue);font-weight:600">↳ Adapté par ${reformulePar||'chef'}</span>${tcReformule?` <span class="retour-tc">${tcReformule}</span>`:''}<div style="margin-top:2px">${reformulation}</div></div>`:`<div class="retour-desc">${desc}</div>`}
-            ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser'}</div>`:''}
+            ${estAdapte?`<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${texteLibre(desc)}</div><div class="retour-desc"><span style="font-size:9px;color:var(--blue);font-weight:600">↳ Adapté par ${texteLibre(reformulePar||'chef')}</span>${tcReformule?` <span class="retour-tc">${tcReformule}</span>`:''}<div style="margin-top:2px">${texteLibre(reformulation)}</div></div>`:`<div class="retour-desc">${texteLibre(desc)}</div>`}
+            ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${texteLibre(pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser')}</div>`:''}
             <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
             ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">❓ Clarifier</button>`:''}
           </div>
@@ -4049,7 +4069,7 @@ async function loadComments(sujetId) {
              <button onclick="annulerEditionComment('${sujetId}')" style="font-size:11px;color:var(--text3);background:transparent;border:1px solid var(--border2);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:var(--font)">Annuler</button>
              <button onclick="enregistrerComment('${c.id}','${sujetId}')" style="font-size:11px;color:#fff;background:var(--blue);border:none;padding:3px 12px;border-radius:4px;cursor:pointer;font-family:var(--font)">Enregistrer</button>
            </div>`
-        : `<div style="font-size:12px;color:var(--text2);line-height:1.5">${texte}</div>`;
+        : `<div style="font-size:12px;color:var(--text2);line-height:1.5">${texteLibre(texte)}</div>`;
       return `<div style="display:flex;gap:8px;margin-bottom:10px">
         <div style="width:26px;height:26px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0;font-family:var(--mono)">${initials}</div>
         <div style="flex:1;background:var(--bg3);border-radius:var(--r);padding:8px 10px">
@@ -4741,8 +4761,8 @@ async function loadPlayerRetours(sujetId, version) {
               ${impossible?`<span style="font-size:10px;color:#ff6b35">⛔ Impossible</span>`:''}
               ${clarification?`<span style="font-size:10px;color:#378ADD;background:rgba(55,138,221,0.12);border:1px solid rgba(55,138,221,0.3);padding:1px 6px;border-radius:3px">${isChefUser?'🙋 Clarification demandée':`⏳ En attente ${'AEIOUYaeiouyÉÈÀÂHÎ'.includes((chefSujet||'?')[0])?"d'":"de "}${chefSujet}`}</span>`:''}
             </div>
-            ${estAdapte?`<div style="font-size:11px;color:#5A5A70;font-style:italic;border-left:2px solid #2A2A3A;padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${desc}</div><div style="font-size:12px;color:#9898B0;line-height:1.5"><span style="font-size:9px;color:#378ADD;font-weight:600">↳ Adapté par ${reformulePar||'chef'}</span>${tcReformule?` <span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tcReformule}</span>`:''}<div style="margin-top:2px">${reformulation}</div></div>`:`<div style="font-size:12px;color:#9898B0;line-height:1.5">${desc}</div>`}
-            ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${pr['Raison impossible']?.rich_text?.[0]?.plain_text||''}</div>`:''}
+            ${estAdapte?`<div style="font-size:11px;color:#5A5A70;font-style:italic;border-left:2px solid #2A2A3A;padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${texteLibre(desc)}</div><div style="font-size:12px;color:#9898B0;line-height:1.5"><span style="font-size:9px;color:#378ADD;font-weight:600">↳ Adapté par ${texteLibre(reformulePar||'chef')}</span>${tcReformule?` <span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tcReformule}</span>`:''}<div style="margin-top:2px">${texteLibre(reformulation)}</div></div>`:`<div style="font-size:12px;color:#9898B0;line-height:1.5">${texteLibre(desc)}</div>`}
+            ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${texteLibre(pr['Raison impossible']?.rich_text?.[0]?.plain_text||'')}</div>`:''}
             <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
             ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}','${version}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:-apple-system,sans-serif">❓ Clarifier</button>`:''}
             ${(r.id===_inlineAdaptId && peutAdapter)?`<div style="margin-top:8px;padding:10px;background:rgba(55,138,221,0.06);border:1px solid rgba(55,138,221,0.25);border-radius:6px">
@@ -6053,10 +6073,16 @@ async function loadRefs(sujetId, containerId) {
     }
     el.innerHTML = refs.map(r => {
       const url = r.properties['Titre']?.title?.[0]?.plain_text || '';
+      const href = urlSure(url);   // '' si le schéma n'est pas http(s) → lien neutralisé
+      const label = escapeHtml(url.replace(/^https?:\/\//i,'').substring(0,50)) + (url.length>53?'...':'');
+      const lien = href
+        ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener"
+            style="flex:1;font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
+            title="${escapeHtml(url)}">↗ ${label}</a>`
+        : `<span style="flex:1;font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
+            title="${escapeHtml(url)}">⚠ ${label||'lien invalide'}</span>`;
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <a href="${url}" target="_blank" rel="noopener"
-          style="flex:1;font-size:11px;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--bg3);border:1px solid var(--border);padding:5px 10px;border-radius:6px"
-          title="${url}">↗ ${url.replace(/^https?:\/\//,'').substring(0,50)}${url.length>53?'...':''}</a>
+        ${lien}
         <button onclick="deleteRef('${r.id}','${sujetId}','${containerId}')"
           style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0;flex-shrink:0;line-height:1" title="Supprimer">×</button>
       </div>`;
@@ -6208,7 +6234,7 @@ function renderIdees(vue='cartes') {
           ${i.format?`<span class="card-fmt" style="color:${fmtCol}">${i.format}</span>`:'<span class="card-fmt" style="color:var(--text3)">Format ?</span>'}
         </div>
         <div class="card-title" title="${i.titre.replace(/"/g,'&quot;')}">${i.titre}</div>
-        ${i.description?`<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.4">${i.description.substring(0,80)}${i.description.length>80?'...':''}</div>`:''}
+        ${i.description?`<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.4">${texteLibre(i.description.substring(0,80))}${i.description.length>80?'...':''}</div>`:''}
         <div class="card-meta">
           <div class="av" style="background:var(--purple)">${initials}</div>
           <span class="card-j">${i.proposePar||'—'} · ${date}</span>
@@ -6243,7 +6269,7 @@ function ouvrirIdee(id) {
     <div style="padding:0 20px 20px">
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">Description</span></div>
-      <textarea id="idee-desc-${id}" style="min-height:80px" onblur="saveIdeeField('${id}','Description','rt',this.value)">${i.description}</textarea>
+      <textarea id="idee-desc-${id}" style="min-height:80px" onblur="saveIdeeField('${id}','Description','rt',this.value)">${escapeHtml(i.description)}</textarea>
     </div>
     <div class="step">
       <div class="step-hdr"><span class="step-ttl">Format envisagé</span></div>
