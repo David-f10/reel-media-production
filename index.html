@@ -1507,6 +1507,46 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
   }
 }
 
+// Résout le monteur d'UNE version précise depuis DB_VERSIONS = la SOURCE DE VÉRITÉ (choix B1).
+// Correct pour TOUTE version (V1…Vn, pas de plafond V3), et honore une correction manuelle du
+// « Responsable ». Deux modes : par versionId (GET exact — à préférer quand on l'a, car des cartes
+// de test ont des numéros de version dupliqués) ; sinon par (sujetId, numéro) — 1 requête filtrée,
+// page_size 1. Best-effort : '' si introuvable ou erreur (on notifiera alors journaliste/chef seuls).
+async function monteurDeVersion(sujetId, version, versionId){
+  try {
+    if(versionId){
+      const p = await api('/pages/'+versionId,'GET');
+      return p.properties?.Monteur?.rich_text?.[0]?.plain_text || '';
+    }
+    if(!sujetId || !version) return '';
+    const d = await api('/databases/'+DB_VERSIONS+'/query','POST',{
+      filter:{and:[
+        {property:'Sujet ID',rich_text:{equals:sujetId}},
+        {property:'Version',rich_text:{equals:version}}
+      ]}, page_size:1
+    });
+    return d.results?.[0]?.properties?.Monteur?.rich_text?.[0]?.plain_text || '';
+  } catch(e){ console.warn('monteurDeVersion:', e.message); return ''; }
+}
+
+// Notifie un ÉVÉNEMENT DE VERSION à l'ensemble { journaliste principal, monteur de CETTE version,
+// (option) chef }. Dédup par Set : une personne cumulant deux rôles reçoit UNE notif ; l'auteur est
+// retiré. On NE s'appuie PAS sur la dédup serveur 20 s (fenêtre, pas garantie). Le monteur vient de
+// DB_VERSIONS (B1). Retourne {tried, sent} pour piloter la porte anti-rafale de l'appelant.
+// inclureChef : true pour les retours (comportement historique = journaliste+chef, + monteur) ;
+//               false pour validation/annulation (journaliste + monteur, comme aujourd'hui sans chef).
+async function notifierVersion(type, sujetId, sujet, auteur, message, {version=null, versionId=null, inclureChef=false}={}){
+  const monteur = await monteurDeVersion(sujetId, version, versionId);
+  const dests = new Set([sujet?.journaliste, monteur].filter(Boolean));
+  if(inclureChef){ const c = sujet?.chef || CHEF_PAR_DEFAUT; if(c) dests.add(c); }
+  dests.delete(auteur);
+  let sent = 0;
+  for(const d of dests){
+    if(await createNotif(type, sujetId, sujet?.code||'', sujet?.titre||'', d, auteur, message)) sent++;
+  }
+  return { tried: dests.size, sent };
+}
+
 // Demander permission notifications navigateur
 async function requestNotifPermission() {
   if(!('Notification' in window)) return false;
@@ -1843,18 +1883,11 @@ async function submitRetour() {
         const cat = document.getElementById('ret-categorie').value;
         const tc = document.getElementById('ret-timecode').value.trim();
         const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code} — ${tc?tc+' · ':''}${cat}`;
-        const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
-        let tente = false, reussi = false;
-        if(sujet.journaliste && sujet.journaliste !== currentUser.nom) {
-          tente = true;
-          if(await createNotif('retour', retourSujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour)) reussi = true;
-        }
-        if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste) {
-          tente = true;
-          if(await createNotif('retour', retourSujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour)) reussi = true;
-        }
+        // Destinataires : journaliste + monteur de la version visée par CE retour + chef (Set, dédup).
+        const {tried, sent} = await notifierVersion('retour', retourSujetId, sujet, currentUser.nom, msgRetour,
+          {version: document.getElementById('ret-version').value, inclureChef: true});
         // Arme si un envoi a réussi, ou si personne n'était à prévenir ; pas si tout a échoué.
-        if(reussi || !tente) _notifRetourGate[gateKey] = now;
+        if(sent > 0 || tried === 0) _notifRetourGate[gateKey] = now;
         loadNotifs();
       }
     }
@@ -1909,18 +1942,11 @@ async function submitPlayerRetour(sujetId, version) {
       const now = Date.now();
       if(now - (_notifRetourGate[gateKey] || 0) >= NOTIF_RETOUR_TTL_MS) {
         const msgRetour = `${currentUser.nom} a laissé un retour sur ${sujet.code}${tc?' — '+tc:''}`;
-        const chefDest = sujet.chef || CHEF_PAR_DEFAUT;
-        let tente = false, reussi = false;
-        if(sujet.journaliste && sujet.journaliste !== currentUser.nom) {
-          tente = true;
-          if(await createNotif('retour', sujetId, sujet.code, sujet.titre, sujet.journaliste, currentUser.nom, msgRetour)) reussi = true;
-        }
-        if(chefDest && chefDest !== currentUser.nom && chefDest !== sujet.journaliste) {
-          tente = true;
-          if(await createNotif('retour', sujetId, sujet.code, sujet.titre, chefDest, currentUser.nom, msgRetour)) reussi = true;
-        }
+        // Destinataires : journaliste + monteur de CETTE version (param `version`) + chef (Set, dédup).
+        const {tried, sent} = await notifierVersion('retour', sujetId, sujet, currentUser.nom, msgRetour,
+          {version, inclureChef: true});
         // Arme si un envoi a réussi, ou si personne n'était à prévenir ; pas si tout a échoué.
-        if(reussi || !tente) _notifRetourGate[gateKey] = now;
+        if(sent > 0 || tried === 0) _notifRetourGate[gateKey] = now;
         loadNotifs();
       }
     }
@@ -2811,7 +2837,7 @@ async function loadVersions(sujetId) {
         <div class="version-actions-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <div style="display:flex;align-items:center;gap:6px">
             <span style="font-size:10px;color:var(--text3);white-space:nowrap">Responsable :</span>
-            <select onchange="updateVersionMonteur('${v.id}','${sujetId}',this.value)" style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px">
+            <select onchange="updateVersionMonteur('${v.id}','${sujetId}','${version}',this.value)" style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px">
               <option value="">Choisir...</option>
               ${(monteur && !tousLesNoms.includes(monteur) ? [...tousLesNoms, monteur] : tousLesNoms).map(n=>`<option ${monteur===n?'selected':''}>${n}</option>`).join('')}
             </select>
@@ -2900,16 +2926,18 @@ async function ajouterVersion(sujetId) {
     const vres = await api('/databases/'+DB_VERSIONS+'/query','POST',{filter:{property:'Sujet ID',rich_text:{equals:sujetId}}});
     const nums = (vres.results||[]).map(v=>parseInt(v.properties.Version?.rich_text?.[0]?.plain_text?.replace('V','')||'0')).filter(n=>!isNaN(n));
     const versionNum = `V${(nums.length ? Math.max(...nums) : 0)+1}`;
-    await api('/pages','POST',{
+    const created = await api('/pages','POST',{
       parent:{database_id:DB_VERSIONS},
       properties:{
         'Titre':{title:[{text:{content:''}}]},
         'Version':{rich_text:[{text:{content:versionNum}}]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]},
-        'Monteur':{rich_text:[{text:{content:s.journaliste||''}}]},
         'Validée':{checkbox:false}
       }
     });
+    // Le monteur = CELUI QUI CRÉE la version (le déposant), jamais le journaliste par défaut.
+    // Écrit via la fonction UNIQUE (DB_VERSIONS = vérité + miroir carte Monteur V{n}), jamais en direct.
+    if(created?.id) await ecrireMonteurVersion(created.id, sujetId, versionNum, currentUser?.nom || '');
     // Transition statut
     if(s.statut !== 'Montage' && s.statut !== 'Retours' && s.statut !== 'Validation chef' && s.statut !== 'PAD') {
       await upd(sujetId, 'Statut', 'sel', 'Montage');
@@ -2963,9 +2991,41 @@ async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
-async function updateVersionMonteur(versionId, sujetId, monteur) {
+// ⚠️ POINT D'ÉCRITURE UNIQUE du monteur d'une version — appelé par creerVersion (dépôt) ET par
+// updateVersionMonteur (correction manuelle « Responsable »). PERSONNE n'écrit le monteur ailleurs,
+// pour rendre la double-écriture IMPOSSIBLE à contourner (pas seulement documentée).
+//
+// Deux champs, deux bases, une seule information :
+//   1) DB_VERSIONS.Monteur (rich_text) = SOURCE DE VÉRITÉ, par version, illimitée. C'est ce que lisent
+//      les notifications de l'app (monteurDeVersion / B1). Écrite EN PREMIER, OBLIGATOIRE : si elle
+//      échoue, on remonte l'erreur (throw) et RIEN d'autre n'est tenté.
+//   2) Carte « Monteur V{n} » (select) = MIROIR dénormalisé, consommé par review.html (destinataires
+//      du retour client) et par le dashboard (prédicat mesCartes). Écrite ENSUITE, BEST-EFFORT :
+//      son échec ne fausse NI l'app NI les notifs (qui lisent la source de vérité) — il ne retarde
+//      que review.html/dashboard jusqu'au prochain passage. On loggue, on ne bloque pas, on ne throw pas.
+//   ⚠️ LIMITE V4+ VISIBLE : la carte n'a que 3 slots (Monteur V1/V2/V3). Au-delà de V3, le miroir
+//      N'EXISTE PAS → review.html ne notifiera pas le monteur d'une V4+ (limite préexistante de
+//      review.html, qui ne gère lui-même que V1-V3). L'app, elle, reste correcte pour toute version
+//      (elle lit DB_VERSIONS). Ne PAS croire que « écrire le champ » couvre les versions ≥ 4.
+async function ecrireMonteurVersion(versionId, sujetId, versionNum, monteur) {
+  // 1) SOURCE DE VÉRITÉ — obligatoire (throw en cas d'échec : l'appelant décide du toast)
+  await api('/pages/'+versionId,'PATCH',{properties:{'Monteur':{rich_text:[{text:{content:monteur||''}}]}}});
+  // 2) MIROIR CARTE — best-effort, uniquement V1-V3 (aucun slot au-delà)
+  const n = parseInt(String(versionNum||'').replace('V',''),10);
+  if(sujetId && n>=1 && n<=3){
+    try {
+      await api('/pages/'+sujetId,'PATCH',{properties:{['Monteur V'+n]: monteur ? {select:{name:monteur}} : {select:null}}});
+      const s = sujets.find(x=>x.id===sujetId);
+      if(s) s['monteur'+n] = monteur||''; // mémoire locale alignée → dashboard « mes cartes » sans reload
+    } catch(e){
+      console.warn('Miroir carte Monteur V'+n+' non écrit (best-effort) — DB_VERSIONS fait foi :', e.message);
+    }
+  }
+}
+
+async function updateVersionMonteur(versionId, sujetId, versionNum, monteur) {
   try {
-    await api('/pages/'+versionId,'PATCH',{properties:{'Monteur':{rich_text:[{text:{content:monteur}}]}}});
+    await ecrireMonteurVersion(versionId, sujetId, versionNum, monteur); // écrit les DEUX champs
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
 
@@ -3014,10 +3074,10 @@ async function toggleVersionValidee(versionId, sujetId, versionNum, wasValidee, 
       await api('/pages/'+sujetId,'PATCH',{properties:{Statut:{select:{name:'Validation chef'}}}});
       if(s) s.statut = 'Validation chef';
       renderCards();
-      // Notif au journaliste
-      if(s && s.journaliste && currentUser && s.journaliste !== currentUser.nom) {
-        await createNotif('version_validee', sujetId, s.code, s.titre, s.journaliste, currentUser.nom,
-          `${currentUser.nom} a validé la ${versionNum} de ${s.code} — ${s.titre}`);
+      // Notif au journaliste ET au monteur de CETTE version (résolu par versionId exact). Pas le chef.
+      if(s && currentUser) {
+        await notifierVersion('version_validee', sujetId, s, currentUser.nom,
+          `${currentUser.nom} a validé la ${versionNum} de ${s.code} — ${s.titre}`, {versionId});
         loadNotifs();
       }
     }
@@ -3235,12 +3295,12 @@ async function annulerVersion(versionId, sujetId, versionNum) {
       }
       try {
         await api('/pages/'+versionId,'PATCH',{properties:{'Statut':{select:{name:'Annulée'}}}});
-        if(s.journaliste && s.journaliste !== auteur) {
-          await createNotif('version_annulee', sujetId, s.code, s.titre, s.journaliste, auteur,
-            `❌ ${versionNum} annulée sur ${s.code}, une nouvelle version est attendue`);
-          loadNotifs();
-        }
-        toast('Version annulée. Une notification a été envoyée au journaliste.','ok');
+        // Journaliste ET monteur de CETTE version (résolu par versionId, AVANT que le statut ne gêne) :
+        // celui qui a monté la version annulée doit savoir qu'une nouvelle est attendue. Pas le chef.
+        await notifierVersion('version_annulee', sujetId, s, auteur,
+          `❌ ${versionNum} annulée sur ${s.code}, une nouvelle version est attendue`, {versionId});
+        loadNotifs();
+        toast('Version annulée. Une notification a été envoyée au journaliste et au monteur.','ok');
         loadVersions(sujetId);
       } catch(e) { toast('Erreur : '+e.message,'err'); }
     }
