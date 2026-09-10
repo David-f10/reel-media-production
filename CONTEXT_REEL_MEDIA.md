@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-10 (monteur de version = le déposant + notifications élargies · formatage des textes libres + href sécurisé · overlays en pointerdown · createSujet fiabilisé · escJs)
+> Dernière mise à jour : 2026-09-10 (2e contact Brand + contact par défaut sans nom en dur · monteur de version = le déposant · formatage des textes libres + href sécurisé · overlays en pointerdown · escJs)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,33 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-10 — Second contact Brand + contact par défaut (sans aucun nom en dur)
+- **DEUX FICHIERS :** `index.html` **7556 → 7613 (+57)** et `review.html` **943 → 945 (+2)**.
+- **LA DEMANDE de Louise :** elle travaille avec **Maÿllis**, son assistante. Les deux doivent recevoir les notifications Brand. Et le sélecteur affichait **Arnaud C** en premier — Louise croyait à un choix par défaut.
+- **⚠️ LE « FAUX DÉFAUT ARNAUD C » AVAIT DEUX CAUSES**, toutes deux corrigées : (1) le **popup d'assignation** pré-sélectionnait `brands[0]` — le premier alphabétique ; (2) le **sélecteur de la fiche** n'avait pas d'option vide en tête, donc le navigateur **affichait** Arnaud C quand le champ était vide **sans que rien ne soit enregistré**. Ce que Louise voyait n'était même pas une valeur.
+- **DEUX CHAMPS NOTION créés par Master :** `Contact Brand 2` (select, 5 options identiques au premier champ) sur **DB_PROD**, et `Contact Brand défaut` (checkbox, **avec l'accent**) sur **DB_EQUIPE**, cochée sur Louise uniquement (vérifié : COUNT des cochés = 1).
+- **⚠️⚠️ AUCUN NOM EN DUR — le point central du chantier.** Vérifié par grep : **« Louise » et « Maÿllis » = 0 occurrence** dans les deux fichiers.
+  - Le défaut se résout par `equipe.find(m => m.role === 'Brand' && m.contactBrandDefaut)?.nom || ''`.
+  - La règle du second contact ne nomme personne : `currentUser?.role === 'Brand' && currentUser.nom !== contactPrincipal`.
+  - **Changer le contact par défaut = deux clics dans Notion**, zéro modification de code.
+- **⚠️ `CHEF_PAR_DEFAUT='Benjamin'` EST UNE DETTE, PAS UN PRÉCÉDENT.** Claude Code l'a formulé et le Pilote l'a validé : ça « marche » parce qu'il y a un seul patron stable, mais c'est une **rupture latente** — Benjamin part, il faut éditer le code. On n'a pas cloné le motif. *(Refactorer `CHEF_PAR_DEFAUT` reste un chantier ouvert, hors périmètre.)*
+- **RÈGLE GÉNÉRALISÉE, assumée explicitement :** « tout créateur de rôle **Brand** qui n'est pas le contact principal devient le second contact ». Plus large que Maÿllis — c'est voulu : quelqu'un du côté Brand qui crée une carte a une raison de suivre ce qui s'y passe. Et ça ne nomme personne.
+- **DÉGRADATION SÛRE :** si aucun membre n'est coché → `contactPrincipal = ''` → la carte naît sans contact (comportement actuel), **jamais un mauvais défaut**.
+- **DEUX `console.warn` au chargement de l'équipe**, une seule fois par session : flag coché sur un **non-Brand** (ignoré, mais diagnosticable), et **plusieurs Brand cochés** (retenu = premier par nom, déterministe car `equipe` est triée par Nom). **Console seulement, jamais de toast** — c'est une erreur de configuration Master, rare, qui ne doit pas polluer l'expérience de tous.
+- **HELPER `contactsBrandANotifier(s, dejaNotifies)`** : Set `{contactBrand, contactBrand2}` moins les déjà-notifiés. Un seul point pour les 4 sites, plutôt que des `if` dupliqués — **le second contact hérite exactement du filtrage du premier**, et personne n'est notifié deux fois.
+- **Tableau des `dejaNotifies` par site, vérifié :** dépôt de version `{auteur, chef, journaliste}` · validation Édito `{auteur}` · validation séquencier client `{auteur}` · commentaire `{auteur, chefDest, journaliste}` · `review.html` = Set existant + `contactBrand2`.
+- **⚠️ DEUX COMPORTEMENTS HÉRITÉS PRÉSERVÉS, et notés comme SUJETS OUVERTS :**
+  - Le **dépôt de version exclut le journaliste** alors que ce handler ne le notifie pas → un journaliste qui serait aussi contact Brand ne reçoit rien.
+  - Les **validations n'excluent que l'auteur** → un contact Brand qui est aussi journaliste reçoit **deux** notifications de types différents.
+  Décision du Pilote : ce chantier **ajoute** un second contact, il ne **redéfinit pas** qui reçoit quoi. Mélanger les deux rendrait impossible de savoir, en cas de problème, laquelle des deux modifications l'a causé. **À traiter à froid si le besoin se confirme.**
+- **POPUP D'ASSIGNATION : choix obligatoire, aucune présélection.** `_assignBrand.choix = ''`, première option « Choisir un contact… », bouton **désactivé** tant qu'aucun choix, garde `if(!choix) return`.
+  **Pourquoi pas pré-sélectionner le défaut :** sur une **ancienne** carte, ça assignerait Louise par accident à des sujets qui appartiennent peut-être à Arnaud C, Guillaume ou Victor — on remplacerait un faux défaut par un autre.
+- **Le calcul du défaut est fait UNE fois**, avant les deux branches de création (nouveau client **et** déclinaison), avec la garde `if(contactPrincipal)` qui évite d'écrire une valeur vide.
+- **`mesCartes` brand** teste désormais `contactBrand === nom || contactBrand2 === nom` — sans quoi le second contact ne verrait pas la carte dans son espace.
+- **Mesure actualisée : 38 cartes Brand sans contact** (41 en août, 3 assignées depuis). Elles ne bougent pas ; `Contact Brand 2` reste vide sur les 374 cartes.
+- **Chemin mort `onLienBlur`** (garde mono `s.contactBrand`) : laissé tel quel, non câblé.
+- **Vérification Pilote :** `wc -l` 7613 / 945, `CHEF_PAR_DEFAUT`=12, `createNotif`=24, script 4/4, `node --check` OK sur les **3 blocs** (2 index + 1 review). **Grep « Louise » et « Maÿllis » = 0.** Les deux branches de création couvertes (l.5444 et 5476). Non-régression (`escJs`, `texteLibre`, `urlSure`, `fermerSurClicFond`, `matchFiltre`, `notifierVersion`, `ecrireMonteurVersion`) vérifiée.
 
 ### 2026-09-10 — Le monteur d'une version est celui qui la dépose (+ notifications élargies)
 - **`index.html` seul, 7496 → 7556 (+60).** Aucun nouveau champ Notion — tout existait déjà.

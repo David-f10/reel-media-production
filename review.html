@@ -552,6 +552,7 @@ async function init() {
         chef: pr['Chef responsable']?.select?.name || '',
         journaliste: pr.Journaliste?.select?.name || '',
         contactBrand: pr['Contact Brand']?.select?.name || '',
+        contactBrand2: pr['Contact Brand 2']?.select?.name || '',
         monteurs: {
           V1: pr['Monteur V1']?.select?.name || '',
           V2: pr['Monteur V2']?.select?.name || '',
@@ -802,6 +803,7 @@ function destinatairesRetour() {
   if(sujetData?.chef) set.add(sujetData.chef);
   if(sujetData?.journaliste) set.add(sujetData.journaliste);
   if(sujetData?.contactBrand) set.add(sujetData.contactBrand);
+  if(sujetData?.contactBrand2) set.add(sujetData.contactBrand2);
   const m = /^V(\d+)$/.exec(versionActive || '');
   if(m) { const mont = sujetData?.monteurs?.['V' + m[1]]; if(mont) set.add(mont); }
   return [...set].filter(Boolean);
