@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-11 (TÂCHES liées aux cartes et aux personnes · format verrouillé après création · 2e contact Brand · monteur de version = le déposant · formatage des textes libres)
+> Dernière mise à jour : 2026-09-11 (Performances garanties + bloc Wording · TÂCHES liées aux cartes · format verrouillé après création · 2e contact Brand · monteur de version = le déposant)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,30 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-11 — Performances garanties (dans le Brief) + bloc Wording (demandes de Louise)
+- **`index.html` seul, 7634 → 7756 (+122).** Deux ajouts sur les **cartes Brand uniquement**.
+- **⚠️ LE CADRAGE A DEMANDÉ TROIS ALLERS-RETOURS AVEC LOUISE — et ça valait le coup.** On a d'abord cru que les performances se renseignaient **après la diffusion**. Faux : ce sont les **engagements pris au brief**, ce qu'on a **promis** au client. Un bloc de garanties affiché après diffusion aurait été **inutilisable** — la garantie serait déjà dépassée. La distinction « garanties » (avant, engagement) vs « réalisées » (après, mesure) a tout changé.
+- **1 — PERFORMANCES GARANTIES : trois champs DANS le Brief**, pas un bloc séparé. `Perf Vues` (number), `Perf Type` (text), `Perf CTA` (text). Visibles dès la création, comme le reste du brief. Sous-bloc `${s.format==='Brand' ? … : ''}` **sur le patron exact du sous-bloc « Contact client »** déjà présent — aucune nouveauté structurelle.
+- **⚠️ `Perf Type` et non « Type »** : un champ **`Type L2`** existe déjà (comme `Type L1`, `Type L3`). Le préfixe `Perf` évite la confusion et groupe les trois.
+- **⚠️ `upd()` ne gérait PAS le type `number`** (titre, rt, sel, date, datetime, url, email, phone, cb). Branche ajoutée **après** les existantes, aucune modifiée : `{number: (value===''||value==null) ? null : Number(value)}`.
+- **2 — BLOC WORDING** : le texte de description publié sous la vidéo. Placé **après Montage, avant Validation · PAD** — « fin de parcours, avant publication ». Textarea `Wording` + deux validations **en cascade** (Édito → Brand, la seconde désactivée tant que la première n'est pas faite).
+- **⚠️⚠️ LA GARDE ANTI-DISPARITION — le point que le Pilote a exigé.** Le bloc est *status-gated* (Montage, Retours, Validation chef, PAD) pour ne pas alourdir une fiche déjà longue. **Mais un bloc conditionné au statut qui masquerait du contenu saisi serait une perte de données apparente.**
+  ```
+  _wordingEcrit = !!s.wording || s.validationWordingEdito || s.validationWordingBrand
+  montrer = format==='Brand' && (statutsWording.includes(statut) || _wordingEcrit)
+  ```
+  → Si une carte **redescend de statut** après saisie, `_wordingEcrit` reste vrai → **le bloc ne disparaît jamais avec son contenu**. Il n'est masqué que sur une carte en amont **ET** totalement vierge.
+- **⚠️ FONCTION LEAN PLUTÔT QUE MOTEUR GÉNÉRIQUE — arbitrage assumé.** `toggleValidationSeq` est **noué** au 3ᵉ palier (Client), à la **transition automatique de statut** et à l'**assignation atomique du contact**. En faire un moteur universel aurait obligé à **refondre le séquencier** — un chemin critique — pour gagner quinze lignes. Refusé.
+  `toggleValidationWording(id, type)` est une fonction **dédiée à 2 paliers**, sans palier Client, sans transition de statut. **Zéro touche au séquencier.** La vraie brique partageable — `contactsBrandANotifier` — est déjà factorisée et réutilisée telle quelle.
+- **⚠️ `ouvrirAssignBrand` PARAMÉTRÉ, rétro-compatible.** Il était couplé au séquencier (son bouton OK appelait `_validerEditoRM`). Signature `ouvrirAssignBrand(id, apres='sequencier')` : **l'appel séquencier (l.3606) reste SANS second argument** → comportement identique. Le mode `'wording'` (l.3561) dispatche vers un PATCH atomique `{Contact Brand, Validation Wording Brand}`.
+  **Pourquoi le contact reste obligatoire au wording :** Claude Code pensait qu'il serait « probablement déjà posé » à ce stade. Probablement ne suffit pas — **38 cartes Brand sans contact** existent, et rien ne garantit qu'elles passent par la validation séquencier. Même mécanisme, même garantie.
+- **NOTIFICATIONS, type `validation` réutilisé** → aucune nouvelle icône. Wording validé **côté édito** → les contacts Brand (via `contactsBrandANotifier`, donc les **deux** contacts). Wording validé **côté Brand** → le journaliste : « Le wording de {code} est validé, prêt à publier ».
+- **Garde de rôle** : la validation **édito** n'en a pas (comme le séquencier RM — un journaliste peut valider) ; la validation **Brand** exige le rôle Brand ou Chef.
+- **6 CHAMPS NOTION créés par Master**, vérifiés au caractère près (accent sur `édito`, majuscule sur `Brand`), zéro carte renseignée, aucun champ existant renommé ou supprimé.
+- **Les 6 champs ajoutés au reflet local de `upd`** → édition sans rechargement.
+- **`review.html` inchangé** : le wording se valide **dans l'app** (contact Brand connecté, comme la validation séquencier Brand). review.html ne gère que les retours **client** sur les versions.
+- **Vérification Pilote :** `wc -l` 7756, `CHEF_PAR_DEFAUT`=12, `createNotif` **28 → 31** (les notifs wording, légitime), script 4/4, `node --check` OK. **Garde anti-disparition confirmée l.1176-1178.** Appel séquencier de `ouvrirAssignBrand` **sans second argument** confirmé l.3606. Branche `number` additive confirmée. Bloc Wording entre Montage (1168) et Validation · PAD (1208). Non-régression vérifiée.
 
 ### 2026-09-11 — Tâches liées à une carte et à une personne (demande de Louise)
 - **`index.html` seul, 7612 → 7636 (+24 net)** — gros bloc réécrit, 5 fonctions orphelines supprimées.
