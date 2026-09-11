@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-11 (format verrouillé après création + dernier dialogue natif éliminé · 2e contact Brand · monteur de version = le déposant · formatage des textes libres · overlays en pointerdown)
+> Dernière mise à jour : 2026-09-11 (TÂCHES liées aux cartes et aux personnes · format verrouillé après création · 2e contact Brand · monteur de version = le déposant · formatage des textes libres)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,31 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-11 — Tâches liées à une carte et à une personne (demande de Louise)
+- **`index.html` seul, 7612 → 7636 (+24 net)** — gros bloc réécrit, 5 fonctions orphelines supprimées.
+- **⚠️ CE CHANTIER NE REVIENT PAS EN ARRIÈRE.** Le 19 août on avait **retiré le bloc Tâches de la fiche carte** (doublon avec les commentaires, usage nul). La page Tâches du menu était conservée. Ce chantier **enrichit la page**, il ne remet rien dans la fiche.
+- **LE CŒUR DU PROBLÈME : le filtre `is_empty`.** `DB_TACHES` était partagée entre deux vues disjointes via « Sujet lié » — la fiche filtrait `equals sujetId`, le menu `is_empty`. Elles ne se recoupaient **jamais**. Le menu ne pouvait donc **pas** montrer une tâche liée à une carte.
+- **PRESQUE TOUT EXISTAIT DÉJÀ** dans DB_TACHES : `Assigné`, `Créé par` (écrit mais jamais lu), `Date échéance`, `Statut` (À faire/Fait — sert de « terminée »), `Sujet lié`, `Archivé`. **Deux champs seulement à créer.**
+- **DEUX CHAMPS NOTION créés :** `Sujet code` et `Sujet titre` (text), vides partout. **Pourquoi :** « Sujet lié » ne contient que l'**ID** ; le global `sujets` ne contient que la Production courante → une carte hors-vue ne serait pas résoluble côté client. On dénormalise le libellé à la création, **comme le fait `notify.js`** pour les notifications.
+- **⚠️ AUTORITÉ DES TROIS CHAMPS, documentée au point d'écriture :** **`Sujet lié` (l'ID) fait autorité** — c'est lui qui ouvre la carte. `Sujet code` / `Sujet titre` sont de l'**affichage recopié**, jamais relus comme source de vérité. **Conséquence assumée : si le titre d'une carte change, la tâche garde l'ancien libellé.** Sans gravité, l'ID reste juste.
+- **4 TÂCHES-TESTS ARCHIVÉES avant lancement** (toutes auto-assignées, Augustin ×2 / Benjamin ×2) — elles seraient réapparues à la levée du `is_empty`. Recomptage vérifié **indépendamment** : 10 tâches, 3 → 7 archivées (+4 exact), les 3 actives intactes.
+- **⚠️⚠️ LE POINT DE VIGILANCE N°1 — `loadTachesBadgeSilent` ÉCRASE le global `taches`.** Si son filtre était resté plus étroit que celui de la page, un rafraîchissement silencieux pendant qu'on la consulte aurait **fait disparaître les tâches confiées**. Neutralisé **par construction** : un helper unique `filtreTaches()` appelé par **les deux loaders** (3 occurrences : 1 définition + 2 usages, commentaire explicite sur le second). Même patron que `matchFiltre` et `ecrireMonteurVersion` — la divergence devient impossible, pas seulement improbable.
+- **Filtre retenu :** `Archivé=false ET (Assigné==moi OU Créé par==moi)`, un seul `apiQueryAll`, répartition côté client.
+- **TROIS SECTIONS :** « Qui me sont assignées » (avec `✓ Terminer`) · « Que j'ai confiées » (sans bouton — c'est à l'autre de terminer) · « Terminées » (barrées, grisées, fond sombre). Une tâche **auto-assignée** tombe dans « assignées », jamais dans « confiées » — on ne se confie pas une tâche à soi-même.
+- **AVATAR CONTEXTUEL** — la pastille **change de sens** selon la section : assignées → **qui a confié** ; confiées → **qui doit faire** ; terminées → qui a terminé, en gris.
+- **`✓ Terminer` avec `event.stopPropagation()`** en première ligne : sans lui, le bouton ouvrirait la carte en même temps (précédent : la corbeille des cartes le fait déjà). Passe `Statut=Fait` et notifie **le créateur**.
+- **Clic sur la ligne → ouvre la carte.** Une tâche **sans carte n'est pas cliquable** (pas de `cursor:pointer`, pas de `onclick`). Les **terminées restent cliquables** — on peut vouloir retrouver un sujet depuis une tâche passée.
+- **RECHERCHE DE CARTE dans le formulaire**, réutilisant le mécanisme du haut de page : on tape « AXA », les cartes apparaissent avec le terme surligné, leur code, titre et statut ; la carte choisie est retirable d'une croix. Sans résultat : « Aucune carte trouvée · La tâche peut rester sans carte liée ». **La carte reste OPTIONNELLE** — certaines tâches n'ont pas de sujet.
+- **⚠️ LES 186 ARCHIVES SONT EXCLUES NATIVEMENT** : elles vivent dans `sujetsArchives`, jamais dans `sujets`. `applySearch(sujets, q)` suffit, **aucun filtre supplémentaire**.
+- **⚠️ `highlightText` SÉCURISÉ — échapper AVANT de surligner.** `highlightText` insère un `<span>` mais **laisse le texte autour brut** : lui passer un titre contenant `<` aurait **rouvert la faille fermée le 2 septembre**. Solution : `highlightText(escapeHtml(texte), escapeHtml(requête))` — le seul HTML réel inséré est le span maison, le contenu utilisateur reste inerte. La requête est échappée aussi pour que la comparaison reste cohérente. *(Les usages existants de `cardHTMLHighlight` sur titre brut restent la 2b latente déjà notée — non aggravée.)*
+- **⚠️ ÉTAT DE RECHERCHE LOCAL À LA MODALE.** `applySearch(list, q = searchQuery)` : le haut de page garde le **global** par défaut, la modale passe sa **requête locale**. Sans ça, **taper dans le formulaire aurait filtré le tableau Production derrière**.
+- **Date OPTIONNELLE** (elle était obligatoire) → affichage « Sans délai ». Une tâche sans échéance ne peut pas être « en retard » — cohérent.
+- **EN RETARD : affichage seulement, aucune notification.** Texte rouge **et bord gauche rouge** sur la ligne — pour repérer en balayant la liste, sans lire. On sort de trois chantiers sur la réduction du bruit ; un retard est un **état**, pas un événement.
+- **DEUX TYPES DE NOTIFICATION :** `assignation` (→ l'assigné, à la création) et `achevement` (→ le créateur). Icônes 📌 et ✅. La garde `destinataire===auteur` de `createNotif` fait que **s'assigner à soi ne notifie pas** — zéro code pour ça. Clic sur une notif de tâche **sans carte** → `navTo('taches')`.
+- **BADGE ÉLARGI** aux tâches liées assignées (`!t.sujetLie` retiré) : le badge répond à « qu'est-ce que je dois faire », et une tâche liée à une carte est tout autant à faire.
+- **⚠️ 5 FONCTIONS ORPHELINES SUPPRIMÉES** (`toggleTachePerso`, `archiverTachePerso`, `openModifierTache`, `sauverModifTache`, `toggleAfficherTerminees`) — appelées uniquement par l'ancien rendu. **Conséquence : on ne peut plus archiver ni éditer une tâche depuis la page** (la maquette ne le prévoyait pas). À rouvrir en chantier séparé si le besoin apparaît.
+- **Vérification Pilote :** `wc -l` 7636, `CHEF_PAR_DEFAUT`=12, `createNotif` **24 → 28** (les 2 nouveaux types, légitime), script 4/4, `node --check` OK. `filtreTaches` = 3 occurrences, `is_empty` = 1 (un commentaire). `stopPropagation` confirmé. Les 5 orphelins à 0. `fermerSurClicFond` **12 → 11** (la modale « modifier une tâche » supprimée — cohérent). Non-régression vérifiée.
 
 ### 2026-09-11 — Le format est verrouillé après création (+ dernier dialogue natif éliminé)
 - **`index.html` seul, 7613 → 7612 (−1).** Le `<select>` remplacé par un affichage texte, légèrement plus court.
