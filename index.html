@@ -789,6 +789,12 @@ function parsePage(p){
     validationBrand:pr['Validation Brand']?.checkbox||false,
     contactBrand:pr['Contact Brand']?.select?.name||'',
     contactBrand2:pr['Contact Brand 2']?.select?.name||'',
+    perfVues:pr['Perf Vues']?.number ?? '',                                  // performances garanties (Brief, Brand)
+    perfType:pr['Perf Type']?.rich_text?.[0]?.plain_text||'',
+    perfCTA:pr['Perf CTA']?.rich_text?.[0]?.plain_text||'',
+    wording:pr['Wording']?.rich_text?.[0]?.plain_text||'',                   // « text » Notion = rich_text (texte long)
+    validationWordingEdito:pr['Validation Wording édito']?.checkbox||false,
+    validationWordingBrand:pr['Validation Wording Brand']?.checkbox||false,
     priorite:pr['Priorité']?.select?.name||'',
     retoursOuverts:0};  // rempli après chargement
 }
@@ -1039,6 +1045,27 @@ function openDetail(id, forcePadOpen=false){
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
     `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)" style="margin-bottom:14px">${escapeHtml(s.notes)}</textarea>
     ${refsHTML(id,'refs-prod-'+id)}
+    ${s.format==='Brand' ? `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div class="field-label" style="margin-bottom:8px">📈 Performances garanties <span style="color:var(--text3);font-size:10px">(promises au client)</span></div>
+      <div class="fg" style="margin-bottom:6px">
+        <div class="field">
+          <div class="field-label">Vues</div>
+          <input type="number" value="${s.perfVues}" placeholder="Ex: 50000"
+            onblur="upd('${id}','Perf Vues','number',this.value)">
+        </div>
+        <div class="field">
+          <div class="field-label">Type</div>
+          <input type="text" value="${escapeHtml(s.perfType)}" placeholder="Ex: Reel, Story..."
+            onblur="upd('${id}','Perf Type','rt',this.value)">
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">CTA</div>
+        <input type="text" value="${escapeHtml(s.perfCTA)}" placeholder="Ex: Lien en bio, Swipe up..."
+          onblur="upd('${id}','Perf CTA','rt',this.value)">
+      </div>
+    </div>` : ''}
     ${hasContact ? `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
       <div class="field-label" style="margin-bottom:8px">👤 Contact client <span style="color:var(--text3);font-size:10px">(optionnel)</span></div>
@@ -1142,6 +1169,36 @@ function openDetail(id, forcePadOpen=false){
     `<div id="versions-list-${id}" style="margin-bottom:10px">
       <div style="font-size:11px;color:var(--text3)">Chargement...</div>
     </div>`,activeStep==='montage'||activeStep==='pad');
+  // ── Bloc WORDING (Brand uniquement, fin de parcours : après Montage) ──
+  // ⚠️ GARDE ANTI-DISPARITION : visible si la carte est à un statut de fin de parcours
+  //    (Montage/Retours/Validation chef/PAD) OU si du wording a déjà été écrit / une validation
+  //    cochée. Donc si la carte REDESCEND de statut après saisie, le bloc NE disparaît JAMAIS.
+  const _statutsWording = ['Montage','Retours','Validation chef','PAD'];
+  const _wordingEcrit = !!s.wording || s.validationWordingEdito || s.validationWordingBrand;
+  if(s.format==='Brand' && (_statutsWording.includes(s.statut) || _wordingEcrit)){
+    const wPill = s.validationWordingBrand ? 'p-green Brand validé'
+                : (s.validationWordingEdito ? 'p-amber Édito validé'
+                : (s.wording ? 'p-blue Rédigé' : 'p-gray À rédiger'));
+    html+=step('Wording', wPill,
+      `<div class="field" style="margin-bottom:12px">
+        <div class="field-label" style="margin-bottom:6px">Texte de description du post <span style="color:var(--text3);font-size:10px">(publié sous la vidéo)</span></div>
+        <textarea placeholder="Rédige le wording du post…" style="min-height:90px" onblur="upd('${id}','Wording','rt',this.value)">${escapeHtml(s.wording)}</textarea>
+      </div>
+      <div class="brand-seq-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="toggleValidationWording('${id}','edito')"
+          class="nav-btn ${s.validationWordingEdito?'primary':''}"
+          style="flex:1;min-width:90px;font-size:12px;${s.validationWordingEdito?'background:var(--green);border-color:var(--green)':''}">
+          ${s.validationWordingEdito?'✅':'⬜'} Édito
+        </button>
+        <button onclick="toggleValidationWording('${id}','Brand')"
+          class="nav-btn ${s.validationWordingBrand?'primary':''}"
+          style="flex:1;min-width:90px;font-size:12px;${s.validationWordingBrand?'background:var(--blue);border-color:var(--blue)':''};${!s.validationWordingEdito?'opacity:0.5;cursor:not-allowed':''}"
+          ${!s.validationWordingEdito?'disabled':''}>
+          ${s.validationWordingBrand?'✅':'⬜'} Brand
+        </button>
+      </div>`,
+      _wordingEcrit);
+  }
   // Récupérer le dernier lien validé depuis la base Versions
   const lienRenduAffiche = s.lienRendu || '';
   const capDeposee = s.capDeposee;
@@ -1459,10 +1516,11 @@ async function upd(id,field,type,value){
     }
     else if(type==='email'){props[field]={email:value||null};}
     else if(type==='phone'){props[field]={phone_number:value||null};}
+    else if(type==='number'){props[field]={number:(value===''||value==null)?null:Number(value)};} // ADDITIF (Perf Vues)
     else if(type==='cb')props[field]={checkbox:value};
     await api(`/pages/${id}`,'PATCH',{properties:props});
     const s=sujets.find(x=>x.id===id);
-    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien sequencier':'lienSeq','Version validee':'versionValidee','Sous-format':'sousFormat','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion','Chef responsable':'chef','Journaliste':'journaliste','Priorité':'priorite','Format':'format','Version clean':'versionClean','Validation RM':'validationRM','Validation Client':'validationClient','Validation Brand':'validationBrand','Contact Brand':'contactBrand','Cap déposée':'capDeposee','Relevé musique':'releveMusique','Sans musique':'sansMusique'}[field];if(k)s[k]=value;}
+    if(s){if(type==='titre')s.titre=value;const k={'Notes chef':'notes','Séquencier validé':'seqValide','Date tournage J1':'tourJ1','Date tournage J2':'tourJ2','Équipement tournage':'equip','Lieu tournage':'lieuTour','Lien sequencier':'lienSeq','Version validee':'versionValidee','Sous-format':'sousFormat','Monteur V1':'monteur1','Monteur V2':'monteur2','Monteur V3':'monteur3','Stockage':'stockage','Responsable montage':'monteur','Lien V1':'lien1','Lien V2':'lien2','Lien V3':'lien3','Date montage J1':'montJ1','Date montage J2':'montJ2','Date montage J3':'montJ3','Lien de rendu':'lienRendu','Nom fichier officiel':'nomFichier','Plateforme':'plateforme','Date de diffusion':'diffusion','Chef responsable':'chef','Journaliste':'journaliste','Priorité':'priorite','Format':'format','Version clean':'versionClean','Validation RM':'validationRM','Validation Client':'validationClient','Validation Brand':'validationBrand','Contact Brand':'contactBrand','Cap déposée':'capDeposee','Relevé musique':'releveMusique','Sans musique':'sansMusique','Perf Vues':'perfVues','Perf Type':'perfType','Perf CTA':'perfCTA','Wording':'wording','Validation Wording édito':'validationWordingEdito','Validation Wording Brand':'validationWordingBrand'}[field];if(k)s[k]=value;}
     // Mise à jour locale
     toast('Sauvegardé','ok');
     // Transition automatique de statut
@@ -3409,11 +3467,13 @@ async function _validerEditoRM(id, opts={}) {
 
 // Popup d'assignation obligatoire. S'ouvre pour TOUS les rôles (comme la validation Édito,
 // qui n'a aucune garde de rôle — un journaliste valide parfois à la place du chef).
-function ouvrirAssignBrand(id) {
+// `apres` = ce qu'on valide APRÈS l'assignation du contact : 'sequencier' (défaut, comportement
+// historique inchangé) ou 'wording'. Un seul point d'appel historique → rétro-compatible.
+function ouvrirAssignBrand(id, apres='sequencier') {
   const s = sujets.find(x=>x.id===id);
   if(!s) return;
   const brands = equipe.filter(m => m.role === 'Brand'); // source en mémoire, 0 requête
-  _assignBrand = { sujetId:id, choix: '' }; // AUCUNE présélection : choix explicite obligatoire
+  _assignBrand = { sujetId:id, choix: '', apres }; // AUCUNE présélection : choix explicite obligatoire
                                             // (pré-sélectionner assignerait par accident un contact aux anciennes cartes)
 
   const existing = document.getElementById('assign-brand-modal');
@@ -3466,9 +3526,71 @@ function ouvrirAssignBrand(id) {
     okBtn.addEventListener('click', async () => {
       if(!_assignBrand.choix) return; // garde : bouton désactivé tant qu'aucun choix réel
       close();
-      await _validerEditoRM(_assignBrand.sujetId, {assignerContact:_assignBrand.choix});
+      if(_assignBrand.apres === 'wording') {
+        await _validerWordingBrandAvecContact(_assignBrand.sujetId, _assignBrand.choix);
+      } else {
+        await _validerEditoRM(_assignBrand.sujetId, {assignerContact:_assignBrand.choix}); // séquencier — INCHANGÉ
+      }
     });
   }
+}
+
+// ─── VALIDATION WORDING (Brand) — 2 paliers : édito → Brand. Pas de palier Client, pas de
+//     transition de statut (à la différence du séquencier, volontairement gardé séparé). ───
+async function toggleValidationWording(id, type) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  const auteur = currentUser?.nom || '';
+  if(type==='edito') {
+    const newVal = !s.validationWordingEdito;
+    await upd(id,'Validation Wording édito','cb',newVal);
+    s.validationWordingEdito = newVal;
+    if(newVal && s.format==='Brand') {
+      // À la validation édito → prévenir les contacts Brand (1er + 2e), via la brique partagée.
+      for(const c of contactsBrandANotifier(s, new Set([auteur]))) {
+        await createNotif('validation', id, s.code, s.titre, c, auteur,
+          `Wording validé côté Réel Média sur ${s.code}, à toi de valider`);
+      }
+      loadNotifs();
+    }
+    refreshUI(id);
+  } else if(type==='Brand') {
+    if(!s.validationWordingEdito) return; // bouton désactivé : garde silencieuse (édito d'abord)
+    if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') { toast('Réservé aux contacts Brand ou aux chefs','err'); return; }
+    // Contact OBLIGATOIRE, même garantie que le séquencier : sans contact → popup, puis validation.
+    if(!s.contactBrand) { ouvrirAssignBrand(id, 'wording'); return; }
+    const newVal = !s.validationWordingBrand;
+    await upd(id,'Validation Wording Brand','cb',newVal);
+    s.validationWordingBrand = newVal;
+    if(newVal && s.journaliste && s.journaliste !== auteur) {
+      await createNotif('validation', id, s.code, s.titre, s.journaliste, auteur,
+        `Le wording de ${s.code} est validé, prêt à publier`);
+    }
+    loadNotifs();
+    refreshUI(id);
+  }
+}
+
+// Assignation atomique du contact + validation Wording Brand en UN seul PATCH (même patron que
+// _validerEditoRM pour le séquencier) — appelé par le popup ouvrirAssignBrand en mode 'wording'.
+async function _validerWordingBrandAvecContact(id, contact) {
+  const s = sujets.find(x=>x.id===id);
+  if(!s) return;
+  const auteur = currentUser?.nom || '';
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{
+      'Contact Brand':{select:{name:contact}},
+      'Validation Wording Brand':{checkbox:true}
+    }});
+  } catch(e) { toast('Erreur : '+e.message,'err'); return; } // échec → rien en mémoire, pas de notif
+  s.contactBrand = contact;
+  s.validationWordingBrand = true;
+  if(s.journaliste && s.journaliste !== auteur) {
+    await createNotif('validation', id, s.code, s.titre, s.journaliste, auteur,
+      `Le wording de ${s.code} est validé, prêt à publier`);
+  }
+  loadNotifs();
+  refreshUI(id);
 }
 
 // ─── VALIDATION SÉQUENCIER ───
