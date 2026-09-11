@@ -6731,11 +6731,10 @@ function renderTachesPerso() {
   const terminees = taches.filter(t => t.statut === 'Fait' && (t.assigne === me || t.creePar === me))
                           .sort((a, b) => (b.lastEdited || '').localeCompare(a.lastEdited || '')).slice(0, 30);
 
-  const entete = `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-    <button class="nav-btn primary" onclick="openNouvelleTache()" style="font-size:12px">+ Nouvelle tâche</button></div>`;
-
+  // Le bouton « + Nouvelle tâche » vit dans l'en-tête de page (main-actions, currentPage==='taches').
+  // On ne le redouble PAS ici (ancien doublon retiré).
   if (!assignees.length && !confiees.length && !terminees.length) {
-    mc.innerHTML = entete + `<div class="empty"><h3>Aucune tâche</h3><p>Crée une tâche et assigne-la à quelqu'un.</p></div>`;
+    mc.innerHTML = `<div class="empty"><h3>Aucune tâche</h3><p>Crée une tâche et assigne-la à quelqu'un.</p></div>`;
     return;
   }
 
@@ -6743,8 +6742,7 @@ function renderTachesPerso() {
     ? `<div style="margin-bottom:24px"><div class="dash-section-title">${label} (${items.length})</div>${items.map(t => tacheRowHTML(t, section, today)).join('')}</div>`
     : '';
 
-  mc.innerHTML = entete
-    + sectionHTML('Qui me sont assignées', assignees, 'assignees')
+  mc.innerHTML = sectionHTML('Qui me sont assignées', assignees, 'assignees')
     + sectionHTML("Que j'ai confiées", confiees, 'confiees')
     + sectionHTML('Terminées', terminees, 'terminees');
 }
