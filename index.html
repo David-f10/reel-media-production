@@ -1487,7 +1487,9 @@ const NOTIF_ICONS = {
   version_annulee: '❌',
   validation: '✅',
   retours_traites: '🎉',
-  clarification: '🙋'
+  clarification: '🙋',
+  assignation: '📌',
+  achevement: '✅'
 };
 
 async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message) {
@@ -1733,7 +1735,7 @@ async function loadNotifs() {
       const lu = pr.Lu?.checkbox || false;
       const date = new Date(n.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
       const icon = NOTIF_ICONS[type] || '🔔';
-      return `<div class="notif-item ${lu?'':'unread'}" onclick="clickNotif('${n.id}','${sujetId}',${lu})">
+      return `<div class="notif-item ${lu?'':'unread'}" onclick="clickNotif('${n.id}','${sujetId}',${lu},'${type}')">
         <div class="notif-icon">${icon}</div>
         <div class="notif-content">
           <div class="notif-msg">${msg}</div>
@@ -1782,7 +1784,7 @@ function majCompteurNonLues(delta) {
   if(badge) { badge.textContent = txt; badge.style.display = _notifNonLuesCount > 0 ? 'flex' : 'none'; }
 }
 
-async function clickNotif(notifId, sujetId, etaitLu) {
+async function clickNotif(notifId, sujetId, etaitLu, type) {
   // Marquer comme lu
   try {
     await api('/pages/' + notifId, 'PATCH', {properties:{'Lu':{checkbox:true}}});
@@ -1794,6 +1796,9 @@ async function clickNotif(notifId, sujetId, etaitLu) {
     const alreadyProd = currentPage === 'production';
     if(!alreadyProd) navTo('production');
     setTimeout(() => openDetail(sujetId), alreadyProd ? 50 : 350);
+  } else if(type === 'assignation' || type === 'achevement') {
+    // Notif de tâche SANS carte liée → il n'y a pas de fiche à ouvrir : on va à la page Tâches.
+    navTo('taches');
   }
   loadNotifs();
 }
@@ -4961,22 +4966,24 @@ function clearSearch() {
   appSetVue(currentVue);
 }
 
-function applySearch(list) {
-  if(!searchQuery) return list;
+// q optionnel : le haut de page appelle applySearch(list) → utilise le searchQuery GLOBAL ;
+// la recherche de carte du formulaire Tâches appelle applySearch(sujets, qLocal) → n'y touche pas.
+function applySearch(list, q = searchQuery) {
+  if(!q) return list;
   return list.filter(s =>
-    (s.titre||'').toLowerCase().includes(searchQuery) ||
-    (s.code||'').toLowerCase().includes(searchQuery) ||
-    (s.journaliste||'').toLowerCase().includes(searchQuery) ||
-    (s.format||'').toLowerCase().includes(searchQuery) ||
-    (s.chef||'').toLowerCase().includes(searchQuery) ||
-    (s.statut||'').toLowerCase().includes(searchQuery) ||
-    (s.sousFormat||'').toLowerCase().includes(searchQuery) ||
-    (s.monteur1||'').toLowerCase().includes(searchQuery) ||
-    (s.monteur2||'').toLowerCase().includes(searchQuery) ||
-    (s.monteur3||'').toLowerCase().includes(searchQuery) ||
-    (s.stockage||'').toLowerCase().includes(searchQuery) ||
-    (s.notes||'').toLowerCase().includes(searchQuery) ||
-    (nomClientDeCode(s.code, s.format)).toLowerCase().includes(searchQuery)
+    (s.titre||'').toLowerCase().includes(q) ||
+    (s.code||'').toLowerCase().includes(q) ||
+    (s.journaliste||'').toLowerCase().includes(q) ||
+    (s.format||'').toLowerCase().includes(q) ||
+    (s.chef||'').toLowerCase().includes(q) ||
+    (s.statut||'').toLowerCase().includes(q) ||
+    (s.sousFormat||'').toLowerCase().includes(q) ||
+    (s.monteur1||'').toLowerCase().includes(q) ||
+    (s.monteur2||'').toLowerCase().includes(q) ||
+    (s.monteur3||'').toLowerCase().includes(q) ||
+    (s.stockage||'').toLowerCase().includes(q) ||
+    (s.notes||'').toLowerCase().includes(q) ||
+    (nomClientDeCode(s.code, s.format)).toLowerCase().includes(q)
   );
 }
 
@@ -6619,8 +6626,25 @@ function parseTache(p) {
     assigne: pr['Assigné']?.rich_text?.[0]?.plain_text || '',
     creePar: pr['Créé par']?.rich_text?.[0]?.plain_text || '',
     sujetLie: pr['Sujet lié']?.rich_text?.[0]?.plain_text || '',
+    sujetCode: pr['Sujet code']?.rich_text?.[0]?.plain_text || '',
+    sujetTitre: pr['Sujet titre']?.rich_text?.[0]?.plain_text || '',
     lastEdited: p.last_edited_time || ''
   };
+}
+
+// SOURCE UNIQUE du filtre « mes tâches » : non archivées ET (assignées à moi OU confiées par moi).
+// Appelée par loadTachesPerso ET loadTachesBadgeSilent → divergence IMPOSSIBLE par construction.
+// ⚠️ Point de vigilance n°1 : loadTachesBadgeSilent écrase le global `taches` ; il DOIT charger
+//    exactement le même jeu que la page, sinon un refresh silencieux effacerait les tâches confiées.
+// Le filtre `is_empty` sur « Sujet lié » a disparu : les tâches liées à une carte entrent désormais.
+function filtreTaches() {
+  return { and: [
+    { property: 'Archivé', checkbox: { equals: false } },
+    { or: [
+      { property: 'Assigné',  rich_text: { equals: currentUser.nom } },
+      { property: 'Créé par', rich_text: { equals: currentUser.nom } }
+    ]}
+  ]};
 }
 
 async function loadTachesPerso() {
@@ -6630,11 +6654,7 @@ async function loadTachesPerso() {
   mc.innerHTML = '<div class="loading"><div class="spin"></div></div>';
   try {
     const data = await apiQueryAll('/databases/' + DB_TACHES + '/query', {
-      filter: {and: [
-        {property: 'Archivé', checkbox: {equals: false}},
-        {property: 'Assigné', rich_text: {equals: currentUser.nom}},
-        {property: 'Sujet lié', rich_text: {is_empty: true}}
-      ]},
+      filter: filtreTaches(),
       sorts: [{property: 'Date échéance', direction: 'ascending'}]
     });
     if(seq !== _mainRenderSeq) return; // superseded pendant l'await → ne pas peindre
@@ -6651,11 +6671,7 @@ async function loadTachesBadgeSilent() {
   if (!currentUser) return;
   try {
     const data = await apiQueryAll('/databases/' + DB_TACHES + '/query', {
-      filter: {and: [
-        {property: 'Archivé', checkbox: {equals: false}},
-        {property: 'Assigné', rich_text: {equals: currentUser.nom}},
-        {property: 'Sujet lié', rich_text: {is_empty: true}}
-      ]},
+      filter: filtreTaches(),  // MÊME filtre que loadTachesPerso (source unique) — jamais divergent
       sorts: [{property: 'Date échéance', direction: 'ascending'}]
     });
     taches = data.results.map(parseTache);
@@ -6663,197 +6679,205 @@ async function loadTachesBadgeSilent() {
   } catch (_) {}
 }
 
-let afficherTerminees = false;
-let tacheEditId = null;
+// État LOCAL de la recherche de carte dans le formulaire — JAMAIS searchQuery global (sinon taper
+// ici filtrerait le tableau Production derrière). Réinitialisé à chaque ouverture de la modale.
+let _tacheCarteChoisie = null; // {id, code, titre} ou null
+
+function _initialesTache(nom){ return (String(nom||'?').trim().slice(0,2).toUpperCase()) || '?'; }
+
+// Une ligne de tâche. `section` ∈ {assignees, confiees, terminees} pilote l'avatar CONTEXTUEL
+// (qui m'a confié / qui doit faire / qui a terminé, en gris) et la présence du bouton ✓ Terminer.
+// Clic sur la ligne → ouvre la CARTE liée (si elle existe) ; sinon non cliquable. Terminées : cliquables.
+function tacheRowHTML(t, section, today) {
+  const done = t.statut === 'Fait';
+  const perso = section === 'assignees' ? t.creePar : t.assigne; // avatar : créateur / assigné / (terminé par)
+  const avBg = section === 'terminees' ? 'var(--text3)' : 'var(--purple)';
+  const enRetard = !done && t.dateEcheance && t.dateEcheance < today;
+  const aCarte = !!t.sujetLie;
+  const echeanceHTML = enRetard
+    ? `<span style="font-size:11px;color:var(--red);font-weight:600;white-space:nowrap;flex-shrink:0">En retard · ${fmtDate(t.dateEcheance)}</span>`
+    : (t.dateEcheance
+        ? `<span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;flex-shrink:0">${fmtDate(t.dateEcheance)}</span>`
+        : `<span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0">Sans délai</span>`);
+  const carteHTML = aCarte
+    ? `<span style="color:var(--text3)">·</span><span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-family:var(--mono)">${escapeHtml(t.sujetCode||'—')}</span> ${escapeHtml(t.sujetTitre||'')}</span>`
+    : '';
+  const boutonTerminer = section === 'assignees'
+    ? `<button onclick="terminerTache(event,'${t.id}')" title="Marquer terminée" style="flex-shrink:0;background:var(--green-dim);border:1px solid var(--green);color:var(--green);cursor:pointer;font-size:11px;padding:4px 10px;border-radius:6px;white-space:nowrap;font-family:var(--font)">✓ Terminer</button>`
+    : '';
+  return `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);${enRetard?'border-left:2px solid var(--red);':''}${done?'opacity:0.55;background:var(--bg);':''}${aCarte?'cursor:pointer':''}"
+      ${aCarte?`onclick="openDetail('${t.sujetLie}')"`:''}>
+      <div class="av" style="background:${avBg};flex-shrink:0" title="${escapeHtml(perso||'')}">${escapeHtml(_initialesTache(perso))}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--text);${done?'text-decoration:line-through':''}">${escapeHtml(t.titre)}</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:2px;min-width:0">
+          <span style="font-size:11px;color:var(--text3);flex-shrink:0">${escapeHtml(perso||'—')}</span>
+          ${carteHTML}
+        </div>
+      </div>
+      ${echeanceHTML}
+      ${boutonTerminer}
+    </div>`;
+}
 
 function renderTachesPerso() {
   const mc = document.getElementById('main-content');
   const today = new Date().toISOString().slice(0, 10);
+  const me = currentUser?.nom || '';
+  const parEcheance = (a, b) => (a.dateEcheance || '9999-12-31').localeCompare(b.dateEcheance || '9999-12-31');
 
-  const enRetard = taches.filter(t => t.statut === 'À faire' && t.dateEcheance && t.dateEcheance < today);
-  const aujourdhui = taches.filter(t => t.statut === 'À faire' && t.dateEcheance === today);
-  const aVenir = taches.filter(t => t.statut === 'À faire' && (!t.dateEcheance || t.dateEcheance > today));
-  const terminees = taches.filter(t => t.statut === 'Fait').sort((a, b) => (b.lastEdited || '').localeCompare(a.lastEdited || '')).slice(0, 20);
-  const termineesAujourdhui = taches.filter(t => t.statut === 'Fait' && t.lastEdited && t.lastEdited.slice(0, 10) === today).length;
+  const assignees = taches.filter(t => t.assigne === me && t.statut !== 'Fait').sort(parEcheance);
+  const confiees  = taches.filter(t => t.creePar === me && t.assigne !== me && t.statut !== 'Fait').sort(parEcheance);
+  const terminees = taches.filter(t => t.statut === 'Fait' && (t.assigne === me || t.creePar === me))
+                          .sort((a, b) => (b.lastEdited || '').localeCompare(a.lastEdited || '')).slice(0, 30);
 
-  if (!enRetard.length && !aujourdhui.length && !aVenir.length && !terminees.length) {
-    mc.innerHTML = `<div class="empty">
-      <h3>Aucune tâche</h3>
-      <p style="margin-bottom:14px">Vos rappels personnels apparaîtront ici.</p>
-      <button class="nav-btn primary" onclick="openNouvelleTache()">+ Nouvelle tâche</button>
-    </div>`;
+  const entete = `<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <button class="nav-btn primary" onclick="openNouvelleTache()" style="font-size:12px">+ Nouvelle tâche</button></div>`;
+
+  if (!assignees.length && !confiees.length && !terminees.length) {
+    mc.innerHTML = entete + `<div class="empty"><h3>Aucune tâche</h3><p>Crée une tâche et assigne-la à quelqu'un.</p></div>`;
     return;
   }
 
-  // Pills stats
-  const pills = [
-    {label: 'en retard', count: enRetard.length, bg: 'var(--red-dim)', color: 'var(--red)'},
-    {label: "aujourd'hui", count: aujourdhui.length, bg: 'var(--amber-dim)', color: 'var(--amber)'},
-    {label: 'à venir', count: aVenir.length, bg: 'var(--blue-dim)', color: 'var(--blue)'},
-    {label: 'terminée' + (termineesAujourdhui > 1 ? 's' : '') + ' aujourd\'hui', count: termineesAujourdhui, bg: 'var(--green-dim)', color: 'var(--green)'}
-  ];
+  const sectionHTML = (label, items, section) => items.length
+    ? `<div style="margin-bottom:24px"><div class="dash-section-title">${label} (${items.length})</div>${items.map(t => tacheRowHTML(t, section, today)).join('')}</div>`
+    : '';
 
-  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${pills.map(p => `<span style="font-size:11px;padding:4px 10px;border-radius:6px;background:${p.count ? p.bg : 'var(--bg3)'};color:${p.count ? p.color : 'var(--text3)'};white-space:nowrap">${p.count} ${p.label}</span>`).join('')}
-    </div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer;white-space:nowrap;flex-shrink:0">
-      <input type="checkbox" ${afficherTerminees ? 'checked' : ''} onchange="toggleAfficherTerminees()" style="width:13px;height:13px;accent-color:var(--green);cursor:pointer">
-      Afficher terminées
-    </label>
-  </div>`;
-
-  const sections = [
-    {emoji: '🔴', label: 'En retard', items: enRetard, color: 'var(--red)'},
-    {emoji: '🟠', label: "Aujourd'hui", items: aujourdhui, color: 'var(--amber)'},
-    {emoji: '🔵', label: 'À venir', items: aVenir, color: 'var(--blue)'}
-  ];
-  if (afficherTerminees) {
-    sections.push({emoji: '✓', label: 'Terminées', items: terminees, color: 'var(--green)'});
-  }
-
-  sections.forEach(sec => {
-    if (!sec.items.length) return;
-    html += `<div style="margin-bottom:24px">
-      <div class="dash-section-title" style="color:${sec.color}">${sec.emoji} ${sec.label} (${sec.items.length})</div>`;
-    sec.items.forEach(t => {
-      const isDone = t.statut === 'Fait';
-      html += `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);transition:background 0.1s"
-        onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-        <div class="retour-check${isDone ? ' done' : ''}" onclick="toggleTachePerso('${t.id}')" title="${isDone ? 'Marquer à faire' : 'Marquer fait'}">${isDone ? '✓' : ''}</div>
-        <div style="flex:1;min-width:0;cursor:pointer" onclick="openModifierTache('${t.id}')">
-          <div style="font-size:13px;color:var(--text);${isDone ? 'text-decoration:line-through;opacity:0.5' : ''}">${t.titre}</div>
-        </div>
-        <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;flex-shrink:0">${fmtDate(t.dateEcheance)}</span>
-        <button onclick="archiverTachePerso('${t.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px;flex-shrink:0" title="Archiver">🗑</button>
-      </div>`;
-    });
-    html += '</div>';
-  });
-
-  mc.innerHTML = html;
+  mc.innerHTML = entete
+    + sectionHTML('Qui me sont assignées', assignees, 'assignees')
+    + sectionHTML("Que j'ai confiées", confiees, 'confiees')
+    + sectionHTML('Terminées', terminees, 'terminees');
 }
 
 function openNouvelleTache() {
+  _tacheCarteChoisie = null; // reset de l'état local à chaque ouverture
   const modal = document.createElement('div');
   modal.className = 'overlay open';
   modal.id = 'ov-nouvelle-tache';
-  const today = new Date().toISOString().slice(0, 10);
+  const opts = equipe.map(m => `<option value="${escapeHtml(m.nom)}" ${m.nom===currentUser?.nom?'selected':''}>${escapeHtml(m.nom)}</option>`).join('');
   modal.innerHTML = `<div class="modal" style="max-width:480px">
     <div class="modal-hdr">
       <div class="modal-title">📋 Nouvelle tâche</div>
       <button class="modal-close" onclick="document.getElementById('ov-nouvelle-tache').remove()">×</button>
     </div>
     <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
-      <div class="field"><div class="field-label">Titre *</div>
+      <div class="field"><div class="field-label">Intitulé *</div>
         <input type="text" id="nt-titre" placeholder="Ex: Appeler Marie pour le micro"></div>
-      <div class="field"><div class="field-label">Date d'échéance *</div>
-        <input type="date" id="nt-date" value="${today}"></div>
+      <div class="field"><div class="field-label">Carte liée <span style="color:var(--text3);font-size:10px">(optionnelle)</span></div>
+        <div id="nt-carte-choisie"></div>
+        <input type="text" id="nt-carte-search" placeholder="Rechercher une carte (code, titre…)" oninput="rechercheCarteTache(this.value)" autocomplete="off">
+        <div id="nt-carte-results" style="margin-top:4px"></div></div>
+      <div class="field"><div class="field-label">Assignée à *</div>
+        <select id="nt-assigne">${opts}</select></div>
+      <div class="field"><div class="field-label">Échéance <span style="color:var(--text3);font-size:10px">(optionnelle)</span></div>
+        <input type="date" id="nt-date"></div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="document.getElementById('ov-nouvelle-tache').remove()">Annuler</button>
-      <button class="nav-btn primary" onclick="creerTachePerso()">Créer →</button>
+      <button class="nav-btn primary" onclick="creerTachePerso()">Créer et notifier →</button>
     </div>
   </div>`;
   fermerSurClicFond(modal, () => modal.remove());
   document.body.appendChild(modal);
+}
+
+// Recherche de carte : réutilise applySearch(list, q) sur `sujets` (Production) → les 186 archivées
+// (dans sujetsArchives) sont exclues NATIVEMENT. `q` local, jamais le searchQuery global.
+// ⚠️ Anti-XSS : highlightText n'échappe PAS le texte autour → on échappe AVANT de surligner
+//    (escapeHtml sur le champ ET sur la requête), sinon un titre de carte avec '<' rouvrirait la faille.
+function rechercheCarteTache(val) {
+  const q = String(val || '').trim().toLowerCase();
+  const box = document.getElementById('nt-carte-results');
+  if (!box) return;
+  if (!q) { box.innerHTML = ''; return; }
+  const res = applySearch(sujets, q).slice(0, 8);
+  if (!res.length) {
+    box.innerHTML = `<div style="font-size:11px;color:var(--text3);padding:6px 4px">Aucune carte trouvée · La tâche peut rester sans carte liée</div>`;
+    return;
+  }
+  box.innerHTML = res.map(s => `<div onclick="choisirCarteTache('${s.id}')" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+    <span style="font-family:var(--mono);color:var(--text2)">${highlightText(escapeHtml(s.code||'—'), escapeHtml(q))}</span> · ${highlightText(escapeHtml(s.titre||''), escapeHtml(q))}<span style="font-size:10px;color:var(--text3)"> · ${escapeHtml(s.statut||'')}</span>
+  </div>`).join('');
+}
+
+function choisirCarteTache(id) {
+  const s = sujets.find(x => x.id === id);
+  if (!s) return;
+  _tacheCarteChoisie = { id: s.id, code: s.code || '', titre: s.titre || '' };
+  const box = document.getElementById('nt-carte-results'); if (box) box.innerHTML = '';
+  const inp = document.getElementById('nt-carte-search'); if (inp) inp.value = '';
+  const chip = document.getElementById('nt-carte-choisie');
+  if (chip) chip.innerHTML = `<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;font-size:12px">
+    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-family:var(--mono);color:var(--text2)">${escapeHtml(s.code||'—')}</span> · ${escapeHtml(s.titre||'')}</span>
+    <span onclick="retirerCarteTache()" title="Retirer" style="cursor:pointer;color:var(--text3);font-size:16px;line-height:1;flex-shrink:0">×</span></div>`;
+}
+
+function retirerCarteTache() {
+  _tacheCarteChoisie = null;
+  const chip = document.getElementById('nt-carte-choisie'); if (chip) chip.innerHTML = '';
 }
 
 async function creerTachePerso() {
   const titre = document.getElementById('nt-titre')?.value.trim();
-  const date = document.getElementById('nt-date')?.value;
-  if (!titre) { toast('Ajoutez un titre', 'err'); return; }
-  if (!date) { toast('Choisissez une date', 'err'); return; }
+  const assigne = document.getElementById('nt-assigne')?.value || '';
+  const date = document.getElementById('nt-date')?.value || '';   // OPTIONNELLE
+  if (!titre) { toast('Ajoutez un intitulé', 'err'); return; }
+  if (!assigne) { toast('Choisissez une personne', 'err'); return; }
+  const carte = _tacheCarteChoisie; // capturé avant l'await (l'état local peut changer)
   try {
-    await api('/pages', 'POST', {parent: {database_id: DB_TACHES}, properties: {
+    const props = {
       'Titre': {title: [{text: {content: titre}}]},
       'Statut': {select: {name: 'À faire'}},
-      'Date échéance': {date: {start: date}},
-      'Assigné': {rich_text: [{text: {content: currentUser.nom}}]},
+      'Assigné': {rich_text: [{text: {content: assigne}}]},
       'Créé par': {rich_text: [{text: {content: currentUser.nom}}]},
       'Archivé': {checkbox: false}
-    }});
+    };
+    if (date) props['Date échéance'] = {date: {start: date}};
+    if (carte) {
+      // « Sujet lié » (l'ID) fait AUTORITÉ : c'est LUI seul qui ouvre la carte (openDetail).
+      // « Sujet code » / « Sujet titre » sont de l'AFFICHAGE recopié à la création (comme notify.js),
+      // JAMAIS relus comme source de vérité. Conséquence assumée : si le titre d'une carte change,
+      // la tâche gardera l'ancien libellé — sans gravité, l'ID reste juste et le clic ouvre la bonne carte.
+      props['Sujet lié']   = {rich_text: [{text: {content: carte.id}}]};
+      props['Sujet code']  = {rich_text: [{text: {content: carte.code}}]};
+      props['Sujet titre'] = {rich_text: [{text: {content: carte.titre}}]};
+    }
+    await api('/pages', 'POST', {parent: {database_id: DB_TACHES}, properties: props});
+    // Notif d'assignation → la personne assignée (createNotif ignore l'auto-notif si assigné == créateur).
+    await createNotif('assignation', carte?.id || '', carte?.code || '', carte?.titre || '', assigne, currentUser.nom,
+      `${currentUser.nom} t'a assigné une tâche : ${titre}`);
     toast('✓ Tâche créée', 'ok');
     document.getElementById('ov-nouvelle-tache')?.remove();
+    _tacheCarteChoisie = null;
     loadTachesPerso();
+    loadNotifs();
   } catch (e) { toast('Erreur : ' + e.message, 'err'); }
 }
 
-async function toggleTachePerso(id) {
+// Terminer une tâche qui M'EST assignée (bouton ✓ Terminer, section « assignées »).
+// ⚠️ stopPropagation OBLIGATOIRE : le bouton est dans une ligne cliquable → sans ça, le clic
+//    ouvrirait AUSSI la carte liée. Notifie le CRÉATEUR (createNotif ignore si créateur == moi).
+async function terminerTache(event, id) {
+  if (event) event.stopPropagation();
   const t = taches.find(x => x.id === id);
   if (!t) return;
-  const newStatut = t.statut === 'Fait' ? 'À faire' : 'Fait';
   try {
-    await api('/pages/' + id, 'PATCH', {properties: {'Statut': {select: {name: newStatut}}}});
-    t.statut = newStatut;
+    await api('/pages/' + id, 'PATCH', {properties: {'Statut': {select: {name: 'Fait'}}}});
+    t.statut = 'Fait';
+    await createNotif('achevement', t.sujetLie || '', t.sujetCode || '', t.sujetTitre || '', t.creePar, currentUser.nom,
+      `${currentUser.nom} a terminé la tâche : ${t.titre}`);
     updateBadgeTaches();
     renderTachesPerso();
-  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
-}
-
-async function archiverTachePerso(id) {
-  const ok = await confirmerAction('Archiver cette tâche ?', 'Archiver', 'Annuler');
-  if (!ok) return;
-  try {
-    await api('/pages/' + id, 'PATCH', {properties: {'Archivé': {checkbox: true}}});
-    taches = taches.filter(t => t.id !== id);
-    updateBadgeTaches();
-    renderTachesPerso();
-    toast('Tâche archivée', 'ok');
-  } catch (e) { toast('Erreur : ' + e.message, 'err'); }
-}
-
-function toggleAfficherTerminees() {
-  afficherTerminees = !afficherTerminees;
-  renderTachesPerso();
-}
-
-function openModifierTache(id) {
-  const t = taches.find(x => x.id === id);
-  if (!t) return;
-  tacheEditId = id;
-  const modal = document.createElement('div');
-  modal.className = 'overlay open';
-  modal.id = 'ov-modifier-tache';
-  modal.innerHTML = `<div class="modal" style="max-width:480px">
-    <div class="modal-hdr">
-      <div class="modal-title">📋 Modifier la tâche</div>
-      <button class="modal-close" onclick="document.getElementById('ov-modifier-tache').remove()">×</button>
-    </div>
-    <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
-      <div class="field"><div class="field-label">Titre *</div>
-        <input type="text" id="mt-titre" value="${t.titre.replace(/"/g,'&quot;')}"></div>
-      <div class="field"><div class="field-label">Date d'échéance *</div>
-        <input type="date" id="mt-date" value="${t.dateEcheance}"></div>
-    </div>
-    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
-      <button class="nav-btn" onclick="document.getElementById('ov-modifier-tache').remove()">Annuler</button>
-      <button class="nav-btn primary" onclick="sauverModifTache()">Sauver</button>
-    </div>
-  </div>`;
-  fermerSurClicFond(modal, () => modal.remove());
-  document.body.appendChild(modal);
-}
-
-async function sauverModifTache() {
-  const titre = document.getElementById('mt-titre')?.value.trim();
-  const date = document.getElementById('mt-date')?.value;
-  if (!titre) { toast('Ajoutez un titre', 'err'); return; }
-  if (!date) { toast('Choisissez une date', 'err'); return; }
-  try {
-    await api('/pages/' + tacheEditId, 'PATCH', {properties: {
-      'Titre': {title: [{text: {content: titre}}]},
-      'Date échéance': {date: {start: date}}
-    }});
-    toast('✓ Tâche modifiée', 'ok');
-    document.getElementById('ov-modifier-tache')?.remove();
-    loadTachesPerso();
+    loadNotifs();
   } catch (e) { toast('Erreur : ' + e.message, 'err'); }
 }
 
 function updateBadgeTaches() {
   const today = new Date().toISOString().slice(0, 10);
-  const urgent = taches.filter(t => t.statut === 'À faire' && t.dateEcheance && t.dateEcheance <= today && !t.sujetLie).length;
+  const me = currentUser?.nom || '';
+  // « ce que je dois faire » aujourd'hui/en retard — tâches assignées à MOI, liées à une carte OU non
+  // (badge élargi : une tâche liée est tout autant à faire). On ne compte pas les tâches confiées.
+  const urgent = taches.filter(t => t.assigne === me && t.statut === 'À faire' && t.dateEcheance && t.dateEcheance <= today).length;
   const badge = document.getElementById('cnt-taches');
   if (badge) badge.style.display = urgent > 0 ? 'inline-block' : 'none';
 }
