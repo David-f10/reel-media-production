@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-10 (2e contact Brand + contact par défaut sans nom en dur · monteur de version = le déposant · formatage des textes libres + href sécurisé · overlays en pointerdown · escJs)
+> Dernière mise à jour : 2026-09-11 (format verrouillé après création + dernier dialogue natif éliminé · 2e contact Brand · monteur de version = le déposant · formatage des textes libres · overlays en pointerdown)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,25 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-11 — Le format est verrouillé après création (+ dernier dialogue natif éliminé)
+- **`index.html` seul, 7613 → 7612 (−1).** Le `<select>` remplacé par un affichage texte, légèrement plus court.
+- **L'INCIDENT QUI L'A RÉVÉLÉ (Famileo, 2 sept.) :** Maÿllis a créé une carte en **MAG** (code **M722**), puis a changé le format en **Brand** depuis le sélecteur de la fiche, une minute plus tard. Le format a changé, **le code est resté M722** — une carte Brand avec un code MAG, sans client ni sous-format. Il a fallu supprimer la carte, **reculer le compteur MAG de 722 à 721 à la main**, et recréer proprement.
+- **LA DÉCISION DE DAVID : le format se choisit à la création et NE CHANGE PLUS.** Le code en dépend directement (M pour MAG, B pour Brand, D pour Desk…) et un numéro est attribué à la création. En cas d'erreur, on ne bricole pas — on passe par David.
+- **UN SEUL CHEMIN DE MUTATION**, recensé : le sélecteur de la fiche (`upd('Format','sel')`). Les **5 autres** écritures du champ Format sont des **créations** (Brand nouveau client, Brand déclinaison, non-Brand, déclinaison depuis carte, « démarrer une idée »). `review.html` n'écrit jamais le format. Aucun import, aucune opération de masse.
+- **`upd` pour un `'sel'` n'a AUCUN effet de bord** — il écrit le champ, point. C'est exactement le mécanisme de l'incident : le Code n'est jamais recalculé.
+- **VERROU PAR CONSTRUCTION, pas par garde :** le `<select>` est remplacé par du **texte**. Plus aucun `onchange`, donc **rien à contourner**. Vérifié : 0 mutation `Format` restante.
+- **AFFICHAGE RETENU : `format · code`** — ex. « MAG · M722 », le code en police mono. Montrer le code à côté **rend visible le lien qui justifie le verrou** : quelqu'un qui voit les deux comprend pourquoi il ne peut pas changer. Les deux valeurs passent par `escapeHtml`.
+- **MENTION : « Format fixé à la création · Contacte David pour le changer »**, en gris 10px.
+- **⚠️⚠️ POURQUOI PAS « supprime et recrée » — DÉCOUVERTE DE CLAUDE CODE QUI A CHANGÉ LA FORMULATION.** `deleteSujet` fait un `PATCH {archived:true}` (corbeille Notion, récupérable 30 j) **et NE RECULE PAS LE COMPTEUR**. Supprimer puis recréer **brûle le numéro** et crée un trou dans la séquence — c'est précisément ce qui a obligé Master à reculer 722→721 à la main.
+  Le Pilote avait d'abord proposé cette formulation, puis l'a retirée : **conseiller « supprime et recrée » dans l'app, c'est conseiller de créer un trou**. Pour la même raison, **aucun lien « Supprimer la carte » n'a été ajouté à la fiche** — mettre ce geste à portée de clic encouragerait un contournement aux conséquences invisibles sur les compteurs.
+- **⚠️ LE SOUS-FORMAT RESTE MODIFIABLE** (`upd('Sous-format','sel')` intact, l.993). Il **n'entre pas dans le code** — le code = préfixe(format) + numéro ; le sous-format (Standard/Prodige/Décli) influe seulement sur le besoin de tournage. Le verrou ne concerne **que** `Format`. Point de contrôle n°1 du Pilote.
+- **MESURE : 0 carte incohérente active.** Bijection parfaite format↔préfixe sur les **374 cartes** non archivées avec un code (Brand→B 63, Desk→D 162, Face Cam→F 36, Interne→I 1, MAG→M 80, YouTube→Y 32). Le verrou **protège l'avenir, il n'y a rien à nettoyer**.
+- **DERNIER DIALOGUE NATIF ÉLIMINÉ :** le `confirm()` était en réalité dans **`archiverSujet`**, pas `confirmerArchivage` — la note du CONTEXT du 2 septembre était fausse, Claude Code l'a corrigée. Remplacé par `confirmerAction(message, 'Archiver', 'Annuler')` (déjà `async`, swap d'une ligne, même sémantique booléenne). Bouton **« Archiver »**, explicite, pas « Confirmer ».
+  **Il n'y a désormais plus AUCUN `confirm`/`alert`/`prompt` natif dans l'app** — les deux occurrences restantes sont des commentaires.
+- **⚠️ DÉFAUT CONNU, ASSUMÉ, À NE PAS OUBLIER : la suppression de carte ne recule pas le compteur.** `deleteSujet` archive sans décrémenter → supprimer/recréer brûle le numéro. C'est la raison pour laquelle le verrou renvoie vers David et qu'aucun lien de suppression n'a été ajouté. **À corriger un jour** (reculer le compteur, ou flux dédié). Sans cette note, quelqu'un relira « supprime et recrée » dans six mois et recréera le désordre qu'on vient de nettoyer.
+- **Rien en lecture ne bouge** : `s.format` est toujours lu à l'identique partout (badges, dashboard, `NEEDS_TOUR`, filtres). On n'a retiré qu'un point d'**écriture**.
+- **Vérification Pilote :** `wc -l` 7612, `CHEF_PAR_DEFAUT`=12, `createNotif`=24, script 4/4, `node --check` OK sur les 2 blocs. **Sous-format confirmé modifiable (l.993)**, **0 mutation Format**, **0 dialogue natif**. Non-régression (`escJs`, `texteLibre`, `urlSure`, `fermerSurClicFond`, `matchFiltre`, `contactsBrandANotifier`, `contactBrandParDefaut`, `notifierVersion`) vérifiée.
 
 ### 2026-09-10 — Second contact Brand + contact par défaut (sans aucun nom en dur)
 - **DEUX FICHIERS :** `index.html` **7556 → 7613 (+57)** et `review.html` **943 → 945 (+2)**.

@@ -983,12 +983,11 @@ function openDetail(id, forcePadOpen=false){
         <span style="font-size:12px;color:var(--text2)">Déclinaison de</span>
         <span style="font-family:var(--mono);font-size:12px;color:var(--blue);cursor:pointer" onclick="openDetail('${s.sujetParentId}')">${s.sujetParentCode} ↗</span>
       </div>` : ''}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px">
         <span style="font-size:12px;color:var(--text2)">Format</span>
-        <select onchange="upd('${id}','Format','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
-          ${['MAG','Brand','Face Cam','Desk','YouTube','Interne'].map(f=>`<option ${s.format===f?'selected':''}>${f}</option>`).join('')}
-        </select>
+        <span style="font-size:12px;color:var(--text)">${escapeHtml(s.format||'—')} · <span style="font-family:var(--mono);color:var(--text2)">${escapeHtml(s.code||'—')}</span></span>
       </div>
+      <div style="font-size:10px;color:var(--text3);padding:0 0 8px;border-bottom:1px solid var(--border)">Format fixé à la création · Contacte David pour le changer</div>
       ${sfOptions.length ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text2)">Sous-format</span>
         <select onchange="upd('${id}','Sous-format','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
@@ -2357,7 +2356,7 @@ async function confirmerArchivage(id) {
 }
 
 async function archiverSujet(id) {
-  if(!confirm("Confirmer l'archivage ? La carte disparaîtra du tableau principal.")) return;
+  if(!await confirmerAction("Archiver cette carte ? Elle disparaîtra du tableau principal.", 'Archiver', 'Annuler')) return;
   try {
     await api('/pages/'+id,'PATCH',{properties:{'Archivé':{checkbox:true}}});
     toast('📦 Projet archivé','ok');
