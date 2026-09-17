@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-11 (Performances garanties + bloc Wording · TÂCHES liées aux cartes · format verrouillé après création · 2e contact Brand · monteur de version = le déposant)
+> Dernière mise à jour : 2026-09-17 (DÉPART DE BENJAMIN — Chloé le remplace, CHEF_PAR_DEFAUT éliminé · Performances garanties + Wording · TÂCHES liées aux cartes · format verrouillé · 2e contact Brand)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,34 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-17 — Départ de Benjamin : Chloé le remplace, `CHEF_PAR_DEFAUT` éliminé
+- **`index.html` seul, 7756 → 7799 (+43).** Plus une opération Notion en masse faite par David.
+- **⚠️ LE CONTEXTE : Benjamin a quitté Réel Média, Chloé revient et reprend son rôle de chef.** C'était le scénario exact qu'on redoutait le 10 septembre en refusant de cloner `CHEF_PAR_DEFAUT` pour le contact Brand — « ça marche parce qu'il y a un seul patron stable, mais c'est une rupture latente ». Sept jours plus tard, la rupture est arrivée.
+- **374 CARTES À RÉASSIGNER — et le MCP n'était PAS l'outil.** Master a chiffré : 374 PATCH un par un, avec un rate limit qui tombe toutes les 10-15 requêtes → plusieurs sessions, un risque à chaque reprise. Même conclusion que pour les dates de diffusion en août.
+  **La solution était Notion lui-même** : filtre `Chef responsable = Benjamin` + `Archivé = décoché`, sélection de toutes les lignes, **édition groupée du champ**. David l'a fait en cinq minutes, sans limite de requêtes, sans risque de coupure. **À retenir pour toute future opération de masse.**
+  ⚠️ Point de vigilance rencontré : le compteur « X sélectionnés » affichait **162 puis 50** avant d'arriver à **367** — Notion charge la table par blocs, il faut scroller pour tout charger avant de cocher. Vérification finale : **0 carte avec Benjamin, 372 avec Chloé**.
+- **⚠️ BENJAMIN N'APPARAISSAIT QUE DANS « Chef responsable »** — vérifié : 0 carte active en Journaliste, 0 en Monteur, absent des options Contact Brand. La réassignation ne touchait qu'un seul champ.
+- **⚠️⚠️ LES 565 NOTIFICATIONS DE BENJAMIN : ON N'Y TOUCHE PAS.** Mesure décisive : **les 565 sont NON LUES** — le flag `Lu` n'a jamais été coché, Benjamin ne cliquait simplement pas dessus. Ce n'est donc **pas un arriéré de travail**, c'est un historique jamais nettoyé.
+  Les réattribuer à Chloé lui aurait donné **un badge à 565** dès sa première connexion, mêlant huit mois d'historique à ce qui compte. Elle aurait cessé de regarder sa cloche en deux jours.
+  **Ce qui compte n'est pas la notification mais l'action en attente** — et elle est sur la carte. Sur les 51 des 7 derniers jours, une douzaine seulement appelaient une action (retours et commentaires), concentrées sur **B09AE École Être**, B57A, B50K, B56A, B12G, B59A. David a envoyé la liste à Chloé — plus utile qu'une cloche saturée.
+- **`CHEF_PAR_DEFAUT` : 12 → 2 occurrences, toutes deux des COMMENTAIRES. Zéro usage réel.** Remplacé par le flag **`Chef défaut`** (checkbox sur DB_EQUIPE), même patron que `Contact Brand défaut`.
+- **⚠️ RÉSOLVEUR À DEUX ÉTAGES — plus strict que le contact Brand, à la hauteur de l'enjeu.** Le contact Brand tolérait le vide (carte sans contact). Ici, **trois écritures à la création** casseraient (`Chef responsable` select vide) :
+  ```
+  chefParDefaut() = flag coché → sinon PREMIER Chef par ordre alpha → '' si aucun Chef
+  ```
+  L'étage 2 garantit qu'un chef est **toujours** résolu tant qu'un Chef existe dans l'équipe. Le vide n'arrive que si l'équipe n'en a littéralement aucun.
+- **QUATRE `console.warn` au chargement** : flag sur un non-Chef (ignoré) · plusieurs Chefs cochés (retenu = premier par nom) · **zéro coché → repli étage 2 annoncé** · zéro Chef (critique). Console seulement, jamais de toast — erreur de configuration rare.
+- **BLOCAGE PROPRE si zéro chef résolu** : `createSujet` refuse avec « Aucun chef dans l'équipe — ajoute un membre avec le rôle Chef avant de créer un sujet ». Refuser vaut mieux qu'une carte orpheline.
+- **⚠️ TROIS SÉLECTEURS AVAIENT DES NOMS EN DUR** — `['Benjamin','Arnaud','Chloé']` dans le formulaire de création (options statiques **et** tableau JS) et dans la fiche, plus la détection `isChef`. Tous remplacés par `chefsNoms()` / `refreshChefsSelect()`, miroirs de `journMonteursNoms()` / `refreshJournMonteursSelects()`.
+- **⚠️ UN 3ᵉ CHEMIN D'ÉCRITURE À LA CRÉATION** (déclinaison, indentation différente) que le recensement initial à 9 usages n'avait pas isolé — attrapé par le grep de contrôle. Le vrai total était **3** écritures-création, pas 2.
+- **⚠️ LE GREP « Benjamin » A REMONTÉ 4 OCCURRENCES QUE LE CHANTIER N'AVAIT PAS VUES**, dont une qui comptait vraiment :
+  - **un TEXTE D'AIDE VISIBLE** : « Si tu galères, demande à **Benjamin**, David ou un collègue » — un nouvel arrivant aurait été envoyé vers quelqu'un de parti. Corrigé.
+  - **le fallback de login** proposait `Benjamin · Chef` — son code allait être vidé, la connexion aurait échoué. Ligne retirée.
+  - deux **commentaires de code**, reformulés en « le chef ».
+  **Leçon : chercher un nom de personne partie sur TOUT le fichier, pas seulement dans les sélecteurs.** `Benjamin` = **0 occurrence** après nettoyage.
+- **Le compte de Benjamin** : code d'accès et rôle vidés, fiche conservée — même traitement que Thierry. **Après** la réassignation : tant que son rôle est intact, il reste filtrable.
+- **Vérification Pilote :** `wc -l` 7799, `CHEF_PAR_DEFAUT`=2 (commentaires), **« Benjamin »=0**, `createNotif`=31, script 4/4, `node --check` OK. Résolveur à deux étages et 4 `console.warn` confirmés par lecture. Blocage l.5574. Sélecteurs dynamiques (`chefsNoms` ×4, `refreshChefsSelect` ×2). Non-régression vérifiée.
 
 ### 2026-09-11 — Performances garanties (dans le Brief) + bloc Wording (demandes de Louise)
 - **`index.html` seul, 7634 → 7756 (+122).** Deux ajouts sur les **cartes Brand uniquement**.

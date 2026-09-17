@@ -55,7 +55,6 @@
         <div class="field-label" style="margin-bottom:6px">Qui êtes-vous ?</div>
         <select id="login-nom" style="width:100%" onchange="document.getElementById('login-code').value=''">
           <option value="">Choisir...</option>
-          <option value="ben">Benjamin · Chef</option>
           <option value="arn">Arnaud · Chef</option>
           <option value="chl">Chloé · Chef</option>
           <option value="jul">Julien · Journaliste</option>
@@ -291,7 +290,7 @@
       </div>
       <div class="fg">
         <div class="field"><div class="field-label">Chef *</div>
-          <select id="n-chef"><option value="">Choisir...</option><option>Benjamin</option><option>Arnaud</option><option>Chloé</option></select></div>
+          <select id="n-chef"><option value="">Choisir...</option></select></div>
         <div class="field"><div class="field-label">Journaliste *</div>
           <select id="n-journ" onchange="handleJournalisteChange(this)"></select>
           <input type="text" id="n-journ-nouveau" placeholder="Nom de la nouvelle personne" style="display:none;margin-top:6px"></div>
@@ -530,7 +529,7 @@ if (typeof Sentry !== 'undefined' && Sentry.onLoad) {
 }
 
 const DB_PROD='01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
-const CHEF_PAR_DEFAUT = 'Benjamin';
+// CHEF_PAR_DEFAUT (nom en dur) SUPPRIMÉ — remplacé par chefParDefaut() (flag « Chef défaut » sur DB_EQUIPE).
 // Porte anti-rafale des notifs de retour (S2) : horodatage ms du dernier envoi RÉUSSI
 // par couple "auteur|||sujetId". Variable module (jamais le DOM). Fenêtre 5 min.
 let _notifRetourGate = {};
@@ -904,10 +903,9 @@ async function openNouveau(){
   }catch(e){console.warn('Erreur reload compteurs/clients',e);}
   // Reset form
   document.getElementById('n-titre').value='';
-  const chefs=['Benjamin','Arnaud','Chloé'];
-  const isChef=currentUser&&chefs.includes(currentUser.nom);
-  document.getElementById('n-chef').value=isChef?currentUser.nom:CHEF_PAR_DEFAUT;
-  const isJournaliste=currentUser&&!chefs.includes(currentUser.nom);
+  const isChef = currentUser && chefsNoms().includes(currentUser.nom);
+  refreshChefsSelect(isChef ? currentUser.nom : chefParDefaut()); // liste ET présélection dynamiques (0 nom en dur)
+  const isJournaliste = currentUser && !isChef;
   // Reconstruit le menu Journaliste depuis l'équipe Notion à chaque ouverture du formulaire
   refreshJournMonteursSelects(isJournaliste ? currentUser.nom : '');
   document.getElementById('n-brief').value='';
@@ -1008,7 +1006,7 @@ function openDetail(id, forcePadOpen=false){
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
         <span style="font-size:12px;color:var(--text2)">Chef responsable</span>
         <select onchange="upd('${id}','Chef responsable','sel',this.value)" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px">
-          ${['Benjamin','Arnaud','Chloé'].map(c=>`<option ${s.chef===c?'selected':''}>${c}</option>`).join('')}
+          ${(()=>{const noms=chefsNoms();if(s.chef && !noms.includes(s.chef))noms.push(s.chef);return noms.map(c=>`<option ${s.chef===c?'selected':''}>${escapeHtml(c)}</option>`).join('');})()}
         </select>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
@@ -1605,7 +1603,7 @@ async function monteurDeVersion(sujetId, version, versionId){
 async function notifierVersion(type, sujetId, sujet, auteur, message, {version=null, versionId=null, inclureChef=false}={}){
   const monteur = await monteurDeVersion(sujetId, version, versionId);
   const dests = new Set([sujet?.journaliste, monteur].filter(Boolean));
-  if(inclureChef){ const c = sujet?.chef || CHEF_PAR_DEFAUT; if(c) dests.add(c); }
+  if(inclureChef){ const c = sujet?.chef || chefParDefaut(); if(c) dests.add(c); }
   dests.delete(auteur);
   let sent = 0;
   for(const d of dests){
@@ -1620,6 +1618,26 @@ async function notifierVersion(type, sujetId, sujet, auteur, message, {version=n
 // '' si aucun → la carte naît sans contact (dégradation sûre). JAMAIS de nom en dur.
 function contactBrandParDefaut(){
   return equipe.find(m => m.role === 'Brand' && m.contactBrandDefaut)?.nom || '';
+}
+
+// Chef par défaut — DÉGRADATION SÛRE À DEUX ÉTAGES (jamais de nom en dur, remplace CHEF_PAR_DEFAUT) :
+//   1) le membre role==='Chef' AVEC « Chef défaut » coché (cas normal) ;
+//   2) sinon, le PREMIER Chef par ordre de nom (filet : personne coché mais l'équipe a des chefs →
+//      un chef reste toujours résolu, jamais « personne prévenu ») ;
+//   3) '' seulement si l'équipe n'a AUCUN Chef (cas où l'app n'a de toute façon pas de réponse ;
+//      la création de sujet est alors bloquée proprement, cf. createSujet).
+// Enjeu plus élevé que le contact Brand (un fallback vide = personne notifié / création cassée),
+// d'où l'étage 2 absent côté Brand.
+function chefParDefaut(){
+  const coche = equipe.find(m => m.role === 'Chef' && m.chefDefaut);
+  if(coche) return coche.nom;
+  const chefs = equipe.filter(m => m.role === 'Chef').sort((a,b) => a.nom.localeCompare(b.nom,'fr'));
+  return chefs[0]?.nom || '';
+}
+
+// Noms des Chefs (source unique pour les sélecteurs), triés — miroir de journMonteursNoms().
+function chefsNoms(){
+  return equipe.filter(m => m.role === 'Chef').map(m => m.nom).filter(Boolean).sort((a,b) => a.localeCompare(b,'fr'));
 }
 
 // Contacts Brand à notifier pour un événement : {contactBrand, contactBrand2} dédupliqués,
@@ -1962,7 +1980,7 @@ async function submitRetour() {
     closeOv('ov-retour');
     toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadRetours(retourSujetId);
-    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués.
+    // Notif au journaliste ET au chef (fallback chefParDefaut()), dédupliqués.
     // Même porte anti-rafale (S2) que le lecteur, partagée via _notifRetourGate : une
     // rafale mixte modale+lecteur sur un même couple auteur+sujet est groupée ensemble.
     if(sujet) {
@@ -2020,7 +2038,7 @@ async function submitPlayerRetour(sujetId, version) {
     toast('Retour ajouté en brouillon — valide-le pour le transmettre', 'ok');
     loadPlayerRetours(sujetId, version);
     loadRetours(sujetId);
-    // Notif au journaliste ET au chef (fallback CHEF_PAR_DEFAUT), dédupliqués.
+    // Notif au journaliste ET au chef (fallback chefParDefaut()), dédupliqués.
     // Porte anti-rafale (S2) : au 1er retour d'un couple auteur+sujet on notifie ;
     // les dépôts suivants dans la fenêtre (5 min) restent muets. La porte ne s'arme
     // qu'après un envoi réussi — ou s'il n'y avait personne à prévenir (état stable) —,
@@ -2325,7 +2343,7 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
         'Titre':{title:[{text:{content:titreDecli}}]},
         'Format':{select:{name:formatDecli}},
         'Sous-format':{select:{name:'Décli'}},
-        'Chef responsable':{select:{name:parent.chef||CHEF_PAR_DEFAUT}},
+        'Chef responsable':{select:{name:parent.chef||chefParDefaut()}},
         'Journaliste':{select:{name:parent.journaliste||''}},
         'Statut':{select:{name:'Brief / Idée'}},
         'Code':{rich_text:[{text:{content:codeVal}}]},
@@ -2342,7 +2360,7 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
     const newSujet = parsePage(await api('/pages/'+newPage.id,'GET').catch(()=>({id:newPage.id,properties:{
       Titre:{title:[{text:{content:titreDecli}}]},
       Format:{select:{name:formatDecli}},
-      'Chef responsable':{select:{name:parent.chef||CHEF_PAR_DEFAUT}},
+      'Chef responsable':{select:{name:parent.chef||chefParDefaut()}},
       Journaliste:{select:{name:parent.journaliste}},
       Statut:{select:{name:'Brief / Idée'}},
       Code:{rich_text:[{text:{content:codeVal}}]},
@@ -2483,7 +2501,7 @@ function ouvrirImpossible(retourId, sujetId) {
 }
 
 // ─── ADAPTATION D'UN RETOUR (chef) ───
-// Benjamin ATTACHE une reformulation ; la parole du client (Description) n'est JAMAIS écrasée.
+// Le chef ATTACHE une reformulation ; la parole du client (Description) n'est JAMAIS écrasée.
 let _adapterRetourId = null, _adapterSujetId = null, _adapterVersion = null;
 
 async function ouvrirAdapter(retourId, sujetId, version) {
@@ -2581,7 +2599,7 @@ async function relireRetour(retourId){
 }
 
 // Le monteur demande une clarification (retours CLIENT uniquement) → Statut='Clarification' (gel) + notif au chef.
-// Fail-closed : si Benjamin a déjà adapté, ou si le retour n'est plus Ouvert, on refuse au lieu d'écraser.
+// Fail-closed : si le chef a déjà adapté, ou si le retour n'est plus Ouvert, on refuse au lieu d'écraser.
 async function demanderClarification(retourId, sujetId, version){
   if(!currentUser){ toast('Non connecté','err'); return; }
   const chk = await relireRetour(retourId);
@@ -2592,7 +2610,7 @@ async function demanderClarification(retourId, sujetId, version){
   const s = sujets.find(x=>x.id===sujetId);
   try{
     await api('/pages/'+retourId,'PATCH',{properties:{'Statut':{select:{name:'Clarification'}}}});
-    const chefDest = (s?.chef) || CHEF_PAR_DEFAUT;
+    const chefDest = (s?.chef) || chefParDefaut();
     if(chefDest && chefDest !== currentUser.nom)
       await createNotif('clarification', sujetId, s?.code||'', s?.titre||'', chefDest, currentUser.nom, `${currentUser.nom} demande une clarification sur ${s?.code||''} — ${(chk.desc||'').slice(0,60)}`);
     toast('Clarification demandée à '+chefDest,'ok');
@@ -2658,7 +2676,7 @@ async function loadRetours(sujetId) {
     });
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
-    const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || CHEF_PAR_DEFAUT;
+    const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || chefParDefaut();
     const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
     const myName = (currentUser?.nom||'').trim();
     const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
@@ -3272,7 +3290,7 @@ Au démarrage :
 • 3 vues disponibles : Cartes (par défaut) / Par statut / Par journaliste
 • Clique sur une carte pour voir tous ses détails
 
-Si tu galères, demande à Benjamin, David ou un collègue. Tout le monde apprend par tâtonnement, c'est normal.</div>
+Si tu galères, demande à David ou un collègue. Tout le monde apprend par tâtonnement, c'est normal.</div>
       </details>
       <details style="${sectionStyle}">
         <summary style="${summaryStyle}"><span>🎬 Les cartes et leurs codes</span><span style="font-size:11px;color:var(--text3)">▼</span></summary>
@@ -3702,7 +3720,8 @@ async function initLogin() {
       nom: p.properties.Nom?.title?.[0]?.plain_text || '',
       code: p.properties['Code acces']?.rich_text?.[0]?.plain_text || '',
       role: p.properties.Role?.select?.name || '',
-      contactBrandDefaut: p.properties['Contact Brand défaut']?.checkbox || false
+      contactBrandDefaut: p.properties['Contact Brand défaut']?.checkbox || false,
+      chefDefaut: p.properties['Chef défaut']?.checkbox || false
     })).filter(m => m.nom);
     if(notionEquipe.length > 0) {
       equipe = notionEquipe;
@@ -3714,6 +3733,18 @@ async function initLogin() {
       const _cbBrand = _cbFlag.filter(m => m.role === 'Brand');
       if(_cbNonBrand.length) console.warn('« Contact Brand défaut » coché sur un membre non-Brand (ignoré) :', _cbNonBrand.map(m => m.nom));
       if(_cbBrand.length > 1) console.warn('« Contact Brand défaut » : plusieurs membres Brand cochés — retenu = premier par nom (' + _cbBrand[0].nom + ') :', _cbBrand.map(m => m.nom));
+      // Diagnostic « Chef défaut » — trois cas, une fois au chargement (console seulement, jamais bloquant).
+      const _chefFlag = equipe.filter(m => m.chefDefaut);
+      const _chefNonChef = _chefFlag.filter(m => m.role !== 'Chef');
+      const _chefCoches = _chefFlag.filter(m => m.role === 'Chef');
+      const _tousChefs = equipe.filter(m => m.role === 'Chef');
+      if(_chefNonChef.length) console.warn('« Chef défaut » coché sur un membre non-Chef (ignoré) :', _chefNonChef.map(m => m.nom));
+      if(_chefCoches.length > 1) {
+        console.warn('« Chef défaut » : plusieurs Chefs cochés — retenu = premier par nom (' + chefParDefaut() + ') :', _chefCoches.map(m => m.nom));
+      } else if(_chefCoches.length === 0) {
+        if(_tousChefs.length) console.warn('« Chef défaut » : aucun membre coché — repli (étage 2) sur le premier Chef par nom (' + chefParDefaut() + ').');
+        else console.warn('« Chef défaut » : AUCUN Chef dans l\'équipe — création de sujet bloquée et notifs chef sans destinataire jusqu\'à ce qu\'un membre ait le rôle Chef.');
+      }
     }
   } catch(e) {
     console.warn('Notion indisponible, liste locale utilisée:', e.message);
@@ -4344,7 +4375,7 @@ async function postComment(sujetId) {
     const s = sujets.find(s=>s.id===sujetId);
     if(s && currentUser) {
       const msg = `${currentUser.nom} a commenté ${s.code} — ${s.titre}`;
-      const chefDest = s.chef || CHEF_PAR_DEFAUT;
+      const chefDest = s.chef || chefParDefaut();
       if(chefDest && chefDest !== currentUser.nom)
         await createNotif('commentaire', sujetId, s.code, s.titre, chefDest, currentUser.nom, msg);
       if(s.journaliste && s.journaliste !== currentUser.nom && s.journaliste !== chefDest)
@@ -4546,6 +4577,17 @@ function refreshJournMonteursSelects(currentNom) {
   sel.innerHTML = '<option value="">Choisir...</option>' +
     noms.map(j => `<option value="${j}"${currentNom === j ? ' selected' : ''}>${j}</option>`).join('') +
     '<option value="__nouveau__">+ Nouvelle personne...</option>';
+}
+
+// Reconstruit #n-chef depuis `equipe` (Chefs) et présélectionne `selNom`. Si `selNom` n'est plus
+// dans la liste, on l'ajoute pour ne pas perdre une valeur. Plus AUCUN nom de chef en dur.
+function refreshChefsSelect(selNom) {
+  const sel = document.getElementById('n-chef');
+  if(!sel) return;
+  const noms = chefsNoms();
+  if(selNom && !noms.includes(selNom)) noms.push(selNom);
+  sel.innerHTML = '<option value="">Choisir...</option>' +
+    noms.map(c => `<option value="${escapeHtml(c)}"${selNom === c ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('');
 }
 
 // ─── ALIAS de compatibilité ───
@@ -4948,7 +4990,7 @@ async function loadPlayerRetours(sujetId, version) {
     });
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
-    const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || CHEF_PAR_DEFAUT;
+    const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || chefParDefaut();
     const hasBrouillonEquipe = retoursAff.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
     const myName = (currentUser?.nom||'').trim();
     const hasMesBrouillons = !!myName && retoursAff.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
@@ -5527,7 +5569,8 @@ async function createSujet(){
   try {
   const titre=document.getElementById('n-titre').value.trim();
   let chef=document.getElementById('n-chef').value;
-  if(!chef || !chef.trim()) chef=CHEF_PAR_DEFAUT; // fallback à l'écriture : un sujet a TOUJOURS un chef (vide ou blanc → défaut)
+  if(!chef || !chef.trim()) chef=chefParDefaut(); // fallback : un sujet a TOUJOURS un chef (résolveur à 2 étages)
+  if(!chef){ toast("Aucun chef dans l'équipe — ajoute un membre avec le rôle Chef avant de créer un sujet",'err'); _createEnCours=false; return; }
   const journSel=document.getElementById('n-journ').value;
   const journ=journSel==='__nouveau__'?document.getElementById('n-journ-nouveau').value.trim():journSel;
   const brief=document.getElementById('n-brief').value.trim();
