@@ -457,7 +457,8 @@
       </div>
       <div class="field">
         <div class="field-label">Description *</div>
-        <textarea id="ret-desc" placeholder="Décrivez le retour..." style="min-height:70px"></textarea>
+        <textarea id="ret-desc" placeholder="Décrivez le retour..." oninput="cptTexte(this,'cc-retdesc')" style="min-height:70px"></textarea>
+        <div id="cc-retdesc" style="font-size:10px;text-align:right;margin-top:2px;color:var(--text3)">0 / 2000</div>
       </div>
     </div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
@@ -1040,8 +1041,10 @@ function openDetail(id, forcePadOpen=false){
     </div>`,true);
 
   const hasContact = ['Brand','MAG'].includes(s.format);
+  const _bBrief = champAvecBrouillon('Notes chef', id, s.notes||'');
   html+=step('Brief',s.notes?'p-green Renseigné':'p-gray Vide',
-    `<textarea placeholder="Notes du chef..." onblur="upd('${id}','Notes chef','rt',this.value)" style="margin-bottom:14px">${escapeHtml(s.notes)}</textarea>
+    `${_bBrief.banner}<textarea placeholder="Notes du chef..." oninput="cptTexte(this,'cc-brief-${id}');sauverBrouillon('Notes chef','${id}',this.value)" onblur="upd('${id}','Notes chef','rt',this.value)" style="margin-bottom:2px">${escapeHtml(_bBrief.value)}</textarea>
+    <div id="cc-brief-${id}" style="font-size:10px;text-align:right;margin-bottom:12px;color:${_ccColor(_bBrief.value.length)}">${_bBrief.value.length} / ${LIMITE_TEXTE}</div>
     ${refsHTML(id,'refs-prod-'+id)}
     ${s.format==='Brand' ? `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
@@ -1173,14 +1176,16 @@ function openDetail(id, forcePadOpen=false){
   //    cochée. Donc si la carte REDESCEND de statut après saisie, le bloc NE disparaît JAMAIS.
   const _statutsWording = ['Montage','Retours','Validation chef','PAD'];
   const _wordingEcrit = !!s.wording || s.validationWordingEdito || s.validationWordingBrand;
-  if(s.format==='Brand' && (_statutsWording.includes(s.statut) || _wordingEcrit)){
-    const wPill = s.validationWordingBrand ? 'p-green Brand validé'
+  if(_statutsWording.includes(s.statut) || _wordingEcrit){   // TOUS formats (wording = description réseaux, pas que Brand)
+    const wPill = (s.format==='Brand' && s.validationWordingBrand) ? 'p-green Brand validé'
                 : (s.validationWordingEdito ? 'p-amber Édito validé'
                 : (s.wording ? 'p-blue Rédigé' : 'p-gray À rédiger'));
+    const _bWord = champAvecBrouillon('Wording', id, s.wording||'');
     html+=step('Wording', wPill,
       `<div class="field" style="margin-bottom:12px">
         <div class="field-label" style="margin-bottom:6px">Texte de description du post <span style="color:var(--text3);font-size:10px">(publié sous la vidéo)</span></div>
-        <textarea placeholder="Rédige le wording du post…" style="min-height:90px" onblur="upd('${id}','Wording','rt',this.value)">${escapeHtml(s.wording)}</textarea>
+        ${_bWord.banner}<textarea placeholder="Rédige le wording du post…" style="min-height:90px" oninput="cptTexte(this,'cc-wording-${id}');sauverBrouillon('Wording','${id}',this.value)" onblur="upd('${id}','Wording','rt',this.value)">${escapeHtml(_bWord.value)}</textarea>
+        <div id="cc-wording-${id}" style="font-size:10px;text-align:right;margin-top:2px;color:${_ccColor(_bWord.value.length)}">${_bWord.value.length} / ${LIMITE_TEXTE}</div>
       </div>
       <div class="brand-seq-actions" style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="toggleValidationWording('${id}','edito')"
@@ -1188,12 +1193,12 @@ function openDetail(id, forcePadOpen=false){
           style="flex:1;min-width:90px;font-size:12px;${s.validationWordingEdito?'background:var(--green);border-color:var(--green)':''}">
           ${s.validationWordingEdito?'✅':'⬜'} Édito
         </button>
-        <button onclick="toggleValidationWording('${id}','Brand')"
+        ${s.format==='Brand' ? `<button onclick="toggleValidationWording('${id}','Brand')"
           class="nav-btn ${s.validationWordingBrand?'primary':''}"
           style="flex:1;min-width:90px;font-size:12px;${s.validationWordingBrand?'background:var(--blue);border-color:var(--blue)':''};${!s.validationWordingEdito?'opacity:0.5;cursor:not-allowed':''}"
           ${!s.validationWordingEdito?'disabled':''}>
           ${s.validationWordingBrand?'✅':'⬜'} Brand
-        </button>
+        </button>` : ''}
       </div>`,
       _wordingEcrit);
   }
@@ -1399,9 +1404,10 @@ function openDetail(id, forcePadOpen=false){
         <div style="font-size:11px;color:var(--text3)">Chargement...</div>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end">
-        <textarea id="comment-input-${id}" placeholder="Laisser un commentaire..." style="flex:1;min-height:60px;resize:vertical"></textarea>
+        <textarea id="comment-input-${id}" placeholder="Laisser un commentaire..." oninput="cptTexte(this,'cc-comment-${id}')" style="flex:1;min-height:60px;resize:vertical"></textarea>
         <button class="nav-btn primary" onclick="postComment('${id}')" style="font-size:11px;padding:7px 12px;white-space:nowrap;height:fit-content">Envoyer</button>
       </div>
+      <div id="cc-comment-${id}" style="font-size:10px;text-align:right;margin-top:2px;color:var(--text3)">0 / ${LIMITE_TEXTE}</div>
     </div>
   </div>`;
   document.getElementById('d-steps').innerHTML=html;
@@ -1492,6 +1498,8 @@ function refreshUI(id, forcePadOpen=false){
 
 async function upd(id,field,type,value){
   try{
+    // Pré-check longueur (2000/champ Notion) sur les textes : bloque proprement, texte conservé.
+    if((type==='rt'||type==='titre') && !verifLongueur(value, field)) return;
     let props={};
     if(type==='titre')props[field]={title:[{text:{content:value}}]};
     else if(type==='rt')props[field]={rich_text:value?[{text:{content:value}}]:[]};
@@ -1940,6 +1948,7 @@ async function submitRetour() {
   if(!currentUser) { toast("Connectez-vous pour laisser un retour", 'err'); return; }
   const desc = document.getElementById('ret-desc').value.trim();
   if(!desc) { toast('Ajoutez une description', 'err'); return; }
+  if(!verifLongueur(desc, 'Description du retour')) return;
   // ── Mode ÉDITION d'un brouillon : PATCH en place, JAMAIS recréer, AUCUNE notif ──
   if(_editBrouillonId) {
     const chk = await relireBrouillon(_editBrouillonId);
@@ -2007,6 +2016,7 @@ async function submitPlayerRetour(sujetId, version) {
   if(!currentUser) { toast('Connectez-vous pour laisser un retour', 'err'); return; }
   const desc = document.getElementById('player-desc')?.value.trim();
   if(!desc) { toast('Ajoutez une description', 'err'); return; }
+  if(!verifLongueur(desc, 'Description du retour')) return;
   const tc = document.getElementById('player-tc')?.value.trim() || '';
   // Timecode fin (lecteur seul, plage optionnelle) : normalisé même si non bluré ; écrit UNIQUEMENT si non vide.
   const finEl = document.getElementById('player-tc-fin');
@@ -3211,6 +3221,86 @@ function fermerSurClicFond(el, onClose) {
 // dédié à un bouton, dismissible (✕ / Échap / clic-hors), qui montre le message Notion complet
 // (souvent verbeux). Le texte n'AFFIRME PAS l'état serveur (« L'action n'a pas abouti »), car
 // un échec après la POST peut laisser une ressource créée.
+// ═══ LOT B — LIMITE DE CARACTÈRES (2000 par champ Notion) : erreur claire + compteur + brouillon ═══
+const LIMITE_TEXTE = 2000;
+function _ccColor(n){ return n > LIMITE_TEXTE ? 'var(--red)' : (n >= 1800 ? 'var(--amber)' : 'var(--text3)'); }
+
+// Overlay PERSISTANT et PRÉVENTIF. On NE réutilise PAS montrerErreurEcriture : son préambule
+// « échec / n'a pas abouti / réessaie » contredirait « rien n'est perdu » (et il exige un Error).
+function montrerLimiteTexte(champ, longueur){
+  const existing = document.getElementById('limite-texte-modal'); if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'limite-texte-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px';
+  let onEsc; const close = () => { overlay.remove(); if(onEsc) document.removeEventListener('keydown', onEsc); };
+  onEsc = ev => { if(ev.key === 'Escape') close(); };
+  overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:440px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:15px;font-weight:600;color:var(--text)">✍️ Texte trop long</div>
+      <button id="limite-texte-x" class="nav-btn" style="font-size:14px;padding:2px 8px" title="Fermer">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.5">${escapeHtml(champ)} : <strong>${longueur}</strong> caractères sur <strong>${LIMITE_TEXTE}</strong> maximum.<br><br>Raccourcis le texte pour l'enregistrer — <strong>il reste dans le champ, rien n'est perdu.</strong></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px"><button id="limite-texte-ok" class="nav-btn primary" style="font-size:12px">Compris</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  fermerSurClicFond(overlay, close);
+  document.addEventListener('keydown', onEsc);
+  document.getElementById('limite-texte-x').addEventListener('click', close);
+  document.getElementById('limite-texte-ok').addEventListener('click', close);
+}
+
+// Pré-check AVANT tout envoi de texte long. true = OK ; false = trop long → overlay affiché, on N'ENVOIE PAS
+// (le texte reste dans le champ). À appeler dans upd (rt/titre) et aux POST/PATCH directs (commentaire, retour).
+function verifLongueur(texte, champ){
+  const n = (texte||'').length;
+  if(n <= LIMITE_TEXTE) return true;
+  montrerLimiteTexte(champ, n);
+  return false;
+}
+
+// Compteur discret, ciblé par id (gris → ambre ≥1800 → rouge >2000).
+function cptTexte(el, ccId){
+  const cc = document.getElementById(ccId); if(!cc) return;
+  const n = el.value.length;
+  cc.textContent = n + ' / ' + LIMITE_TEXTE;
+  cc.style.color = _ccColor(n);
+}
+
+// ── Brouillon local (brief + wording) : survivre au rechargement SANS JAMAIS écraser une valeur
+//    plus récente. On stocke {base = valeur serveur au moment du brouillon, texte}. Au rendu :
+//    texte==serveur → rien ; base==serveur (serveur inchangé) → on restaure ; base≠serveur (serveur
+//    modifié ailleurs) → CONFLIT : on n'écrase PAS, on montre les DEUX options (choix explicite).
+let _forcerBrouillon = null; // one-shot : force l'affichage du brouillon au prochain rendu (choix « récupérer »)
+function _bkey(champ,id){ return 'brouillon:'+champ+':'+id; }
+function _baseServeur(champ,id){ const s=sujets.find(x=>x.id===id); return (s?({'Notes chef':s.notes,'Wording':s.wording}[champ]):'')||''; }
+function sauverBrouillon(champ, id, texte){
+  const base = _baseServeur(champ,id);
+  try{ if(texte===base) localStorage.removeItem(_bkey(champ,id));
+       else localStorage.setItem(_bkey(champ,id), JSON.stringify({base, texte})); }catch(_){}
+}
+function lireBrouillon(champ,id){ try{ return JSON.parse(localStorage.getItem(_bkey(champ,id))||'null'); }catch(_){ return null; } }
+function effacerBrouillon(champ,id){ try{ localStorage.removeItem(_bkey(champ,id)); }catch(_){} refreshUI(id); }
+function recupererBrouillon(champ,id){ _forcerBrouillon = {champ,id}; refreshUI(id); }
+function _bBanner(champ,id,conflit){
+  const c = escJs(champ);
+  return conflit
+    ? `<div style="font-size:10px;color:var(--amber);margin-bottom:6px;line-height:1.4">⚠️ Un brouillon local diffère de la version enregistrée (modifiée ailleurs). <a style="cursor:pointer;text-decoration:underline" onclick="recupererBrouillon('${c}','${id}')">Récupérer mon brouillon</a> · <a style="cursor:pointer;text-decoration:underline" onclick="effacerBrouillon('${c}','${id}')">Garder l'actuelle</a></div>`
+    : `<div style="font-size:10px;color:var(--text3);margin-bottom:6px">✍️ Brouillon non enregistré récupéré. <a style="cursor:pointer;text-decoration:underline" onclick="effacerBrouillon('${c}','${id}')">Ignorer</a></div>`;
+}
+// Renvoie {value, banner} pour un champ à brouillon (serveur = valeur enregistrée).
+function champAvecBrouillon(champ, id, serveur){
+  const forced = !!(_forcerBrouillon && _forcerBrouillon.champ===champ && _forcerBrouillon.id===id);
+  if(forced) _forcerBrouillon = null;
+  const d = lireBrouillon(champ,id);
+  if(d){
+    if(forced) return {value:d.texte, banner:_bBanner(champ,id,false)};
+    if(d.texte === serveur){ try{localStorage.removeItem(_bkey(champ,id));}catch(_){} }        // déjà synchro
+    else if(d.base === serveur) return {value:d.texte, banner:_bBanner(champ,id,false)};        // serveur inchangé → restaure
+    else return {value:serveur, banner:_bBanner(champ,id,true)};                                // ⚠️ serveur changé → CHOIX, jamais d'écrasement
+  }
+  return {value:serveur, banner:''};
+}
+
 function montrerErreurEcriture(contexte, e) {
   const detail = (e && e.message) ? String(e.message) : 'Erreur inconnue';
   console.error(contexte + ' — échec :', e);
@@ -3563,11 +3653,17 @@ async function toggleValidationWording(id, type) {
     const newVal = !s.validationWordingEdito;
     await upd(id,'Validation Wording édito','cb',newVal);
     s.validationWordingEdito = newVal;
-    if(newVal && s.format==='Brand') {
-      // À la validation édito → prévenir les contacts Brand (1er + 2e), via la brique partagée.
-      for(const c of contactsBrandANotifier(s, new Set([auteur]))) {
-        await createNotif('validation', id, s.code, s.titre, c, auteur,
-          `Wording validé côté Réel Média sur ${s.code}, à toi de valider`);
+    if(newVal) {
+      if(s.format==='Brand') {
+        // Brand : prochain acteur = validation client → prévenir les contacts Brand (1er + 2e).
+        for(const c of contactsBrandANotifier(s, new Set([auteur]))) {
+          await createNotif('validation', id, s.code, s.titre, c, auteur,
+            `Wording validé côté Réel Média sur ${s.code}, à toi de valider`);
+        }
+      } else if(s.journaliste && s.journaliste !== auteur) {
+        // Non-Brand : l'édito est l'étape FINALE → prochain acteur = celui qui publie (le journaliste).
+        await createNotif('validation', id, s.code, s.titre, s.journaliste, auteur,
+          `Wording validé sur ${s.code} — prêt à publier`);
       }
       loadNotifs();
     }
@@ -4329,7 +4425,8 @@ async function loadComments(sujetId) {
           ? `<span onclick="supprimerComment('${c.id}','${sujetId}')" title="Supprimer (chef)" style="font-size:11px;cursor:pointer;opacity:0.6" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">🗑</span>`
           : '');
       const corps = enEdition
-        ? `<textarea id="edit-comment-input" style="width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:12px;padding:6px 8px;border-radius:var(--r);font-family:var(--font);resize:vertical;min-height:48px;line-height:1.5">${texte.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
+        ? `<textarea id="edit-comment-input" oninput="cptTexte(this,'cc-editcomment-${c.id}')" style="width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:12px;padding:6px 8px;border-radius:var(--r);font-family:var(--font);resize:vertical;min-height:48px;line-height:1.5">${texte.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
+           <div id="cc-editcomment-${c.id}" style="font-size:10px;text-align:right;margin-top:2px;color:${_ccColor(texte.length)}">${texte.length} / ${LIMITE_TEXTE}</div>
            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px">
              <button onclick="annulerEditionComment('${sujetId}')" style="font-size:11px;color:var(--text3);background:transparent;border:1px solid var(--border2);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:var(--font)">Annuler</button>
              <button onclick="enregistrerComment('${c.id}','${sujetId}')" style="font-size:11px;color:#fff;background:var(--blue);border:none;padding:3px 12px;border-radius:4px;cursor:pointer;font-family:var(--font)">Enregistrer</button>
@@ -4357,6 +4454,7 @@ async function postComment(sujetId) {
   const input = document.getElementById('comment-input-' + sujetId);
   const texte = input?.value.trim();
   if(!texte) { toast('Écrivez un commentaire','err'); return; }
+  if(!verifLongueur(texte, 'Commentaire')) return;
   const sujet = sujets.find(s => s.id === sujetId);
   try {
     await api('/pages', 'POST', {
@@ -4433,6 +4531,7 @@ async function enregistrerComment(commentId, sujetId) {
   const myName = (currentUser?.nom||'').trim();
   const texte = (document.getElementById('edit-comment-input')?.value || '').trim();
   if(!texte) { toast('Le commentaire ne peut pas être vide','err'); return; }
+  if(!verifLongueur(texte, 'Commentaire')) return;
   const chk = await relireComment(commentId);
   if(!chk) { toast('Ce commentaire a été supprimé entre-temps','err'); _editCommentId = null; loadComments(sujetId); return; }
   if(chk.auteur !== myName) { toast('Vous ne pouvez modifier que vos propres commentaires','err'); _editCommentId = null; loadComments(sujetId); return; }
@@ -4866,7 +4965,9 @@ function openPlayer(url, label, sujetId, version) {
           <textarea id="player-desc" placeholder="Description du retour..." rows="2"
               style="width:100%;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:7px 10px;border-radius:6px;font-size:12px;font-family:-apple-system,sans-serif;resize:none;line-height:1.4;transition:border-color 0.15s;margin-bottom:8px;box-sizing:border-box"
               onfocus="this.style.borderColor='#E63946'" onblur="this.style.borderColor='#2A2A3A'"
+              oninput="cptTexte(this,'cc-playerdesc')"
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitPlayerRetour('${sujetId}','${version}')}"></textarea>
+          <div id="cc-playerdesc" style="font-size:10px;text-align:right;margin-top:-4px;margin-bottom:8px;color:var(--text3)">0 / 2000</div>
           <button onclick="submitPlayerRetour('${sujetId}','${version}')"
             style="width:100%;background:#E63946;border:none;color:#fff;padding:9px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500;transition:opacity 0.15s;font-family:-apple-system,sans-serif"
             onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Envoyer →</button>

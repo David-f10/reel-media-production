@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-17 (DÉPART DE BENJAMIN — Chloé le remplace, CHEF_PAR_DEFAUT éliminé · Performances garanties + Wording · TÂCHES liées aux cartes · format verrouillé · 2e contact Brand)
+> Dernière mise à jour : 2026-09-17 (Wording sur tous formats + limite de caractères avec brouillon · DÉPART DE BENJAMIN, CHEF_PAR_DEFAUT éliminé · Performances garanties · TÂCHES liées aux cartes · format verrouillé)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,35 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-17 — Wording sur tous les formats + limite de caractères (2 lots, 1 branche)
+- **`index.html` seul, 7799 → 7900 (+101)** — lot A +6, lot B +95. Master : rien à créer.
+
+**LOT A — le Wording n'est plus réservé au Brand**
+- **Demande de Louise :** une vidéo MAG ou Desk publiée sur les réseaux a aussi besoin d'un texte de description. Le bloc était livré Brand-only six jours plus tôt.
+- **Le gate `s.format==='Brand'` retiré de la VISIBILITÉ** → bloc affiché tous formats.
+- **⚠️ La validation BRAND reste réservée aux cartes Brand** — elle sert à faire valider par le **client**, et il n'y en a pas sur un MAG. Bouton rendu seulement `si s.format==='Brand'` ; hors Brand, un seul bouton « Édito » pleine largeur (la rangée est en `flex`, aucun ajustement nécessaire).
+- **⚠️ Pastille « Brand validé » GATED sur le format** : si une carte non-Brand portait un flag résiduel, aucun libellé trompeur ne s'afficherait. Et `toggleValidationWording('Brand')` n'est atteignable que par le bouton — un MAG ne peut **jamais** obtenir cette validation.
+- **⚠️ NOTIFICATION HORS BRAND — le raisonnement qui a tranché.** `contactsBrandANotifier` renvoie `[]` hors Brand → **personne** n'aurait été prévenu. Sur Brand, l'édito valide et on prévient **le prochain acteur** (le contact Brand, « à toi de valider »). **Hors Brand, l'édito EST l'étape finale** → le prochain acteur est **celui qui publie** : le **journaliste**, « Wording validé sur {code} — prêt à publier ». **Pas le chef** : c'est souvent lui qui valide, ce serait une auto-notification.
+- **La garde anti-disparition est désormais INDÉPENDANTE DU FORMAT** : `_wordingEcrit` pilote seul la visibilité → un wording écrit sur un MAG ne disparaît pas si la carte redescend de statut.
+- Status-gating inchangé. **Performances garanties : toujours Brand-only, non touchées.**
+
+**LOT B — la limite de 2000 caractères**
+- **LE SIGNALEMENT de Louise :** « ajoute la limite de caractères autorisée dans l'onglet Brief ». Hypothèse de David, confirmée par la mesure : elle avait **collé un document long** qui n'est pas passé, et en a déduit qu'une limite existait.
+- **⚠️ MESURE DÉCISIVE : un brief est à 1979 caractères sur 2000.** À 21 du plafond. Commentaires max 1406, retours max 1153 — seul le brief touchait le mur.
+- **AUCUNE limite côté app** : le plafond est celui de **Notion — 2000 caractères par bloc rich_text**. L'app envoie **UN seul bloc**, sans découpage.
+- **⚠️ LE VRAI PROBLÈME N'ÉTAIT PAS LA LIMITE, c'était l'échec incompréhensible.** Au dépassement : un toast de 3 secondes avec **le message Notion brut en anglais**, et **le texte non enregistré**. Facile à rater sur un `onblur`, impossible à comprendre.
+- **PAS DE DÉCOUPAGE MULTI-BLOCS** — ça lèverait la limite (~100 blocs possibles), mais obligerait à refondre **toutes les lectures** du fichier (`?.rich_text?.[0]?.plain_text` ne lit que le premier bloc). Disproportionné pour un plafond qui suffit : 2000 caractères ≈ deux pages.
+- **`verifLongueur(texte, champ)` — pré-check à 5 sites d'écriture** : `upd` (types rt/titre, couvre brief et wording), `postComment`, `enregistrerComment`, `submitRetour`, `submitPlayerRetour`. Si trop long : **on n'envoie pas, on retourne** → le texte reste dans la zone de saisie.
+- **⚠️ OVERLAY DÉDIÉ `montrerLimiteTexte`, PAS `montrerErreurEcriture`.** Ce dernier impose « … — échec / L'action n'a pas abouti / Vérifie et réessaie » — **ce qui aurait contredit « rien n'est perdu »**. Message retenu : « {champ} : X caractères sur 2000 maximum. Raccourcis le texte — **il reste dans le champ, rien n'est perdu.** » **Persistant**, pas un toast : un message qui parle de perte possible ne doit pas disparaître en 3 secondes.
+- **COMPTEUR `cptTexte`** sur **6 champs** (brief, wording, commentaire, édition de commentaire, description de retour ×2) : discret, gris → **ambre ≥ 1800** → **rouge > 2000**. Le compteur est l'ambiant, l'overlay est l'arrêt dur.
+- **⚠️⚠️ BROUILLON localStorage (brief + wording) — ET SA PROTECTION CONTRE L'ÉCRASEMENT.** Sans lui, le texte survivait dans la zone de saisie mais **disparaissait au rechargement** — Louise aurait dû tout recoller. Le brouillon stocke `{base = valeur serveur au moment de la saisie, texte}`. Au rendu, **trois cas** :
+  1. `texte === serveur` → déjà synchro, brouillon effacé
+  2. `base === serveur` (serveur inchangé) → **restauration** + mention « Brouillon non enregistré récupéré · Ignorer »
+  3. **`base ≠ serveur` (modifié ailleurs) → CONFLIT : on affiche la version SERVEUR** et une bannière ambre propose le **choix** — « Récupérer mon brouillon » / « Garder l'actuelle ».
+  **Jamais d'écrasement automatique.** Un brouillon local qui ressurgirait sur une version plus récente serait pire que le problème d'origine.
+- **⚠️ SUJET OUVERT : le brouillon n'est PAS étendu aux retours.** Or c'est justement là que Louise colle des mails clients entiers — mesurés à 1153 max aujourd'hui, mais elle découpe ses mails en plusieurs retours. Le compteur et l'overlay la protègent ; si elle bute souvent, ajouter le brouillon.
+- **Vérification Pilote :** `wc -l` 7900, `CHEF_PAR_DEFAUT`=2 (commentaires), « Benjamin »=0, script 4/4, `node --check` OK. **Logique anti-écrasement confirmée par lecture (3 branches).** Overlay dédié confirmé, message vérifié. 5 gardes `verifLongueur`, compteur sur 6 champs. Garde anti-disparition indépendante du format confirmée. Non-régression vérifiée.
 
 ### 2026-09-17 — Départ de Benjamin : Chloé le remplace, `CHEF_PAR_DEFAUT` éliminé
 - **`index.html` seul, 7756 → 7799 (+43).** Plus une opération Notion en masse faite par David.
