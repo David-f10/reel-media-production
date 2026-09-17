@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-17 (Wording sur tous formats + limite de caractères avec brouillon · DÉPART DE BENJAMIN, CHEF_PAR_DEFAUT éliminé · Performances garanties · TÂCHES liées aux cartes · format verrouillé)
+> Dernière mise à jour : 2026-09-17 (L'APP S'APPELLE HAVANA · Wording sur tous formats + limite de caractères · DÉPART DE BENJAMIN, CHEF_PAR_DEFAUT éliminé · Performances garanties · TÂCHES liées aux cartes)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,24 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-17 — L'application s'appelle HAVANA
+- **`index.html` (7900 → 7905) + `css/layout.css` (→ 264).** L'équipe a choisi ce nom, en référence aux origines cubaines de David.
+- **⚠️ HAVANA S'AJOUTE À L'IDENTITÉ RÉEL MÉDIA, IL NE LA REMPLACE PAS.** Restés strictement **intacts** : le logo SVG (×2), le favicon, le manifest, l'icône tactile, le **titre de l'onglet** (« Réel Média · Production ») et le **nom d'installation mobile** (« Réel Média »).
+- **⚠️ PAS DE TRAIT SOUS HAVANA — décision de David.** Le soulignement rouge reste la **signature exclusive du logo** ; deux traits empilés auraient affaibli le geste au lieu de le porter. La classe `.havana` n'a aucune bordure, aucun span rouge.
+- **TRAITEMENT RETENU** (après plusieurs itérations : bas de casse, capitales, avec et sans trait) : **serif, CAPITALES, `letter-spacing: 0.14em`**, sans soulignement. Le serif fait le lien avec le logo, les capitales distinguent l'outil de la marque.
+- **⚠️ AUCUNE POLICE SERIF N'ÉTAIT CHARGÉE** (`--font: DM Sans`, `--mono: DM Mono`) et **le logo est vectorisé (SVG)** → « la même police que le logo » n'existe pas comme fichier réutilisable. Retenu : **pile générique `Georgia, 'Times New Roman', serif`** — zéro dépendance. Charger une webfont imitant le lettrage serait un chantier à part.
+- **TROIS EMPLACEMENTS** (« Suivi de production » n'existait qu'à **2** endroits, tous deux remplacés) :
+  - **Connexion** — 22px blanc + sous-titre « suivi de production » (mono, 10px)
+  - **Sidebar** — 15px `#b0b0b0`, séparé du logo par un filet, + le même sous-titre (9px)
+  - **En-tête** — 13px `#b0b0b0`, **sans** sous-titre (déjà dans la sidebar au même écran)
+- **⚠️ LE SOUS-TITRE EST « suivi de production », pas « production ».** Claude Code avait raccourci ; le mot seul, sous HAVANA dans la sidebar, ressemblerait à une rubrique de navigation.
+- **Gris `#b0b0b0`** : entre le logo (clair) et la navigation (`#888`) — HAVANA se lit au premier coup d'œil puis s'efface. C'est un nom, pas un bouton.
+- **⚠️ MOBILE : la sidebar devient un BANDEAU BAS de 60px** en `flex-row`, et `.sb-logo-section` **n'y était pas masquée** — l'ajout aurait cassé le bandeau. L'ajout est enveloppé dans `.sb-havana`, ajouté à la liste `display:none!important` du `@media(max-width:700px)`. **Bandeau mobile strictement inchangé.**
+- **NON TOUCHÉS, par décision :** `review.html` (surface **client** — HAVANA est le nom **interne** de l'outil), les **exports** (relevé musique, stats — « Réel Média » y est la **marque société**), `offline.html`, et l'aide.
+- **Classes factorisées** dans `layout.css` : `.havana` et `.havana-sub`, réutilisées aux trois endroits (le markup, lui, ne se factorise pas — tailles et sous-titre différents).
+- **Note :** la classe `.logo` n'est plus utilisée dans le HTML (elle portait le monospace et le span rouge de l'ancien en-tête). Laissée dans le CSS, inoffensive.
+- **Vérification Pilote :** `wc -l` 7905 / 264, `node --check` OK, **2 SVG intacts**, titre d'onglet et nom d'installation inchangés, manifest/favicon/apple-touch-icon non modifiés, 3 règles du trait rouge conservées, **0 « Suivi de production »** restant, `.sb-havana` masqué sous 700px. Non-régression vérifiée.
 
 ### 2026-09-17 — Wording sur tous les formats + limite de caractères (2 lots, 1 branche)
 - **`index.html` seul, 7799 → 7900 (+101)** — lot A +6, lot B +95. Master : rien à créer.
