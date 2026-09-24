@@ -5268,6 +5268,13 @@ let searchQuery = '';
 // session de recherche. Variable MODULE (jamais le DOM) — renderCards la relit à chaque peinture, car
 // le polling repeint #cards-wrap ; un état DOM serait effacé au premier tick.
 let _archivesRecherche = false;
+// Historique 2023-2026 : fichier statique servi par Netlify (aucune requête Notion) → chargé
+// AUTOMATIQUEMENT à la 1re recherche, mis en cache module (jamais le DOM ; renderCards reconstruit
+// les lignes à chaque peinture). _historiqueEtat : 'vide' → 'chargement' → 'ok' | 'err'. Une fois
+// 'err', il y reste (la garde de chargerHistorique interdit tout re-fetch → pas de boucle de requêtes).
+let _historique = null;
+let _historiqueEtat = 'vide';
+const HISTO_MAX = 200; // plafond d'AFFICHAGE (le décompte reste réel) : évite des milliers de <tr> au tick
 
 function onSearch(val) {
   searchQuery = val.trim().toLowerCase();
@@ -7891,7 +7898,8 @@ function renderCards() {
   // Recherche unifiée : bloc archives sous la liste, dès qu'une recherche est active (avec OU sans
   // résultat prod). Vue cartes uniquement (c'est renderCards). Émis à CHAQUE peinture depuis l'état
   // module (_archivesRecherche + sujetsArchives) — jamais stocké dans le DOM.
-  if(searchQuery) html += blocArchivesRecherche();
+  // Ordre : (2) historique gratuit (auto), (3) archives payantes (bouton). Gratuit avant payant.
+  if(searchQuery) { html += blocHistorique(); html += blocArchivesRecherche(); }
   cw.innerHTML = html;
 }
 
@@ -7946,6 +7954,76 @@ async function chercherArchives(btn) {
   }
   _archivesRecherche = true;
   renderCards();
+}
+
+// Charge l'historique statique UNE fois par session. Garde `!== 'vide'` → aucun re-fetch, même après
+// erreur (état 'err' définitif, pas de boucle de requêtes au tick). Échec : console.warn, pas de toast.
+async function chargerHistorique() {
+  if(_historiqueEtat !== 'vide') return;
+  _historiqueEtat = 'chargement';
+  try {
+    const res = await fetch('/data/archives-historique.json', {cache:'force-cache'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    _historique = await res.json();
+    _historiqueEtat = 'ok';
+  } catch(e) {
+    _historiqueEtat = 'err'; // définitif : la garde ci-dessus interdit tout re-fetch au tick suivant
+    console.warn('Historique indisponible :', e.message);
+  }
+  if(searchQuery && currentPage === 'production' && currentVue === 'cards') renderCards();
+}
+
+// Filtre DÉDIÉ (applySearch non réutilisable : l'historique a nom/id, pas titre/code). 5 champs.
+function filtreHistorique(list, q) {
+  if(!q) return list;
+  return list.filter(h =>
+    (h.nom||'').toLowerCase().includes(q) ||
+    (h.id||'').toLowerCase().includes(q) ||
+    (h.format||'').toLowerCase().includes(q) ||
+    (h.journaliste||'').toLowerCase().includes(q) ||
+    (h.statut||'').toLowerCase().includes(q));
+}
+
+// Bloc « Historique 2023-2026 ». Reconstruit à CHAQUE peinture depuis l'état module (jamais le DOM).
+// Échappement au rendu : highlightText(escapeHtml(texte), escapeHtml(requête)). Plafond d'affichage
+// HISTO_MAX, décompte réel. Ligne = pas de onclick (pas de fiche) ; seules les icônes 📁/🔍 sont cliquables.
+function blocHistorique() {
+  const entete = (label) => `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:12px 14px 6px;border-top:1px solid var(--border);margin-top:8px">${label}</div>`;
+  const msg = (t) => `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 14px 12px">${t}</div>`;
+  if(_historiqueEtat === 'vide' || _historiqueEtat === 'chargement') {
+    chargerHistorique(); // idempotent (garde !== 'vide') — déclenche le fetch au 1er passage
+    return entete('Historique 2023-2026') + msg("Chargement de l'historique…");
+  }
+  if(_historiqueEtat === 'err') {
+    return entete('Historique 2023-2026') + msg('Historique indisponible');
+  }
+  const q = escapeHtml(searchQuery);
+  const hits = filtreHistorique(_historique || [], searchQuery);
+  const total = hits.length;
+  if(!total) return entete('Historique 2023-2026 (0)') + msg(`Aucun sujet historique ne correspond à "${searchQuery}"`);
+  let h = entete(`Historique 2023-2026 (${total})`) + `<div style="overflow-x:auto"><table class="list-table"><thead><tr>
+    <th style="width:70px">Code</th><th style="width:auto">Titre</th><th style="width:90px">Format</th><th style="width:130px">Statut</th><th style="width:56px"></th>
+  </tr></thead><tbody>`;
+  hits.slice(0, HISTO_MAX).forEach(s => {
+    const col = FMT_COLORS[s.format] || '#888';
+    const drive = urlSure(s.drive);
+    const action = drive
+      ? `<a href="${escapeHtml(drive)}" target="_blank" rel="noopener noreferrer" title="Ouvrir le dossier Drive" style="text-decoration:none;cursor:pointer">📁</a>`
+      : `<a href="https://drive.google.com/drive/search?q=${encodeURIComponent(s.nom||'')}" target="_blank" rel="noopener noreferrer" title="Rechercher le titre dans Google Drive" style="text-decoration:none;cursor:pointer">🔍</a>`;
+    const barre = s.abandonne ? 'text-decoration:line-through;' : '';
+    const codeStyle = s.abandonne ? 'color:#8B0000' : '';
+    h += `<tr>
+      <td class="td-code" style="${codeStyle}">${highlightText(escapeHtml(s.id||'—'), q)}</td>
+      <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}</td>
+      <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
+      <td style="text-align:center">${action}</td>
+    </tr>`;
+  });
+  h += '</tbody></table>';
+  if(total > HISTO_MAX) h += msg(`${total} résultats · ${HISTO_MAX} affichés — affinez la recherche pour voir les premiers`);
+  h += '</div>';
+  return h;
 }
 
 function cardHTMLHighlight(s, q) {
