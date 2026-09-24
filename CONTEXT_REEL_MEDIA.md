@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-24 (recherche unifiée production + archives · bouton « tout marquer corrigé » · placement HAVANA ajusté · fusion des 2 cartes Rocamadour · DÉPART DE BENJAMIN)
+> Dernière mise à jour : 2026-09-24 (HISTORIQUE 2023-2026 dans la recherche — 2 639 sujets d'avant Havana · recherche unifiée archives · bouton « tout marquer corrigé » · HAVANA · DÉPART DE BENJAMIN)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,46 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-24 — L'historique d'avant Havana : 2 639 sujets cherchables (2 lots)
+- **LOT 1 — `data/archives-historique.json`** (nouveau, 615 Ko / ~120 Ko gzippé). **LOT 2 — `index.html` 8016 → 8094 (+78).** Deux livraisons distinctes, deux vérifications.
+- **LE BESOIN, formulé par David :** avant Havana, tout vivait dans un Google Sheets. Quand on cherche une carte et qu'on ne la trouve pas, **trois situations indiscernables** — elle n'existe pas, elle est archivée, ou elle est antérieure à l'app. La recherche unifiée avait levé la deuxième ; ce chantier lève la troisième.
+- **⚠️ LA DÉCOUVERTE QUI VALAIT TOUT LE CHANTIER : les titres portent des HYPERLIENS vers les dossiers Drive.** Ce n'est plus « est-ce qu'on l'a fait », c'est **« voilà où sont les fichiers »**. **2 263 dossiers** récupérés.
+
+**Ce que l'Excel contenait vraiment**
+- **28 feuilles**, dont 4 « lancés » (registres à codes pré-générés, très incomplets) et 5 onglets **« ✏️ »** (la vraie base : `id | Sujets | Statut | Type | Format | Journaliste | Lieux | Fb/Insta/Tik id`).
+- **⚠️ DEUX ERREURS D'ANALYSE, corrigées par recoupement.** Le Pilote a d'abord cru que les feuilles « 🔒 Data » étaient toutes mortes après n'en avoir vérifié qu'une — **`🔒 Data Mapping` contient 9 512 lignes de vraies valeurs** (identifiants de publication FB/Insta/TikTok reliés au code). Et Claude Code a affirmé que les onglets « ✏️ » n'avaient **pas de colonne code** — faux, la **colonne A `id` est remplie à 100 %**, prouvé par les captures d'écran de David (M01, D01, F01, B44A, Y103). Son arbitrage « 1 314 avec code contre 2 256 sans » n'existait donc pas.
+- **Leçon : deux lectures indépendantes valent mieux qu'une.** Chacune a rattrapé une erreur de l'autre.
+- **Les feuilles techniques « 🔒 Data Content » / « Data Brand » sont, elles, bien mortes** (`=IFERROR(__xludf.DUMMYFUNCTION…` — formules Google Sheets non résolues à l'export).
+
+**LOT 1 — l'extraction**
+- **Périmètre : les 5 onglets « ✏️ » et eux seuls** (Mag, Desk, Face Cam, Brand, YouTube). Écartés : les 4 « lancés », Réel Actu (choix de David), Repost (878 titres, **0 Drive**), **Brand TMP (doublon STRICT de Brand)**, Caroussel actu, et toutes les feuilles techniques.
+- **7 champs** : `nom` · `id` · `drive` · `format` (celui de l'onglet — la colonne Format vaut « Sans format » partout) · `journaliste` · `statut` **brut** · `dateDiffusion` + `dateTournage`.
+- **⚠️ TROIS CAS FILTRÉS, repérés sur les captures de David :**
+  - **51 en-têtes CLIENTS du Brand** (B44 « Qui veut être mon associé ? », B45 « Disney »…) — ce ne sont pas des sujets. Détectés par le motif de code **`^[A-Z]\d+$`** (les vrais sujets ont un suffixe : B44A, B44B). **0 faux positif vérifié.**
+  - **5 titres BARRÉS** = sujets abandonnés, détectés par `cell.font.strike`. **GARDÉS** avec `abandonne:true` : « non, on ne l'a pas fait, c'était abandonné » est une réponse utile. *(Claude Code en a trouvé un de plus que David : M44.)*
+  - **2 lignes de RENVOI** (F19 « Changement : F66 », F23 « Changement : F80 »), motif resserré `^Changement\s*:` pour ne pas capter F06 « …changements climatiques ».
+- **⚠️ LES DATES SONT SÉPARÉES, pas fusionnées.** Claude Code proposait une valeur unique (diffusion sinon tournage) ; refusé : une vidéo tournée en mars et diffusée en juin ne raconte pas la même chose. **La donnée ne se récupère pas si on l'écrase à l'extraction** — l'affichage, lui, pourra toujours n'en montrer qu'une. Seul Brand a des dates (135 lignes) ; **91 % des records ont les deux vides**, assumé.
+- **JSON plutôt que Notion** : ces données sont **figées** (l'Excel n'est plus alimenté). Notion aurait voulu dire 2 639 écritures pour rien, et polluerait une base vivante. **Règle posée : ce qui change vit dans Notion, ce qui est figé vit dans le dépôt.**
+- **⚠️ UNICODE BRUT dans le fichier, jamais d'entité pré-échappée** — l'échappement se fait **au rendu**. C'est ce qui évite le double-échappement et fait que le chantier `escJs`/`texteLibre` du 2 septembre couvre ces titres sans rien rouvrir. *(Le CSV aurait imposé un parseur maison à cause des virgules dans les titres — écarté pour la même raison.)*
+- **Statuts BRUTS non normalisés** — 7 valeurs : `Diffusé` (2 375), `Killed` (143), vide (53), `PAD` (28), `En cours de lancement` (15), `En montage` (14), `En tournage` (11). **Vocabulaire distinct de celui de Havana**, affiché tel quel : c'est un référentiel figé.
+- **⚠️ VÉRIFICATION PILOTE INDÉPENDANTE : les 2 263 liens recoupés un par un avec l'Excel** (pas un échantillon) — **identiques au caractère près**. Accents et apostrophes intacts, 0 en-tête client, 0 renvoi, 5 abandonnés, 2 variantes de schéma conformes, `JSON.parse` OK.
+- **Une seule divergence, correcte : D175** a un lien **Frame.io** (`f.io/_mQAI0tV`) dans l'Excel, écarté du champ `drive`. Ce sujet affichera « 🔍 » alors qu'un lien existe ailleurs. **1 cas sur 2 264.**
+
+**LOT 2 — l'affichage**
+- **⚠️ CHARGEMENT AUTOMATIQUE, SANS BOUTON** — contrairement aux archives. Raison : les archives vivent dans **Notion** (3 requêtes → bouton justifié) ; l'historique est un **fichier statique servi par Netlify**, son chargement ne coûte **aucune requête Notion**. Exiger un clic pour du gratuit serait un clic de trop.
+- **ORDRE : Production → Historique → Archives.** L'historique passe **avant** les archives bien qu'il soit plus ancien : **ce qui est gratuit s'affiche, ce qui coûte se demande.**
+- **⚠️ L'ÉTAT « err » EST DÉFINITIF — le point de vigilance n°1.** `blocHistorique` est rappelé à **chaque peinture** (tick 60 s inclus). Sans garde, un échec réseau aurait relancé un fetch **à chaque tick** — une panne ponctuelle devenue boucle permanente. La machine d'états est à sens unique : `'vide' → 'chargement' → 'ok' | 'err'`, et rien ne ramène à `'vide'`.
+- **Échec → ligne grise « Historique indisponible », PAS le silence.** Sans elle, l'absence de résultats serait lue comme « ce sujet n'existe pas » — exactement l'ambiguïté que le chantier lève.
+- **⚠️ `applySearch` N'EST PAS RÉUTILISABLE ICI** : il lit `s.titre`/`s.code`, l'historique a `nom`/`id`. D'où `filtreHistorique` dédié, sur **5 champs** (nom, id, format, journaliste, statut).
+- **⚠️ PLAFOND D'AFFICHAGE À 200 LIGNES, décompte RÉEL.** Chercher « Diffusé » ramène **2 375** résultats : le filtre reste sous-milliseconde, mais reconstruire des milliers de `<tr>` **à chaque tick de 60 s** ne l'est pas. Note affichée : « 2375 résultats · 200 affichés — affinez la recherche ». Le décompte doit rester réel, sinon on croirait l'historique limité à 200 sujets.
+- **Deux actions par ligne** : **📁** si `drive` est rempli → `escapeHtml(urlSure(s.drive))`, nouvel onglet ; **🔍** sinon → `drive.google.com/drive/search?q=` + `encodeURIComponent(nom)`. **La recherche porte sur le TITRE, pas sur le code** — les dossiers Drive sont nommés par leur titre (« La Verveine - Pierre et Magali Mary »), chercher « B01A » ne trouverait rien.
+- **PAS de `onclick` ni de `cursor:pointer` sur la ligne** — ces sujets n'ont pas de fiche (jamais dans Notion). Seules les icônes sont cliquables ; le survol ne suggère aucun clic.
+- **Les 5 abandonnés** : titre barré, code en rouge sombre — comme dans l'Excel.
+- **Échappement au rendu sur les 4 champs** : `highlightText(escapeHtml(champ), escapeHtml(requête))`.
+- **`cnt-all` intact** : l'historique n'est **jamais** poussé dans `sujets`, et n'a même pas le push transitoire des archives (pas de fiche).
+- **⚠️ EN RÉSERVE : `🔒 Data Mapping`**, 9 512 lignes de vrais identifiants de publication (Facebook, Instagram, TikTok) reliés au code sujet. Permettrait de relier un sujet ancien à ses posts. Non importé.
+- **Vérification Pilote (lot 2) :** `wc -l` 8094, `CHEF_PAR_DEFAUT`=2, `createNotif`=32, « Benjamin »=0, script 4/4, `node --check` OK. Garde anti-boucle confirmée par lecture. État module hors DOM. Plafond et décompte réel confirmés. `blocArchivesRecherche` et `cnt-all` intacts. HAVANA et `corrigerTousRetours` toujours présents.
 
 ### 2026-09-24 — Recherche unifiée : retrouver une carte archivée depuis Production
 - **`index.html` seul, 7952 → 8016 (+64).**
