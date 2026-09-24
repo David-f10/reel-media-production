@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-24 (bouton « tout marquer corrigé » · placement HAVANA ajusté · fusion des 2 cartes Rocamadour · DÉPART DE BENJAMIN, CHEF_PAR_DEFAUT éliminé · Wording tous formats + limite de caractères)
+> Dernière mise à jour : 2026-09-24 (recherche unifiée production + archives · bouton « tout marquer corrigé » · placement HAVANA ajusté · fusion des 2 cartes Rocamadour · DÉPART DE BENJAMIN)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,27 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-24 — Recherche unifiée : retrouver une carte archivée depuis Production
+- **`index.html` seul, 7952 → 8016 (+64).**
+- **LE PROBLÈME, formulé par David :** quand on cherche une carte en Production et qu'on ne la trouve pas, **on ne sait pas laquelle des trois situations c'est** — elle n'existe pas, elle est archivée, ou elle est antérieure à Havana (l'ancien Excel). Trois cas très différents, indiscernables. « On est perdu. »
+- **⚠️ LE DÉCLENCHEUR N'EST PAS « ZÉRO RÉSULTAT ».** Arbitrage du Pilote contre l'intuition initiale : trois cartes AXA en production ne disent **pas** s'il en existe cinq de plus aux archives. Or la vraie question de l'utilisateur est « **est-ce qu'on l'a déjà fait ?** ». Le bouton apparaît donc **dès qu'une recherche est active**, avec ou sans résultat.
+- **DEUX ATOUTS qui ont rendu le chantier peu risqué**, trouvés à l'audit : `applySearch` est **déjà générique** (filtre titre/code/journaliste/format/chef/statut/… sur n'importe quelle liste de sujets parsés) → réutilisable **telle quelle** sur `sujetsArchives` ; et `ouvrirFicheArchive` **existe déjà** — c'est le bon chemin d'ouverture (push transitoire dans `sujets` puis `openDetail`).
+- **⚠️ `cardHTMLHighlight` NE POUVAIT PAS ÊTRE RÉUTILISÉE** — détection de Claude Code au passage en proposition, qui a révisé sa propre reco : elle code en dur `onclick="openDetail(…)"` **et un bouton 🗑 `deleteSujet`**. Réutiliser la carte de production aurait mis un **bouton « supprimer » sur une carte déjà archivée**, et le mauvais chemin d'ouverture serait passé inaperçu jusqu'au premier clic.
+- **RENDU : tableau compact façon page Archives** (Code · Titre · Format · Journaliste · Diffusion), pas des cartes. **Une présentation différente EST la distinction la plus lisible** — « ce bloc ne ressemble pas aux cartes du dessus, donc il vient d'ailleurs ». Zéro traitement à ajouter sur les cartes de production, et aucune variante de carte à maintenir. Rendu **dédié** : ni bouton restaurer ni colonne archivage (actions propres à la page Archives).
+- **⚠️ MESSAGE EXPLICITE SI AUCUNE ARCHIVE NE CORRESPOND** — « Aucune archive ne correspond à "X" ». C'est le cœur de la demande : ça **élimine une des trois situations**. Un « Archives (0) » nu aurait laissé le doute.
+- **⚠️⚠️ L'ÉTAT EST UN FLAG MODULE `_archivesRecherche`, RELU À CHAQUE PEINTURE.** `renderCards` est rappelé à **chaque tick** (`autoRefreshTick → renderVueAvecScroll → appSetVue`, et `loadRetoursBadges`) et **réécrit tout `#cards-wrap`**. Les résultats archivés **ne peuvent pas vivre dans le DOM** : ils sont reconstruits depuis `_archivesRecherche` + `sujetsArchives` à chaque passage. Sinon le premier poll les efface.
+- **DEUX RESETS :** `clearSearch` (le × termine la session de recherche) et **`appLoadData`** — ↻ Actualiser vide `sujetsArchives`, le flag doit retomber sinon on peindrait un « Archives (0) » fantôme. La frappe dans le champ, elle, **ne réinitialise pas** : le flag reste, les archives sont **re-filtrées en direct** (gratuit, `sujetsArchives` est en mémoire). Replier à chaque frappe aurait forcé un reclic permanent.
+- **RESTRUCTURATION DE `renderCards`** — le seul vrai risque du chantier, sur le chemin de rendu principal : le `return` anticipé de la branche « aucun résultat » est supprimé, les trois branches écrivent dans une variable `html`, puis `if(searchQuery) html += blocArchivesRecherche()`. **Quand `searchQuery` est vide, `html` est byte-identique à l'ancien rendu.**
+- **TROIS RÈGLES DE SÛRETÉ :**
+  - **`applySearch` OUI** sur les archives — **`matchFiltre` NON** : un filtre barre « PAD » ou « Stock » actif **masquerait toutes les archives** (ces filtres ont un sens de pipeline actif).
+  - **JAMAIS de concaténation dans `sujets`** — le compteur `cnt-all` de la sidebar en dépend. Le seul contact reste le push **transitoire au clic** d'`ouvrirFicheArchive` (comportement existant).
+  - **`search-count` reste prod-only** ; les archives ont leur propre décompte dans le séparateur.
+- **CACHE PARTAGÉ AVEC LA PAGE ARCHIVES** : même filtre, même tri → si la page Archives a déjà été ouverte, le chargement est **instantané**. Et inversement. Le badge `cnt-archives` est mis à jour **dans les deux sens**. 205 cartes = 3 requêtes, bouton « ⏳ Chargement… » non cliquable pendant. Échec → libellé restauré, toast, **flag non levé** (pas de bascule sur un échec).
+- **⚠️ PÉRIMÈTRE : VUE CARTES UNIQUEMENT.** David voulait toutes les vues (« chacun travaille comme il veut »), mais Liste/Par statut/Par journaliste/Calendrier sont des **agrégations du pipeline actif** — une archive n'a ni statut « en cours » ni place dans un calendrier de production. Décision : commencer par les cartes. **À étendre à la vue Liste si l'usage le montre** (même structure plate, extension simple).
+- **Limite assumée :** les cartes antérieures à Havana (l'ancien Excel) resteront introuvables. Aucune mention ajoutée, c'est accepté.
+- **Intacts, vérifiés :** `renderArchives`, `cardHTMLHighlight`, `matchFiltre`.
+- **Vérification Pilote :** `wc -l` 8016, `CHEF_PAR_DEFAUT`=2, `createNotif`=32, « Benjamin »=0, script 4/4, `node --check` OK. Flag relu à chaque peinture confirmé, 2 resets en place, `ouvrirFicheArchive` au clic (pas `openDetail`), `applySearch(sujetsArchives)` sans `matchFiltre`. HAVANA et `corrigerTousRetours` toujours présents.
 
 ### 2026-09-24 — Bouton « Tout marquer corrigé » sur les retours
 - **`index.html` seul, 7904 → 7952 (+48).**
