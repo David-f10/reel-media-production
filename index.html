@@ -5264,6 +5264,10 @@ async function confirmerImpossible() {
 
 // ─── RECHERCHE ───
 let searchQuery = '';
+// Recherche unifiée production + archives : l'utilisateur a demandé à inclure les archives pour CETTE
+// session de recherche. Variable MODULE (jamais le DOM) — renderCards la relit à chaque peinture, car
+// le polling repeint #cards-wrap ; un état DOM serait effacé au premier tick.
+let _archivesRecherche = false;
 
 function onSearch(val) {
   searchQuery = val.trim().toLowerCase();
@@ -5274,6 +5278,7 @@ function onSearch(val) {
 
 function clearSearch() {
   searchQuery = '';
+  _archivesRecherche = false; // le geste × termine la session de recherche unifiée
   const input = document.getElementById('search-input');
   if(input) { input.value = ''; input.style.width = '220px'; input.style.borderColor = 'var(--border)'; }
   const clearBtn = document.getElementById('search-clear');
@@ -7459,6 +7464,7 @@ async function appLoadData() {
     ]);
     sujets = prod.results.map(parsePage);
     sujetsArchives = [];
+    _archivesRecherche = false; // ↻ vide le cache archives → le flag doit retomber (sinon bloc « Archives (0) » fantôme)
     compteurs = {};
     comp.results.forEach(p => {
       const pr = p.properties;
@@ -7870,18 +7876,76 @@ function renderCards() {
   }
   const cw = document.getElementById('cards-wrap');
   if(!cw) return;
+  // Section production : cartes, ou état vide — HTML construit dans `html` puis assigné UNE fois.
+  // searchQuery vide → `html` est byte-identique à l'ancien rendu (mêmes chaînes, aucun bloc archives).
+  let html;
   if(!list.length) {
-    cw.innerHTML = searchQuery
+    html = searchQuery
       ? `<div class="empty"><h3>Aucun résultat</h3><p>Aucun sujet ne correspond à "<strong>${searchQuery}</strong>"</p></div>`
       : '<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';
-    return;
-  }
-  // Highlight dans les cartes si recherche active
-  if(searchQuery) {
-    cw.innerHTML = '<div class="cards cards--c">' + list.map(s => cardHTMLHighlight(s, searchQuery)).join('') + '</div>';
+  } else if(searchQuery) {
+    html = '<div class="cards cards--c">' + list.map(s => cardHTMLHighlight(s, searchQuery)).join('') + '</div>';
   } else {
-    cw.innerHTML = '<div class="cards cards--c">' + list.map(cardHTML).join('') + '</div>';
+    html = '<div class="cards cards--c">' + list.map(cardHTML).join('') + '</div>';
   }
+  // Recherche unifiée : bloc archives sous la liste, dès qu'une recherche est active (avec OU sans
+  // résultat prod). Vue cartes uniquement (c'est renderCards). Émis à CHAQUE peinture depuis l'état
+  // module (_archivesRecherche + sujetsArchives) — jamais stocké dans le DOM.
+  if(searchQuery) html += blocArchivesRecherche();
+  cw.innerHTML = html;
+}
+
+// Bloc « archives » de la recherche unifiée. Reconstruit à chaque peinture par renderCards.
+// _archivesRecherche=false → bouton ; true → séparateur + tableau (applySearch OUI, matchFiltre NON),
+// ou message explicite si aucune archive ne correspond (désambiguïse « introuvable »).
+function blocArchivesRecherche() {
+  if(!_archivesRecherche) {
+    return `<div style="padding:16px 14px;text-align:center;border-top:1px solid var(--border);margin-top:8px">
+      <button onclick="chercherArchives(this)" class="nav-btn" style="font-size:12px">Chercher aussi dans les archives</button>
+    </div>`;
+  }
+  const arch = applySearch(sujetsArchives, searchQuery); // archives = même forme que sujets ; PAS matchFiltre
+  const entete = `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:12px 14px 6px;border-top:1px solid var(--border);margin-top:8px">Archives (${arch.length})</div>`;
+  if(!arch.length) {
+    return entete + `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 14px 12px">Aucune archive ne correspond à "${searchQuery}"</div>`;
+  }
+  let h = entete + `<div style="overflow-x:auto"><table class="list-table"><thead><tr>
+    <th style="width:80px">Code</th><th style="width:auto">Titre</th><th style="width:90px">Format</th>
+    <th style="width:110px">Journaliste</th><th style="width:90px">Diffusion</th>
+  </tr></thead><tbody>`;
+  arch.forEach(s => {
+    const col = FMT_COLORS[s.format] || '#888';
+    h += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
+      <td class="td-code">${highlightText(s.code||'—', searchQuery)}</td>
+      <td class="td-titre">${highlightText(s.titre||'', searchQuery)}</td>
+      <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
+      <td>${highlightText(s.journaliste||'—', searchQuery)}</td>
+      <td class="td-date">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
+    </tr>`;
+  });
+  h += '</tbody></table></div>';
+  return h;
+}
+
+// Charge les archives (si pas déjà en cache — partagé avec renderArchives, dans les deux sens) puis
+// bascule la recherche en mode unifié. Bouton en « Chargement… » pendant les ~3 requêtes.
+async function chercherArchives(btn) {
+  const old = btn ? btn.textContent : '';
+  if(!sujetsArchives.length) {
+    if(btn) { btn.textContent = '⏳ Chargement…'; btn.style.pointerEvents = 'none'; }
+    try {
+      const data = await apiQueryAll('/databases/' + DB_PROD + '/query', {filter:{property:'Archivé',checkbox:{equals:true}},sorts:[{timestamp:'last_edited_time',direction:'descending'}]});
+      sujetsArchives = data.results.map(parsePage);
+      const badge = document.getElementById('cnt-archives');
+      if(badge) badge.textContent = sujetsArchives.length; // maj identique à renderArchives → badge cohérent
+    } catch(e) {
+      if(btn) { btn.textContent = old; btn.style.pointerEvents = ''; } // jamais figé sur « Chargement… »
+      toast('Erreur : ' + e.message, 'err');
+      return; // flag non levé : on ne bascule pas en mode archives sur un échec
+    }
+  }
+  _archivesRecherche = true;
+  renderCards();
 }
 
 function cardHTMLHighlight(s, q) {
