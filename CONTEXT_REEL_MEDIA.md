@@ -67,7 +67,25 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 - **Échappement au rendu sur les 4 champs** : `highlightText(escapeHtml(champ), escapeHtml(requête))`.
 - **`cnt-all` intact** : l'historique n'est **jamais** poussé dans `sujets`, et n'a même pas le push transitoire des archives (pas de fiche).
 - **⚠️ EN RÉSERVE : `🔒 Data Mapping`**, 9 512 lignes de vrais identifiants de publication (Facebook, Instagram, TikTok) reliés au code sujet. Permettrait de relier un sujet ancien à ses posts. Non importé.
-- **Vérification Pilote (lot 2) :** `wc -l` 8094, `CHEF_PAR_DEFAUT`=2, `createNotif`=32, « Benjamin »=0, script 4/4, `node --check` OK. Garde anti-boucle confirmée par lecture. État module hors DOM. Plafond et décompte réel confirmés. `blocArchivesRecherche` et `cnt-all` intacts. HAVANA et `corrigerTousRetours` toujours présents.
+- **Vérification Pilote (lot 2) :** `wc -l` 8094, `CHEF_PAR_DEFAUT`=2, `createNotif`=32, « Benjamin »=0, script 4/4, `node --check` OK. Garde anti-boucle confirmée par lecture. État module hors DOM. Plafond et décompte réel confirmés. `blocArchivesRecherche` et `cnt-all` intacts.
+
+**LOT 3 — la fiche de consultation et la recherche dans le PAD (8094 → 8161, +67)**
+- **⚠️ UN DÉFAUT DE CADRAGE DU PILOTE, corrigé.** Deux variantes avaient été maquettées : **A** (ligne seule) et **B** (fiche au clic affichant statut, journaliste, date). David a choisi A — mais le Pilote **n'a pas signalé** qu'en écartant la fiche, on écartait l'affichage du journaliste et des dates. David l'a découvert en production : « je ne peux pas voir les infos que tu m'avais données ».
+  **Leçon : quand une variante est écartée, dire ce qu'on perd avec elle.**
+- **Correction : LES DEUX ENSEMBLE.** Colonnes Journaliste et Diffusion ajoutées au tableau, **et** fiche de consultation au clic sur la ligne. Deux chemins, un geste chacun :
+  - **ligne** → `cursor:pointer` + `onclick` = fiche (code·format, titre, « Sujet antérieur à Havana · consultation seule », statut / journaliste / date, bouton Drive ou PAD)
+  - **icône** → `event.stopPropagation()` = va directement au Drive/PAD **sans** ouvrir la fiche. Patron du bouton « Terminer » des retours.
+- **⚠️ LA RECHERCHE DRIVE POINTAIT AU MAUVAIS ENDROIT.** Elle cherchait dans **tout** le Drive de l'utilisateur et tombait sur ses dossiers personnels. Or les dossiers de production vivent dans un **dossier PAD partagé** (Chloé, Arnaud, David, plusieurs journalistes).
+- **⚠️⚠️ ERREUR DU PILOTE SUR LE NOMMAGE DES DOSSIERS.** Il avait affirmé que les dossiers Drive étaient nommés par leur **titre** — en se fiant à un seul cas Brand (« La Verveine - Pierre et Magali Mary »). La capture de David prouve l'inverse : ils sont nommés **« code : titre »** (`M03: Une mairie permet à ses habitants d'économiser`). Le code est donc l'identifiant à chercher.
+- **⚠️ TROIS LIMITES TECHNIQUES DE DRIVE, établies par Claude Code (et dites franchement) :**
+  1. **Aucun paramètre d'URL ne restreint une recherche à un dossier.** Le « rechercher dans ce dossier » de l'interface est un état d'UI, pas une URL adressable ; l'opérateur `parent:` n'existe que dans l'API `files.list`.
+  2. **Les mots multiples sont combinés en ET implicite** → « M03 Une mairie permet » ne trouve **rien** si le dossier ne porte pas le code. **Concaténer code + titre est le PIRE choix** — la réserve de David était fondée.
+  3. **Le OU booléen n'existe pas** dans la barre de recherche web. **Aucune URL unique ne couvre les deux cas.**
+- **SOLUTION RETENUE (option A) : ouvrir le PAD + copier le code.** Puisqu'une requête figée est soit trop étroite (ET) soit impossible (OU), on **ne fige pas la requête** : l'utilisateur atterrit dans le bon dossier avec le code prêt à coller. S'il ne trouve pas, il tape un mot du titre. **Un terme à la fois, comme Drive fonctionne bien.** L'option B (recherche globale sur le code) aurait raté les dossiers renommés sans code et ne tenait pas la promesse « dans le PAD ».
+- **⚠️ L'ORDRE EST « OUVRIR PUIS COPIER », contrainte assumée.** `window.open` doit être **synchrone dans le geste** pour ne pas être bloqué par le navigateur ; `clipboard.writeText` exige **le focus**, que le nouvel onglet peut voler. Les deux se contredisent. On garantit l'action essentielle (arriver dans le dossier) ; la copie est **best-effort**.
+- **⚠️ LE TOAST NE SUFFIT PAS — l'utilisateur part sur un autre onglet et ne le verra jamais.** L'information fiable est **avant le clic** : ligne « le code M03 sera copié » dans la fiche, et `title` au survol de l'icône. Le code n'est donc **jamais perdu**, même si la copie échoue. Repli à 3 branches : succès, refus, API absente.
+- **`PAD_FOLDER_URL` en constante unique** (l.549), avec le commentaire « éditer ICI ». Une seule occurrence de l'identifiant dans tout le fichier.
+- **Vérification Pilote (lot 3) :** `wc -l` 8161, compteurs 2/32/4-4, `node --check` OK. `stopPropagation` sur les **deux** icônes. Repli presse-papier à 3 branches. `blocArchivesRecherche`, `chargerHistorique`, `filtreHistorique`, `corrigerTousRetours`, HAVANA intacts.
 
 ### 2026-09-24 — Recherche unifiée : retrouver une carte archivée depuis Production
 - **`index.html` seul, 7952 → 8016 (+64).**
