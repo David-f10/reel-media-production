@@ -543,6 +543,10 @@ const DB_EQUIPE='df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const DB_RETOURS='02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_NOTIFS='4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 const DB_IDEES='b164bf282a4e4ac78a15d5e894019daa';
+// Dossier PAD partagé (Chloé, Arnaud, David, journalistes) où vivent les dossiers Drive de production.
+// Utilisé par le 🔍 de l'historique : Drive ne permet PAS de scoper une recherche par URL, on ouvre
+// donc ce dossier + on copie le code au presse-papier. Le jour où le dossier change, éditer ICI (seul endroit).
+const PAD_FOLDER_URL = 'https://drive.google.com/drive/folders/17Ylr1wfLNuSS_GVyJlOXl52wSK2qSXXn';
 const DB_REFS='4ae84e174ee9473888eaa15112fcc6ee';
 const DB_VERSIONS='3793eebb-2aeb-4d49-84ae-06d79cfb2704';
 const DB_MUSIQUES='d9d3579257bc49059e6cd683a8b02fef';
@@ -8007,12 +8011,15 @@ function blocHistorique() {
   hits.slice(0, HISTO_MAX).forEach(s => {
     const col = FMT_COLORS[s.format] || '#888';
     const drive = urlSure(s.drive);
+    // Icône = raccourci direct au Drive/PAD. stopPropagation → n'ouvre PAS la fiche (patron du bouton
+    // « Terminer » des retours). 📁 = dossier connu ; 🔍 = pas de dossier → chercherDansPad (copie + PAD).
     const action = drive
-      ? `<a href="${escapeHtml(drive)}" target="_blank" rel="noopener noreferrer" title="Ouvrir le dossier Drive" style="text-decoration:none;cursor:pointer">📁</a>`
-      : `<a href="https://drive.google.com/drive/search?q=${encodeURIComponent(s.nom||'')}" target="_blank" rel="noopener noreferrer" title="Rechercher le titre dans Google Drive" style="text-decoration:none;cursor:pointer">🔍</a>`;
+      ? `<a href="${escapeHtml(drive)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Ouvrir le dossier Drive" style="text-decoration:none;cursor:pointer">📁</a>`
+      : `<span onclick="event.stopPropagation();chercherDansPad('${escJs(s.id)}')" title="Chercher dans le PAD (copie le code ${escapeHtml(s.id)})" style="cursor:pointer">🔍</span>`;
     const barre = s.abandonne ? 'text-decoration:line-through;' : '';
     const codeStyle = s.abandonne ? 'color:#8B0000' : '';
-    h += `<tr>
+    // Ligne cliquable → fiche de consultation. Seule l'icône (stopPropagation) court-circuite.
+    h += `<tr onclick="ouvrirFicheHistorique('${escJs(s.id)}')" style="cursor:pointer">
       <td class="td-code" style="${codeStyle}">${highlightText(escapeHtml(s.id||'—'), q)}</td>
       <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}</td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
@@ -8024,6 +8031,66 @@ function blocHistorique() {
   if(total > HISTO_MAX) h += msg(`${total} résultats · ${HISTO_MAX} affichés — affinez la recherche pour voir les premiers`);
   h += '</div>';
   return h;
+}
+
+// 🔍 « Chercher dans le PAD ». Drive n'a pas de recherche scopée par URL → on OUVRE le dossier PAD
+// (synchrone dans le geste = jamais bloqué par le popup blocker) et on COPIE le code au presse-papier.
+// La copie est best-effort (writeText exige le focus, que le nouvel onglet peut voler) : en cas d'échec,
+// le code reste visible (fiche + title de l'icône) → jamais perdu, repli assuré comme validé.
+function chercherDansPad(code) {
+  window.open(PAD_FOLDER_URL, '_blank', 'noopener'); // d'abord, dans le geste
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(
+        () => toast('Code ' + code + ' copié — colle-le dans la recherche du PAD', 'ok'),
+        () => toast('Code à saisir dans le PAD : ' + code, 'err')      // presse-papier refusé
+      );
+    } else {
+      toast('Code à saisir dans le PAD : ' + code, 'err');            // API absente
+    }
+  } catch(e) {
+    toast('Code à saisir dans le PAD : ' + code, 'err');
+  }
+}
+
+// Fiche de consultation d'un sujet historique (lecture seule, pas dans Notion). Overlay dismissible
+// ✕ / Échap / clic-fond (patron fermerSurClicFond, comme montrerLimiteTexte). Tout échappé au rendu.
+function ouvrirFicheHistorique(id) {
+  const s = (_historique || []).find(h => h.id === id);
+  if(!s) return;
+  const existing = document.getElementById('fiche-histo-modal'); if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'fiche-histo-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px';
+  let onEsc; const close = () => { overlay.remove(); if(onEsc) document.removeEventListener('keydown', onEsc); };
+  onEsc = ev => { if(ev.key === 'Escape') close(); };
+  const drive = urlSure(s.drive);
+  const dateVal = s.dateDiffusion || s.dateTournage || '';   // diffusion sinon tournage
+  const barre = s.abandonne ? 'text-decoration:line-through;' : '';
+  const codeCol = s.abandonne ? '#8B0000' : 'var(--red)';
+  const action = drive
+    ? `<a href="${escapeHtml(drive)}" target="_blank" rel="noopener noreferrer" class="nav-btn primary" style="display:inline-block;text-decoration:none;font-size:12px">📁 Ouvrir le dossier Drive</a>`
+    : `<button onclick="chercherDansPad('${escJs(s.id)}')" class="nav-btn" style="font-size:12px">🔍 Chercher dans le PAD</button>
+       <div style="font-size:11px;color:var(--text3);margin-top:6px">le code <strong>${escapeHtml(s.id)}</strong> sera copié</div>`;
+  const ligne = (label, val) => `<div style="display:flex;gap:10px;padding:5px 0;font-size:13px"><span style="color:var(--text3);min-width:110px">${label}</span><span style="color:var(--text)">${escapeHtml(val||'—')}</span></div>`;
+  overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:460px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+      <span style="font-family:var(--mono);font-size:11px;color:${codeCol};font-weight:600">${escapeHtml(s.id)} · ${escapeHtml(s.format)}</span>
+      <button id="fiche-histo-x" class="nav-btn" style="font-size:14px;padding:2px 8px" title="Fermer">✕</button>
+    </div>
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;${barre}">${escapeHtml(s.nom)}</div>
+    <div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:14px">Sujet antérieur à Havana · consultation seule</div>
+    <div style="border-top:1px solid var(--border);padding-top:10px">
+      ${ligne('Statut', s.statut)}
+      ${ligne('Journaliste', s.journaliste)}
+      ${ligne('Date', dateVal)}
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:16px">${action}</div>
+  </div>`;
+  document.body.appendChild(overlay);
+  fermerSurClicFond(overlay, close);
+  document.addEventListener('keydown', onEsc);
+  document.getElementById('fiche-histo-x').addEventListener('click', close);
 }
 
 function cardHTMLHighlight(s, q) {
