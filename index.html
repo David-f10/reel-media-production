@@ -84,7 +84,10 @@
 
 <!-- TOP NAV -->
 <nav class="topnav">
-  <div class="havana" style="font-size:13px;color:#b0b0b0">HAVANA</div>
+  <div style="display:flex;align-items:baseline;gap:12px;min-width:0">
+    <span class="havana" style="font-size:14px;color:#ccc">HAVANA</span>
+    <span style="font-family:var(--font);font-size:12px;color:#666">suivi de production</span>
+  </div>
   <div class="topnav-r" style="display:flex;align-items:center;gap:8px">
     <button id="help-btn" onclick="showHelpModal()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:5px 10px;border-radius:var(--r);cursor:pointer;font-size:16px;line-height:1;transition:all 0.15s" title="Centre d'aide">?</button>
     <div style="position:relative">
@@ -136,10 +139,6 @@
     </g>
   </g>
 </svg>
-      <div class="sb-havana" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-        <div class="havana" style="font-size:15px;color:#b0b0b0">HAVANA</div>
-        <div class="havana-sub" style="font-size:9px">suivi de production</div>
-      </div>
     </div>
     <div class="sb-nav">
       <button class="sb-item" id="nav-dashboard" onclick="navTo('dashboard')">
