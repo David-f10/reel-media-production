@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-17 (L'APP S'APPELLE HAVANA · Wording sur tous formats + limite de caractères · DÉPART DE BENJAMIN, CHEF_PAR_DEFAUT éliminé · Performances garanties · TÂCHES liées aux cartes)
+> Dernière mise à jour : 2026-09-24 (bouton « tout marquer corrigé » · placement HAVANA ajusté · fusion des 2 cartes Rocamadour · DÉPART DE BENJAMIN, CHEF_PAR_DEFAUT éliminé · Wording tous formats + limite de caractères)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,46 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-24 — Bouton « Tout marquer corrigé » sur les retours
+- **`index.html` seul, 7904 → 7952 (+48).**
+- **LA DEMANDE :** quand un monteur ou un journaliste a tout corrigé, pouvoir valider tous les retours d'un coup au lieu de cliquer un par un.
+- **⚠️ RÉPONSE À LA QUESTION DE DAVID — « une fois tous les retours validés, c'était quoi la suite ? »** : **RIEN**. `toggleRetour(…,'Corrigé')` fait exactement trois choses — un PATCH `Statut`, un toast, `loadRetours`. **Aucun effet de bord** : pas de changement de statut de carte, pas de badge, **aucune notification** (la notif « retours traités » a été supprimée le 2 septembre). Le passage au vert du décompte et de l'en-tête de version est **calculé au rendu**, jamais écrit. Le bouton n'a donc rien à reproduire — juste à enchaîner.
+- **La porte anti-rafale `_notifRetourGate` ne couvre pas ce chemin et n'a pas à le couvrir** : elle protège la **soumission** d'un retour, pas sa correction.
+- **⚠️ COLLISION DE NOM ÉVITÉE : `validerTousRetours` EXISTE DÉJÀ** et fait autre chose — elle transmet les **brouillons** (`Brouillon → false`). D'où `corrigerTousRetours`, nom distinct.
+  | | `validerTousRetours` (existant) | `corrigerTousRetours` (nouveau) |
+  |---|---|---|
+  | Cible | brouillons | retours `Ouvert` |
+  | Écrit | `Brouillon → false` | `Statut → 'Corrigé'` |
+  | Filtre version | non (tout le sujet) | **oui (selVer seul)** |
+- **⚠️ PÉRIMÈTRE PLUS ÉTROIT QUE LE DÉCOMPTE AFFICHÉ :** le pill d'en-tête compte `Ouvert` + `Clarification`, **toutes versions**. Le bouton vise **exactement les lignes où la coche manuelle apparaît** : `Ouvert` · non-brouillon · `Version === selVer`. Exclut Clarification, Impossible, Corrigé, brouillons **et les autres versions** — alors que leurs retours ouverts restent visibles à l'écran (c'est le signal rouge voulu). **Le N du bouton ≠ le N du pill.**
+- **`selVer` GRAVÉ DANS LE `onclick`, jamais relu** : au rendu il est déjà résolu, et il ne peut changer que via `selectVersion` → qui re-render → nouveau bouton. Zéro dérive possible.
+- **CONFIRMATION avec décompte ET version** : « Valider les 6 retours ouverts de la V3 ? » (singulier géré). La **version dans le message** est ce qui évite qu'on croie valider tout le sujet.
+- **⚠️ ÉTAT PARTIEL ASSUMÉ, PAS DE ROLLBACK.** Écriture séquentielle ; si la 4ᵉ échoue sur 6, on s'arrête, on restaure le libellé, toast, `loadRetours` pour refléter le réel. Un rollback serait **pire** : il faudrait rouvrir des retours réellement corrigés — défaire du travail juste — et le rollback lui-même pourrait échouer. Le chemin manuel produit déjà exactement ce comportement.
+- **N=0 après re-query et refus de confirmation : `return` AVANT toute écriture et avant de figer le bouton.**
+- **Aucune garde de rôle** — la coche manuelle n'en a pas, le bouton hérite. Seule garde : `currentUser` existe.
+- **DISTINCTION DES DEUX BOUTONS sur TROIS axes simultanés** (ils peuvent coexister) : **verbe** (« Valider mes retours » = transmettre ≠ « Tout marquer corrigé »), **couleur** (accent plein ≠ **contour vert**, la couleur du Corrigé partout dans le bloc), **portée** (seul le bouton corrigé porte un tag de version). Libellé : **`✓ Tout marquer corrigé · V3 (6)`**. Empilés verticalement, pas côte à côte — pour rester lisibles en largeur mobile.
+- **`confirmerAction` gardé malgré son bouton OK rouge** : c'est le style « action à confirmer » de la maison. Inventer une variante verte créerait deux dialectes de confirmation, et le prochain chantier devrait choisir.
+- **Seul changement structurel :** les 3 lignes de résolution de `selVer`/`versionsVn` remontées en tête du `try` de `loadRetours` pour que les deux boutons se construisent ensemble. **Portée vérifiée** : déclaration l.2694-2695, usages l.2708/2710/2770/2779 dans le même bloc ; le `selVer` de `loadVersions` (l.2964) et le paramètre de `corrigerTousRetours` sont des portées distinctes.
+- **Vérification Pilote :** `wc -l` 7952, `CHEF_PAR_DEFAUT`=2, `createNotif`=32, « Benjamin »=0, script 4/4, `node --check` OK. PATCH identique à `toggleRetour`. `validerTousRetours` intact (3 occurrences). Non-régression vérifiée.
+
+### 2026-09-24 — ⚠️ INCIDENT DE BASE : le chantier HAVANA perdu hors du dépôt
+- **CE QUI S'EST PASSÉ :** HAVANA a été livré et vérifié le 17/09 mais **jamais poussé sur main**. Le conteneur de Claude Code a ensuite été **ré-initialisé** (clone frais d'`origin/main`) — son arbre de travail a perdu HAVANA. Le chantier suivant (le bouton) est donc parti d'une base à **7900, sans HAVANA**. Pousser cette livraison aurait **effacé tout le chantier HAVANA**.
+- **DÉTECTÉ PAR LE COMPTE DE LIGNES** : livraison annoncée « 7900 → 7948 », alors que la dernière version vérifiée faisait 7905. Puis grep : `HAVANA` = 0, « Suivi de production » de retour. **Le `wc -l` de contrôle a évité la perte.**
+- **⚠️ RÈGLE À RETENIR : un chantier vérifié mais non poussé n'existe pas.** Git ne connaît que `main` ; l'arbre de travail de Claude Code peut être réinitialisé à tout moment. **Pousser après chaque vérification, avant de lancer le chantier suivant.**
+- **RÉCUPÉRATION par l'option A** — réutiliser le **fichier livré et validé** que David avait téléchargé, plutôt que de le reconstituer depuis le transcript. Un transcript peut contenir une édition intermédiaire plutôt que finale, et on ne le verrait pas.
+- **Piège au passage :** David a d'abord renvoyé la **première** version HAVANA (7905, trois emplacements dont la sidebar) au lieu de la version **ajustée** (7904, sans la sidebar). Détecté par `grep sb-havana`.
+- **Placement HAVANA définitif** (ajustement du 17/09, poussé le 24/09) : **connexion** (22px blanc + sous-titre) et **en-tête** (serif 14px `#ccc` + « suivi de production » en **sans-serif** `var(--font)` 12px `#666`, côte à côte sur la ligne de base). **Absent de la sidebar** — il y faisait doublon avec l'en-tête sur le même écran, et le sous-titre en monospace capitales alourdissait la colonne.
+
+### 2026-09-22 — Fusion des deux cartes « Rocamadour » (Notion, aucun code)
+- **LE PROBLÈME :** deux cartes Brand pour le même festival, sous **deux clients différents**. Chloé, qui prenait l'app en main, a écrit son retour client sur l'une pendant que le montage vivait sur l'autre.
+- **⚠️ TROIS CLIENTS « PATRIMOINE », PAS DEUX** : B18 « Fondation du patrimoine » (générique, historique), B29 « Fondation Patrimoine 2025 », B50 « Fondation Patrimoine 2026 ». Les titres des cartes de B18 et B50 se ressemblent — d'où la confusion.
+- **B50M créée le 19/08, B18H le 02/09** → la carte d'origine était la **bonne** (bon client 2026, bon sous-format Mag). C'est B18H qui a été créée par erreur, et le travail a continué dessus par habitude. On n'a donc pas « déplacé vers une nouvelle carte », on a **ramené le travail sur la carte d'origine**.
+- **⚠️ LA PREMIÈRE PISTE DE DAVID AURAIT RECRÉÉ L'INCIDENT FAMILEO** : « changer le format YouTube → MAG ». En réalité « YouTube » et « Mag » étaient des **sous-formats** (format de livraison), pas le format principal — les deux cartes sont des Brand. Le sous-format n'entre pas dans le code et reste librement modifiable.
+- **ANALYSE DE RISQUES avant écriture** (demandée par David) : aucun risque bloquant. **Aucun lien de review n'avait été envoyé au client** — c'était le seul risque sérieux, le lien contenant le code de la carte en dur.
+- **OPÉRATION :** un PATCH unique sur B50M (titre, statut, lien de rendu, contact Brand, lieu de tournage) + **ré-rattachement des 2 versions** (`Sujet ID` de B18H vers B50M). **B18H non modifiée** — David y a laissé lui-même une note de redirection avant de l'archiver depuis l'app.
+- **Les versions ne se dupliquent pas** : chacune n'existe qu'une fois, on change la carte à laquelle elle est rattachée. Sans ce transfert, la numérotation serait repartie à **V1** sur B50M alors que le client avait déjà vu une V2.
+- **Vigilance sur les IDs :** les pages des deux versions commencent par le même préfixe que B18H (créées le même jour) — il fallait distinguer les versions de la carte.
 
 ### 2026-09-17 — L'application s'appelle HAVANA
 - **`index.html` (7900 → 7905) + `css/layout.css` (→ 264).** L'équipe a choisi ce nom, en référence aux origines cubaines de David.
