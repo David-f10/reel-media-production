@@ -2688,14 +2688,29 @@ async function loadRetours(sujetId) {
       if(!byVersion[v]) byVersion[v] = [];
       byVersion[v].push(r);
     });
-    // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
+    // Version affichée : résolue ICI (remontée depuis plus bas) pour que les deux boutons de tête
+    // soient construits ensemble. Gating défensif /^V\d+$/ ; selVer=null → repli désactivé.
+    // byVersion est déjà disponible ; les usages en aval (rendu des blocs) gardent selVer/versionsVn en portée.
+    const versionsVn = Object.keys(byVersion).filter(v => /^V\d+$/.test(v)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+    let selVer = _versionSelectionnee[sujetId];
+    if(!selVer || !/^V\d+$/.test(selVer) || !byVersion[selVer]) selVer = versionsVn.length ? versionsVn[versionsVn.length-1] : null;
+    // Boutons de tête (empilés). (1) Brouillons — chef → tous les brouillons Équipe, sinon → les miens.
     const isChefUser = currentUser?.role === 'Chef';
     const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || chefParDefaut();
     const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
     const myName = (currentUser?.nom||'').trim();
     const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
-    let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
-      ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border)"><button onclick="validerTousRetours('${sujetId}', this)" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
+    const btnBrouillon = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
+      ? `<button onclick="validerTousRetours('${sujetId}', this)" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button>`
+      : '';
+    // (2) Tout marquer corrigé — même périmètre que la coche manuelle : statut 'Ouvert', version affichée,
+    // non brouillon (Clarification/Impossible/Corrigé exclus, autres versions exclues). Vert = couleur du « Corrigé ».
+    const nOuvertsSel = selVer ? retours.filter(r => (r.properties.Statut?.select?.name)==='Ouvert' && (r.properties.Version?.select?.name)===selVer && !((r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false))).length : 0;
+    const btnCorriger = nOuvertsSel > 0
+      ? `<button onclick="corrigerTousRetours('${sujetId}','${selVer}',this)" class="nav-btn" style="width:100%;font-size:12px;border-color:var(--green);color:var(--green)">✓ Tout marquer corrigé · ${selVer} (${nOuvertsSel})</button>`
+      : '';
+    let html = (btnBrouillon || btnCorriger)
+      ? `<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px">${btnBrouillon}${btnCorriger}</div>`
       : '';
     // Rendu d'UNE ligne de retour (réutilisé par la version sélectionnée, les ouverts d'autres versions,
     // et le bloc replié). Mêmes variables de closure qu'avant : myName, isChefUser, chefSujet, sujetId.
@@ -2751,11 +2766,7 @@ async function loadRetours(sujetId) {
     const compteOuvert = (n) => `<span style="font-weight:400;color:var(--red)">${n} ouvert${n>1?'s':''}</span>`; // « ouvert » = rouge partout (le signal)
     const estTraite = r => ['Corrigé','⛔ Impossible'].includes(r.properties.Statut?.select?.name);
 
-    // Version sélectionnée + gating défensif /^V\d+$/. selVer=null → repli désactivé (tout affiché comme avant).
-    const versionsVn = Object.keys(byVersion).filter(v => /^V\d+$/.test(v)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
-    let selVer = _versionSelectionnee[sujetId];
-    if(!selVer || !/^V\d+$/.test(selVer) || !byVersion[selVer]) selVer = versionsVn.length ? versionsVn[versionsVn.length-1] : null;
-
+    // (selVer et versionsVn sont résolus plus haut, avant les boutons de tête ; toujours en portée ici.)
     if(!selVer) {
       // Aucune Vn valide → comportement historique : tout groupé, rien de replié.
       Object.entries(byVersion).forEach(([version, items]) => {
@@ -2846,6 +2857,43 @@ async function validerTousRetours(sujetId, btnEl, version) {
     if(btnEl) { btnEl.textContent = oldLabel; btnEl.style.pointerEvents = ''; }
     toast('Erreur : ' + e.message, 'err');
     loadRetours(sujetId); if(version) loadPlayerRetours(sujetId, version); // refléter l'état partiel éventuel
+  }
+}
+
+// Tout marquer corrigé — enchaîne le clic manuel (toggleRetour → 'Corrigé') sur les retours OUVERTS
+// non-brouillon de la SEULE version affichée (selVer gravé à l'appel, jamais relu : le re-render garantit
+// qu'il est toujours celui à l'écran). Aucune notif (comme toggleRetour). Écriture séquentielle, arrêt sur
+// erreur, PAS de rollback : rouvrir des retours réellement corrigés serait pire qu'un état partiel visible.
+async function corrigerTousRetours(sujetId, selVer, btnEl) {
+  if(!currentUser) { toast('Non connecté','err'); return; }
+  const oldLabel = btnEl ? btnEl.textContent : '';
+  try {
+    const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
+      filter: {property:'Sujet ID', rich_text:{equals:sujetId}}
+    });
+    // Périmètre = coche manuelle : statut 'Ouvert', version affichée, non brouillon.
+    const aCorriger = data.results.filter(r =>
+      (r.properties.Statut?.select?.name)==='Ouvert' &&
+      (r.properties.Version?.select?.name)===selVer &&
+      !((r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false)));
+    const n = aCorriger.length;
+    if(!n) { toast('Aucun retour ouvert sur ' + selVer,'err'); return; } // bouton intact, aucune écriture
+    const ok = await confirmerAction(
+      n>1 ? `Valider les ${n} retours ouverts de la ${selVer} ?` : `Valider le retour ouvert de la ${selVer} ?`,
+      'Valider');
+    if(!ok) return; // refus → bouton intact, aucune écriture
+    if(btnEl) { btnEl.textContent = '⏳ Validation…'; btnEl.style.pointerEvents = 'none'; }
+    for(const r of aCorriger) {
+      // PATCH identique à toggleRetour(…, 'Corrigé')
+      await api('/pages/' + r.id, 'PATCH', {properties:{'Statut':{select:{name:'Corrigé'}}}});
+    }
+    toast(`${n} retour${n>1?'s':''} corrigé${n>1?'s':''}`,'ok');
+    loadRetours(sujetId); // le bouton disparaît : plus d'ouvert sur la version
+  } catch(e) {
+    // Échec (même en milieu de boucle) : jamais figé sur « Validation… » → label initial, et on reflète l'état partiel réel.
+    if(btnEl) { btnEl.textContent = oldLabel; btnEl.style.pointerEvents = ''; }
+    toast('Erreur : ' + e.message, 'err');
+    loadRetours(sujetId);
   }
 }
 
