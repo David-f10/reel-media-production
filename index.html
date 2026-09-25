@@ -3874,6 +3874,7 @@ async function initLogin() {
     const notionEquipe = data.results.map(p => ({
       id: p.id,
       nom: p.properties.Nom?.title?.[0]?.plain_text || '',
+      nomComplet: p.properties['Nom complet']?.rich_text?.[0]?.plain_text || '', // prénom ↔ nom complet (recherche croisée)
       code: p.properties['Code acces']?.rich_text?.[0]?.plain_text || '',
       role: p.properties.Role?.select?.name || '',
       contactBrandDefaut: p.properties['Contact Brand défaut']?.checkbox || false,
@@ -5311,6 +5312,20 @@ function clearSearch() {
 function sansAccents(s){
   return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/œ/g,'oe').replace(/æ/g,'ae');
 }
+// Correspondance bidirectionnelle prénom (Havana) ↔ Nom complet (historique), depuis DB_EQUIPE.
+// Sert à enrichir les blobs de recherche : « dalicieux » trouve les cartes de « Camille », « camille »
+// trouve l'historique de « Camille Dalicieux ». Map reconstruite quand `equipe` est réassignée (login,
+// suppression). Champ « Nom complet » vide → aucune paire → comportement actuel préservé.
+let _aliasMap = null, _aliasMapSrc = null;
+function aliasNoms(nom){
+  if(_aliasMapSrc !== equipe){ // equipe réassignée → reconstruire
+    _aliasMap = new Map();
+    const add = (k,v) => { const nk=sansAccents(k); if(!nk||!v) return; if(!_aliasMap.has(nk)) _aliasMap.set(nk,[]); _aliasMap.get(nk).push(v); };
+    (equipe||[]).forEach(m => { if(m.nomComplet && m.nom){ add(m.nom, m.nomComplet); add(m.nomComplet, m.nom); } });
+    _aliasMapSrc = equipe;
+  }
+  return _aliasMap.get(sansAccents(nom)) || [];
+}
 // q optionnel : le haut de page appelle applySearch(list) → searchQuery GLOBAL ; la recherche de carte
 // du formulaire Tâches appelle applySearch(sujets, qLocal). Normalisation À LA VOLÉE : listes courtes
 // (~188 sujets + ~216 archives) → coût négligeable, AUCUN cache à périmer → un sujet édité en session
@@ -5318,7 +5333,7 @@ function sansAccents(s){
 function applySearch(list, q = searchQuery) {
   if(!q) return list;
   const nq = sansAccents(q);
-  return list.filter(s => sansAccents([s.titre,s.code,s.journaliste,s.format,s.chef,s.statut,s.sousFormat,s.monteur1,s.monteur2,s.monteur3,s.stockage,s.notes,nomClientDeCode(s.code,s.format)].join(' ')).includes(nq));
+  return list.filter(s => sansAccents([s.titre,s.code,s.journaliste,s.format,s.chef,s.statut,s.sousFormat,s.monteur1,s.monteur2,s.monteur3,s.stockage,s.notes,nomClientDeCode(s.code,s.format),...aliasNoms(s.journaliste)].join(' ')).includes(nq));
 }
 
 // Surlignage TOLÉRANT AUX ACCENTS : « eloise » surligne « Éloïse ». On dépouille la requête de ses
@@ -7508,6 +7523,10 @@ async function appLoadData() {
       };
     });
     rebuildMapClients();
+    // Belt : si l'historique est déjà chargé (cas ↻), re-fusionner pour rafraîchir _norm avec les
+    // clients/alias fraîchement rechargés. appLoadData ne réinitialise PAS _historique (vérifié) →
+    // l'état reste 'ok', la base + corrections persistent, la re-fusion reconstruit le blob. Jamais un no-op.
+    if(_historiqueEtat === 'ok') fusionnerHistorique();
     // sujetsArchives chargées à la demande
     document.getElementById('cnt-all').textContent = sujets.length;
     renderSidebarCats();
@@ -8039,7 +8058,10 @@ function fusionnerHistorique() {
     } else {
       r._corr = null;
     }
-    r._norm = sansAccents([r.nom, r.id, r.format, r.journaliste, r.statut].join(' ')); // APRÈS fusion
+    // _norm APRÈS fusion. Inclut le nom du client (nomClientDeCode → « axa » trouve les B08) et les
+    // alias prénom↔nom complet (recherche croisée). mapClientsParCode/equipe chargés au login, donc
+    // prêts à la 1re recherche ; le belt en fin d'appLoadData re-fusionne au ↻ pour rester frais.
+    r._norm = sansAccents([r.nom, r.id, r.format, r.journaliste, r.statut, nomClientDeCode(r.id, r.format), ...aliasNoms(r.journaliste)].join(' '));
     return r;
   });
 }
@@ -8143,8 +8165,7 @@ function ouvrirFicheHistorique(id) {
   const ligne = (label, val, ok) => `<div style="display:flex;gap:10px;padding:5px 0;font-size:13px"><span style="color:var(--text3);min-width:110px">${label}</span><span style="color:var(--text)">${escapeHtml(val||'—')}${past(ok)}</span></div>`;
   const dateOk = corr && (corr.champs.dateDiffusion || corr.champs.dateTournage);
   const parLe = corr ? `<div style="font-size:11px;color:#1D9E75;margin-top:8px">✓ complété par ${escapeHtml(corr.par||'?')}${corr.le?(' le '+new Date(corr.le).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})):''}</div>` : '';
-  // Datalist journaliste = équipe actuelle ∪ journalistes de l'historique (inclut les personnes parties).
-  const journOpts = [...new Set([...(typeof journMonteursNoms==='function'?journMonteursNoms():[]), ...(_historique||[]).map(h=>h.journaliste).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'fr'));
+  const journOpts = suggestionsJournaliste();
   const STATUTS_HISTO = ['Diffusé','PAD','Killed','En montage','En tournage','En cours de lancement'];
   overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:460px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
@@ -8173,8 +8194,10 @@ function ouvrirFicheHistorique(id) {
             <option value="">— Inchangé —</option>${STATUTS_HISTO.map(o=>`<option>${o}</option>`).join('')}
           </select></label>
         <label style="font-size:12px;color:var(--text2)">Journaliste
-          <input id="fh-journ" list="fh-journ-list" placeholder="— Inchangé —" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:12px;margin-top:3px">
-          <datalist id="fh-journ-list">${journOpts.map(n=>`<option value="${escapeHtml(n)}"></option>`).join('')}</datalist></label>
+          <div style="position:relative">
+            <input id="fh-journ" autocomplete="off" placeholder="— Inchangé —" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:12px;margin-top:3px">
+            <div id="fh-journ-panel" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:2px;z-index:5;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.45)"></div>
+          </div></label>
         <div style="display:flex;gap:8px">
           <label style="flex:1;font-size:12px;color:var(--text2)">Tournage<input type="date" id="fh-tour" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px;border-radius:4px;font-size:12px;margin-top:3px"></label>
           <label style="flex:1;font-size:12px;color:var(--text2)">Diffusion<input type="date" id="fh-diff" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px;border-radius:4px;font-size:12px;margin-top:3px"></label>
@@ -8192,6 +8215,50 @@ function ouvrirFicheHistorique(id) {
   fermerSurClicFond(overlay, close);
   document.addEventListener('keydown', onEsc);
   document.getElementById('fiche-histo-x').addEventListener('click', close);
+  // Liste de suggestions MAISON (le <datalist> natif ne se stylise pas). Fond sombre, filtrage à la
+  // frappe, saisie libre conservée. escapeHtml sur chaque nom (données). Clic=remplit+ferme,
+  // Échap=ferme sans vider (stopPropagation → ne ferme pas la fiche), clic dehors=ferme (blur différé).
+  const jin = document.getElementById('fh-journ');
+  const jpanel = document.getElementById('fh-journ-panel');
+  if(jin && jpanel){
+    const renderPanel = () => {
+      const nq = sansAccents(jin.value);
+      const list = (nq ? journOpts.filter(o => sansAccents(o).includes(nq)) : journOpts).slice(0, 50);
+      if(!list.length){ jpanel.style.display = 'none'; return; }
+      jpanel.innerHTML = list.map(o => `<div class="fh-journ-opt" data-val="${escapeHtml(o)}" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--text)">${escapeHtml(o)}</div>`).join('');
+      jpanel.style.display = 'block';
+    };
+    jin.addEventListener('focus', renderPanel);
+    jin.addEventListener('input', renderPanel);
+    jin.addEventListener('keydown', e => { if(e.key === 'Escape'){ jpanel.style.display = 'none'; e.stopPropagation(); } });
+    jpanel.addEventListener('mousedown', e => { // mousedown : avant le blur du champ
+      const opt = e.target.closest('.fh-journ-opt'); if(!opt) return;
+      e.preventDefault(); jin.value = opt.getAttribute('data-val'); jpanel.style.display = 'none';
+    });
+    jin.addEventListener('blur', () => setTimeout(() => { jpanel.style.display = 'none'; }, 150)); // clic dehors
+  }
+}
+
+// Liste de suggestions journaliste. COLLAPSE des paires PROUVÉES par l'équipe (prénom↔Nom complet) en
+// une entrée = le Nom complet ; le prénom nu correspondant est retiré. Le reste : variantes conservées,
+// dédoublonnage EXACT-normalisé (accent/casse), tri par prénom puis nom. On ne regroupe JAMAIS par
+// prénom (Léa = 3 personnes, Camille Bouju ≠ Camille Dalicieux) — seulement le lien explicite équipe.
+function suggestionsJournaliste(){
+  const out = [];
+  const preToDrop = new Set();
+  (equipe||[]).forEach(m => {
+    if(m.nomComplet && m.nom){ out.push(m.nomComplet); preToDrop.add(sansAccents(m.nom)); }
+    else if(m.nom){ out.push(m.nom); }
+  });
+  (_historique||[]).forEach(h => { if(h.journaliste) out.push(h.journaliste); });
+  const seen = new Set(), uniq = [];
+  out.forEach(n => {
+    const k = sansAccents(n);
+    if(!k || preToDrop.has(k) || seen.has(k)) return; // prénom nu couvert par un Nom complet, ou doublon exact
+    seen.add(k); uniq.push(n);
+  });
+  uniq.sort((a,b) => { const fa = sansAccents(a).split(' ')[0]||'', fb = sansAccents(b).split(' ')[0]||''; return fa.localeCompare(fb,'fr') || a.localeCompare(b,'fr'); });
+  return uniq;
 }
 
 // Enregistre une correction (upsert dans DB_CORRECTIONS). N'ÉCRIT QUE les champs saisis → « — Inchangé — »

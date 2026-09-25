@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-25 (HYBRIDE — compléter l'historique depuis l'app · recherche insensible aux accents · historique régénéré 2 672 sujets · HISTORIQUE dans la recherche · HAVANA)
+> Dernière mise à jour : 2026-09-25 (recherche croisée prénom↔nom complet + client dans l'historique + liste maison · HYBRIDE · recherche sans accents · historique 2 672 sujets · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,35 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-25 — Recherche croisée, nom du client, liste de suggestions (3 en 1)
+- **`index.html` seul, 8172 → 8372 (+200).** Plus un champ `Nom complet` (text) créé par Master sur DB_EQUIPE, rempli pour 10 membres.
+- **⚠️ TROIS CHANTIERS ENSEMBLE, exception assumée à la règle « un chantier à la fois ».** Ils touchent le **même blob de recherche** et la **même correspondance** : le chantier 1 alimente les blobs en alias, le 2 en nom de client, le 3 consomme la correspondance pour dédoublonner. Les séparer aurait imposé trois passages sur les mêmes lignes, et le 3 aurait dû être refait après le 1. **Trois tests restent vérifiables séparément.**
+
+**1 — La recherche croisée prénom ↔ nom complet**
+- **LE PROBLÈME :** l'app porte « Camille », l'historique « Camille Dalicieux ». Chercher « camille » trouvait les deux (sous-chaîne), mais **« dalicieux » ne trouvait QUE l'historique**.
+- **⚠️ ON NE POUVAIT PAS DEVINER.** La mesure de Claude Code l'a prouvé : **« Léa » = 3 personnes** (Fernandes, Sirot, Sombret), « Camille » = 2, « Juliette » = 2, « Mathieu » = 2. Regrouper par prénom aurait **fusionné des gens différents**. C'est ce qui a condamné la première piste du Pilote.
+- **SOLUTION : un champ `Nom complet` sur DB_EQUIPE, rempli à la main par David** — lui seul connaît les correspondances. 10 membres : Camille → Camille Dalicieux, Nico → Nicolas Wan, Léa… non (partie), etc.
+- **⚠️ LA GRAPHIE DOIT ÊTRE CELLE DE L'HISTORIQUE, pas de l'app.** D'où « **David F** » et non « David Figueredo », et « **Éloïse Barbona** » (avec tréma) alors que la fiche s'appelle « Éloise » (sans). Master a repéré l'écart et l'a signalé avant d'écrire.
+- **`_aliasMap` bidirectionnelle normalisée**, reconstruite au chargement de l'équipe, injectée dans **les deux blobs**. Champ vide (16 membres sur 26) → `[]` → **comportement actuel préservé**.
+- **Master a distingué `Juliette` de `Juliette Prunier`** — deux fiches réelles — et n'a écrit que sur la bonne.
+
+**2 — Le nom du client dans l'historique**
+- **LE DÉFAUT :** chercher « axa » dans l'historique → **0 résultat**, alors que **20 sujets B08** y sont (Murfy, Belle et Bien, les lauréats). Mesuré : **240 sujets Brand sur 53 clients, aucun trouvable par le nom du client**. `applySearch` incluait `nomClientDeCode` ; le `_norm` de l'historique ne l'avait pas.
+- **⚠️ LE NOM DU CLIENT N'EST PAS DANS LE FICHIER — et n'a pas à y être.** Il se déduit du **code** (B08 → AXA) via `mapClientsParCode`, comme pour la Production.
+- **MESURE RASSURANTE : les 53 codes clients de l'historique résolvent TOUS** (base B01→B63, 0 orphelin). Les 240 sujets Brand deviennent trouvables.
+- **⚠️ L'ORDRE DE CHARGEMENT, vérifié :** `mapClientsParCode` est construite au **login** (`appLoadData`), l'historique se charge **à la première recherche** — donc après. Ceinture et bretelles ajoutées : `if(_historiqueEtat==='ok') fusionnerHistorique()` en fin d'`appLoadData`, pour le cas ↻.
+- **⚠️ LE PILOTE S'EST TROMPÉ ICI, et Claude Code a vérifié au lieu de suivre.** Le Pilote craignait que `appLoadData` réinitialise l'historique et rende le belt inopérant. Faux : `appLoadData` ne réinitialise que **`sujetsArchives` et `_archivesRecherche`** — confusion avec le correctif des archives. **Contrôler une prémisse vaut mieux que l'appliquer.**
+
+**3 — La liste de suggestions maison**
+- **LE `<datalist>` NATIF NE SE STYLISE PAS.** Capture à l'appui : liste **blanche sur fond blanc**, police système, **débordant** sur les champs Tournage et Lien Drive. Ce n'est pas un oubli, c'est une limite du navigateur.
+- Remplacé par un **panneau `<div>` maison** : fond `--bg2`, bordure, `max-height: 180px` + défilement interne, filtrage à la frappe via `sansAccents`, **saisie libre conservée**, clic = remplit + ferme, Échap = ferme sans vider (avec `stopPropagation`, sinon la fiche se fermerait), clic dehors = ferme (blur différé de 150 ms pour laisser passer le clic).
+- **⚠️ `escapeHtml` sur le texte ET sur l'attribut `data-val`** — les noms viennent des données.
+- **⚠️ LE COLLAPSE NE SE FAIT QUE SUR LES PAIRES PROUVÉES PAR L'ÉQUIPE.** « Camille » + « Camille Dalicieux » → **une entrée** (le nom complet). Mais **« Camille Bouju »** (historique, absente de l'équipe) → **entrée séparée**, et **les 3 Léa restent 3 entrées**. Aucune supposition : on ne fusionne que ce que le champ `Nom complet` établit explicitement.
+- **GRAPHIE PRIVILÉGIÉE : le nom complet.** L'archive a besoin d'**identifiants stables** — « Camille » est ambigu sur un fonds pluriannuel, « Camille Dalicieux » ne l'est pas. Le prénom seul est fait pour l'équipe vivante.
+- **Mickaël laissé vide volontairement** : « Mickaël » et « Mickael » ne diffèrent que par l'accent, et la recherche est insensible aux accents depuis la veille — la correspondance se fait seule.
+- **⚠️ UN BLOCAGE EN PRODUCTION, résolu :** la première sauvegarde a échoué — « Could not find database with ID ». La base `Corrections historique` n'était **pas partagée avec l'intégration**. David l'a partagée dans Notion, et l'enregistrement a fonctionné. **À retenir pour toute nouvelle base.**
+- **Vérification Pilote :** `wc -l` 8372, compteurs 2/32/4-4, `no-cache` conservé, `node --check` OK. Alias présent dans les **deux** blobs (l.5336 cartes, l.8064 historique), `nomClientDeCode` dans le `_norm`, `datalist` = 0 (une seule occurrence, en commentaire), panneau à `max-height:180px`, collapse limité aux paires prouvées. `sansAccents`, HAVANA, `corrigerTousRetours`, `PAD_FOLDER_URL`, `fusionnerHistorique` intacts.
 
 ### 2026-09-25 — L'hybride : compléter l'historique depuis l'app
 - **`index.html` seul, 8172 → 8305 (+133).** Une base Notion créée par Master : `Corrections historique`.
