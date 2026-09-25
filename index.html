@@ -547,6 +547,10 @@ const DB_IDEES='b164bf282a4e4ac78a15d5e894019daa';
 // Utilisé par le 🔍 de l'historique : Drive ne permet PAS de scoper une recherche par URL, on ouvre
 // donc ce dossier + on copie le code au presse-papier. Le jour où le dossier change, éditer ICI (seul endroit).
 const PAD_FOLDER_URL = 'https://drive.google.com/drive/folders/17Ylr1wfLNuSS_GVyJlOXl52wSK2qSXXn';
+// Base « Corrections historique » : surcouche mutable (dizaines de lignes) fusionnée au JSON figé à la
+// lecture. Clé = Code. Propriétés (noms vérifiés au caractère près) : Code(title), Statut(select),
+// Journaliste(text), Date tournage(date), Date diffusion(date), Lien Drive(url), Corrigé par(text).
+const DB_CORRECTIONS = '9a3c2b06-69d4-4f04-a2bb-7a25b84209e1';
 const DB_REFS='4ae84e174ee9473888eaa15112fcc6ee';
 const DB_VERSIONS='3793eebb-2aeb-4d49-84ae-06d79cfb2704';
 const DB_MUSIQUES='d9d3579257bc49059e6cd683a8b02fef';
@@ -5276,7 +5280,9 @@ let _archivesRecherche = false;
 // AUTOMATIQUEMENT à la 1re recherche, mis en cache module (jamais le DOM ; renderCards reconstruit
 // les lignes à chaque peinture). _historiqueEtat : 'vide' → 'chargement' → 'ok' | 'err'. Une fois
 // 'err', il y reste (la garde de chargerHistorique interdit tout re-fetch → pas de boucle de requêtes).
-let _historique = null;
+let _historique = null;        // tableau FUSIONNÉ (base JSON + corrections) — ce que filtre/rend l'app
+let _historiqueBase = null;    // JSON figé brut (pour re-fusionner après une correction sans re-fetch)
+let _corrections = {};         // { code → {pageId, statut, journaliste, dateTournage, dateDiffusion, drive, corrigePar, corrigeLe} }
 let _historiqueEtat = 'vide';
 const HISTO_MAX = 200; // plafond d'AFFICHAGE (le décompte reste réel) : évite des milliers de <tr> au tick
 
@@ -7972,22 +7978,70 @@ async function chercherArchives(btn) {
 async function chargerHistorique() {
   if(_historiqueEtat !== 'vide') return;
   _historiqueEtat = 'chargement';
-  try {
-    // no-cache = revalidation (requête conditionnelle → 304 si inchangé, quasi gratuit). Après une
-    // régénération, la nouvelle version est prise AUTOMATIQUEMENT — pas de version à incrémenter à la main.
-    const res = await fetch('/data/archives-historique.json', {cache:'no-cache'});
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    _historique = await res.json();
-    // Blob de recherche précalculé (accent-insensible). ⚠️ HYBRIDE : quand les corrections arriveront,
-    // _norm devra être RECALCULÉ APRÈS la fusion JSON+corrections ET à chaque sauvegarde — sinon une
-    // journaliste (ou un statut) corrigé ne serait pas trouvable. Ce forEach est le point à déplacer.
-    _historique.forEach(h => h._norm = sansAccents([h.nom,h.id,h.format,h.journaliste,h.statut].join(' ')));
+  // FAIL-OPEN : on charge le JSON figé (no-cache = revalidation, pris à jour après régénération sans
+  // param de version) ET les corrections Notion EN PARALLÈLE. 'ok' dès que le JSON est là ; si les
+  // corrections échouent, on affiche la base NON corrigée (enrichissement, jamais bloqueur).
+  const [jsonR, corrR] = await Promise.allSettled([
+    fetch('/data/archives-historique.json', {cache:'no-cache'}).then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }),
+    apiQueryAll('/databases/' + DB_CORRECTIONS + '/query', {})
+  ]);
+  if(jsonR.status === 'rejected') {
+    _historiqueEtat = 'err'; // définitif : la garde !== 'vide' interdit tout re-fetch au tick suivant
+    console.warn('Historique indisponible :', jsonR.reason?.message);
+  } else {
+    _historiqueBase = jsonR.value;
+    _corrections = (corrR.status === 'fulfilled') ? parseCorrections(corrR.value.results) : {};
+    if(corrR.status === 'rejected') console.warn('Corrections indisponibles (base non corrigée affichée) :', corrR.reason?.message);
+    fusionnerHistorique(); // construit _historique fusionné + _norm
     _historiqueEtat = 'ok';
-  } catch(e) {
-    _historiqueEtat = 'err'; // définitif : la garde ci-dessus interdit tout re-fetch au tick suivant
-    console.warn('Historique indisponible :', e.message);
   }
   if(searchQuery && currentPage === 'production' && currentVue === 'cards') renderCards();
+}
+
+// Corrections Notion → map par Code. On garde pageId (pour PATCH) et last_edited_time (« Corrigé le »).
+function parseCorrections(results) {
+  const m = {};
+  (results||[]).forEach(p => {
+    const pr = p.properties || {};
+    const code = (pr['Code']?.title?.[0]?.plain_text || '').trim();
+    if(!code) return;
+    m[code] = {
+      pageId: p.id,
+      statut: pr['Statut']?.select?.name || '',
+      journaliste: pr['Journaliste']?.rich_text?.[0]?.plain_text || '',
+      dateTournage: pr['Date tournage']?.date?.start || '',
+      dateDiffusion: pr['Date diffusion']?.date?.start || '',
+      drive: pr['Lien Drive']?.url || '',
+      corrigePar: pr['Corrigé par']?.rich_text?.[0]?.plain_text || '',
+      corrigeLe: p.last_edited_time || ''
+    };
+  });
+  return m;
+}
+
+// FUSION stricte par code : la correction écrase le JSON champ par champ (valeur non vide seulement),
+// JSON autoritaire pour le reste. ⚠️ _norm est recalculé ICI, APRÈS la fusion (et rappelé à chaque
+// sauvegarde via ce même appel) — sinon une journaliste/statut corrigé ne serait pas trouvable.
+// Orphelins (correction sur un code absent du JSON) : ignorés + console.warn (jamais de ligne fabriquée).
+function fusionnerHistorique() {
+  const base = _historiqueBase || [];
+  const codesBase = new Set(base.map(h => h.id));
+  const orphelins = Object.keys(_corrections).filter(c => !codesBase.has(c));
+  if(orphelins.length) console.warn('Corrections orphelines (code absent du JSON, ignorées) :', orphelins);
+  const CH = ['statut','journaliste','dateDiffusion','dateTournage','drive'];
+  _historique = base.map(h => {
+    const r = {...h};
+    const c = _corrections[h.id];
+    if(c) {
+      const corr = {};
+      CH.forEach(k => { if((c[k]||'').trim()) { r[k] = c[k]; corr[k] = true; } }); // écrasement champ par champ
+      r._corr = { champs: corr, par: c.corrigePar, le: c.corrigeLe, pageId: c.pageId };
+    } else {
+      r._corr = null;
+    }
+    r._norm = sansAccents([r.nom, r.id, r.format, r.journaliste, r.statut].join(' ')); // APRÈS fusion
+    return r;
+  });
 }
 
 // Filtre DÉDIÉ (applySearch non réutilisable : l'historique a nom/id, pas titre/code). Compare sur le
@@ -8064,8 +8118,9 @@ function chercherDansPad(code) {
   }
 }
 
-// Fiche de consultation d'un sujet historique (lecture seule, pas dans Notion). Overlay dismissible
-// ✕ / Échap / clic-fond (patron fermerSurClicFond, comme montrerLimiteTexte). Tout échappé au rendu.
+// Fiche d'un sujet historique. Consultation (valeurs FUSIONNÉES base+corrections, pastilles « complété »)
+// + mode édition (5 champs optionnels, « — Inchangé — » n'écrase jamais). Overlay dismissible ✕/Échap/
+// clic-fond. Tout échappé au rendu. Les lignes historiques n'existent pas dans `sujets` → cnt-all intact.
 function ouvrirFicheHistorique(id) {
   const s = (_historique || []).find(h => h.id === id);
   if(!s) return;
@@ -8079,29 +8134,107 @@ function ouvrirFicheHistorique(id) {
   const dateVal = s.dateDiffusion || s.dateTournage || '';   // diffusion sinon tournage
   const barre = s.abandonne ? 'text-decoration:line-through;' : '';
   const codeCol = s.abandonne ? '#8B0000' : 'var(--red)';
+  const corr = s._corr;
+  const past = ok => ok ? '<span style="font-size:9px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 5px;border-radius:3px;margin-left:6px">complété</span>' : '';
   const action = drive
-    ? `<a href="${escapeHtml(drive)}" target="_blank" rel="noopener noreferrer" class="nav-btn primary" style="display:inline-block;text-decoration:none;font-size:12px">📁 Ouvrir le dossier Drive</a>`
+    ? `<a href="${escapeHtml(drive)}" target="_blank" rel="noopener noreferrer" class="nav-btn primary" style="display:inline-block;text-decoration:none;font-size:12px">📁 Ouvrir le dossier Drive</a>${past(corr&&corr.champs.drive)}`
     : `<button onclick="chercherDansPad('${escJs(s.id)}')" class="nav-btn" style="font-size:12px">🔍 Chercher dans le PAD</button>
        <div style="font-size:11px;color:var(--text3);margin-top:6px">le code <strong>${escapeHtml(s.id)}</strong> sera copié</div>`;
-  const ligne = (label, val) => `<div style="display:flex;gap:10px;padding:5px 0;font-size:13px"><span style="color:var(--text3);min-width:110px">${label}</span><span style="color:var(--text)">${escapeHtml(val||'—')}</span></div>`;
+  const ligne = (label, val, ok) => `<div style="display:flex;gap:10px;padding:5px 0;font-size:13px"><span style="color:var(--text3);min-width:110px">${label}</span><span style="color:var(--text)">${escapeHtml(val||'—')}${past(ok)}</span></div>`;
+  const dateOk = corr && (corr.champs.dateDiffusion || corr.champs.dateTournage);
+  const parLe = corr ? `<div style="font-size:11px;color:#1D9E75;margin-top:8px">✓ complété par ${escapeHtml(corr.par||'?')}${corr.le?(' le '+new Date(corr.le).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})):''}</div>` : '';
+  // Datalist journaliste = équipe actuelle ∪ journalistes de l'historique (inclut les personnes parties).
+  const journOpts = [...new Set([...(typeof journMonteursNoms==='function'?journMonteursNoms():[]), ...(_historique||[]).map(h=>h.journaliste).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'fr'));
+  const STATUTS_HISTO = ['Diffusé','PAD','Killed','En montage','En tournage','En cours de lancement'];
   overlay.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:24px;max-width:460px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
       <span style="font-family:var(--mono);font-size:11px;color:${codeCol};font-weight:600">${escapeHtml(s.id)} · ${escapeHtml(s.format)}</span>
       <button id="fiche-histo-x" class="nav-btn" style="font-size:14px;padding:2px 8px" title="Fermer">✕</button>
     </div>
     <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;${barre}">${escapeHtml(s.nom)}</div>
-    <div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:14px">Sujet antérieur à Havana · consultation seule</div>
-    <div style="border-top:1px solid var(--border);padding-top:10px">
-      ${ligne('Statut', s.statut)}
-      ${ligne('Journaliste', s.journaliste)}
-      ${ligne('Date', dateVal)}
+    <div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:14px">Sujet antérieur à Havana</div>
+    <div id="fh-consult">
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        ${ligne('Statut', s.statut, corr&&corr.champs.statut)}
+        ${ligne('Journaliste', s.journaliste, corr&&corr.champs.journaliste)}
+        ${ligne('Date', dateVal, dateOk)}
+      </div>
+      ${parLe}
+      <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ${action}
+        <button onclick="document.getElementById('fh-consult').style.display='none';document.getElementById('fh-edit').style.display='block'" class="nav-btn" style="font-size:12px">✏️ ${corr?'Modifier':'Compléter'}</button>
+      </div>
     </div>
-    <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:16px">${action}</div>
+    <div id="fh-edit" style="display:none;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Tous les champs sont optionnels. « — Inchangé — » ou vide n'efface jamais.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="font-size:12px;color:var(--text2)">Statut
+          <select id="fh-statut" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:12px;margin-top:3px">
+            <option value="">— Inchangé —</option>${STATUTS_HISTO.map(o=>`<option>${o}</option>`).join('')}
+          </select></label>
+        <label style="font-size:12px;color:var(--text2)">Journaliste
+          <input id="fh-journ" list="fh-journ-list" placeholder="— Inchangé —" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:12px;margin-top:3px">
+          <datalist id="fh-journ-list">${journOpts.map(n=>`<option value="${escapeHtml(n)}"></option>`).join('')}</datalist></label>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1;font-size:12px;color:var(--text2)">Tournage<input type="date" id="fh-tour" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px;border-radius:4px;font-size:12px;margin-top:3px"></label>
+          <label style="flex:1;font-size:12px;color:var(--text2)">Diffusion<input type="date" id="fh-diff" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px;border-radius:4px;font-size:12px;margin-top:3px"></label>
+        </div>
+        <label style="font-size:12px;color:var(--text2)">Lien du dossier Drive
+          <input id="fh-drive" type="text" placeholder="https://drive.google.com/…" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:12px;margin-top:3px"></label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="document.getElementById('fh-edit').style.display='none';document.getElementById('fh-consult').style.display='block'" class="nav-btn" style="flex:1;font-size:12px">Annuler</button>
+        <button id="fh-save" onclick="enregistrerCorrection('${escJs(s.id)}')" class="nav-btn primary" style="flex:1;font-size:12px">Enregistrer</button>
+      </div>
+    </div>
   </div>`;
   document.body.appendChild(overlay);
   fermerSurClicFond(overlay, close);
   document.addEventListener('keydown', onEsc);
   document.getElementById('fiche-histo-x').addEventListener('click', close);
+}
+
+// Enregistre une correction (upsert dans DB_CORRECTIONS). N'ÉCRIT QUE les champs saisis → « — Inchangé — »
+// (statut vide / champ vide) n'écrase jamais, et deux personnes qui complètent des champs différents
+// coexistent. Lien Drive validé par urlSure AVANT écriture (Master). « Corrigé par » = nom courant.
+async function enregistrerCorrection(id) {
+  const statut = document.getElementById('fh-statut').value;              // '' = inchangé
+  const journ  = document.getElementById('fh-journ').value.trim();
+  const tour   = document.getElementById('fh-tour').value;               // '' = inchangé
+  const diff   = document.getElementById('fh-diff').value;
+  let   drive  = document.getElementById('fh-drive').value.trim();
+  if(!statut && !journ && !tour && !diff && !drive) { toast('Aucune valeur à enregistrer', 'err'); return; }
+  if(drive) {
+    if(!/^https?:\/\//i.test(drive)) drive = 'https://' + drive;         // tolère un domaine collé sans schéma
+    if(!urlSure(drive)) { toast('Lien Drive invalide — une URL http(s) est attendue', 'err'); return; } // Master : valider AVANT
+  }
+  if(journ && !verifLongueur(journ, 'Journaliste')) return;              // garde 2000 (improbable, mais cohérent)
+  const props = { 'Corrigé par': { rich_text: [{ text: { content: (currentUser?.nom || '') } }] } };
+  if(statut) props['Statut'] = { select: { name: statut } };
+  if(journ)  props['Journaliste'] = { rich_text: [{ text: { content: journ } }] };
+  if(tour)   props['Date tournage'] = { date: { start: tour } };
+  if(diff)   props['Date diffusion'] = { date: { start: diff } };
+  if(drive)  props['Lien Drive'] = { url: drive };
+  const existing = _corrections[id];
+  const btn = document.getElementById('fh-save'); const old = btn ? btn.textContent : '';
+  if(btn) { btn.textContent = '⏳ Enregistrement…'; btn.style.pointerEvents = 'none'; }
+  try {
+    let page;
+    if(existing && existing.pageId) {
+      page = await api('/pages/' + existing.pageId, 'PATCH', { properties: props });
+    } else {
+      props['Code'] = { title: [{ text: { content: id } }] };
+      page = await api('/pages', 'POST', { parent: { database_id: DB_CORRECTIONS }, properties: props });
+    }
+    _corrections[id] = parseCorrections([page])[id] || _corrections[id]; // maj cache depuis la page renvoyée
+    fusionnerHistorique();                                               // ⚠️ re-fusion + _norm recalculé
+    if(currentPage === 'production' && currentVue === 'cards') renderCards(); // liste à jour (icône 📁, recherche)
+    ouvrirFicheHistorique(id);                                           // ré-ouvre en consultation, valeurs à jour
+    toast('Complété', 'ok');
+  } catch(e) {
+    if(btn) { btn.textContent = old; btn.style.pointerEvents = ''; }
+    toast('Erreur : ' + e.message, 'err');
+  }
 }
 
 function cardHTMLHighlight(s, q) {

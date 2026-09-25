@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-24 (recherche INSENSIBLE AUX ACCENTS · historique régénéré 2 672 sujets · HISTORIQUE dans la recherche · recherche unifiée archives · bouton « tout marquer corrigé » · HAVANA)
+> Dernière mise à jour : 2026-09-25 (HYBRIDE — compléter l'historique depuis l'app · recherche insensible aux accents · historique régénéré 2 672 sujets · HISTORIQUE dans la recherche · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,30 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-25 — L'hybride : compléter l'historique depuis l'app
+- **`index.html` seul, 8172 → 8305 (+133).** Une base Notion créée par Master : `Corrections historique`.
+- **LE BESOIN :** l'historique est figé, mais David rencontre des lignes incomplètes qu'il PEUT compléter — il connaît la journaliste, il retrouve un dossier Drive. Exemple réel : **B47A « Ponts asie »**, statut/journaliste/date vides.
+- **⚠️ CE BESOIN CONTREDISAIT LA RÈGLE POSÉE DEUX JOURS PLUS TÔT** (« ce qui change vit dans Notion, ce qui est figé vit dans le dépôt »). Le Pilote a demandé à Claude Code d'évaluer 5 pistes **sans lui vendre l'hybride**.
+- **DEUX PISTES TUÉES PAR DES CHIFFRES :**
+  - **Commit GitHub depuis l'app** : chaque correction = un commit = **un redéploiement complet du site**. Plus une course read-modify-write sur 615 Ko. Rédhibitoire.
+  - **Base Notion des seuls sujets incomplets** : **95 % des lignes sont incomplètes** (la date est structurellement absente hors Brand). Importer « les incomplètes » = importer presque tout → s'effondre en « tout dans Notion ».
+- **⚠️ LA PISTE 3 ÉTAIT MEILLEURE QUE L'HYBRIDE — et Claude Code l'a dit** : corriger dans le Sheet puis régénérer, **une seule source, zéro dette**. Elle n'a été écartée que sur un critère d'usage : **l'équipe doit pouvoir compléter depuis l'app**, et Chloé ou Louise n'ouvriront pas le Sheet.
+- **VARIANTE RETENUE : corrections dans une BASE NOTION, fusion côté client.** Pas Netlify Blobs (corrections invisibles, inauditables) ; pas de fonction Netlify de fusion serveur (elle *cache* le second store sans le supprimer, pour plus de plomberie).
+- **⚠️ LA DETTE, NOMMÉE : LE CODE EST L'INVARIANT DE JOINTURE.** Les corrections sont clées par code. Si une régénération future changeait les codes, **toutes les corrections orphelineraient d'un coup**. C'est pourquoi la régénération a été faite AVANT l'hybride, jamais l'inverse.
+- **⚠️ L'ORDRE : charger → FUSIONNER → filtrer → rendre.** Le piège le plus subtil du chantier : si le filtre portait sur le JSON brut, une journaliste ajoutée par correction **ne serait pas trouvable** — et tout marcherait en apparence. `fusionnerHistorique` écrase champ par champ, **puis** calcule `_norm`. Prouvé par rejeu : B47A sans journaliste → correction « Nisrine Manaï » → `filtreHistorique("nisrine")` trouve B47A.
+- **`_norm` RECALCULÉ À CHAQUE SAUVEGARDE** — `fusionnerHistorique()` est rappelé après chaque enregistrement, donc une valeur corrigée est cherchable **immédiatement**.
+- **⚠️ « — INCHANGÉ — » N'ÉCRASE JAMAIS**, et c'est ce qui résout les conflits : seuls les champs **réellement saisis** sont écrits. Deux personnes qui complètent des champs **différents** coexistent sans s'écraser. Le résidu — même champ, même moment — est **assumé** : un verrou serait disproportionné.
+- **FAIL-OPEN** : `Promise.allSettled([JSON, corrections])`, état `'ok'` dès que **le JSON** est là. Si Notion tombe → historique non corrigé, `console.warn`, pas de toast. **Les corrections sont un enrichissement, jamais un bloqueur.**
+- **ORPHELINS** (code absent du JSON) : ignorés à l'affichage + `console.warn` avec la liste. **On ne fabrique jamais de ligne à partir d'un orphelin** — ce serait le glissement vers une vraie 2ᵉ base.
+- **⚠️ LE DATALIST JOURNALISTE — la solution élégante de Claude Code.** Un sélecteur fermé sur l'équipe actuelle aurait rendu **Nisrine Manaï inatteignable** alors que David la connaît. Le `<datalist>` est alimenté par **l'équipe Havana ∪ les journalistes déjà présents dans l'historique chargé** : les personnes parties apparaissent **automatiquement**, sans liste à maintenir, et la saisie libre reste possible.
+- **`urlSure` VALIDE LE LIEN AVANT ÉCRITURE** : le champ Notion est de type URL, rien d'invalide ne doit l'atteindre. Un domaine sans schéma est préfixé `https://` ; sinon toast et écriture bloquée.
+- **« Corrigé le » via `last_edited_time`** — pas de champ manuel, redondant et oubliable. **« Corrigé par »** = `currentUser.nom`, pour l'audit, **pas** pour la sécurité (le proxy reste ouvert, aucune garde de rôle : une fausse sécurité vaut moins que pas de sécurité).
+- **Pastilles « complété »** sur chaque champ corrigé + ligne « ✓ complété par David le 25 sept. » — le jour où une valeur semble fausse, on saura si elle vient de l'Excel ou de quelqu'un.
+- **⚠️ NOTE DE MASTER CORRIGÉE par Claude Code** : `date:Date tournage:start` est la convention de la couche SQL du MCP, **pas** de l'API REST que le proxy utilise. Les dates s'écrivent `{'Date tournage':{date:{start:'…'}}}`.
+- **TRIPWIRE : 200-300 corrections.** Au-delà, l'affirmation « base figée » s'effrite et on rebascule vers « tout dans Notion ».
+- **⚠️ DÉFAUT CONNU, NON CORRIGÉ DANS CE LOT : le nom du CLIENT n'est pas cherchable dans l'historique.** Chercher « axa » → 0 résultat, alors que **20 sujets B08** y sont (Murfy, Belle et Bien, les lauréats). Mesuré : **240 sujets Brand sur 53 clients**, aucun trouvable par le nom du client. `applySearch` inclut `nomClientDeCode` dans son blob ; le `_norm` de l'historique ne l'a pas. **Correctif isolé à faire**, avec une réserve : `mapClientsParCode` vient de Notion, il faut garantir qu'elle est chargée avant le calcul de `_norm`.
+- **Vérification Pilote :** `wc -l` 8305, compteurs 2/32/4-4, `no-cache` conservé (`force-cache`=0), `node --check` OK. Fusion **avant** `_norm` confirmée par lecture, `fusionnerHistorique` rappelé à la sauvegarde, `allSettled` en place, orphelins signalés, `urlSure` avant écriture. HAVANA, `corrigerTousRetours`, `PAD_FOLDER_URL`, `sansAccents` intacts.
 
 ### 2026-09-24 — Recherche insensible aux accents (transverse)
 - **`index.html` seul, 8161 → 8170 (+9).** Neuf lignes qui changent la recherche partout.
