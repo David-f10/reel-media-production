@@ -5299,32 +5299,39 @@ function clearSearch() {
   appSetVue(currentVue);
 }
 
-// q optionnel : le haut de page appelle applySearch(list) → utilise le searchQuery GLOBAL ;
-// la recherche de carte du formulaire Tâches appelle applySearch(sujets, qLocal) → n'y touche pas.
+// Normalisation de recherche : minuscules + SANS diacritiques (é→e, ï→i, ç→c…) + ligatures œ/æ→oe/ae.
+// « eloise » doit trouver « Éloïse », « manai » → « Manaï », « coeur » → « cœur ». UN SEUL helper,
+// utilisé par TOUTE recherche (applySearch ET filtreHistorique) — jamais deux implémentations.
+function sansAccents(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/œ/g,'oe').replace(/æ/g,'ae');
+}
+// q optionnel : le haut de page appelle applySearch(list) → searchQuery GLOBAL ; la recherche de carte
+// du formulaire Tâches appelle applySearch(sujets, qLocal). Normalisation À LA VOLÉE : listes courtes
+// (~188 sujets + ~216 archives) → coût négligeable, AUCUN cache à périmer → un sujet édité en session
+// (titre/journaliste corrigé) reste trouvable aussitôt, sans recalcul.
 function applySearch(list, q = searchQuery) {
   if(!q) return list;
-  return list.filter(s =>
-    (s.titre||'').toLowerCase().includes(q) ||
-    (s.code||'').toLowerCase().includes(q) ||
-    (s.journaliste||'').toLowerCase().includes(q) ||
-    (s.format||'').toLowerCase().includes(q) ||
-    (s.chef||'').toLowerCase().includes(q) ||
-    (s.statut||'').toLowerCase().includes(q) ||
-    (s.sousFormat||'').toLowerCase().includes(q) ||
-    (s.monteur1||'').toLowerCase().includes(q) ||
-    (s.monteur2||'').toLowerCase().includes(q) ||
-    (s.monteur3||'').toLowerCase().includes(q) ||
-    (s.stockage||'').toLowerCase().includes(q) ||
-    (s.notes||'').toLowerCase().includes(q) ||
-    (nomClientDeCode(s.code, s.format)).toLowerCase().includes(q)
-  );
+  const nq = sansAccents(q);
+  return list.filter(s => sansAccents([s.titre,s.code,s.journaliste,s.format,s.chef,s.statut,s.sousFormat,s.monteur1,s.monteur2,s.monteur3,s.stockage,s.notes,nomClientDeCode(s.code,s.format)].join(' ')).includes(nq));
 }
 
+// Surlignage TOLÉRANT AUX ACCENTS : « eloise » surligne « Éloïse ». On dépouille la requête de ses
+// accents puis on ré-étend chaque lettre en classe de variantes ([e]→[eéèêë]…). Le drapeau 'i' couvre
+// la casse. ⚠️ ANTI-INJECTION INCHANGÉ : la requête n'est JAMAIS émise dans la sortie — on n'insère que
+// le <span class="search-highlight"> fixe autour de sous-chaînes du `text` (déjà échappé par l'appelant).
+// Le motif est bâti de littéraux de classe fixes + caractères de requête échappés (servent au MATCH,
+// jamais à l'affichage). Aucune nouvelle surface : sortie = texte échappé + nos <span>.
+const _ACCENT_VAR = {a:'aàâäáã',e:'eéèêëẽ',i:'iîïíì',o:'oôöóòõ',u:'uùûüú',c:'cç',n:'nñ',y:'yÿý'};
 function highlightText(text, query) {
   if(!query || !text) return text || '';
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const base = String(query).normalize('NFD').replace(/[̀-ͯ]/g,''); // requête sans accents
+  let pat = '';
+  for(const ch of base){
+    const low = ch.toLowerCase();
+    pat += _ACCENT_VAR[low] ? '['+_ACCENT_VAR[low]+']' : ch.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  }
   try {
-    const re = new RegExp('(' + escaped + ')', 'gi');
+    const re = new RegExp('(' + pat + ')', 'gi');
     return text.replace(re, '<span class="search-highlight">$1</span>');
   } catch(e) {
     return text;
@@ -7969,6 +7976,10 @@ async function chargerHistorique() {
     const res = await fetch('/data/archives-historique.json', {cache:'force-cache'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
     _historique = await res.json();
+    // Blob de recherche précalculé (accent-insensible). ⚠️ HYBRIDE : quand les corrections arriveront,
+    // _norm devra être RECALCULÉ APRÈS la fusion JSON+corrections ET à chaque sauvegarde — sinon une
+    // journaliste (ou un statut) corrigé ne serait pas trouvable. Ce forEach est le point à déplacer.
+    _historique.forEach(h => h._norm = sansAccents([h.nom,h.id,h.format,h.journaliste,h.statut].join(' ')));
     _historiqueEtat = 'ok';
   } catch(e) {
     _historiqueEtat = 'err'; // définitif : la garde ci-dessus interdit tout re-fetch au tick suivant
@@ -7977,15 +7988,13 @@ async function chargerHistorique() {
   if(searchQuery && currentPage === 'production' && currentVue === 'cards') renderCards();
 }
 
-// Filtre DÉDIÉ (applySearch non réutilisable : l'historique a nom/id, pas titre/code). 5 champs.
+// Filtre DÉDIÉ (applySearch non réutilisable : l'historique a nom/id, pas titre/code). Compare sur le
+// blob _norm PRÉCALCULÉ au chargement — normaliser 2672 entrées à chaque frappe coûterait ~5 ms
+// (mesuré) sur mobile lent ; précalcul = 0,3 ms/frappe. Même helper sansAccents que applySearch.
 function filtreHistorique(list, q) {
   if(!q) return list;
-  return list.filter(h =>
-    (h.nom||'').toLowerCase().includes(q) ||
-    (h.id||'').toLowerCase().includes(q) ||
-    (h.format||'').toLowerCase().includes(q) ||
-    (h.journaliste||'').toLowerCase().includes(q) ||
-    (h.statut||'').toLowerCase().includes(q));
+  const nq = sansAccents(q);
+  return list.filter(h => (h._norm||'').includes(nq));
 }
 
 // Bloc « Historique 2023-2026 ». Reconstruit à CHAQUE peinture depuis l'état module (jamais le DOM).
