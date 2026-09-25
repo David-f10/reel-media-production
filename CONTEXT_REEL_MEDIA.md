@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-24 (HISTORIQUE 2023-2026 dans la recherche — 2 639 sujets d'avant Havana · recherche unifiée archives · bouton « tout marquer corrigé » · HAVANA · DÉPART DE BENJAMIN)
+> Dernière mise à jour : 2026-09-24 (recherche INSENSIBLE AUX ACCENTS · historique régénéré 2 672 sujets · HISTORIQUE dans la recherche · recherche unifiée archives · bouton « tout marquer corrigé » · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,23 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-24 — Recherche insensible aux accents (transverse)
+- **`index.html` seul, 8161 → 8170 (+9).** Neuf lignes qui changent la recherche partout.
+- **LE SIGNALEMENT de David :** chercher « eloise » ne trouvait **rien**. Il fallait taper « Éloïse » — voire « Éloïse Barbona ». Même chose pour « chloe » (Chloé Baïze) et « manai » (Nisrine Manaï).
+- **⚠️ LE DÉFAUT N'ÉTAIT PAS PROPRE À L'HISTORIQUE.** `applySearch` (Production **et** Archives **et** la recherche de carte du formulaire Tâches) faisait le même `.toLowerCase().includes()` sans normaliser. Chercher « manai » en Production ne trouvait pas « Nisrine Manaï ». **Un seul helper corrige les trois.**
+- **Le second problème supposé — nom complet vs prénom — n'existait pas** : `includes` cherche déjà une sous-chaîne, donc « Chloé » trouvait déjà « Chloé Baïze ». **Seuls les accents étaient en cause.**
+- **`sansAccents(s)`** : `normalize('NFD')` + retrait des diacritiques + minuscules + **ligatures œ/æ**. ⚠️ NFD ne décompose **pas** les ligatures — sans les deux `replace`, chercher « coeur » ne trouverait jamais « cœur ».
+- **⚠️ DEUX STRATÉGIES SELON LA TAILLE, et c'est la bonne réponse au piège du cache périmé :**
+  - **Production et Archives → à la volée.** Listes courtes (188 + 216), coût négligeable, **aucun cache à périmer** : un sujet dont on corrige le titre ou le journaliste **reste trouvable aussitôt**, sans recalcul.
+  - **Historique → `_norm` précalculé au chargement.** 2 672 entrées figées : **6 ms une fois**, puis **0,30 ms par frappe** au lieu de 5,5 ms. ⚠️ Mesuré sur ordinateur — **l'équipe est sur mobile, où 5,5 ms deviennent 15 à 30 ms : du lag ressenti en tapant.**
+- **⚠️ DÉPENDANCE ÉCRITE DANS LE CODE, à l'endroit du calcul** : quand l'hybride arrivera, `_norm` devra être **recalculé APRÈS la fusion** JSON+corrections **et à chaque sauvegarde** — sinon une journaliste corrigée ne serait pas cherchable. Le commentaire est au `forEach`, pas seulement dans la doc : le prochain chantier tombera dessus.
+- **⚠️ LE SURLIGNAGE AUSSI — sinon le travail serait à moitié fait.** Filtrer sans accents trouve la ligne, mais `highlightText` comparait la requête au texte affiché : « eloise » n'aurait rien surligné dans « Éloïse ». Solution : le **motif** est construit lettre par lettre, chaque lettre étendue à sa classe de variantes (`e` → `[eéèêëẽ]`), les autres caractères restant échappés comme avant.
+- **⚠️ L'ÉCHAPPEMENT EST INTACT, vérifié par exécution.** `escapeHtml` ne touche pas aux accents, donc le texte accentué est bien présent ; seul le motif change. Le Pilote a exécuté la fonction sur 4 requêtes malveillantes (`<img onerror=x>`, `"><script>`, métacaractères, `' onclick='`) : **toutes échouent proprement**, le seul HTML inséré reste le `<span class="search-highlight">` maison.
+- **Test du surlignage, exécuté :** `eloise` → `<span>Éloïse</span> Barbona` · `manai` → `Nisrine <span>Manaï</span>` · `chloe` → `<span>Chloé</span> Baïze` · `reel` → `<span>Réel</span> Média`.
+- **EFFET DE BORD ASSUMÉ :** retirer les diacritiques **élargit** toujours, jamais ne rétrécit. « peche » correspond désormais à « pêche » ET « péché ». Pour une recherche de titres et de noms, ce biais vers plus de résultats est souhaitable — on cherche à trouver, pas à discriminer un accent.
+- **LIMITE SIGNALÉE, hors périmètre :** les apostrophes typographiques (`'` vs `'`) et les tirets ne sont **pas** des diacritiques. « l'eau » et « l'eau » restent un mismatch. À traiter si ça remonte.
+- **Vérification Pilote :** `wc -l` 8170, compteurs 2/32/4-4, `node --check` OK. Surlignage **exécuté** sur 4 cas d'accents et 4 tentatives d'injection. `filtreHistorique` utilise `_norm`, `applySearch` normalise à la volée, la recherche de carte du formulaire Tâches passe toujours par `applySearch`. HAVANA, `corrigerTousRetours`, `PAD_FOLDER_URL` intacts.
 
 ### 2026-09-24 — L'historique d'avant Havana : 2 639 sujets cherchables (2 lots)
 - **LOT 1 — `data/archives-historique.json`** (nouveau, 615 Ko / ~120 Ko gzippé). **LOT 2 — `index.html` 8016 → 8094 (+78).** Deux livraisons distinctes, deux vérifications.
