@@ -7973,7 +7973,9 @@ async function chargerHistorique() {
   if(_historiqueEtat !== 'vide') return;
   _historiqueEtat = 'chargement';
   try {
-    const res = await fetch('/data/archives-historique.json', {cache:'force-cache'});
+    // no-cache = revalidation (requête conditionnelle → 304 si inchangé, quasi gratuit). Après une
+    // régénération, la nouvelle version est prise AUTOMATIQUEMENT — pas de version à incrémenter à la main.
+    const res = await fetch('/data/archives-historique.json', {cache:'no-cache'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
     _historique = await res.json();
     // Blob de recherche précalculé (accent-insensible). ⚠️ HYBRIDE : quand les corrections arriveront,
