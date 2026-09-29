@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-25 (recherche croisée prénom↔nom complet + client dans l'historique + liste maison · HYBRIDE · recherche sans accents · historique 2 672 sujets · HAVANA)
+> Dernière mise à jour : 2026-09-29 (dates de dossier Drive — 2 192 sujets datés · nom du client dans l'historique · recherche croisée prénom↔nom complet · HYBRIDE · historique 2 672 sujets · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,29 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-29 — Les dates de dossier Drive : l'historique devient datable
+- **`index.html` 8373 → 8383 (+10)** et **`data/archives-historique.json` 640 → 708 Ko** (9ᵉ champ `dateDossier`).
+- **LE BESOIN, d'Arnaud :** il veut des statistiques par période (« les Brand AXA entre telle et telle date »). **Impossible jusqu'ici** : seuls **135 sujets sur 2 672** avaient une date — uniquement des Brand. 91 % de l'historique n'était pas datable.
+- **⚠️ LA SOURCE : LES DOSSIERS DRIVE EUX-MÊMES.** Leur date de création est une donnée que personne n'avait pensé à exploiter.
+- **APPS SCRIPT PLUTÔT QU'UN SCRIPT NODE — et c'est ce qui a fait la différence.** David n'avait jamais réussi à faire tourner un script avec des identifiants Google. Apps Script s'exécute **dans son compte**, sans installation ni credentials : coller, autoriser une fois, exécuter. **3 255 dossiers listés**, avec reprise automatique au-delà des 6 minutes.
+- **⚠️ L'ARBORESCENCE ÉTAIT PLUS PROFONDE QUE PRÉVU : 13 niveaux, 9 racines** (pas 5) — CAROUSSEL, YOUTUBE, DOCU, MAGS, YOUTUBE ACTU, DESK/CURATION, BRAND, REEL ACTU, FACECAM. **2 771 dossiers dans les « Déjà diffusés »**, et le Brand a un niveau de plus : les sujets sont **dans le dossier de leur client** (`BRAND › Déjà diffusés › B08 AXA › B08J Lauréat…`).
+- **RÉSULTAT : +40 liens Drive (2 308 → 2 348) et +2 192 dates.**
+- **⚠️ LES LIENS ONT ÉTÉ UNE DÉCEPTION, LES DATES UNE TRÈS BONNE SURPRISE.** Sur 364 sujets sans lien, **40 seulement** ont été retrouvés. Explication trouvée par David : **une série entière de 2023 (M26→M40 et suivants) a été supprimée du Drive**. Les 321 restants n'ont pas de dossier **parce qu'il n'existe plus**. En revanche **83 % des sujets sans date** ont un dossier daté.
+- **⚠️ TROIS GARDE-FOUS À L'ENRICHISSEMENT :**
+  1. **36 codes présents plusieurs fois** dans Drive → écartés, impossible de choisir sans risque.
+  2. **Contrôle de cohérence des titres** : un rapprochement dont les titres n'ont **aucun mot commun** est refusé. 6 cas bloqués, dont **M351** (« vivatech moto Maeving » vs « sauvetage phoques ») — un faux positif qui serait passé sans ce contrôle.
+  3. **3 des 6 confirmés à la main par David** (D666 « Trêve Gaza » = « Cessez le Feu », D576, **B51A** dont le dossier porte le nom du client « Val_Thorens »). Les 3 autres laissés de côté.
+- **⚠️ LA RECHERCHE PAR TITRE A ÉTÉ ESSAYÉE PUIS REJETÉE** : elle rapprochait « Brick école lutte contre l'anxiété » de « Après un long combat contre le cancer ». Des coïncidences de mots, pas des correspondances.
+- **⚠️⚠️ « dateDossier » N'EST PAS UNE DATE DE DIFFUSION — et le Pilote a insisté contre l'avis initial de David.** Les dossiers sont créés **à la livraison**, ce qui peut précéder la diffusion. L'ordre des dossiers ne suit d'ailleurs pas l'ordre des codes (M01 daté du 15/02, M02 du 24/02, M04 du 17/02).
+  **Décision : un TROISIÈME champ, distinct, jamais fusionné avec `dateDiffusion` ni `dateTournage`.** Mal étiqueter 2 192 dates aurait faussé toutes les statistiques d'Arnaud sans que personne le voie.
+- **UNE SEULE DATE VISIBLE, partout** — décision de David. Helper `dateHistoAffichee(s)` partagé par le tableau **et** la fiche : `dateDiffusion → dateTournage → dateDossier`. Pas de ligne supplémentaire.
+- **⚠️ LA SOURCE EST DISTINGUÉE VISUELLEMENT** : quand la valeur vient de `dateDossier`, préfixe **`~`**, couleur `--text3` et infobulle « date de création du dossier Drive ». Sans ça, une date de dossier passerait pour une diffusion.
+- **Colonne « Date » ajoutée au tableau** (96 px, Statut resserré 130→110). **Justifiée par le taux de remplissage : 82 %** — à comparer aux 9 % du client, dont la colonne avait été refusée pour cette raison. Même principe appliqué en sens inverse.
+- **Les 3 dates dans le `_norm`** → chercher « 2024 » remonte **846 sujets**.
+- **Répartition finale : 2 093 dates `~dossier` · 124 dates dures · 455 sans date.**
+- **Contrôle de non-régression du fichier :** 2 672 records inchangés, **0 lien existant modifié ou perdu**, **0 champ altéré**, identifiants identiques, `JSON.parse` OK.
+- **Vérification Pilote :** `wc -l` 8383, compteurs 2/32/4-4, `no-cache` conservé, `node --check` OK. Helper unique partagé tableau/fiche confirmé par lecture, ordre de priorité correct, `~` + gris + infobulle en place, 3 dates dans le filtre, **une seule ligne Date** dans la fiche. `sansAccents`, HAVANA, `corrigerTousRetours`, `PAD_FOLDER_URL`, `aliasNoms`, `nomClientDeCode` intacts.
 
 ### 2026-09-25 — Recherche croisée, nom du client, liste de suggestions (3 en 1)
 - **`index.html` seul, 8172 → 8372 (+200).** Plus un champ `Nom complet` (text) créé par Master sur DB_EQUIPE, rempli pour 10 membres.

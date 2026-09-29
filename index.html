@@ -8061,7 +8061,7 @@ function fusionnerHistorique() {
     // _norm APRÈS fusion. Inclut le nom du client (nomClientDeCode → « axa » trouve les B08) et les
     // alias prénom↔nom complet (recherche croisée). mapClientsParCode/equipe chargés au login, donc
     // prêts à la 1re recherche ; le belt en fin d'appLoadData re-fusionne au ↻ pour rester frais.
-    r._norm = sansAccents([r.nom, r.id, r.format, r.journaliste, r.statut, nomClientDeCode(r.id, r.format), ...aliasNoms(r.journaliste)].join(' '));
+    r._norm = sansAccents([r.nom, r.id, r.format, r.journaliste, r.statut, nomClientDeCode(r.id, r.format), r.dateDiffusion, r.dateTournage, r.dateDossier, ...aliasNoms(r.journaliste)].join(' '));
     return r;
   });
 }
@@ -8078,6 +8078,15 @@ function filtreHistorique(list, q) {
 // Bloc « Historique 2023-2026 ». Reconstruit à CHAQUE peinture depuis l'état module (jamais le DOM).
 // Échappement au rendu : highlightText(escapeHtml(texte), escapeHtml(requête)). Plafond d'affichage
 // HISTO_MAX, décompte réel. Ligne = pas de onclick (pas de fiche) ; seules les icônes 📁/🔍 sont cliquables.
+// Date à afficher (UNE seule, partout) : diffusion → tournage → dateDossier. `dossier=true` quand la
+// valeur vient de dateDossier (date de CRÉATION du dossier Drive, ≈ livraison) — à distinguer : ce
+// n'est PAS une diffusion. Les trois champs restent distincts en base, on n'en montre qu'un.
+function dateHistoAffichee(s){
+  if(s.dateDiffusion) return {val:s.dateDiffusion, dossier:false};
+  if(s.dateTournage)  return {val:s.dateTournage,  dossier:false};
+  if(s.dateDossier)   return {val:s.dateDossier,   dossier:true};
+  return {val:'', dossier:false};
+}
 function blocHistorique() {
   const entete = (label) => `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:12px 14px 6px;border-top:1px solid var(--border);margin-top:8px">${label}</div>`;
   const msg = (t) => `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 14px 12px">${t}</div>`;
@@ -8093,7 +8102,7 @@ function blocHistorique() {
   const total = hits.length;
   if(!total) return entete('Historique 2023-2026 (0)') + msg(`Aucun sujet historique ne correspond à "${searchQuery}"`);
   let h = entete(`Historique 2023-2026 (${total})`) + `<div style="overflow-x:auto"><table class="list-table"><thead><tr>
-    <th style="width:70px">Code</th><th style="width:auto">Titre</th><th style="width:90px">Format</th><th style="width:130px">Statut</th><th style="width:56px"></th>
+    <th style="width:70px">Code</th><th style="width:auto">Titre</th><th style="width:90px">Format</th><th style="width:110px">Statut</th><th style="width:96px">Date</th><th style="width:56px"></th>
   </tr></thead><tbody>`;
   hits.slice(0, HISTO_MAX).forEach(s => {
     const col = FMT_COLORS[s.format] || '#888';
@@ -8111,6 +8120,7 @@ function blocHistorique() {
       <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}</td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
       <td style="font-size:11px;color:var(--text2)">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
+      ${(()=>{const d=dateHistoAffichee(s);if(!d.val)return '<td style="font-size:11px;color:var(--text3)">—</td>';return `<td style="font-size:11px;color:${d.dossier?'var(--text3)':'var(--text2)'};white-space:nowrap"${d.dossier?' title="date de création du dossier Drive"':''}>${highlightText(escapeHtml((d.dossier?'~':'')+d.val), q)}</td>`;})()}
       <td style="text-align:center">${action}</td>
     </tr>`;
   });
@@ -8153,7 +8163,7 @@ function ouvrirFicheHistorique(id) {
   let onEsc; const close = () => { overlay.remove(); if(onEsc) document.removeEventListener('keydown', onEsc); };
   onEsc = ev => { if(ev.key === 'Escape') close(); };
   const drive = urlSure(s.drive);
-  const dateVal = s.dateDiffusion || s.dateTournage || '';   // diffusion sinon tournage
+  const dFiche = dateHistoAffichee(s);   // diffusion → tournage → dateDossier (~ + gris si dateDossier)
   const barre = s.abandonne ? 'text-decoration:line-through;' : '';
   const codeCol = s.abandonne ? '#8B0000' : 'var(--red)';
   const corr = s._corr;
@@ -8179,7 +8189,7 @@ function ouvrirFicheHistorique(id) {
         ${nomClientDeCode(s.id,s.format) ? ligne('Client', nomClientDeCode(s.id,s.format), false) : ''}
         ${ligne('Statut', s.statut, corr&&corr.champs.statut)}
         ${ligne('Journaliste', s.journaliste, corr&&corr.champs.journaliste)}
-        ${ligne('Date', dateVal, dateOk)}
+        <div style="display:flex;gap:10px;padding:5px 0;font-size:13px"><span style="color:var(--text3);min-width:110px">Date</span><span style="color:${dFiche.dossier?'var(--text3)':'var(--text)'}"${dFiche.dossier?' title="date de création du dossier Drive"':''}>${escapeHtml((dFiche.dossier?'~':'')+(dFiche.val||'—'))}${past(dateOk)}</span></div>
       </div>
       ${parLe}
       <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
