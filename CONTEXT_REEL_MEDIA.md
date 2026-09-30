@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-29 (dates de dossier Drive — 2 192 sujets datés · nom du client dans l'historique · recherche croisée prénom↔nom complet · HYBRIDE · historique 2 672 sujets · HAVANA)
+> Dernière mise à jour : 2026-09-30 (la recherche montre TOUT — filtre suspendu · dates de dossier Drive · nom du client dans l'historique · recherche croisée prénom↔nom complet · HYBRIDE · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,21 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-09-30 — Une recherche montre TOUT : le filtre est suspendu, pas perdu
+- **`index.html` seul, 8383 → 8402 (+19).**
+- **LE SYMPTÔME :** la carte **B50G** « Fondation du patrimoine - Prix Sésame Chapelle Saint-Joseph Laval » était **introuvable** dans l'app. David a mobilisé Master, qui a inspecté la fiche caractère par caractère : **non archivée, code propre, format Brand, statut PAD, chef Chloé**. Rien d'anormal en base.
+- **⚠️ LA CAUSE : UN FILTRE OUBLIÉ.** Dans `renderCards` : `sujets.filter(matchFiltre)` **PUIS** `applySearch`. La recherche ne voit que ce qui a survécu au filtre → **une carte exclue par le filtre reste invisible même cherchée par son code exact**.
+- **⚠️ LE PILOTE AVAIT INVERSÉ LA REPRO, Claude Code l'a corrigé.** B50G est **visible** avec le filtre PAD (elle est PAD, sans diffusion, pas en stock) et avec « Tous ». Elle est cachée par **n'importe quel filtre qu'elle ne satisfait pas** — un format ≠ Brand, un statut ≠ PAD, Stock ou Diffusée. Le scénario réel : une recherche lancée depuis une vue déjà filtrée sur autre chose.
+- **⚠️ POURQUOI ÇA COMPTAIT MALGRÉ « ce n'était qu'un filtre ».** Sans correctif, Chloé cherche une carte, ne la trouve pas, conclut qu'elle n'existe pas — **et en recrée une**. C'est exactement le mécanisme de l'incident Rocamadour. Ou Nicolas cherche un code pour un devis, ne voit rien, et le réutilise. Et surtout : des jours de travail pour rendre l'historique cherchable (accents, client, alias prénom↔nom complet) sont **annulés par un filtre oublié**.
+- **⚠️ OPTION S RETENUE — SUSPENDRE, PAS RÉINITIALISER.** Le Pilote proposait de repasser sur « Tous » quand une recherche démarre ; Claude Code a proposé mieux : **suspendre le filtre sans le détruire**. Argument décisif : **non destructif** — chercher ne doit pas faire perdre son filtre, il se réapplique dès qu'on efface la recherche. La version du Pilote aurait obligé à recliquer à chaque fois.
+- **HELPER UNIQUE `filtreCourant(s) = searchQuery ? true : matchFiltre(s)`**, substitué aux **6 sites** de `matchFiltre` — `renderCards`, `renderListe`, `renderStatut`, `renderJournaliste`, `idsVisibles`, **et le `renderCards` mort de la l.815**. ⚠️ Le code mort reçoit le helper **sans être supprimé** : s'il était réveillé un jour, il ne divergerait pas. `matchFiltre` ne subsiste plus que dans sa définition et à l'intérieur du helper — **source unique**.
+- **`idsVisibles` INCLUS** : sans ça, une carte cherchée serait considérée « disparue » à la réconciliation du polling.
+- **⚠️ LE GRISÉ SEUL AURAIT PASSÉ POUR UN BUG.** `majSuspensionFiltres` grise la barre (opacité 0.4 + `pointer-events:none` + infobulle), **et** le décompte affiche « N résultats pour "X" **· filtres suspendus** ». Le mot **« suspendus »** — plutôt que « ignorés » ou « désactivés » — dit **temporaire et non destructif**. La mention n'apparaît que si un filtre est réellement posé.
+- **⚠️ `curFilter` N'EST JAMAIS MUTÉ** — vérifié : les seules affectations sont celles d'origine, au clic sur un filtre. Le grisé ne touche que l'apparence. C'est ce qui garantit la restauration.
+- **Intacts, vérifiés :** `cnt-pad` / `cnt-stock` (calculés depuis `sujets`, sans filtre), le **Calendrier** (n'utilise pas `matchFiltre`), l'**Historique** et les **Archives** (filtrent leurs propres tableaux). Le correctif les **aligne** : recherche = tout, partout.
+- **Le décompte reflète l'affiché** par construction — même chemin `applySearch(sujets.filter(filtreCourant))` puis `list.length`.
+- **Vérification Pilote :** `wc -l` 8402, compteurs 2/32/4-4, `no-cache` conservé, `node --check` OK. Helper aux 6 sites confirmé, `matchFiltre` réduit à sa définition, `curFilter` non muté, mention conditionnelle. `sansAccents`, HAVANA, `corrigerTousRetours`, `dateHistoAffichee`, `filtreHistorique`, `aliasNoms` intacts.
 
 ### 2026-09-29 — Les dates de dossier Drive : l'historique devient datable
 - **`index.html` 8373 → 8383 (+10)** et **`data/archives-historique.json` 640 → 708 Ko** (9ᵉ champ `dateDossier`).

@@ -812,7 +812,7 @@ function parsePage(p){
 }
 
 function renderCards(){
-  let list=sujets.filter(matchFiltre);
+  let list=sujets.filter(filtreCourant);
   if(!list.length){document.getElementById('cards-wrap').innerHTML='<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';return;}
   document.getElementById('cards-wrap').innerHTML='<div class="cards cards--c">'+list.map(cardHTML).join('')+'</div>';
 }
@@ -4043,7 +4043,7 @@ function diffSujets(anciens, nouveaux) {
 function idsVisibles(list) {
   if(currentPage !== 'production') return new Set();
   let l = list;
-  l = l.filter(matchFiltre);
+  l = l.filter(filtreCourant); // même contournement : une carte cherchée n'est pas « disparue » au refresh
   return new Set(applySearch(l).map(s => s.id));
 }
 
@@ -5996,7 +5996,7 @@ function setVue(vue){
 function renderStatut(){
   const cols=STATUS_ORDER;
   let html='<div class="vue-kanban">';
-  const allFiltered=applySearch(sujets.filter(matchFiltre));
+  const allFiltered=applySearch(sujets.filter(filtreCourant));
   cols.forEach(st=>{
     const items=allFiltered.filter(s=>s.statut===st);
     const col=stColor(st);
@@ -6021,7 +6021,7 @@ function renderStatut(){
 
 // ─── VUE KANBAN PAR JOURNALISTE ───
 function renderJournaliste(){
-  const filtered=applySearch(sujets.filter(matchFiltre));
+  const filtered=applySearch(sujets.filter(filtreCourant));
   const journalistes=[...new Set(filtered.map(s=>s.journaliste||'Non attribué'))].sort();
   let html='<div class="vue-kanban">';
   journalistes.forEach(j=>{
@@ -7303,7 +7303,7 @@ function ouvrirFicheArchive(id) {
 }
 
 function renderListe() {
-  let list = sujets.filter(matchFiltre);
+  let list = sujets.filter(filtreCourant);
   list = applySearch(list);
 
   // Tri « Modif » : ordre FIGÉ pendant la lecture. Une action utilisateur (clic en-tête, filtre,
@@ -7627,6 +7627,7 @@ function appSetVue(vue) {
   vueActive = vue; // sync avec l'ancien système
   curFilter = curFilter || {t:null, v:null};
   majCompteursBarre(); // compteurs PAD + Stock à jour à chaque rendu Production (chargement, tick, filtre, popup, dé-PAD)
+  majSuspensionFiltres(); // grise la barre quand un filtre est suspendu par une recherche active
 
   // Update onglets
   ['cards','liste','statut','journaliste','calendrier'].forEach(v => {
@@ -7662,6 +7663,24 @@ function matchFiltre(s) {
     if(curFilter.v === 'pad')      return !s.diffusion && !s.enStock; // validée, décision non prise
   }
   return true;
+}
+// Filtre EFFECTIF de rendu : une recherche active SUSPEND le filtre de barre (la recherche doit tout
+// montrer, même une carte que le filtre courant exclut — bug B50G). Source UNIQUE, remplace matchFiltre
+// à tous les sites de rendu. curFilter n'est PAS muté → le filtre se réapplique quand la recherche est
+// effacée (Option S, non destructive). La barre est grisée + « filtres suspendus » (majSuspensionFiltres).
+function filtreCourant(s) { return searchQuery ? true : matchFiltre(s); }
+// Grise la barre de filtres (#sb-filters + #sb-cats) quand un filtre est SUSPENDU par une recherche
+// active (searchQuery ET un filtre posé). pointer-events:none → « verrouillé » le temps de la recherche,
+// réactivé dès qu'elle est effacée. Aucune mutation de curFilter : le filtre revient tel quel.
+function majSuspensionFiltres() {
+  const suspendu = !!(searchQuery && curFilter && curFilter.v);
+  ['sb-filters','sb-cats'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.style.opacity = suspendu ? '0.4' : '';
+    el.style.pointerEvents = suspendu ? 'none' : '';
+    el.title = suspendu ? 'Filtres suspendus pendant la recherche' : '';
+  });
 }
 // Compteurs des boutons PAD et Stock (cartes PAD en attente d'une action). Calculés et
 // rafraîchis ENSEMBLE via appSetVue — mêmes prédicats que les branches 'pad'/'stock' de matchFiltre.
@@ -7906,12 +7925,12 @@ function flt(t, v, el) { appFilter(t, v, el); }
 // ── Override renderCards pour utiliser curFilter ──
 const _rc = renderCards;
 function renderCards() {
-  let list = sujets.filter(matchFiltre);
+  let list = sujets.filter(filtreCourant);
   list = applySearch(list);
   const count = document.getElementById('search-count');
   if(count) {
     if(searchQuery) {
-      count.textContent = `${list.length} résultat${list.length!==1?'s':''} pour "${searchQuery}"`;
+      count.textContent = `${list.length} résultat${list.length!==1?'s':''} pour "${searchQuery}"` + ((curFilter && curFilter.v) ? ' · filtres suspendus' : '');
       count.style.display = 'block';
     } else {
       count.style.display = 'none';
