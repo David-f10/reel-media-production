@@ -861,6 +861,15 @@ function nomClientDeCode(code, format){
   if(!codeClient) return '';
   return mapClientsParCode.get(codeClient)||'';
 }
+// Puce « client » (Brand) à côté du titre — FORME UNIQUE dans les 3 tables (Production liste, Historique,
+// Archives). escapeHtml TOUJOURS (le nom vient de Notion). surligne=true → highlightText (blocs recherche
+// qui surlignent) ; false → escapé non surligné (vue Liste, qui ne surligne rien). Non-Brand → ''.
+function puceClientHTML(code, format, q, surligne){
+  const nc = nomClientDeCode(code, format);
+  if(!nc) return '';
+  const contenu = surligne ? highlightText(escapeHtml(nc), q) : escapeHtml(nc);
+  return `<span title="${escapeHtml(nc)}" style="font-size:9px;padding:1px 6px;border-radius:3px;background:var(--bg4);color:var(--text3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;margin-left:6px">${contenu}</span>`;
+}
 // Date relative pour la colonne « Modif » : à l'instant / il y a X min / il y a X h / hier / date courte.
 function fmtModif(d){
   if(!d) return '';
@@ -7374,7 +7383,7 @@ function renderListe() {
         <div style="display:flex;align-items:center;gap:6px">
           ${s.titre}
           ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
-          ${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:9px;padding:1px 6px;border-radius:3px;background:var(--bg4);color:var(--text3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle">${nc}</span>`:''})()}
+          ${puceClientHTML(s.code, s.format, null, false)}
         </div>
       </td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
@@ -7397,7 +7406,12 @@ function renderListe() {
   });
 
   html += `</tbody></table></div>`;
-  if(!list.length) html = '<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';
+  if(!list.length) html = searchQuery
+    ? `<div class="empty"><h3>Aucun sujet en production</h3><p>Aucun sujet ne correspond à "<strong>${escapeHtml(searchQuery)}</strong>"</p></div>`
+    : '<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';
+  // Recherche active : blocs Historique + Archives SOUS la liste (même état module que la vue Cartes →
+  // bascule Cartes↔Liste conserve le bloc). Après l'état vide → ils s'affichent même si Production est vide.
+  if(searchQuery) html += blocHistorique() + blocArchivesRecherche();
   vw.innerHTML = html;
 }
 
@@ -7980,7 +7994,7 @@ function blocArchivesRecherche() {
     const col = FMT_COLORS[s.format] || '#888';
     h += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
       <td class="td-code">${highlightText(s.code||'—', searchQuery)}</td>
-      <td class="td-titre">${highlightText(s.titre||'', searchQuery)}</td>
+      <td class="td-titre">${highlightText(s.titre||'', searchQuery)}${puceClientHTML(s.code, s.format, searchQuery, true)}</td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       <td>${highlightText(s.journaliste||'—', searchQuery)}</td>
       <td class="td-date">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
@@ -8008,7 +8022,7 @@ async function chercherArchives(btn) {
     }
   }
   _archivesRecherche = true;
-  renderCards();
+  if(currentPage === 'production') appSetVue(currentVue); else renderCards(); // vue active (cartes OU liste)
 }
 
 // Charge l'historique statique UNE fois par session. Garde `!== 'vide'` → aucun re-fetch, même après
@@ -8033,7 +8047,7 @@ async function chargerHistorique() {
     fusionnerHistorique(); // construit _historique fusionné + _norm
     _historiqueEtat = 'ok';
   }
-  if(searchQuery && currentPage === 'production' && currentVue === 'cards') renderCards();
+  if(searchQuery && currentPage === 'production') appSetVue(currentVue); // vue active (cartes OU liste)
 }
 
 // Corrections Notion → map par Code. On garde pageId (pour PATCH) et last_edited_time (« Corrigé le »).
@@ -8135,8 +8149,8 @@ function blocHistorique() {
     const codeStyle = s.abandonne ? 'color:#8B0000' : '';
     // Ligne cliquable → fiche de consultation. Seule l'icône (stopPropagation) court-circuite.
     h += `<tr onclick="ouvrirFicheHistorique('${escJs(s.id)}')" style="cursor:pointer">
-      <td class="td-code" style="${codeStyle}">${highlightText(escapeHtml(s.id||'—'), q)}${(()=>{const nc=nomClientDeCode(s.id,s.format);return nc?`<div style="font-size:9px;color:var(--text3);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(nc)}">${highlightText(escapeHtml(nc), q)}</div>`:'';})()}</td>
-      <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}</td>
+      <td class="td-code" style="${codeStyle}">${highlightText(escapeHtml(s.id||'—'), q)}</td>
+      <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}${puceClientHTML(s.id, s.format, q, true)}</td>
       <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
       <td style="font-size:11px;color:var(--text2)">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
       ${(()=>{const d=dateHistoAffichee(s);if(!d.val)return '<td style="font-size:11px;color:var(--text3)">—</td>';return `<td style="font-size:11px;color:${d.dossier?'var(--text3)':'var(--text2)'};white-space:nowrap"${d.dossier?' title="date de création du dossier Drive"':''}>${highlightText(escapeHtml((d.dossier?'~':'')+d.val), q)}</td>`;})()}
@@ -8325,7 +8339,7 @@ async function enregistrerCorrection(id) {
     }
     _corrections[id] = parseCorrections([page])[id] || _corrections[id]; // maj cache depuis la page renvoyée
     fusionnerHistorique();                                               // ⚠️ re-fusion + _norm recalculé
-    if(currentPage === 'production' && currentVue === 'cards') renderCards(); // liste à jour (icône 📁, recherche)
+    if(currentPage === 'production') appSetVue(currentVue); // vue active à jour (cartes OU liste)
     ouvrirFicheHistorique(id);                                           // ré-ouvre en consultation, valeurs à jour
     toast('Complété', 'ok');
   } catch(e) {
