@@ -65,6 +65,12 @@
 .list-table .td-fmt{white-space:nowrap}
 .list-table .td-statut{white-space:nowrap}
 .list-table .td-date{font-family:var(--mono);font-size:11px;white-space:nowrap}
+/* Tables de la vue Liste (Production, Historique, Archives) : largeurs FIXES identiques pour aligner les
+   6 colonnes communes + 1 colonne vide auto au milieu. table-layout:fixed SEULEMENT ici (via .lt-fixe),
+   jamais sur .list-table partagé (idées / tâches / page Archives). Les cellules écrêtent (ellipsis). */
+.lt-fixe{table-layout:fixed}
+.lt-fixe .td-titre{max-width:none;white-space:nowrap}
+.lt-fixe td{overflow:hidden;text-overflow:ellipsis}
 .list-pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500}
 
 /* DASHBOARD */
