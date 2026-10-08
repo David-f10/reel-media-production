@@ -861,14 +861,14 @@ function nomClientDeCode(code, format){
   if(!codeClient) return '';
   return mapClientsParCode.get(codeClient)||'';
 }
-// Puce « client » (Brand) à côté du titre — FORME UNIQUE dans les 3 tables (Production liste, Historique,
-// Archives). escapeHtml TOUJOURS (le nom vient de Notion). surligne=true → highlightText (blocs recherche
-// qui surlignent) ; false → escapé non surligné (vue Liste, qui ne surligne rien). Non-Brand → ''.
-function puceClientHTML(code, format, q, surligne){
+// Cellule « Client » (colonne dédiée) — FORME UNIQUE dans les tables Production liste, Historique, Archives.
+// escapeHtml TOUJOURS (contenu + title ; le nom vient de Notion). surligne=true → highlightText (blocs
+// recherche) ; false → escapé non surligné (vue Liste, qui ne surligne rien). Non-Brand → tiret « — » gris.
+function clientCell(code, format, q, surligne){
   const nc = nomClientDeCode(code, format);
-  if(!nc) return '';
+  if(!nc) return '<td class="td-client" style="font-size:11px;color:var(--text3)">—</td>';
   const contenu = surligne ? highlightText(escapeHtml(nc), q) : escapeHtml(nc);
-  return `<span title="${escapeHtml(nc)}" style="font-size:9px;padding:1px 6px;border-radius:3px;background:var(--bg4);color:var(--text3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;margin-left:6px">${contenu}</span>`;
+  return `<td class="td-client" style="font-size:11px;color:var(--text3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(nc)}">${contenu}</td>`;
 }
 // Date relative pour la colonne « Modif » : à l'instant / il y a X min / il y a X h / hier / date courte.
 function fmtModif(d){
@@ -7351,8 +7351,9 @@ function renderListe() {
   const cols = [
     {key:'code', label:'Code', w:'80px'},
     {key:'titre', label:'Titre', w:'auto'},
-    {key:'format', label:'Format', w:'90px'},
-    {key:'statut', label:'Statut', w:'130px'},
+    {key:'format', label:'Format', w:'90px', cls:'col-format'},
+    {key:'client', label:'Client', w:'100px', cls:'td-client', nosort:true},
+    {key:'statut', label:'Statut', w:'110px'},
     {key:'priorite', label:'Prio', w:'50px'},
     {key:'journaliste', label:'Journaliste', w:'100px'},
     {key:'chef', label:'Chef', w:'80px', cls:'td-chef'},
@@ -7369,7 +7370,9 @@ function renderListe() {
   let html = `<div style="overflow-x:auto">
     <table class="list-table">
       <thead><tr>
-        ${cols.map(c => `<th style="width:${c.w}" class="${listSortCol===c.key?'sorted':''} ${c.cls||''}" onclick="listSort('${c.key}')">${c.label}${sortIcon(c.key)}</th>`).join('')}
+        ${cols.map(c => c.nosort
+          ? `<th style="width:${c.w}" class="${c.cls||''}">${c.label}</th>`
+          : `<th style="width:${c.w}" class="${listSortCol===c.key?'sorted':''} ${c.cls||''}" onclick="listSort('${c.key}')">${c.label}${sortIcon(c.key)}</th>`).join('')}
         <th style="width:32px"></th>
       </tr></thead>
       <tbody>`;
@@ -7378,15 +7381,15 @@ function renderListe() {
     const col = FMT_COLORS[s.format] || '#888';
     const dotCol = stColor(s.statut);
     html += `<tr onclick="openDetail('${s.id}')">
-      <td class="td-code">${s.code||'—'}</td>
+      <td class="td-code col-codefmt" style="--fmt-color:${col}">${s.code||'—'}</td>
       <td class="td-titre">
         <div style="display:flex;align-items:center;gap:6px">
           ${s.titre}
           ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
-          ${puceClientHTML(s.code, s.format, null, false)}
         </div>
       </td>
-      <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
+      <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
+      ${clientCell(s.code, s.format, null, false)}
       <td class="td-statut">
         <div style="display:flex;align-items:center;gap:5px">
           <div style="width:5px;height:5px;border-radius:50%;background:${dotCol};flex-shrink:0"></div>
@@ -7987,15 +7990,16 @@ function blocArchivesRecherche() {
     return entete + `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 14px 12px">Aucune archive ne correspond à "${searchQuery}"</div>`;
   }
   let h = entete + `<div style="overflow-x:auto"><table class="list-table"><thead><tr>
-    <th style="width:80px">Code</th><th style="width:auto">Titre</th><th style="width:90px">Format</th>
-    <th style="width:110px">Journaliste</th><th style="width:90px">Diffusion</th>
+    <th style="width:80px">Code</th><th style="width:auto">Titre</th><th style="width:90px" class="col-format">Format</th>
+    <th style="width:100px">Client</th><th style="width:100px">Journaliste</th><th style="width:90px">Diffusion</th>
   </tr></thead><tbody>`;
   arch.forEach(s => {
     const col = FMT_COLORS[s.format] || '#888';
     h += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
-      <td class="td-code">${highlightText(s.code||'—', searchQuery)}</td>
-      <td class="td-titre">${highlightText(s.titre||'', searchQuery)}${puceClientHTML(s.code, s.format, searchQuery, true)}</td>
-      <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
+      <td class="td-code col-codefmt" style="--fmt-color:${col}">${highlightText(s.code||'—', searchQuery)}</td>
+      <td class="td-titre">${highlightText(s.titre||'', searchQuery)}</td>
+      <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
+      ${clientCell(s.code, s.format, searchQuery, true)}
       <td>${highlightText(s.journaliste||'—', searchQuery)}</td>
       <td class="td-date">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
     </tr>`;
@@ -8135,7 +8139,7 @@ function blocHistorique() {
   const total = hits.length;
   if(!total) return entete('Historique 2023-2026 (0)') + msg(`Aucun sujet historique ne correspond à "${searchQuery}"`);
   let h = entete(`Historique 2023-2026 (${total})`) + `<div style="overflow-x:auto"><table class="list-table"><thead><tr>
-    <th style="width:70px">Code</th><th style="width:auto">Titre</th><th style="width:90px">Format</th><th style="width:110px">Statut</th><th style="width:96px">Date</th><th style="width:56px"></th>
+    <th style="width:70px">Code</th><th style="width:auto">Titre</th><th style="width:90px" class="col-format">Format</th><th style="width:100px">Client</th><th style="width:110px">Statut</th><th style="width:90px">Date</th><th style="width:56px"></th>
   </tr></thead><tbody>`;
   hits.slice(0, HISTO_MAX).forEach(s => {
     const col = FMT_COLORS[s.format] || '#888';
@@ -8149,9 +8153,10 @@ function blocHistorique() {
     const codeStyle = s.abandonne ? 'color:#8B0000' : '';
     // Ligne cliquable → fiche de consultation. Seule l'icône (stopPropagation) court-circuite.
     h += `<tr onclick="ouvrirFicheHistorique('${escJs(s.id)}')" style="cursor:pointer">
-      <td class="td-code" style="${codeStyle}">${highlightText(escapeHtml(s.id||'—'), q)}</td>
-      <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}${puceClientHTML(s.id, s.format, q, true)}</td>
-      <td class="td-fmt"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
+      <td class="td-code col-codefmt" style="${codeStyle};--fmt-color:${col}">${highlightText(escapeHtml(s.id||'—'), q)}</td>
+      <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}</td>
+      <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
+      ${clientCell(s.id, s.format, q, true)}
       <td style="font-size:11px;color:var(--text2)">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
       ${(()=>{const d=dateHistoAffichee(s);if(!d.val)return '<td style="font-size:11px;color:var(--text3)">—</td>';return `<td style="font-size:11px;color:${d.dossier?'var(--text3)':'var(--text2)'};white-space:nowrap"${d.dossier?' title="date de création du dossier Drive"':''}>${highlightText(escapeHtml((d.dossier?'~':'')+d.val), q)}</td>`;})()}
       <td style="text-align:center">${action}</td>

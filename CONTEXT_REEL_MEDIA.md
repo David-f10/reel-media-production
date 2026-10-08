@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-09-30 (la recherche montre TOUT — filtre suspendu · dates de dossier Drive · nom du client dans l'historique · recherche croisée prénom↔nom complet · HYBRIDE · HAVANA)
+> Dernière mise à jour : 2026-10-08 (COLONNE CLIENT dans les 3 tables · recherche unifiée en vue Liste · la recherche montre TOUT — filtre suspendu · dates de dossier Drive · HYBRIDE · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,33 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-10-08 — La colonne Client : David tranche contre la mesure
+- **`index.html` 8416 → 8421 (+5)** et **`css/layout.css`** (2 règles mobiles). **⚠️ LES DEUX FICHIERS VONT ENSEMBLE** — sans la règle CSS, Format ne se masquerait pas sur mobile et le tableau s'élargirait.
+- **⚠️ LE PILOTE AVAIT MAL BRIEFÉ.** David avait demandé une **colonne dédiée** ; le Pilote a relayé la reco de Claude Code (une **puce** à côté du titre) et l'a laissée passer en livraison le 5 octobre. David a corrigé : « je ne voulais pas une puce, je voulais une colonne ».
+  **Leçon : une mesure qui contredit le brief se discute, elle ne le remplace pas.**
+- **LA MESURE, qui reste vraie :** une colonne dédiée est vide dans **66 %** des lignes en Production, **91 %** dans l'Historique, **96,6 %** dans les Archives. C'est l'argument qui avait fait choisir la puce — et qui a été **assumé** par David, qui sait ce qu'il regarde.
+- **`clientCell(code, format, q, surligne)`** remplace `puceClientHTML` : renvoie le `<td>` au lieu de la puce. **0 occurrence de `puceClientHTML` restante.** Colonne **100 px**, ellipsis, `title` complet au survol.
+- **PLACEMENT : après Format, dans les 3 fonctions-tableaux** — donc **4 apparitions** : vue Liste (Production, Historique, Archives) et vue Cartes sous recherche (Historique, Archives), les blocs étant les **mêmes fonctions**.
+  **⚠️ Exception : la Production en vue Cartes n'est pas un tableau.** Le client y reste à côté du code (`cardHTML` l.829, `cardHTMLHighlight`) — les deux occurrences **2b non échappées** y restent, **non propagées**.
+- **TRIMS pour garder le Titre confortable** : Production Statut 130→110 · Historique Date 96→90 · Archives Journaliste 110→100. ⚠️ « En cours de lancement » tient en 110 px : la cellule Statut **wrappe** (pas de `nowrap`).
+- **⚠️⚠️ SOUS 700 px : C'EST FORMAT QUI DISPARAÎT, PAS CLIENT.** Claude Code proposait de masquer Client (le breakpoint `.sb-havana` existant) ; **David a refusé** — il veut le client visible sur mobile, là où il sert le plus.
+  **Le raisonnement qui a débloqué :** *le format se devine du code* (B=Brand, M=Mag, D=Desk, F=Face Cam, Y=YouTube), **le client ne se devine pas**. Une colonne remplace l'autre → **même largeur de tableau, aucun défilement ajouté**.
+  `@media(max-width:700px){ .col-format{display:none!important} }`
+- **⚠️ ET LE CODE PREND LA COULEUR DU FORMAT sur mobile** — sans ça, masquer Format ferait perdre le repère visuel. `--fmt-color` posé inline par cellule (`FMT_COLORS`, déjà calculé), `.col-codefmt{color:var(--fmt-color)}` sous 700 px seulement. Desktop inchangé.
+- **VIDE = TIRET « — » gris, pas le blanc.** ⚠️ Le Pilote a contredit Claude Code, qui préférait le blanc à ce taux de vide. Raison : **une cellule blanche est ambiguë** — pas de client, donnée manquante ou bug d'affichage ? Le tiret dit « rien ici, et c'est normal », et **toutes les autres cellules de ces tables suivent déjà cette convention**.
+- **ÉCHAPPEMENT prouvé par exécution** : `escapeHtml` sur le contenu **et** sur l'attribut `title`. Testé sur `AX<img onerror=x>`, `A"onclick="evil`, `Fou & Cie`, `L'Occitane` → tous ressortent échappés. `highlightText` **seulement** en Historique/Archives ; Production non surlignée (sa table ne surligne rien).
+- **Colonne non triable en vue Liste** (`nosort:true`) : ce n'est pas un champ de sujet, pas de tri à casser.
+- **Vérification Pilote :** `wc -l` 8421, compteurs 2/32/4-4, `no-cache` conservé, `node --check` OK. `clientCell` aux 3 sites, `puceClientHTML` = 0, `col-format` sur th+td des 3 tables, `col-codefmt` sur les 3 cellules code, les 2 règles présentes dans le bloc `@media` de layout.css. `filtreCourant`, `dateHistoAffichee`, `sansAccents`, HAVANA, `corrigerTousRetours`, `aliasNoms`, `PAD_FOLDER_URL`, `HISTO_MAX` intacts.
+
+### 2026-10-05 — La recherche unifiée arrive en vue Liste
+- **`index.html` 8402 → 8416 (+14).**
+- **LE SIGNALEMENT :** David cherchait « Trade Republic » **en vue Liste** et ne trouvait rien, alors que B52A et B52B existent. Les blocs Historique et Archives n'apparaissaient **que dans la vue Cartes**.
+- **C'était un choix assumé du 24 septembre** (« vue Cartes uniquement, à étendre à la vue Liste si l'usage le montre »). **L'usage l'a montré.** Les blocs s'ajoutent sous les résultats de la vue Liste, même ordre : Production → Historique (automatique) → Archives (après le bouton).
+- **⚠️ TOUJOURS PAS dans Par statut, Par journaliste ni Calendrier** — ce sont des agrégations du pipeline actif, une archive n'y a pas de place logique.
+- **L'ÉTAT RESTE PARTAGÉ** : `_archivesRecherche` et `_historiqueEtat` sont les mêmes variables module pour les deux vues → charger les archives en Cartes puis basculer en Liste conserve le bloc. Un seul clic sur « Chercher aussi dans les archives » vaut pour les deux.
+- **⚠️ ÉTAT DES LIEUX DU CLIENT, trouvé à cette occasion :** les trois tables l'affichaient **différemment** — Production en puce à côté du titre (**non échappée**, occurrence 2b distincte de `cardHTML`), Historique **sous le code**, Archives **pas du tout**.
+- **Une puce uniforme avait été livrée ici — remplacée le 8 octobre par une colonne**, sur correction de David (voir l'entrée du 2026-10-08).
 
 ### 2026-09-30 — Une recherche montre TOUT : le filtre est suspendu, pas perdu
 - **`index.html` seul, 8383 → 8402 (+19).**
