@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-10-08 (COLONNE CLIENT dans les 3 tables · recherche unifiée en vue Liste · la recherche montre TOUT — filtre suspendu · dates de dossier Drive · HYBRIDE · HAVANA)
+> Dernière mise à jour : 2026-10-08 (ALIGNEMENT des 3 tables de la vue Liste · colonne Client · recherche unifiée en vue Liste · la recherche montre TOUT · dates de dossier Drive · HYBRIDE · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,26 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-10-08 (2) — Aligner les 3 tables : le vide se met au milieu
+- **`index.html` 8421 → 8433 (+12)** et **`css/views.css`** (3 règles `.lt-fixe`). **⚠️ LES DEUX VONT ENSEMBLE** — sans le CSS, les largeurs repassent en mode auto et le désalignement revient.
+- **LE CONSTAT DE DAVID :** en vue Liste, Format, Client et Statut ne tombaient pas au même endroit entre la table Production et celle de l'Historique, **alors que ce sont les mêmes colonnes**.
+- **⚠️ LA CAUSE N'ÉTAIT PAS PRIO — c'est `Titre: auto`.** La colonne Titre absorbe la place restante ; Production a **~350 px** de colonnes à sa droite (Chef, Tournage, Monteur, Modif) contre **~146 px** pour l'Historique (Date, action). Titre y était donc bien plus étroit, et **tout ce qui suit décalait**. Retirer Prio ne réglait que 50 px des 200.
+- **⚠️ LA SOLUTION : LE VIDE AU MILIEU, PAS À LA FIN.** Le Pilote avait d'abord proposé un tampon en fin de ligne — **David a corrigé** : Date et l'action 📁 doivent **rester collées à droite comme aujourd'hui**.
+  Structure retenue, identique dans les 3 tables :
+  `Code 80 · Titre 32% · Format 90 · Client 100 · Statut 110 · Journaliste 100 · [remplisseur auto] · <propre à la table, collé à droite>`
+  Les 6 communes tombent **au même pixel** ; les groupes de droite finissent **au même bord** sans s'aligner colonne par colonne.
+- **⚠️ TITRE EN POURCENTAGE (32 %), PAS EN PIXELS — le Pilote a contredit la proposition de 260 px fixes.** Le calcul de Claude Code le montrait : sur 1400 px, le remplisseur aurait fait **310 px en Production et 514 px en Historique** — un demi-écran de vide pendant que Titre tronquait à 40 caractères. En pourcentage, Titre vaut le même px partout (**même conteneur `#main-content`, vérifié**) **et** s'élargit avec l'écran. Bonus : plus besoin de règle média mobile, il rétrécit tout seul.
+- **⚠️ `table-layout:fixed` EST INDISPENSABLE** — en mode auto, les largeurs déclarées ne sont que des **minimums** : un statut ou un titre plus long dans une table élargirait sa colonne et le désalignement reviendrait.
+  **⚠️ SCOPÉ VIA `.lt-fixe`, JAMAIS SUR `.list-table`** — cette classe sert aussi aux idées, aux tâches et à la page Archives. 3 occurrences de `.lt-fixe` seulement.
+- **LE COÛT DU `fixed` : il faut écrêter.** Le contenu ne peut plus élargir une cellule → `.lt-fixe td{overflow:hidden;text-overflow:ellipsis}`, `.td-titre{max-width:none}` (neutralise le cap 280 px global), et `title` complet au survol sur Titre et Journaliste.
+- **LE TRI N'EST PAS AFFECTÉ** : `listSort` est en **JS** (re-trie le tableau et reconstruit le HTML), `table-layout` est purement CSS. Vérifié aussi : le tri par défaut est **`'created'`**, pas Prio ; Client et le remplisseur sont `nosort`.
+- **PRIO RETIRÉ de la vue Liste** (colonne + td). **Le champ `priorite` reste** : cartes (bordure colorée), fiche (sélecteur), vues Par statut et Par journaliste (tri + couleur) — intacts. **La branche `listSort('priorite')` est laissée inerte** : la retirer n'apporte rien et ajoute du risque.
+- **JOURNALISTE ajouté à l'Historique** (après Statut) — renseigné sur **2 143 sujets sur 2 672, soit 80 %**. **STATUT ajouté aux Archives** (après Client) — `parsePage` le charge bien sur les cartes archivées.
+- **Helper `celluleTexte(val, q, surligne)`** pour ces deux ajouts : `escapeHtml` toujours (contenu + `title`), `highlightText` seulement dans les blocs de recherche, tiret gris si vide.
+- **MOBILE** : Format reste masqué (`col-format` < 700 px) ; les 3 tables le masquent **à l'identique**, et le remplisseur absorbe les 90 px → l'alignement des communes tient. Chef et Monteur étaient déjà masqués (`views.css`).
+- **Vérification Pilote :** `wc -l` 8433, compteurs 2/32/4-4, `no-cache` conservé, `node --check` OK. Les 3 tables portent `.lt-fixe` avec **les mêmes 6 largeurs** (80 · 32% · 90 · 100 · 110 · 100), remplisseur `col-fill` au milieu dans les 3, Prio absent de la Liste, `priorite` conservé ailleurs (10 occurrences), `celluleTexte` aux 4 sites. `filtreCourant`, `dateHistoAffichee`, `clientCell`, `sansAccents`, HAVANA, `corrigerTousRetours`, `aliasNoms` intacts.
+- **⚠️ Détail noté, sans gravité :** le `title` du Titre utilise `.replace(/"/g,'&quot;')` plutôt que `escapeHtml`. Dans un attribut entre guillemets, échapper `"` suffit à empêcher la sortie — ce n'est pas une faille, mais c'est incohérent avec le reste. À aligner au passage du chantier 2b.
 
 ### 2026-10-08 — La colonne Client : David tranche contre la mesure
 - **`index.html` 8416 → 8421 (+5)** et **`css/layout.css`** (2 règles mobiles). **⚠️ LES DEUX FICHIERS VONT ENSEMBLE** — sans la règle CSS, Format ne se masquerait pas sur mobile et le tableau s'élargirait.

@@ -870,6 +870,14 @@ function clientCell(code, format, q, surligne){
   const contenu = surligne ? highlightText(escapeHtml(nc), q) : escapeHtml(nc);
   return `<td class="td-client" style="font-size:11px;color:var(--text3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(nc)}">${contenu}</td>`;
 }
+// Cellule texte générique pour les colonnes communes (Journaliste, Statut des blocs) : escapeHtml + title
+// complet + tiret si vide. surligne=true → highlightText (blocs recherche). Écrêtage via overflow/ellipsis.
+function celluleTexte(val, q, surligne){
+  const v = (val||'').trim();
+  if(!v) return '<td style="font-size:11px;color:var(--text3)">—</td>';
+  const contenu = surligne ? highlightText(escapeHtml(v), q) : escapeHtml(v);
+  return `<td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(v)}">${contenu}</td>`;
+}
 // Date relative pour la colonne « Modif » : à l'instant / il y a X min / il y a X h / hier / date courte.
 function fmtModif(d){
   if(!d) return '';
@@ -7350,12 +7358,12 @@ function renderListe() {
 
   const cols = [
     {key:'code', label:'Code', w:'80px'},
-    {key:'titre', label:'Titre', w:'auto'},
+    {key:'titre', label:'Titre', w:'32%'},
     {key:'format', label:'Format', w:'90px', cls:'col-format'},
     {key:'client', label:'Client', w:'100px', cls:'td-client', nosort:true},
     {key:'statut', label:'Statut', w:'110px'},
-    {key:'priorite', label:'Prio', w:'50px'},
     {key:'journaliste', label:'Journaliste', w:'100px'},
+    {key:'_fill', label:'', w:'auto', cls:'col-fill', nosort:true}, // remplisseur vide : absorbe le surplus AU MILIEU
     {key:'chef', label:'Chef', w:'80px', cls:'td-chef'},
     {key:'tourJ1', label:'Tournage', w:'90px'},
     {key:'monteur', label:'Monteur', w:'90px', cls:'td-mont'},
@@ -7368,7 +7376,7 @@ function renderListe() {
   }
 
   let html = `<div style="overflow-x:auto">
-    <table class="list-table">
+    <table class="list-table lt-fixe" style="width:100%">
       <thead><tr>
         ${cols.map(c => c.nosort
           ? `<th style="width:${c.w}" class="${c.cls||''}">${c.label}</th>`
@@ -7382,22 +7390,22 @@ function renderListe() {
     const dotCol = stColor(s.statut);
     html += `<tr onclick="openDetail('${s.id}')">
       <td class="td-code col-codefmt" style="--fmt-color:${col}">${s.code||'—'}</td>
-      <td class="td-titre">
-        <div style="display:flex;align-items:center;gap:6px">
-          ${s.titre}
-          ${s.sousFormat?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
+      <td class="td-titre" title="${(s.titre||'').replace(/"/g,'&quot;')}">
+        <div style="display:flex;align-items:center;gap:6px;min-width:0">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.titre}</span>
+          ${s.sousFormat?`<span style="flex-shrink:0;font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
         </div>
       </td>
       <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       ${clientCell(s.code, s.format, null, false)}
       <td class="td-statut">
-        <div style="display:flex;align-items:center;gap:5px">
+        <div style="display:flex;align-items:center;gap:5px;min-width:0">
           <div style="width:5px;height:5px;border-radius:50%;background:${dotCol};flex-shrink:0"></div>
-          <span style="font-size:11px">${s.statut||'—'}</span>
+          <span style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.statut||'—'}</span>
         </div>
       </td>
-      <td style="text-align:center">${(()=>{const p=s.priorite;const c=p.includes('Haute')?'var(--red)':p.includes('Normale')?'var(--amber)':p.includes('Basse')?'var(--green)':'';return c?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c}"></span>`:''})()}</td>
-      <td>${s.journaliste||'—'}</td>
+      ${celluleTexte(s.journaliste, null, false)}
+      <td class="col-fill"></td>
       <td class="td-chef">${s.chef||'—'}</td>
       <td class="td-date">${s.tourJ1?fmtDate(s.tourJ1):'—'}</td>
       <td class="td-mont">${s.monteur1||s.journaliste||'—'}</td>
@@ -7989,18 +7997,20 @@ function blocArchivesRecherche() {
   if(!arch.length) {
     return entete + `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 14px 12px">Aucune archive ne correspond à "${searchQuery}"</div>`;
   }
-  let h = entete + `<div style="overflow-x:auto"><table class="list-table"><thead><tr>
-    <th style="width:80px">Code</th><th style="width:auto">Titre</th><th style="width:90px" class="col-format">Format</th>
-    <th style="width:100px">Client</th><th style="width:100px">Journaliste</th><th style="width:90px">Diffusion</th>
+  let h = entete + `<div style="overflow-x:auto"><table class="list-table lt-fixe" style="width:100%"><thead><tr>
+    <th style="width:80px">Code</th><th style="width:32%">Titre</th><th style="width:90px" class="col-format">Format</th>
+    <th style="width:100px">Client</th><th style="width:110px">Statut</th><th style="width:100px">Journaliste</th><th style="width:auto" class="col-fill"></th><th style="width:90px">Diffusion</th>
   </tr></thead><tbody>`;
   arch.forEach(s => {
     const col = FMT_COLORS[s.format] || '#888';
     h += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
       <td class="td-code col-codefmt" style="--fmt-color:${col}">${highlightText(s.code||'—', searchQuery)}</td>
-      <td class="td-titre">${highlightText(s.titre||'', searchQuery)}</td>
+      <td class="td-titre" title="${(s.titre||'').replace(/"/g,'&quot;')}">${highlightText(s.titre||'', searchQuery)}</td>
       <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       ${clientCell(s.code, s.format, searchQuery, true)}
-      <td>${highlightText(s.journaliste||'—', searchQuery)}</td>
+      ${celluleTexte(s.statut, searchQuery, true)}
+      ${celluleTexte(s.journaliste, searchQuery, true)}
+      <td class="col-fill"></td>
       <td class="td-date">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
     </tr>`;
   });
@@ -8138,8 +8148,8 @@ function blocHistorique() {
   const hits = filtreHistorique(_historique || [], searchQuery);
   const total = hits.length;
   if(!total) return entete('Historique 2023-2026 (0)') + msg(`Aucun sujet historique ne correspond à "${searchQuery}"`);
-  let h = entete(`Historique 2023-2026 (${total})`) + `<div style="overflow-x:auto"><table class="list-table"><thead><tr>
-    <th style="width:70px">Code</th><th style="width:auto">Titre</th><th style="width:90px" class="col-format">Format</th><th style="width:100px">Client</th><th style="width:110px">Statut</th><th style="width:90px">Date</th><th style="width:56px"></th>
+  let h = entete(`Historique 2023-2026 (${total})`) + `<div style="overflow-x:auto"><table class="list-table lt-fixe" style="width:100%"><thead><tr>
+    <th style="width:80px">Code</th><th style="width:32%">Titre</th><th style="width:90px" class="col-format">Format</th><th style="width:100px">Client</th><th style="width:110px">Statut</th><th style="width:100px">Journaliste</th><th style="width:auto" class="col-fill"></th><th style="width:90px">Date</th><th style="width:56px"></th>
   </tr></thead><tbody>`;
   hits.slice(0, HISTO_MAX).forEach(s => {
     const col = FMT_COLORS[s.format] || '#888';
@@ -8154,10 +8164,12 @@ function blocHistorique() {
     // Ligne cliquable → fiche de consultation. Seule l'icône (stopPropagation) court-circuite.
     h += `<tr onclick="ouvrirFicheHistorique('${escJs(s.id)}')" style="cursor:pointer">
       <td class="td-code col-codefmt" style="${codeStyle};--fmt-color:${col}">${highlightText(escapeHtml(s.id||'—'), q)}</td>
-      <td class="td-titre" style="${barre}">${highlightText(escapeHtml(s.nom||''), q)}</td>
+      <td class="td-titre" style="${barre}" title="${(s.nom||'').replace(/"/g,'&quot;')}">${highlightText(escapeHtml(s.nom||''), q)}</td>
       <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
       ${clientCell(s.id, s.format, q, true)}
-      <td style="font-size:11px;color:var(--text2)">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
+      <td style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
+      ${celluleTexte(s.journaliste, q, true)}
+      <td class="col-fill"></td>
       ${(()=>{const d=dateHistoAffichee(s);if(!d.val)return '<td style="font-size:11px;color:var(--text3)">—</td>';return `<td style="font-size:11px;color:${d.dossier?'var(--text3)':'var(--text2)'};white-space:nowrap"${d.dossier?' title="date de création du dossier Drive"':''}>${highlightText(escapeHtml((d.dossier?'~':'')+d.val), q)}</td>`;})()}
       <td style="text-align:center">${action}</td>
     </tr>`;
