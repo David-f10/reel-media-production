@@ -178,6 +178,11 @@ nav{
 /* ─── MOBILE ─── */
 @media(max-width:700px){
   .sidebar{display:none}
+  /* Colonne Client plus utile que Format sur mobile (le format se devine du code) : on masque Format,
+     et le code reprend la couleur du format (--fmt-color posé inline) pour garder le repère visuel.
+     Même largeur de tableau, une colonne remplace l'autre — aucun défilement horizontal ajouté. */
+  .col-format{display:none!important}
+  .col-codefmt{color:var(--fmt-color)!important}
   /* Mobile nav compacte */
   .topnav{padding:0 12px}
   .main-topbar{padding:0 12px;height:44px}
