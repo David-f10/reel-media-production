@@ -866,17 +866,17 @@ function nomClientDeCode(code, format){
 // recherche) ; false → escapé non surligné (vue Liste, qui ne surligne rien). Non-Brand → tiret « — » gris.
 function clientCell(code, format, q, surligne){
   const nc = nomClientDeCode(code, format);
-  if(!nc) return '<td class="td-client" style="font-size:11px;color:var(--text3)">—</td>';
+  if(!nc) return '<td class="td-client m-meta" style="font-size:11px;color:var(--text3)">—</td>';
   const contenu = surligne ? highlightText(escapeHtml(nc), q) : escapeHtml(nc);
-  return `<td class="td-client" style="font-size:11px;color:var(--text3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(nc)}">${contenu}</td>`;
+  return `<td class="td-client m-meta" style="font-size:11px;color:var(--text3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(nc)}">${contenu}</td>`;
 }
 // Cellule texte générique pour les colonnes communes (Journaliste, Statut des blocs) : escapeHtml + title
 // complet + tiret si vide. surligne=true → highlightText (blocs recherche). Écrêtage via overflow/ellipsis.
 function celluleTexte(val, q, surligne){
   const v = (val||'').trim();
-  if(!v) return '<td style="font-size:11px;color:var(--text3)">—</td>';
+  if(!v) return '<td class="m-meta" style="font-size:11px;color:var(--text3)">—</td>';
   const contenu = surligne ? highlightText(escapeHtml(v), q) : escapeHtml(v);
-  return `<td style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(v)}">${contenu}</td>`;
+  return `<td class="m-meta" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(v)}">${contenu}</td>`;
 }
 // Date relative pour la colonne « Modif » : à l'instant / il y a X min / il y a X h / hier / date courte.
 function fmtModif(d){
@@ -5290,6 +5290,18 @@ async function confirmerImpossible() {
 
 // ─── RECHERCHE ───
 let searchQuery = '';
+// Compteurs de la recherche unifiée, RENSEIGNÉS par les rendus eux-mêmes (renderCards/renderListe →
+// prod ; blocHistorique → histo ; blocArchivesRecherche → arch) et RELUS par _ligneComptesRecherche :
+// aucun recomptage parallèle. null = source non interrogée (historique en chargement / archives non ouvertes).
+let _searchCounts = {prod: 0, histo: null, arch: null};
+function _ligneComptesRecherche() {
+  const c = _searchCounts;
+  const tot = (c.prod || 0) + (c.histo || 0) + (c.arch || 0);
+  const parts = [`${tot} résultat${tot !== 1 ? 's' : ''}`, `${c.prod || 0} en production`];
+  if (c.histo != null) parts.push(`${c.histo} dans l'historique`);
+  if (c.arch != null) parts.push(`${c.arch} archivé${c.arch !== 1 ? 's' : ''}`);
+  return `<div style="font-size:11px;color:var(--text3);padding:2px 2px 10px;margin-bottom:10px;border-bottom:1px solid var(--border)">${escapeHtml(parts.join(' · '))}</div>`;
+}
 // Recherche unifiée production + archives : l'utilisateur a demandé à inclure les archives pour CETTE
 // session de recherche. Variable MODULE (jamais le DOM) — renderCards la relit à chaque peinture, car
 // le polling repeint #cards-wrap ; un état DOM serait effacé au premier tick.
@@ -5308,6 +5320,8 @@ function onSearch(val) {
   searchQuery = val.trim().toLowerCase();
   const clearBtn = document.getElementById('search-clear');
   if(clearBtn) clearBtn.style.display = searchQuery ? 'block' : 'none';
+  const inp = document.getElementById('search-input');
+  if(inp) inp.classList.toggle('recherche-active', !!searchQuery); // bordure rouge PERSISTANTE (CSS)
   appSetVue(currentVue);
 }
 
@@ -5315,7 +5329,7 @@ function clearSearch() {
   searchQuery = '';
   _archivesRecherche = false; // le geste × termine la session de recherche unifiée
   const input = document.getElementById('search-input');
-  if(input) { input.value = ''; input.style.width = '220px'; input.style.borderColor = 'var(--border)'; }
+  if(input) { input.value = ''; input.style.width = '220px'; input.style.borderColor = 'var(--border)'; input.classList.remove('recherche-active'); }
   const clearBtn = document.getElementById('search-clear');
   if(clearBtn) clearBtn.style.display = 'none';
   const count = document.getElementById('search-count');
@@ -6997,11 +7011,17 @@ async function soumettreidee() {
 
 function parseTache(p) {
   const pr = p.properties;
+  // « Date échéance » peut être une date SEULE ('2026-10-14') ou un datetime
+  // ('2026-10-14T15:00:00.000+02:00'). On DÉCOUPE en deux champs pour que TOUTES les comparaisons
+  // de date (updateBadgeTaches, tacheRowHTML, _ficheTacheRead) restent justes sans être touchées :
+  // dateEcheance est TOUJOURS 'YYYY-MM-DD' ; l'heure vit à part dans heureEcheance ('HH:MM' ou '').
+  const brut = pr['Date échéance']?.date?.start || '';
   return {
     id: p.id,
     titre: pr['Titre']?.title?.[0]?.plain_text || 'Sans titre',
     statut: pr['Statut']?.select?.name || 'À faire',
-    dateEcheance: pr['Date échéance']?.date?.start || '',
+    dateEcheance: brut.slice(0, 10),
+    heureEcheance: brut.length > 10 ? brut.slice(11, 16) : '',
     assigne: pr['Assigné']?.rich_text?.[0]?.plain_text || '',
     creePar: pr['Créé par']?.rich_text?.[0]?.plain_text || '',
     sujetLie: pr['Sujet lié']?.rich_text?.[0]?.plain_text || '',
@@ -7066,6 +7086,9 @@ let _tacheCarteChoisie = null; // {id, code, titre} ou null — RÉSERVÉ à « 
 // _ficheTacheRead → _ficheTacheEdit → enregistrerTache), chacun relisant taches.find(id).
 // Une variable d'état en plus serait du code mort qu'on finirait par croire à jour.
 let _tacheEditCarte = null;     // {id, code, titre} ou null — carte liée en mode édition (préfixe 'et')
+// Page Tâches : vue 'semaine' (planning, par défaut) ou 'liste' (3 sections). En mémoire (jamais localStorage).
+let _tachesVue = 'semaine';
+let _tachesLundi = null;        // 'YYYY-MM-DD' du lundi affiché — init paresseuse au 1er rendu Semaine
 
 function _initialesTache(nom){ return (String(nom||'?').trim().slice(0,2).toUpperCase()) || '?'; }
 
@@ -7105,31 +7128,205 @@ function tacheRowHTML(t, section, today) {
     </div>`;
 }
 
-function renderTachesPerso() {
+// ───────────────────────── Dates locales (anti-piège de fuseau) ─────────────────────────
+// ⚠️ JAMAIS toISOString() sur une date mise à minuit : en Europe/Paris cela renvoie la VEILLE
+//    (UTC-2h l'été). On formate manuellement depuis les composantes LOCALES.
+function _ymd(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function _lundiDe(d) {                                   // lundi ISO de la semaine contenant d → 'YYYY-MM-DD' local
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); // minuit LOCAL, pas d'UTC
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));       // lundi=0 … dimanche=6
+  return _ymd(x);
+}
+function _addJours(ymdStr, n) { const [y,m,d] = ymdStr.split('-').map(Number); const x = new Date(y, m-1, d); x.setDate(x.getDate() + n); return _ymd(x); }
+function _numSemaine(ymdStr) {                           // numéro de semaine ISO 8601
+  const [y,m,d] = ymdStr.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setDate(dt.getDate() + 3 - ((dt.getDay() + 6) % 7)); // jeudi de la semaine ISO
+  const premier = new Date(dt.getFullYear(), 0, 1);
+  return 1 + Math.round(((dt - premier) / 86400000 - 3 + ((premier.getDay() + 6) % 7)) / 7);
+}
+
+// Catégorie DEVINÉE au préfixe du titre (aucun champ Notion). Liste FERMÉE, insensible accents/casse.
+// Rien par défaut : mieux aucune pastille qu'une fausse étiquette.
+function _categorieTache(titre) {
+  const s = sansAccents(titre);
+  if (s.includes('tournage'))                         return {label: 'Tournage',  bg: 'var(--amber-dim)',  fg: 'var(--amber)'};
+  if (s.startsWith('monter') || s.startsWith('montage')) return {label: 'Montage', bg: 'var(--purple-dim)', fg: 'var(--purple)'};
+  if (s.startsWith('finaliser') || s.startsWith('livrer')) return {label: 'Livraison', bg: 'var(--blue-dim)', fg: 'var(--blue)'};
+  return null;
+}
+
+// Point d'entrée de la page Tâches. `vue` par défaut = _tachesVue (loadTachesPerso l'appelle sans arg).
+// Onglets internes DESSINÉS dans #main-content (patron renderIdees) — ce ne sont PAS #view-tabs.
+function renderTachesPerso(vue = _tachesVue) {
+  _tachesVue = (vue === 'liste') ? 'liste' : 'semaine';
   const mc = document.getElementById('main-content');
-  const today = new Date().toISOString().slice(0, 10);
+  const ong = (v, label) => `<button onclick="renderTachesPerso('${v}')" style="padding:8px 16px;font-size:12px;border:none;background:none;cursor:pointer;border-bottom:2px solid ${_tachesVue===v?'var(--red)':'transparent'};color:${_tachesVue===v?'var(--text)':'var(--text3)'};font-family:var(--font)">${label}</button>`;
+  const onglets = `<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px">${ong('semaine','📅 Semaine')}${ong('liste','☰ Liste')}</div>`;
+  mc.innerHTML = onglets + (_tachesVue === 'liste' ? _tachesListeHTML() : _tachesSemaineHTML());
+}
+
+// Vue LISTE — inchangée : mêmes 3 sections, même tri, même rendu (extraite en fonction → string).
+function _tachesListeHTML() {
+  const today = _ymd(new Date());
   const me = currentUser?.nom || '';
   const parEcheance = (a, b) => (a.dateEcheance || '9999-12-31').localeCompare(b.dateEcheance || '9999-12-31');
-
   const assignees = taches.filter(t => t.assigne === me && t.statut !== 'Fait').sort(parEcheance);
   const confiees  = taches.filter(t => t.creePar === me && t.assigne !== me && t.statut !== 'Fait').sort(parEcheance);
   const terminees = taches.filter(t => t.statut === 'Fait' && (t.assigne === me || t.creePar === me))
                           .sort((a, b) => (b.lastEdited || '').localeCompare(a.lastEdited || '')).slice(0, 30);
-
-  // Le bouton « + Nouvelle tâche » vit dans l'en-tête de page (main-actions, currentPage==='taches').
-  // On ne le redouble PAS ici (ancien doublon retiré).
   if (!assignees.length && !confiees.length && !terminees.length) {
-    mc.innerHTML = `<div class="empty"><h3>Aucune tâche</h3><p>Crée une tâche et assigne-la à quelqu'un.</p></div>`;
-    return;
+    return `<div class="empty"><h3>Aucune tâche</h3><p>Crée une tâche et assigne-la à quelqu'un.</p></div>`;
   }
-
   const sectionHTML = (label, items, section) => items.length
     ? `<div style="margin-bottom:24px"><div class="dash-section-title">${label} (${items.length})</div>${items.map(t => tacheRowHTML(t, section, today)).join('')}</div>`
     : '';
-
-  mc.innerHTML = sectionHTML('Qui me sont assignées', assignees, 'assignees')
+  return sectionHTML('Qui me sont assignées', assignees, 'assignees')
     + sectionHTML("Que j'ai confiées", confiees, 'confiees')
     + sectionHTML('Terminées', terminees, 'terminees');
+}
+
+// Navigation de semaine (± 7 j / retour à aujourd'hui) — réécrit _tachesLundi puis repeint.
+function tachesSemPrev() { _tachesLundi = _addJours(_tachesLundi, -7); renderTachesPerso('semaine'); }
+function tachesSemNext() { _tachesLundi = _addJours(_tachesLundi, 7);  renderTachesPerso('semaine'); }
+function tachesSemAuj()  { _tachesLundi = _lundiDe(new Date());        renderTachesPerso('semaine'); }
+
+// Une ligne de tâche dans la Semaine (grille heure · titre+sous-ligne · actions). Clic → fiche.
+// Fait → barrée + atténuée. Le ✓ garde son stopPropagation (sinon il ouvrirait aussi la fiche).
+function _tacheSemaineRowHTML(t, me) {
+  const done = t.statut === 'Fait';
+  const cat = _categorieTache(t.titre);
+  const pastille = cat ? `<span class="tsem-cat" style="background:${cat.bg};color:${cat.fg}">${cat.label}</span>` : '';
+  const heure = t.heureEcheance
+    ? `<div class="tsem-heure">${escapeHtml(t.heureEcheance)}</div>`
+    : `<div class="tsem-heure vide">—</div>`;
+  const carteSub = t.sujetLie
+    ? `<span style="color:var(--blue);font-family:var(--mono)">${escapeHtml(t.sujetCode || '—')}</span>`
+    : `<span style="color:var(--text3)">sans carte</span>`;
+  const confieeSub = (t.assigne && t.assigne !== me) ? `<span style="color:var(--text3)">· confiée à ${escapeHtml(t.assigne)}</span>` : '';
+  const avatar = (t.assigne && t.assigne !== me)
+    ? `<div class="av" style="background:var(--text3);flex-shrink:0" title="${escapeHtml(t.assigne)}">${escapeHtml(_initialesTache(t.assigne))}</div>` : '';
+  const btn = (!done && t.assigne === me)
+    ? `<button onclick="terminerTache(event,'${escJs(t.id)}')" title="Marquer terminée" style="flex-shrink:0;background:var(--green-dim);border:1px solid var(--green);color:var(--green);cursor:pointer;font-size:11px;padding:3px 8px;border-radius:6px;white-space:nowrap;font-family:var(--font)">✓</button>` : '';
+  return `<div class="tsem-row" onclick="openTacheDetail('${escJs(t.id)}')" style="${done?'opacity:0.55':''}">
+    ${heure}
+    <div class="tsem-main">
+      <div class="tsem-titre" style="${done?'text-decoration:line-through':''}" title="${escapeHtml(t.titre)}">${escapeHtml(t.titre)}</div>
+      <div class="tsem-sub">${carteSub} ${confieeSub}</div>
+    </div>
+    <div class="tsem-act">${pastille}${avatar}${btn}</div>
+  </div>`;
+}
+
+// VUE SEMAINE — liste groupée par jour (pas une grille 7 colonnes). Retard épinglé hors-semaine,
+// 7 jours (week-end masqué si vide), bandeau tournages de l'équipe séparé, bloc sans échéance.
+function _tachesSemaineHTML() {
+  const me = currentUser?.nom || '';
+  const today = _ymd(new Date());
+  if (!_tachesLundi) _tachesLundi = _lundiDe(new Date());
+  const lundi = _tachesLundi;
+  const dimanche = _addJours(lundi, 6);
+  const triJour = (a, b) => (a.heureEcheance || '').localeCompare(b.heureEcheance || ''); // sans heure (='') en premier
+
+  // a) EN RETARD — mes tâches non faites dont l'échéance est passée (affiché quelle que soit la semaine).
+  const retard = taches.filter(t => t.statut !== 'Fait' && t.dateEcheance && t.dateEcheance < today)
+                       .sort((a, b) => a.dateEcheance.localeCompare(b.dateEcheance) || triJour(a, b));
+
+  // b) Les 7 jours. Un jour exclut les tâches déjà épinglées en retard (non faites + passées) → zéro doublon.
+  const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+  let nbTachesSemaine = 0, nbJoursOccupes = 0;
+  let joursHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const dStr = _addJours(lundi, i);
+    const items = taches.filter(t => t.dateEcheance === dStr && !(t.statut !== 'Fait' && dStr < today)).sort(triJour);
+    const weekend = i >= 5;
+    if (weekend && !items.length) continue;             // samedi/dimanche masqués s'ils sont vides
+    if (items.length) { nbTachesSemaine += items.length; nbJoursOccupes++; }
+    const [y, m, dd] = dStr.split('-').map(Number);
+    const dObj = new Date(y, m-1, dd);
+    const estAuj = dStr === today;
+    const libelleJour = `${JOURS[i]} ${dObj.getDate()} ${dObj.toLocaleDateString('fr-FR',{month:'short'})}`;
+    joursHTML += `<div style="margin-bottom:14px">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+        <span style="font-size:12px;font-weight:600;color:${estAuj?'var(--red)':'var(--text2)'}">${escapeHtml(libelleJour)}</span>
+        ${items.length ? `<span style="font-size:10px;font-family:var(--mono);background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3)">${items.length}</span>` : ''}
+        ${estAuj ? `<span style="font-size:10px;color:var(--red)">aujourd'hui</span>` : ''}
+      </div>
+      ${items.length ? items.map(t => _tacheSemaineRowHTML(t, me)).join('')
+                     : `<div style="font-size:12px;color:var(--text3);opacity:0.6;padding:4px 10px">Rien de prévu</div>`}
+    </div>`;
+  }
+
+  // c) Tournages de l'ÉQUIPE cette semaine — bandeau SÉPARÉ (jamais mêlé aux tâches personnelles).
+  const dansSem = d => d && d >= lundi && d <= dimanche;
+  const tourn = [];
+  sujets.forEach(s => {
+    if (dansSem(s.tourJ1)) tourn.push({s, d: s.tourJ1, j: (s.tourJ1 && s.tourJ2) ? 'J1' : ''});
+    if (dansSem(s.tourJ2)) tourn.push({s, d: s.tourJ2, j: 'J2'});
+  });
+  tourn.sort((a, b) => a.d.localeCompare(b.d));
+  let tournHTML = '';
+  if (tourn.length) {
+    const jourAbrege = d => { const [y,m,dd] = d.split('-').map(Number); return new Date(y,m-1,dd).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric'}); };
+    tournHTML = `<div style="margin-top:22px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">🎬 Tournages de l'équipe cette semaine</span>
+        <span style="font-size:10px;font-family:var(--mono);background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3)">${tourn.length}</span>
+        <span style="flex:1"></span>
+        <span onclick="navTo('production');appSetVue('calendrier')" style="font-size:11px;color:var(--blue);cursor:pointer">Calendrier →</span>
+      </div>
+      ${tourn.map(({s, d, j}) => `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12px">
+        <span style="font-family:var(--mono);color:var(--text3);white-space:nowrap;flex-shrink:0">${escapeHtml(jourAbrege(d))}${j?' '+j:''}</span>
+        <span style="font-family:var(--mono);color:var(--red);flex-shrink:0">${escapeHtml(s.code || '—')}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${escapeHtml(s.titre || '')}</span>
+        <span style="color:var(--text3);white-space:nowrap;flex-shrink:0">${escapeHtml(s.journaliste || '—')}</span>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // d) Sans échéance — mes tâches à faire sans délai (bloc en bas).
+  const sansDelai = taches.filter(t => t.statut !== 'Fait' && !t.dateEcheance);
+  let sansHTML = '';
+  if (sansDelai.length) {
+    sansHTML = `<div style="margin-top:22px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">Sans échéance</span>
+        <span style="font-size:10px;font-family:var(--mono);background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3)">${sansDelai.length}</span>
+      </div>
+      ${sansDelai.map(t => _tacheSemaineRowHTML(t, me)).join('')}
+    </div>`;
+  }
+
+  // a') Bloc retard (rendu après calcul, placé EN HAUT).
+  let retardHTML = '';
+  if (retard.length) {
+    retardHTML = `<div style="margin-bottom:18px;border:1px solid var(--red);border-radius:var(--r);padding:10px 4px 2px;background:var(--red-dim)">
+      <div style="display:flex;align-items:center;gap:8px;margin:0 8px 6px">
+        <span style="font-size:12px;font-weight:700;color:var(--red)">⚠ En retard</span>
+        <span style="font-size:10px;font-family:var(--mono);background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:8px;color:var(--red)">${retard.length}</span>
+      </div>
+      ${retard.map(t => _tacheSemaineRowHTML(t, me)).join('')}
+    </div>`;
+  }
+
+  // En-tête : navigation + titre + numéro de semaine + résumé.
+  const [ly,lm,ld] = lundi.split('-').map(Number), [dy,dm,dd2] = dimanche.split('-').map(Number);
+  const titrePeriode = `${new Date(ly,lm-1,ld).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} – ${new Date(dy,dm-1,dd2).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}`;
+  const semCourante = _lundiDe(new Date());
+  const btnAuj = lundi !== semCourante ? `<button onclick="tachesSemAuj()" style="font-size:11px;padding:3px 10px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:6px;cursor:pointer;font-family:var(--font)">Aujourd'hui</button>` : '';
+  const resume = `${nbTachesSemaine} tâche${nbTachesSemaine!==1?'s':''} · ${tourn.length} tournage${tourn.length!==1?'s':''} équipe · ${nbJoursOccupes} jour${nbJoursOccupes!==1?'s':''} occupé${nbJoursOccupes!==1?'s':''}`;
+  const header = `<div class="tsem-hdr">
+    <div style="display:flex;align-items:center;gap:8px">
+      <button onclick="tachesSemPrev()" title="Semaine précédente" style="font-size:14px;padding:2px 9px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:6px;cursor:pointer">‹</button>
+      <button onclick="tachesSemNext()" title="Semaine suivante" style="font-size:14px;padding:2px 9px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:6px;cursor:pointer">›</button>
+      <span style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(titrePeriode)}</span>
+      <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">sem. ${_numSemaine(lundi)}</span>
+      ${btnAuj}
+    </div>
+    <span class="tsem-resume">${escapeHtml(resume)}</span>
+  </div>`;
+
+  return header + retardHTML + joursHTML + tournHTML + sansHTML;
 }
 
 function openNouvelleTache() {
@@ -7152,8 +7349,8 @@ function openNouvelleTache() {
         <div id="nt-carte-results" style="margin-top:4px"></div></div>
       <div class="field"><div class="field-label">Assignée à *</div>
         <select id="nt-assigne">${opts}</select></div>
-      <div class="field"><div class="field-label">Échéance <span style="color:var(--text3);font-size:10px">(optionnelle)</span></div>
-        <input type="date" id="nt-date"></div>
+      <div class="field"><div class="field-label">Échéance <span style="color:var(--text3);font-size:10px">(date + heure optionnelles)</span></div>
+        <input type="datetime-local" id="nt-date"></div>
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="document.getElementById('ov-nouvelle-tache').remove()">Annuler</button>
@@ -7207,7 +7404,7 @@ function retirerCarteTache(prefix = 'nt') {
 async function creerTachePerso() {
   const titre = document.getElementById('nt-titre')?.value.trim();
   const assigne = document.getElementById('nt-assigne')?.value || '';
-  const date = document.getElementById('nt-date')?.value || '';   // OPTIONNELLE
+  const dateVal = document.getElementById('nt-date')?.value || '';   // OPTIONNELLE (datetime-local)
   if (!titre) { toast('Ajoutez un intitulé', 'err'); return; }
   if (!assigne) { toast('Choisissez une personne', 'err'); return; }
   const carte = _tacheCarteChoisie; // capturé avant l'await (l'état local peut changer)
@@ -7219,7 +7416,8 @@ async function creerTachePerso() {
       'Créé par': {rich_text: [{text: {content: currentUser.nom}}]},
       'Archivé': {checkbox: false}
     };
-    if (date) props['Date échéance'] = {date: {start: date}};
+    const ech = _echeanceVersNotion(dateVal);
+    if (ech.date) props['Date échéance'] = ech;
     if (carte) {
       // « Sujet lié » (l'ID) fait AUTORITÉ : c'est LUI seul qui ouvre la carte (openDetail).
       // « Sujet code » / « Sujet titre » sont de l'AFFICHAGE recopié à la création (comme notify.js),
@@ -7276,6 +7474,38 @@ function openTacheDetail(id) {
 }
 
 const _fmtDateLong = d => { try { return new Date(d).toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'}); } catch (_) { return d; } };
+// Heure d'échéance en lecture : ' · 15:00' (ou '' si aucune). Pastille mono/amber gérée par l'appelant.
+const _fmtHeure = h => (h ? ' · ' + h : '');
+
+// Décalage UTC LOCAL pour un instant donné, CALCULÉ (jamais '+02:00' en dur) → gère l'heure d'hiver.
+// getTimezoneOffset() rend les minutes DERRIÈRE UTC (Paris été = -120) → on inverse le signe.
+function _offsetLocal(isoLocal) {
+  const dt = new Date(isoLocal);
+  const mins = -dt.getTimezoneOffset();
+  const sign = mins >= 0 ? '+' : '-';
+  const a = Math.abs(mins);
+  return `${sign}${String(Math.floor(a/60)).padStart(2,'0')}:${String(a%60).padStart(2,'0')}`;
+}
+// Valeur d'un <input type="datetime-local"> → propriété Notion 'date'.
+//   ''                     → {date:null}                           (champ vidé → sans délai)
+//   'YYYY-MM-DD' | heure 00:00 → {date:{start:'YYYY-MM-DD'}}       (date SEULE, comme avant)
+//   'YYYY-MM-DDTHH:MM'     → {date:{start:'…THH:MM:00±hh:mm'}}      (datetime, décalage CALCULÉ)
+// ⚠️ Chromium VIDE un <input datetime-local> auquel on assigne une valeur date-seule (vérifié) : le
+//    préremplissage ajoute donc 'T00:00', et 00:00 est relu ici comme « pas d'heure » → aucune perte.
+function _echeanceVersNotion(val) {
+  const v = String(val || '').trim();
+  if (!v) return {date: null};
+  const [d, h] = v.split('T');
+  if (!h || h === '00:00') return {date: {start: d}};
+  return {date: {start: `${d}T${h}:00${_offsetLocal(`${d}T${h}`)}`}};
+}
+// Payload Notion de l'échéance ACTUELLE d'une tâche (pour comparer au formulaire sans fausse diff).
+function _echeanceActuelle(t) {
+  if (!t.dateEcheance) return {date: null};
+  return _echeanceVersNotion(t.dateEcheance + 'T' + (t.heureEcheance || '00:00'));
+}
+// Valeur à injecter dans un <input type="datetime-local"> depuis une tâche ('' ou 'YYYY-MM-DDTHH:MM').
+const _echeanceVersInput = t => t.dateEcheance ? (t.dateEcheance + 'T' + (t.heureEcheance || '00:00')) : '';
 
 // Mode LECTURE. Relit la tâche à chaque appel ; si elle a disparu (reload silencieux), on ferme.
 function _ficheTacheRead(id) {
@@ -7288,10 +7518,11 @@ function _ficheTacheRead(id) {
   const pastille = done
     ? `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--green)"><span style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span>${escapeHtml(t.statut)}</span>`
     : `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--amber)"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber)"></span>${escapeHtml(t.statut||'À faire')}</span>`;
+  const heureTxt = escapeHtml(_fmtHeure(t.heureEcheance));
   const echeanceHTML = t.dateEcheance
     ? (enRetard
-        ? `<span style="color:var(--red);font-weight:600">En retard · ${escapeHtml(_fmtDateLong(t.dateEcheance))}</span>`
-        : `<span>${escapeHtml(_fmtDateLong(t.dateEcheance))}</span>`)
+        ? `<span style="color:var(--red);font-weight:600">En retard · ${escapeHtml(_fmtDateLong(t.dateEcheance))}${heureTxt}</span>`
+        : `<span>${escapeHtml(_fmtDateLong(t.dateEcheance))}${heureTxt}</span>`)
     : `<span style="color:var(--text3)">Sans délai</span>`;
   const carteHTML = t.sujetLie
     ? `<span style="font-family:var(--mono);color:var(--text2)">${escapeHtml(t.sujetCode||'—')}</span> ${escapeHtml(t.sujetTitre||'')}`
@@ -7326,10 +7557,10 @@ function _ficheTacheRead(id) {
 // « Ouvrir la carte » : on RETIRE la fiche AVANT openDetail — les deux partagent `.overlay`,
 // mais openDetail pilote le statique #ov-detail (openOv) ; laisser ov-tache-detail le masquerait.
 // ⚠️ openDetail fait `sujets.find(id); if(!s) return;` → SILENCIEUX si la carte a été archivée
-//    depuis (elle vit alors dans sujetsArchives, pas dans sujets) : le bouton ne ferait RIEN.
-//    On passe donc par ouvrirFicheArchive, qui réinjecte le sujet archivé dans `sujets` avant
-//    d'appeler openDetail. Et si la carte est introuvable des deux côtés (sujetsArchives n'est
-//    chargé QUE par une visite de la page Archives), on le DIT au lieu de ne rien faire.
+//    depuis (elle vit alors dans sujetsArchives) : le bouton ne ferait RIEN. On passe donc par
+//    ouvrirFicheArchive, qui réinjecte le sujet archivé dans `sujets` avant openDetail. Et si la
+//    carte est introuvable des deux côtés (sujetsArchives n'est chargé QUE par une visite de la
+//    page Archives), on le DIT au lieu de ne rien faire.
 function ouvrirCarteDepuisTache(id) {
   const t = taches.find(x => x.id === id);
   if (!t?.sujetLie) return;
@@ -7341,10 +7572,9 @@ function ouvrirCarteDepuisTache(id) {
   }
 }
 
-// Échap ferme la fiche — mais JAMAIS en mode édition (#et-titre présent = une saisie est en
-// cours, on ne la jette pas sur une frappe). Listener posé UNE SEULE fois au chargement : il
-// teste la présence de l'overlay à chaque appui, donc rien à retirer à la fermeture (aucune
-// fuite, contrairement au patron onEsc/removeEventListener des overlays à usage unique).
+// Échap ferme la fiche — mais JAMAIS en mode édition (#et-titre présent = saisie en cours, on ne la
+// jette pas sur une frappe). Listener posé UNE SEULE fois : il teste la présence de l'overlay à
+// chaque appui, donc rien à retirer à la fermeture (la fiche se referme depuis 6 endroits).
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   const ov = document.getElementById('ov-tache-detail');
@@ -7376,8 +7606,8 @@ function _ficheTacheEdit(id) {
         <input type="text" id="et-titre" value="${escapeHtml(t.titre)}" placeholder="Intitulé de la tâche"></div>
       <div class="field"><div class="field-label">Assignée à *</div>
         <select id="et-assigne">${opts}</select></div>
-      <div class="field"><div class="field-label">Échéance <span style="color:var(--text3);font-size:10px">(vider = sans délai)</span></div>
-        <input type="date" id="et-date" value="${escapeHtml(t.dateEcheance||'')}"></div>
+      <div class="field"><div class="field-label">Échéance <span style="color:var(--text3);font-size:10px">(heure optionnelle · vider = sans délai)</span></div>
+        <input type="datetime-local" id="et-date" value="${escapeHtml(_echeanceVersInput(t))}"></div>
       <div class="field"><div class="field-label">Carte liée <span style="color:var(--text3);font-size:10px">(optionnelle)</span></div>
         <div id="et-carte-choisie">${chip}</div>
         <input type="text" id="et-carte-search" placeholder="Rechercher une carte (code, titre…)" oninput="rechercheCarteTache(this.value,'et')" autocomplete="off">
@@ -7397,7 +7627,7 @@ async function enregistrerTache(id) {
   if (!t || t.statut === 'Fait') { _ficheTacheRead(id); return; }
   const titre = document.getElementById('et-titre')?.value.trim() || '';
   const assigne = document.getElementById('et-assigne')?.value || '';
-  const date = document.getElementById('et-date')?.value || ''; // vide = sans délai
+  const dateVal = document.getElementById('et-date')?.value || ''; // datetime-local ; vide = sans délai
   if (!titre) { toast("L'intitulé ne peut pas être vide", 'err'); return; }
   const carte = _tacheEditCarte; // capturé avant l'await
   const carteId = carte?.id || '';
@@ -7405,7 +7635,9 @@ async function enregistrerTache(id) {
   if (titre !== t.titre) props['Titre'] = {title: [{text: {content: titre}}]};
   const assigneChange = assigne !== t.assigne;
   if (assigneChange) props['Assigné'] = {rich_text: [{text: {content: assigne}}]};
-  if (date !== (t.dateEcheance || '')) props['Date échéance'] = date ? {date: {start: date}} : {date: null};
+  // On compare les PAYLOADS Notion (date seule vs datetime à décalage calculé) → pas de fausse diff.
+  const echNouvelle = _echeanceVersNotion(dateVal);
+  if (JSON.stringify(echNouvelle) !== JSON.stringify(_echeanceActuelle(t))) props['Date échéance'] = echNouvelle;
   if (carteId !== (t.sujetLie || '')) {
     if (carte) {
       props['Sujet lié']   = {rich_text: [{text: {content: carte.id}}]};
@@ -7505,6 +7737,7 @@ function ouvrirFicheArchive(id) {
 function renderListe() {
   let list = sujets.filter(filtreCourant);
   list = applySearch(list);
+  _searchCounts.prod = list.length; // compteur « en production » (réutilisé par _ligneComptesRecherche)
 
   // Tri « Modif » : ordre FIGÉ pendant la lecture. Une action utilisateur (clic en-tête, filtre,
   // recherche) recalcule l'instantané ; l'auto-refresh le RÉUTILISE → pas de réordonnancement sous
@@ -7581,7 +7814,7 @@ function renderListe() {
       </td>
       <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       ${clientCell(s.code, s.format, null, false)}
-      <td class="td-statut">
+      <td class="td-statut m-meta">
         <div style="display:flex;align-items:center;gap:5px;min-width:0">
           <div style="width:5px;height:5px;border-radius:50%;background:${dotCol};flex-shrink:0"></div>
           <span style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.statut||'—'}</span>
@@ -7590,10 +7823,10 @@ function renderListe() {
       ${celluleTexte(s.journaliste, null, false)}
       <td class="col-fill"></td>
       <td class="td-chef">${s.chef||'—'}</td>
-      <td class="td-date">${s.tourJ1?fmtDate(s.tourJ1):'—'}</td>
+      <td class="td-date m-meta">${s.tourJ1?fmtDate(s.tourJ1):'—'}</td>
       <td class="td-mont">${s.monteur1||s.journaliste||'—'}</td>
-      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${fmtModif(s.lastEdited)}</td>
-      <td onclick="event.stopPropagation()">
+      <td class="m-hide" style="font-size:11px;color:var(--text3);white-space:nowrap">${fmtModif(s.lastEdited)}</td>
+      <td class="m-act" onclick="event.stopPropagation()">
         <button onclick="deleteSujet('${s.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px" title="Supprimer">🗑</button>
       </td>
     </tr>`;
@@ -7603,10 +7836,20 @@ function renderListe() {
   if(!list.length) html = searchQuery
     ? `<div class="empty"><h3>Aucun sujet en production</h3><p>Aucun sujet ne correspond à "<strong>${escapeHtml(searchQuery)}</strong>"</p></div>`
     : '<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';
+  else html = _listeSortSelectHTML() + html; // sélecteur de tri (mobile) au-dessus de la table
   // Recherche active : blocs Historique + Archives SOUS la liste (même état module que la vue Cartes →
   // bascule Cartes↔Liste conserve le bloc). Après l'état vide → ils s'affichent même si Production est vide.
   if(searchQuery) html += blocHistorique() + blocArchivesRecherche();
-  vw.innerHTML = html;
+  // Ligne de comptes EN TÊTE (après les blocs → histo/arch renseignés). Sous le champ de recherche.
+  vw.innerHTML = (searchQuery ? _ligneComptesRecherche() : '') + html;
+}
+
+// Sélecteur de tri natif, visible uniquement sous 700px (.liste-sort-mobile). onchange → listSort
+// EXISTANT (aucune réimplémentation). Reflète listSortCol à chaque peinture.
+function _listeSortSelectHTML() {
+  const opts = [['lastEdited','Modif'],['code','Code'],['titre','Titre'],['statut','Statut'],['journaliste','Journaliste'],['tourJ1','Tournage']];
+  return `<div class="liste-sort-mobile"><span style="font-size:11px;color:var(--text3)">Trier :</span>
+    <select onchange="listSort(this.value)">${opts.map(([k,l]) => `<option value="${k}" ${listSortCol===k?'selected':''}>${l}</option>`).join('')}</select></div>`;
 }
 
 function listSort(col) {
@@ -7700,6 +7943,10 @@ let currentPage = 'dashboard';
 // un rendu ASYNC ne commet son écriture QUE s'il détient encore le dernier jeton (anti « stale render »).
 let _mainRenderSeq = 0;
 let currentVue = 'cards';
+// Mobile : la vue Cartes est masquée (#tab-cards display:none < 700px) → on démarre en Liste.
+// UNE SEULE fois, au chargement du script ; PAS de listener resize (rebasculer pendant la lecture,
+// ou à la rotation du téléphone, serait hostile). matchMedia est disponible dès le parse en navigateur.
+try { if (window.matchMedia('(max-width:700px)').matches && currentVue === 'cards') currentVue = 'liste'; } catch(_) {}
 
 // ── Chargement des données ──
 async function appLoadData() {
@@ -7765,13 +8012,14 @@ function navTo(page) {
   document.getElementById('breadcrumb').textContent = isProd ? 'Production' : 'Dashboard';
   document.getElementById('main-actions').innerHTML = isProd
     ? `<div style="display:flex;align-items:center;gap:6px">
-        <div style="position:relative;display:flex;align-items:center">
-          <input id="search-input" type="text" placeholder="Rechercher..." 
+        <div style="position:relative;display:flex;align-items:center;flex:1;min-width:0">
+          <span style="position:absolute;left:9px;pointer-events:none;font-size:12px;color:var(--text3);line-height:1">🔍</span>
+          <input id="search-input" type="text" placeholder="Code, titre, client, journaliste…"
             oninput="onSearch(this.value)"
-            style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 28px 5px 10px;border-radius:var(--r);font-size:12px;font-family:var(--font);width:220px;transition:all 0.15s;outline:none"
+            style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 28px 5px 28px;border-radius:var(--r);font-size:12px;font-family:var(--font);width:220px;transition:all 0.15s;outline:none"
             onfocus="this.style.borderColor='var(--red)';this.style.width='280px'"
             onblur="this.style.borderColor='var(--border)';if(!this.value)this.style.width='220px'">
-          <button id="search-clear" onclick="clearSearch()" style="display:none;position:absolute;right:6px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0;line-height:1">×</button>
+          <button id="search-clear" onclick="clearSearch()" style="display:none;position:absolute;right:6px;background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px;padding:0;line-height:1;font-weight:600">×</button>
         </div>
         <button class="nav-btn primary" onclick="openNouveau()" style="font-size:11px;white-space:nowrap">+ Nouveau sujet</button>
       </div>`
@@ -8135,15 +8383,7 @@ const _rc = renderCards;
 function renderCards() {
   let list = sujets.filter(filtreCourant);
   list = applySearch(list);
-  const count = document.getElementById('search-count');
-  if(count) {
-    if(searchQuery) {
-      count.textContent = `${list.length} résultat${list.length!==1?'s':''} pour "${searchQuery}"` + ((curFilter && curFilter.v) ? ' · filtres suspendus' : '');
-      count.style.display = 'block';
-    } else {
-      count.style.display = 'none';
-    }
-  }
+  _searchCounts.prod = list.length; // compteur « en production » (réutilisé par _ligneComptesRecherche)
   const cw = document.getElementById('cards-wrap');
   if(!cw) return;
   // Section production : cartes, ou état vide — HTML construit dans `html` puis assigné UNE fois.
@@ -8163,7 +8403,8 @@ function renderCards() {
   // module (_archivesRecherche + sujetsArchives) — jamais stocké dans le DOM.
   // Ordre : (2) historique gratuit (auto), (3) archives payantes (bouton). Gratuit avant payant.
   if(searchQuery) { html += blocHistorique(); html += blocArchivesRecherche(); }
-  cw.innerHTML = html;
+  // Ligne de comptes EN TÊTE (après les blocs → histo/arch déjà renseignés). Sous le champ de recherche.
+  cw.innerHTML = (searchQuery ? _ligneComptesRecherche() : '') + html;
 }
 
 // Bloc « archives » de la recherche unifiée. Reconstruit à chaque peinture par renderCards.
@@ -8171,11 +8412,13 @@ function renderCards() {
 // ou message explicite si aucune archive ne correspond (désambiguïse « introuvable »).
 function blocArchivesRecherche() {
   if(!_archivesRecherche) {
+    _searchCounts.arch = null; // archives non ouvertes → absentes de la ligne de comptes
     return `<div style="padding:16px 14px;text-align:center;border-top:1px solid var(--border);margin-top:8px">
       <button onclick="chercherArchives(this)" class="nav-btn" style="font-size:12px">Chercher aussi dans les archives</button>
     </div>`;
   }
   const arch = applySearch(sujetsArchives, searchQuery); // archives = même forme que sujets ; PAS matchFiltre
+  _searchCounts.arch = arch.length; // réutilisé tel quel par _ligneComptesRecherche
   const entete = `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;padding:12px 14px 6px;border-top:1px solid var(--border);margin-top:8px">Archives (${arch.length})</div>`;
   if(!arch.length) {
     return entete + `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 14px 12px">Aucune archive ne correspond à "${searchQuery}"</div>`;
@@ -8188,13 +8431,13 @@ function blocArchivesRecherche() {
     const col = FMT_COLORS[s.format] || '#888';
     h += `<tr style="cursor:pointer" onclick="ouvrirFicheArchive('${s.id}')">
       <td class="td-code col-codefmt" style="--fmt-color:${col}">${highlightText(s.code||'—', searchQuery)}</td>
-      <td class="td-titre" title="${(s.titre||'').replace(/"/g,'&quot;')}">${highlightText(s.titre||'', searchQuery)}</td>
+      <td class="td-titre" title="${(s.titre||'').replace(/"/g,'&quot;')}"><span>${highlightText(s.titre||'', searchQuery)}</span></td>
       <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${s.format||'—'}</span></td>
       ${clientCell(s.code, s.format, searchQuery, true)}
       ${celluleTexte(s.statut, searchQuery, true)}
       ${celluleTexte(s.journaliste, searchQuery, true)}
       <td class="col-fill"></td>
-      <td class="td-date">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
+      <td class="td-date m-meta">${s.diffusion?fmtDate(s.diffusion):'—'}</td>
     </tr>`;
   });
   h += '</tbody></table></div>';
@@ -8322,14 +8565,17 @@ function blocHistorique() {
   const msg = (t) => `<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 14px 12px">${t}</div>`;
   if(_historiqueEtat === 'vide' || _historiqueEtat === 'chargement') {
     chargerHistorique(); // idempotent (garde !== 'vide') — déclenche le fetch au 1er passage
+    _searchCounts.histo = null; // source non encore interrogée → absente de la ligne de comptes
     return entete('Historique 2023-2026') + msg("Chargement de l'historique…");
   }
   if(_historiqueEtat === 'err') {
+    _searchCounts.histo = null;
     return entete('Historique 2023-2026') + msg('Historique indisponible');
   }
   const q = escapeHtml(searchQuery);
   const hits = filtreHistorique(_historique || [], searchQuery);
   const total = hits.length;
+  _searchCounts.histo = total; // réutilisé tel quel par _ligneComptesRecherche (pas de recomptage)
   if(!total) return entete('Historique 2023-2026 (0)') + msg(`Aucun sujet historique ne correspond à "${searchQuery}"`);
   let h = entete(`Historique 2023-2026 (${total})`) + `<div style="overflow-x:auto"><table class="list-table lt-fixe" style="width:100%"><thead><tr>
     <th style="width:80px">Code</th><th style="width:32%">Titre</th><th style="width:90px" class="col-format">Format</th><th style="width:100px">Client</th><th style="width:110px">Statut</th><th style="width:100px">Journaliste</th><th style="width:auto" class="col-fill"></th><th style="width:90px">Date</th><th style="width:56px"></th>
@@ -8347,14 +8593,14 @@ function blocHistorique() {
     // Ligne cliquable → fiche de consultation. Seule l'icône (stopPropagation) court-circuite.
     h += `<tr onclick="ouvrirFicheHistorique('${escJs(s.id)}')" style="cursor:pointer">
       <td class="td-code col-codefmt" style="${codeStyle};--fmt-color:${col}">${highlightText(escapeHtml(s.id||'—'), q)}</td>
-      <td class="td-titre" style="${barre}" title="${(s.nom||'').replace(/"/g,'&quot;')}">${highlightText(escapeHtml(s.nom||''), q)}</td>
+      <td class="td-titre" style="${barre}" title="${(s.nom||'').replace(/"/g,'&quot;')}"><span>${highlightText(escapeHtml(s.nom||''), q)}</span></td>
       <td class="td-fmt col-format"><span style="color:${col};font-size:11px;font-weight:500">${highlightText(escapeHtml(s.format||'—'), q)}</span></td>
       ${clientCell(s.id, s.format, q, true)}
-      <td style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
+      <td class="m-meta" style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${highlightText(escapeHtml(s.statut||'—'), q)}</td>
       ${celluleTexte(s.journaliste, q, true)}
       <td class="col-fill"></td>
-      ${(()=>{const d=dateHistoAffichee(s);if(!d.val)return '<td style="font-size:11px;color:var(--text3)">—</td>';return `<td style="font-size:11px;color:${d.dossier?'var(--text3)':'var(--text2)'};white-space:nowrap"${d.dossier?' title="date de création du dossier Drive"':''}>${highlightText(escapeHtml((d.dossier?'~':'')+d.val), q)}</td>`;})()}
-      <td style="text-align:center">${action}</td>
+      ${(()=>{const d=dateHistoAffichee(s);if(!d.val)return '<td class="m-meta" style="font-size:11px;color:var(--text3)">—</td>';return `<td class="m-meta" style="font-size:11px;color:${d.dossier?'var(--text3)':'var(--text2)'};white-space:nowrap"${d.dossier?' title="date de création du dossier Drive"':''}>${highlightText(escapeHtml((d.dossier?'~':'')+d.val), q)}</td>`;})()}
+      <td class="m-act" style="text-align:center">${action}</td>
     </tr>`;
   });
   h += '</tbody></table>';
