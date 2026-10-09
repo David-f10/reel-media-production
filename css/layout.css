@@ -161,6 +161,9 @@ nav{
 }
 .breadcrumb{font-size:13px;font-weight:500;color:var(--text)}
 .main-actions{display:flex;gap:6px}
+/* B5 — recherche active : bordure rouge PERSISTANTE (pas seulement au focus) + fond teinté.
+   !important pour battre le border-color inline posé par onblur. Classe posée/retirée dans onSearch/clearSearch. */
+#search-input.recherche-active{border-color:var(--red)!important;background:rgba(230,57,70,0.06)!important}
 .view-tabs{
   display:flex;padding:0 24px;border-bottom:1px solid var(--border);
   background:var(--bg);flex-shrink:0;
@@ -185,10 +188,20 @@ nav{
   .col-codefmt{color:var(--fmt-color)!important}
   /* Mobile nav compacte */
   .topnav{padding:0 12px}
-  .main-topbar{padding:0 12px;height:44px}
+  /* B4 — LOT B : la barre grandit en hauteur, la recherche passe en pleine largeur sur sa ligne.
+     Le :has(input#search-input) ne vise QUE la barre de Production : sur Tâches/Idées, #main-actions
+     n'a pas de champ → « + Nouvelle tâche »/« + Nouvelle idée » gardent leur taille (pas de pleine largeur). */
+  .main-topbar{padding:0 12px 9px;min-height:44px;height:auto;flex-wrap:wrap}
   .main-topbar .main-actions{gap:4px}
-  .main-topbar .main-actions input{width:140px!important}
-  .main-topbar .main-actions input:focus{width:180px!important}
+  .main-topbar .main-actions:has(input#search-input){width:100%;order:3;margin-top:8px}
+  .main-topbar .main-actions:has(input#search-input)>div:first-child{flex:1;min-width:0}
+  .main-topbar .main-actions input#search-input,
+  .main-topbar .main-actions input#search-input:focus{width:100%!important;font-size:13px}
+  /* « + Nouveau sujet » réduit à un carré « + » (battre la largeur inline 220/280px → !important) */
+  .main-topbar .main-actions:has(input#search-input) .nav-btn.primary{font-size:0!important;width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+  .main-topbar .main-actions:has(input#search-input) .nav-btn.primary::before{content:'+';font-size:18px;line-height:1}
+  /* B3 — la vue Cartes s'efface (le JS bascule currentVue→liste au démarrage) */
+  #tab-cards{display:none}
   .view-tabs{padding:0 12px;overflow-x:auto;scrollbar-width:none}
   .view-tabs::-webkit-scrollbar{display:none}
   .vtab{padding:8px 10px;font-size:11px}

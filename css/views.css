@@ -164,3 +164,55 @@
    #video-player-modal est position:fixed;inset:0 et n'a pas de .topnav.
    En navigateur classique, env(safe-area-inset-top) vaut 0 : rendu inchangé. */
 #video-player-modal{padding-top:env(safe-area-inset-top)}
+
+/* ═══════════════ Page Tâches — Vue Semaine (desktop) ═══════════════ */
+.tsem-hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.tsem-resume{font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap}
+.tsem-row{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer}
+.tsem-row:hover{background:var(--bg3)}
+.tsem-heure{text-align:right;font-family:var(--mono);font-size:12px;color:var(--amber);white-space:nowrap}
+.tsem-heure.vide{color:var(--text3);opacity:0.55}
+.tsem-main{min-width:0}
+.tsem-titre{font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tsem-sub{font-size:11px;color:var(--text3);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tsem-act{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.tsem-cat{font-size:9px;padding:1px 7px;border-radius:999px;white-space:nowrap;font-weight:600}
+/* Sélecteur de tri mobile de la vue Liste : caché au desktop (le tri se fait aux en-têtes) */
+.liste-sort-mobile{display:none}
+
+/* ═══════════════ LOT A — Vue Semaine : naît responsive (≤700px) ═══════════════ */
+@media(max-width:700px){
+  .tsem-row{grid-template-columns:44px 1fr auto}        /* colonne d'heure plus étroite */
+  .tsem-cat{display:none}                                /* pastilles masquées → l'espace va au titre */
+  .tsem-hdr{flex-direction:column;align-items:flex-start;gap:6px}  /* résumé passé sous le titre */
+  .tsem-resume{white-space:normal}
+}
+
+/* ═══════════════ LOT B — Vue Liste : ligne → carte 2 niveaux (CSS seul, mêmes cellules) ═══════════════ */
+@media(max-width:700px){
+  .lt-fixe{display:block;width:100%;table-layout:auto}
+  .lt-fixe thead{display:none}
+  .lt-fixe tbody{display:block}
+  .lt-fixe tr{display:block;position:relative;padding:10px 40px 10px 2px;border-bottom:1px solid var(--border);line-height:1.55}
+  .lt-fixe td{display:inline;border:none;padding:0;margin:0;max-width:none;overflow:visible;white-space:normal;font-size:12px;vertical-align:baseline}
+  /* cellules masquées (remplisseur, modif ; chef/mont déjà masqués l.131, format l.184 du layout) */
+  .lt-fixe td.col-fill,.lt-fixe td.m-hide{display:none}
+  /* Niveau 1 : code coloré (gras) + titre, ENSEMBLE sur la 1re ligne (le titre peut passer à la ligne) */
+  .lt-fixe td.td-code{font-family:var(--mono);font-weight:700;color:var(--fmt-color,var(--text));margin-right:6px}
+  .lt-fixe td.td-titre{font-weight:600;color:var(--text)}
+  .lt-fixe td.td-titre>div{display:inline!important}   /* bat le style inline display:flex de la cellule */
+  .lt-fixe td.td-titre span{white-space:normal!important;overflow:visible!important}
+  /* Niveau 2 : saut de ligne FORCÉ avant la 1re méta (client) via un ::before bloc ; les autres
+     métas suivent inline, chacune précédée d'un point médian. */
+  .lt-fixe td.m-meta{color:var(--text2)}
+  .lt-fixe td.m-meta span{white-space:normal!important}
+  .lt-fixe td.m-meta::before{content:"· ";color:var(--text3)}
+  .lt-fixe td.td-client.m-meta::before{content:"";display:block;height:3px}
+  .lt-fixe td.td-statut.m-meta>div{display:inline!important}  /* bat le style inline display:flex */
+  .lt-fixe td.td-statut.m-meta>div>div{display:none}    /* pastille-dot du statut masquée (liste prod) */
+  /* Action (🗑 liste / 📁🔍 historique) épinglée à droite sur toute la hauteur */
+  .lt-fixe td.m-act{position:absolute;top:0;right:2px;bottom:0;display:flex;align-items:center;margin:0}
+  /* Sélecteur de tri visible, pleine largeur raisonnable */
+  .liste-sort-mobile{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+  .liste-sort-mobile select{width:auto;flex:1;max-width:240px}
+}
