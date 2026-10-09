@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-10-09 (FICHE DE TÂCHE au clic : consulter / modifier / finaliser · ALIGNEMENT des 3 tables de la vue Liste · colonne Client · recherche unifiée en vue Liste · la recherche montre TOUT · dates de dossier Drive · HYBRIDE · HAVANA)
+> Dernière mise à jour : 2026-10-09 (VUE SEMAINE des tâches + MOBILE : vue Liste seule & recherche mise en valeur · FICHE DE TÂCHE au clic · ALIGNEMENT des 3 tables de la vue Liste · colonne Client · recherche unifiée en vue Liste · la recherche montre TOUT · dates de dossier Drive · HYBRIDE · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -28,6 +28,61 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-10-09 (2) — Vue Semaine (Tâches) + Mobile (vue Liste & recherche), en un seul lot
+- **`index.html` 8616 → 8862** · **`css/views.css` 166 → 218** · **`css/layout.css` 269 → 282** · **`css/base.css`** (1 ligne). ⚠️ **LES QUATRE VONT ENSEMBLE.**
+- **DEUX CHANTIERS EN UN, à la demande de David.** Zones de code disjointes (page Tâches / vue Liste + recherche), donc une seule branche, un seul test, un seul merge. **Coût assumé :** pas de retour arrière partiel — si un bug sort, les deux moitiés partent.
+- **⚠️⚠️ LA FUSION A RÉVÉLÉ UNE INTERACTION QUE LES DEUX PROMPTS SÉPARÉS RATAIENT.** La règle mobile qui fait descendre la recherche sur sa propre ligne cible `.main-actions` — **qui porte AUSSI « + Nouvelle tâche » (page Tâches) et « + Nouvelle idée »**. Sans précaution, ces boutons passaient en pleine largeur sur mobile, abîmant la page Tâches que le LOT A venait de retravailler. Résolu par **`:has(input#search-input)`**, qui ne vise que la barre de Production. C'est le SEUL point de contact entre les deux lots.
+
+**LOT A — VUE SEMAINE**
+- **POURQUOI, mesuré et non supposé :** David a créé **9 tâches le même jour** (9 oct), toutes pour la semaine du 12 au 15. Leurs titres disent ce qui manque : « Tournage Studio // Thales **15H00** Hacker Ethique » → **l'heure écrite dans le titre** ; « **Tournage Studio //** … » → **la catégorie en préfixe**. Il se sert de la page Tâches comme d'un planning, et les 3 sections à plat ne le montrent pas.
+- **⚠️⚠️ LE PIÈGE PRINCIPAL — L'HEURE CASSE 5 COMPARAISONS EN SILENCE.** La colonne `date:Date échéance:is_datetime` existait déjà, mais dès que l'échéance devient un datetime, `date.start` renvoie « 2026-10-14T15:00:00.000+02:00 » et **« 2026-10-14T15:00… » > « 2026-10-14 »** en comparaison lexicale → `updateBadgeTaches`, `tacheRowHTML`, `_ficheTacheRead` faussés, `_ficheTacheEdit` avec un champ **vide**, `enregistrerTache` croyant à un changement permanent.
+  **Correctif : DEUX champs dans `parseTache`** — `dateEcheance: brut.slice(0,10)` (TOUJOURS 'YYYY-MM-DD') et `heureEcheance` à part. Les 3 comparaisons restent justes **sans être touchées**.
+- **DÉCALAGE HORAIRE CALCULÉ, jamais en dur** : `_offsetLocal()` via `getTimezoneOffset()`, testé `+02:00` (14 oct) et `+01:00` (14 janv). Coder « +02:00 » aurait cassé à l'heure d'hiver.
+- **⚠️ DÉVIATION ASSUMÉE PAR CLAUDE CODE, validée :** Chromium **vide** un `<input type="datetime-local">` auquel on assigne une valeur date-seule (la spec exige `YYYY-MM-DDTHH:mm`) → un ré-enregistrement aurait effacé l'échéance **en silence**. Préremplissage en `…T00:00`, et **`00:00` relu comme « pas d'heure »**. Coût : une tâche à minuit pile est impossible — sans conséquence en production vidéo. Il l'a **signalé au lieu de le cacher**.
+- **Comparaison par `JSON.stringify` des PAYLOADS Notion** (date seule vs datetime à décalage calculé) plutôt que des chaînes : aucune fausse diff, aucun appel réseau inutile.
+- **⚠️ LE PILOTE S'EST TROMPÉ, CLAUDE CODE A EU RAISON.** Le prompt annonçait « lundi du 9 oct 2026 = 2026-10-06 ». **Faux : le 9 oct 2026 est un vendredi, le lundi ISO est le 2026-10-05.** Claude Code a vérifié avec node et **refusé de se plier à l'attendu du brief**. Vérifié à mon tour : il a raison. **Un contrôle qui contredit le prompt est un bon contrôle.**
+- **PIÈGE DE FUSEAU ÉVITÉ :** `_lundiDe` utilise `new Date(y,m,d)` + formatage manuel. Un `toISOString()` sur une date mise à minuit renvoie **la VEILLE** en Europe/Paris.
+- **STRUCTURE : liste groupée par jour, PAS une grille à 7 colonnes.** 2 à 4 tâches par jour sur 3 jours → une grille serait aux trois quarts vide sur desktop et illisible sur mobile. **Une seule structure pour les deux largeurs.**
+- **⚠ EN RETARD ÉPINGLÉ HORS SEMAINE** — sinon une tâche en retard devient invisible dès qu'on avance. Vérifié : « Tester les tâches » (11 sept, confiée à Louise) tombe bien dans ce bloc, jamais dans une case jour.
+- Week-end **masqué s'il est vide**, affiché s'il porte une tâche. Tâche 'Fait' dans la semaine : **barrée et atténuée** — la semaine doit montrer ce qui a été fait, pas seulement ce qui reste. Tri dans le jour : heure croissante, **sans-heure d'abord**.
+- **TOURNAGES DE L'ÉQUIPE : BANDEAU SÉPARÉ, jamais mêlés aux tâches** — les tâches sont personnelles, les tournages collectifs ; les confondre ferait croire qu'ils m'appartiennent. Source : le global `sujets`, **déjà chargé par `appLoadData` quelle que soit la page** → zéro appel réseau.
+- **⚠️ RIEN POUR LES DIFFUSIONS NI LES MONTAGES — vérifié en base :** les sujets en cours n'ont **aucune** date de diffusion ni de montage renseignée. Un bloc vide n'apporte rien. (Et les tournages studio du 14 et du 15 que David note en tâches **n'existent dans aucun sujet** : il tient un planning parallèle.)
+- **CATÉGORIE : devinette sur le préfixe, AUCUN champ Notion ajouté** — zéro migration, zéro passage par Master, retrait sans trace. Liste fermée via `sansAccents` (d'où `sansAccents` 13 → 14), **aucune pastille par défaut** : mieux rien qu'une étiquette fausse.
+- **Onglets internes dans `#main-content`**, patron `renderIdees` — **`#view-tabs` n'est PAS touché** (c'est celui de Production). Vue Liste extraite en `_tachesListeHTML`, **inchangée**.
+
+**LOT B — MOBILE**
+- **LE CONSTAT MESURÉ :** vue Cartes < 700px = `grid-template-columns:1fr` → une carte pleine largeur par sujet, 60 sujets ≈ **6 600 px de défilement**. Vue Liste < 700px : `table-layout:fixed` + `width:100%` → les 6 largeurs **comprimées dans ~366 px utiles** (Code ~50px, Titre ~75px), et comme `width:100%` contraint la table, le `overflow-x:auto` **ne défile même pas**.
+  **⚠️ Conclusion : la vue Liste telle quelle n'était PAS un repli utilisable — la ligne devait CHANGER DE FORME, pas rétrécir.**
+- **LIGNE À DEUX NIVEAUX EN CSS SEUL, AUCUNE FONCTION DUPLIQUÉE.** Les 3 tables sortent des mêmes fonctions → elles changent ensemble et gardent la même forme (le but de David : « quand on va chercher historique ou archives tout a la même forme »). Classes de rôle (`m-meta` / `m-act` / `m-hide`) posées sur les helpers partagés `clientCell` et `celluleTexte`.
+- **Technique retenue :** `tr{display:block}` + `td{display:inline}`, saut de ligne du niveau 2 forcé par un `::before{display:block}` sur `td.td-client.m-meta`, les autres métas précédées d'un point médian. Action (🗑 / 📁) en `position:absolute` à droite sur toute la hauteur.
+- **TRI PRÉSERVÉ** : sans `thead` le tri disparaissait — régression, pas arbitrage. `<select>` natif `.liste-sort-mobile` au-dessus de la table Production, `onchange → listSort` **existant**, reflétant `listSortCol`. Un select natif, pas un menu maison : tactile et gratuit.
+- **SEULE LA VUE CARTES S'EFFACE** (`#tab-cards{display:none}` + bascule `currentVue='liste'` **au démarrage seulement, dans un try/catch, sans listener resize** — rebasculer pendant la lecture, ou à la rotation du téléphone, serait hostile). **Par statut, Par journaliste et Calendrier restent** : le calendrier mobile sert à voir les tournages de la semaine.
+- **LA RECHERCHE DIT ENFIN CE QU'ELLE FAIT** — « Rechercher… » ne laissait pas deviner qu'elle fouille la production **et** 2 672 sujets d'historique **et** les archives. Nouveau libellé, icône 🔍, **bordure rouge persistante** via `#search-input.recherche-active` (`!important` pour battre le `border-color` inline posé par `onblur`), et le compte de résultats ventilé réutilisant les blocs **déjà calculés**.
+- **« + Nouveau sujet » réduit à un carré « + »** : `font-size:0!important` sur le bouton + `::before{content:'+'}` — seule façon de battre le style inline.
+
+**⚠️⚠️ VÉRIFICATION PILOTE — 4 RÉGRESSIONS RATTRAPÉES : CLAUDE CODE EST PARTI D'UNE BASE PÉRIMÉE**
+- Il a annoncé « **8433 → 8841** ». Or **8433 est l'état d'AVANT son propre chantier fiche de tâche**, et ce qui tourne en ligne (commit `38bc076` « v400 ») est à **8616**. Il a travaillé sur **sa propre livraison de 8594 lignes**, c'est-à-dire **sans les 4 correctifs que le Pilote avait appliqués par-dessus**. Les 4 avaient disparu :
+  1. **`ouvrirCarteDepuisTache` revenu à `openDetail(t.sujetLie)`** → le bouton « Ouvrir la carte » redevenait **mort** sur une carte archivée (`openDetail` fait `if(!s) return` en silence).
+  2. **Listener Échap de la fiche** : absent.
+  3. **« ✓ Finaliser » redevenu bleu** (`nav-btn primary`) alors que le « ✓ Terminer » de la liste est vert.
+  4. **`_tacheDetailId`**, variable écrite et jamais lue, de retour.
+- **Les 4 ont été réappliqués** sur sa livraison. `node --check` OK après correction.
+- **⚠️ LEÇON DE PROCÉDURE, À APPLIQUER DÉSORMAIS :** un compteur de lignes de départ qui ne correspond pas à l'état réel du dépôt est **le signal d'une base périmée**. Le contrôle n°1 de toute vérification devient : *le « avant » annoncé correspond-il au `wc -l` du dernier commit poussé ?* Le Pilote peut maintenant le vérifier lui-même (lecture du dépôt public, voir ci-dessous). **Et le prompt doit désormais donner explicitement la base attendue** : « tu partis de index.html à N lignes, commit X ».
+- **Oubli trouvé en plus, dans `css/base.css` :** `datetime-local` avait été ajouté au sélecteur de champ général (l.7) mais **pas à la règle anti-zoom iOS** du bloc `@media(max-width:700px)` → le nouveau champ d'heure restait à 12px et **Safari iOS aurait zoomé au focus**, exactement ce que ce bloc existe pour éviter. Ajouté.
+- **Contrôles passés :** `wc -l` 8862 · `node --check` OK sur les 2 blocs · `.lt-fixe` 3 occurrences · aucun listener resize · `:has()` confirmé comme seul point de contact · blocs `@media` commentés « LOT A » / « LOT B » sans sélecteur dupliqué · non-régression `filtreCourant` 7 · `clientCell` 4 · `dateHistoAffichee` 3 · `aliasNoms` 3 · `no-cache` 2 · `sansAccents` 14 (+1 justifié) · `heureEcheance` 8 · `_tachesVue` 6 · `_tachesLundi` 7.
+
+**NOUVEAU — LE PILOTE LIT LE DÉPÔT**
+- Depuis ce chantier, le Pilote **clone le dépôt GitHub en lecture seule** (`David-f10/reel-media-production`). Il ne peut ni pousser, ni commiter, ni ouvrir de PR — l'API GitHub lui est refusée. Seules les **lectures anonymes** passent, **parce que le dépôt est public**.
+- **Ce que ça change :** le Pilote ne vérifie plus une livraison *avec cette même livraison*. Il peut comparer à **ce qui tourne réellement en ligne** — c'est exactement ce qui a permis de voir les 4 régressions ci-dessus. Il a aussi pu lire `base.css` / `layout.css` au lieu de deviner les tokens pour les maquettes (les vrais : `--bg:#0a0a0a`, `--red:#e63946`, DM Sans / DM Mono).
+- **⚠️ LIMITE À GARDER EN TÊTE :** entre la livraison de Claude Code et le push de David, **le dépôt est en retard**. « En ligne c'est 8616 » et « Claude Code livre 8862 » ne se contredisent pas. Le Pilote doit toujours dire **de quelle source il parle**.
+- **⚠️ POINT DE SÉCURITÉ SIGNALÉ À DAVID — décision d'Arnaud :** le dépôt étant **public**, `data/archives-historique.json` est lisible par n'importe qui : **2 672 titres de sujets avec les noms de clients** (AXA, Canal+, DGA, Fondation du patrimoine…) et les liens de dossiers Drive. Aucun token Notion ne traîne (vérifié — les identifiants sont bien côté fonctions Netlify), mais la liste des projets de Réel Média sur trois ans est publique. Passer le dépôt en privé **ne casse pas le déploiement Netlify**.
+- **Ménage repéré, à faire au passage :** un `layout.css` traîne **à la racine** en plus de `css/layout.css`, et un `components.css` dans `netlify/functions/`. L'app ne charge que ceux de `css/` — reliquats sans gravité, mais le jour où quelqu'un modifie le mauvais, on cherchera longtemps.
+
+**HORS PÉRIMÈTRE, assumé**
+- Pas de champ « Type » dans `DB_TACHES` (la devinette de préfixe tient lieu de catégorie).
+- Pas de glisser-déposer entre les jours. Pas de `localStorage` (`_tachesVue` et `_tachesLundi` vivent en mémoire).
+- **Toujours ouvert depuis le chantier précédent :** le créateur ne peut pas finaliser une tâche qu'il a confiée — si l'assigné ne clique jamais, elle reste en retard indéfiniment. Et pas de bouton Supprimer (le champ `Archivé` reste jamais écrit).
 
 ### 2026-10-09 — Fiche de tâche au clic : consulter, modifier, finaliser
 - **`index.html` 8433 → 8616 (+183)**. **Aucun CSS touché, aucun champ Notion nouveau** — tout existait déjà dans `DB_TACHES`.
