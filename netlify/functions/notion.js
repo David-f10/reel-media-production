@@ -14,6 +14,7 @@
 //   • FAIL-CLOSED : le seul mode de défaillance est le REFUS, jamais le passage, jamais un 200 vide.
 
 const { verifyUser } = require('./_auth');
+const { verifyReview } = require('./_review');
 
 // Ids utiles à la grâce review (review.html ne tape que ces deux bases via le proxy).
 const DB_PROD    = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
@@ -43,26 +44,23 @@ function classer(method, path) {
   return null;
 }
 
-// Vérifie (côté serveur) qu'une page appartient à DB_PROD, en la relisant. Sert à borner le PATCH
-// 'Statut' de la grâce review à DB_PROD (sinon un anonyme poserait un Statut sur une tâche/idée, qui
-// ont aussi une propriété Statut). FAIL-CLOSED : toute erreur/absence de parent → false → refus.
-async function pageDansProd(pageId, token) {
-  try {
-    const r = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28' }
-    });
-    if (!r.ok) return false;
-    const p = await r.json();
-    return !!(p && p.parent && norm(p.parent.database_id) === norm(DB_PROD));
-  } catch (e) {
-    return false;
+// Extrait la valeur de la condition 'Sujet ID' d'un filtre de query DB_RETOURS, qu'il soit simple
+// ({property:'Sujet ID', rich_text:{equals:X}}) ou composé ({and:[… , {property:'Sujet ID', …}]}) —
+// les deux formes émises par review.html (chargerTousRetours + son repli). Renvoie X ou null.
+function filtreSujetId(filter) {
+  if (!filter || typeof filter !== 'object') return null;
+  if (filter.property === 'Sujet ID') return (filter.rich_text && filter.rich_text.equals) || null;
+  if (Array.isArray(filter.and)) {
+    const c = filter.and.find(x => x && x.property === 'Sujet ID');
+    return c ? ((c.rich_text && c.rich_text.equals) || null) : null;
   }
+  return null;
 }
 
 exports.handler = async function(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, x-rm-id, x-rm-code',
+    'Access-Control-Allow-Headers': 'Content-Type, x-rm-id, x-rm-code, x-review-token',
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
     'Content-Type': 'application/json'
   };
@@ -107,24 +105,38 @@ exports.handler = async function(event) {
 
   // ── 3. Autorisation ───────────────────────────────────────────────────────
   if (!user) {
-    // Aucune identité : on n'autorise QUE les 4 opérations EXACTES de review.html (grâce). Rien d'autre.
+    // Aucune identité équipe → on EXIGE un jeton de review signé (x-review-token), lié à UN sujet,
+    // et on borne chaque opération à CE sujet. Plus de lecture anonyme de masse (porte 1), et un lien
+    // fabriqué à la main sans signature valide est refusé (porte 2). Aucune grâce : aucun lien n'a
+    // jamais été diffusé, on ferme complètement dès le 1er déploiement.
+    const rtok = (event.headers && (event.headers['x-review-token'] || event.headers['X-Review-Token'])) || '';
+    const rev = verifyReview(rtok); // { ok, code, sujetId } — fail-closed
+    if (!rev.ok) {
+      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Authentification requise' }) };
+    }
     let autorise = false;
-    if (route.kind === 'query') {
-      // Lecture d'un sujet / de ses retours.
-      autorise = norm(route.dbId) === norm(DB_PROD) || norm(route.dbId) === norm(DB_RETOURS);
+    if (route.kind === 'query' && norm(route.dbId) === norm(DB_PROD)) {
+      // init() : filtre Code = code DU JETON, exactement (un jeton pour A ne lit pas B).
+      const f = body && body.filter;
+      autorise = !!(f && f.property === 'Code' && f.rich_text && f.rich_text.equals === rev.code);
+    } else if (route.kind === 'query' && norm(route.dbId) === norm(DB_RETOURS)) {
+      // chargerTousRetours() : le filtre doit porter 'Sujet ID' = sujetId DU JETON.
+      const sid = filtreSujetId(body && body.filter);
+      autorise = !!sid && norm(sid) === norm(rev.sujetId);
     } else if (route.kind === 'create') {
-      // Dépôt d'un retour (page dans DB_RETOURS).
-      autorise = !!(body && body.parent && norm(body.parent.database_id) === norm(DB_RETOURS));
+      // Dépôt d'un retour : page dans DB_RETOURS, propriété 'Sujet ID' = sujetId DU JETON.
+      const sid = body && body.properties && body.properties['Sujet ID'] && body.properties['Sujet ID'].rich_text
+        && body.properties['Sujet ID'].rich_text[0] && body.properties['Sujet ID'].rich_text[0].text
+        && body.properties['Sujet ID'].rich_text[0].text.content;
+      autorise = !!(body && body.parent && norm(body.parent.database_id) === norm(DB_RETOURS) && sid && norm(sid) === norm(rev.sujetId));
     } else if (route.kind === 'page' && method === 'PATCH') {
-      // PATCH du SEUL 'Statut', ET uniquement sur une page de DB_PROD (relecture serveur).
+      // PATCH du SEUL 'Statut', ET uniquement sur LE sujet du jeton (id de page = sujetId du jeton).
       const props = body && body.properties;
       const keys = props && typeof props === 'object' ? Object.keys(props) : [];
-      if (keys.length === 1 && keys[0] === 'Statut') {
-        autorise = await pageDansProd(route.pageId, NOTION_TOKEN);
-      }
+      autorise = norm(route.pageId) === norm(rev.sujetId) && keys.length === 1 && keys[0] === 'Statut';
     }
     if (!autorise) {
-      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Authentification requise' }) };
+      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Hors périmètre du lien' }) };
     }
   } else {
     // Identifié : garde anti self-promotion — aucun PATCH ne pose une propriété d'élévation.
