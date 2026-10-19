@@ -407,7 +407,8 @@ async function viewSessionPost(action, fileId) {
   const res = await fetch('/.netlify/functions/drive-view-session', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({action, sujetCode, fileId})
+    // Jeton dans le CORPS : le `close` part en sendBeacon (aucun en-tête possible) → on uniformise.
+    body: JSON.stringify({action, sujetCode, fileId, reviewToken})
   });
   return res.json().catch(() => ({}));
 }
@@ -457,7 +458,7 @@ function stopViewSession(envoyerClose) {
     // Best-effort (sendBeacon) : close n'est JAMAIS une révocation directe côté serveur
     // (multi-spectateurs) — le balayeur refermera quand plus aucun heartbeat.
     navigator.sendBeacon('/.netlify/functions/drive-view-session',
-      JSON.stringify({action:'close', sujetCode, fileId: _viewSession.fileId}));
+      JSON.stringify({action:'close', sujetCode, fileId: _viewSession.fileId, reviewToken}));
   }
   _viewSession.fileId = null;
 }
@@ -505,7 +506,7 @@ async function telechargerReview(url, btnEl) {
     const res = await fetch('/.netlify/functions/drive-download-review', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({sujetCode, fileId})
+      body: JSON.stringify({sujetCode, fileId, reviewToken})
     });
     const data = await res.json().catch(() => ({}));
     if(!res.ok || !data.ok) throw new Error(data.error || 'HTTP ' + res.status);
@@ -824,7 +825,10 @@ async function notifierEquipe(type, message) {
   for(const dest of destinatairesRetour()) {
     await fetch('/.netlify/functions/notify', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      // Jeton de review en en-tête (fetch) : notify borne la notif client à CE sujet.
+      headers: reviewToken
+        ? {'Content-Type': 'application/json', 'x-review-token': reviewToken}
+        : {'Content-Type': 'application/json'},
       body: JSON.stringify({type, sujetId, sujetCode, sujetTitre: sujetData?.titre || '', destinataire: dest, auteur: clientNom, message})
     }).catch(() => {});
   }

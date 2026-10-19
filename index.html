@@ -1604,7 +1604,8 @@ async function createNotif(type, sujetId, sujetCode, sujetTitre, destinataire, a
     // /.netlify/functions/notify crée la page Notion ET déclenche le push Web aux devices abonnés.
     const res = await fetch('/.netlify/functions/notify', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      // Identité membre (2/3b-2) : notify exige désormais un appelant identifié (ou un jeton review).
+      headers: {'Content-Type': 'application/json', 'x-rm-id': (currentUser&&currentUser.id)||'', 'x-rm-code': localStorage.getItem('rm-code')||''},
       body: JSON.stringify({type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message})
     });
     const data = await res.json().catch(() => ({}));
