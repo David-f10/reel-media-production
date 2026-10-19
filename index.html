@@ -627,6 +627,15 @@ function escJs(s) {
 
 async function api(endpoint,method='GET',body=null,_r=0){
   const opts={method,headers:{'Content-Type':'application/json'}};
+  // Identité envoyée à CHAQUE appel, en EN-TÊTES (jamais dans l'URL → hors des breadcrumbs Sentry) :
+  // le proxy exige désormais (x-rm-id, x-rm-code) et les revérifie via verifyUser (cache 60 s). Source =
+  // l'identité courante + rm-code, déjà en localStorage. review.html a son propre api() (grâce serveur).
+  try {
+    const _id = (typeof currentUser !== 'undefined' && currentUser && currentUser.id) ? currentUser.id : '';
+    const _code = localStorage.getItem('rm-code') || '';
+    if(_id) opts.headers['x-rm-id'] = _id;
+    if(_code) opts.headers['x-rm-code'] = _code;
+  } catch(_){}
   if(body)opts.body=JSON.stringify(body);
   const res=await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`,opts);
   if((res.status===429||res.status===503)&&_r<3){await new Promise(r=>setTimeout(r,Math.pow(2,_r)*800));return api(endpoint,method,body,_r+1);}
@@ -3854,6 +3863,9 @@ async function toggleValidationSeq(id, type) {
 // ─── AUTHENTIFICATION ───
 // Liste de secours si l'API est indisponible
 const EQUIPE_FALLBACK = []; // Codes gérés via Notion — ne pas remettre ici
+// Session issue du handoff PWA→navigateur externe (auto-login ?t=) : elle ne s'abonne PAS au push
+// (le push est géré par la PWA installée de la personne). Posé dans initLogin, lu par showApp.
+let _sessionViaHandoff = false;
 
 function peuplerSelect(liste) {
   const sel = document.getElementById('login-nom');
@@ -3885,21 +3897,16 @@ async function initLogin() {
   equipe = EQUIPE_FALLBACK;
   peuplerSelect(equipe);
 
-  // Essayer de charger depuis Notion en arrière-plan
+  // Charger la liste des noms pour le select de login. Elle doit s'afficher AVANT toute identification
+  // (on ne peut pas s'identifier avant de savoir qui on est). Depuis le verrou du proxy (2/3), DB_EQUIPE
+  // n'est plus lisible sans identité → on passe par login.js (fetch server-side, qui ne renvoie JAMAIS
+  // les codes d'accès). EQUIPE_FALLBACK reste [] ; aucun code en dur.
   try {
-    const data = await api('/databases/' + DB_EQUIPE + '/query', 'POST', {sorts:[{property:'Nom',direction:'ascending'}]});
-    const notionEquipe = data.results.map(p => ({
-      id: p.id,
-      nom: p.properties.Nom?.title?.[0]?.plain_text || '',
-      nomComplet: p.properties['Nom complet']?.rich_text?.[0]?.plain_text || '', // prénom ↔ nom complet (recherche croisée)
-      // ⚠️ NE PAS réintroduire ici un champ `code` (le 'Code acces' du membre). Il n'est lu
-      //    nulle part dans l'app, il ne doit JAMAIS descendre côté client, et le proxy
-      //    (netlify/functions/notion.js) le retire désormais des réponses. Le « compléter »
-      //    rouvrirait la fuite des codes d'accès de toute l'équipe.
-      role: p.properties.Role?.select?.name || '',
-      contactBrandDefaut: p.properties['Contact Brand défaut']?.checkbox || false,
-      chefDefaut: p.properties['Chef défaut']?.checkbox || false
-    })).filter(m => m.nom);
+    const res = await fetch('/.netlify/functions/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'list'})});
+    const data = await res.json();
+    const notionEquipe = ((data && data.ok && Array.isArray(data.equipe)) ? data.equipe : [])
+      .filter(m => m && m.nom)
+      .sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr')); // tri par nom (comme l'ancien sort Notion)
     if(notionEquipe.length > 0) {
       equipe = notionEquipe;
       peuplerSelect(equipe);
@@ -3941,9 +3948,15 @@ async function initLogin() {
         const data = await res.json().catch(() => ({}));
         if(res.ok && data.ok && data.user) {
           currentUser = data.user;
-          // On pose rm-user mais PAS rm-code : la session Safari ne connaîtra pas le code
-          // (donc pas de push possible côté Safari, ce qui est accepté).
+          // Option A (2/3a) : le handoff rapporte aussi le code → on pose rm-code pour que l'app
+          // COMPLÈTE fonctionne dans le navigateur externe (sinon DB_COMP/DB_CLIENTS_BRAND → 401 depuis
+          // le verrou du proxy, et appLoadData afficherait « Erreur de connexion »).
           localStorage.setItem('rm-user', JSON.stringify(currentUser));
+          if(data.code) { try { localStorage.setItem('rm-code', data.code); } catch(_){} }
+          // Garde-fou (intention d'origine, l.3953 d'avant) : une session issue du HANDOFF ne s'abonne
+          // PAS au push — le push de cette personne est géré par sa PWA installée ; ce navigateur de
+          // passage ne doit pas créer d'abonnement concurrent. Le flag est lu par showApp().
+          _sessionViaHandoff = true;
           if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser({id:currentUser.id,username:currentUser.nom});Sentry.setTag('role',currentUser.role||'inconnu');}
           // Nettoyer l'URL : retirer 't' uniquement, conserver les autres params (action/v/l/s/ver)
           const clean = new URLSearchParams(location.search);
@@ -4341,8 +4354,10 @@ function showApp() {
   const initials = currentUser.nom.substring(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
   document.getElementById('user-name').textContent = currentUser.nom;
-  // Demander permission notifs + s'abonner au push (best-effort, ne bloque pas le chargement)
-  requestNotifPermission().then(granted => { if(granted) subscribePush(); });
+  // Demander permission notifs + s'abonner au push (best-effort, ne bloque pas le chargement).
+  // EXCEPTION : une session issue du handoff (navigateur externe de passage) ne s'abonne PAS —
+  // sa personne est notifiée via sa PWA installée (garde-fou de l'intention d'origine).
+  if(!_sessionViaHandoff) requestNotifPermission().then(granted => { if(granted) subscribePush(); });
   // Baseline du contrôle de version dès le démarrage (avant le premier tick)
   checkAppVersion();
   // Charger les données. currentPage fixé à 'production' AVANT appLoadData : sinon son appRender() interne
@@ -4449,6 +4464,11 @@ async function validerChangerCode() {
     const checkData=await checkRes.json();
     if(!checkData.ok) return showErr('Code actuel incorrect');
     await api('/pages/'+currentUser.id,'PATCH',{properties:{'Code acces':{rich_text:[{text:{content:nouveau}}]}}});
+    // Dette corrigée (2/3) : rm-code est l'identité envoyée au proxy ET lue par push-subscribe /
+    // drive-download / auto-login. Sans cette mise à jour, changer son code cassait notifs et
+    // téléchargements jusqu'à reconnexion. Le nouveau code est accepté IMMÉDIATEMENT côté proxy
+    // grâce au refresh-on-miss borné de _auth.js — plus de fenêtre d'erreur après le changement.
+    try { localStorage.setItem('rm-code', nouveau); } catch(_){}
     closeChangerCode();
     toast('✅ Code mis à jour','ok');
   } catch(e) { showErr('Erreur : '+e.message); }
