@@ -13,6 +13,7 @@
 
 const webpush = require('web-push');
 const { getPushStore } = require('./_blobs');
+const { authFonction } = require('./_funcauth');
 
 const DB_NOTIFS = '4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 const DEDUP_TTL_MS = 20000; // dédup serveur : 20 s. Assez pour absorber un double-fire (double-clic,
@@ -144,6 +145,13 @@ exports.handler = async (event) => {
   catch { return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'JSON invalide' }) }; }
 
   const { type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message } = body;
+
+  // ── Autorisation (2/3b-2) : membre identifié OU jeton de review borné à CE sujet. ──
+  const az = await authFonction(event, body, { sujetId, sujetCode });
+  if (!az.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Authentification requise' }) };
+  }
+
   // Garde-fou identique à l'ancien createNotif côté client : pas se notifier soi-même
   if (!destinataire || destinataire === auteur) {
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, skipped: true }) };

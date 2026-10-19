@@ -1,9 +1,9 @@
 // netlify/functions/drive-download-review.js
 // Téléchargement direct depuis la page review.html (client externe, SANS compte app).
-// Portier REVIEW : pas de verifyUser — la sécurité repose sur la cohérence Notion :
-// le serveur RE-DÉRIVE lui-même les fileId autorisés depuis l'UNION des deux
-// systèmes de stockage des versions, et refuse tout fileId hors de cette liste.
-// On ne fait jamais confiance au ?url= de la page.
+// Portier REVIEW : identité EXIGÉE (2/3b-2) — soit un membre (x-rm-id/x-rm-code), soit un jeton de
+// review borné à CE sujet (via _funcauth). PUIS cohérence Notion : le serveur RE-DÉRIVE lui-même les
+// fileId autorisés depuis l'UNION des deux systèmes de stockage des versions, et refuse tout fileId
+// hors de cette liste. On ne fait jamais confiance au ?url= de la page.
 //
 //   Source A : propriétés Lien V1/V2/V3 (url) du sujet (base 🎬 Suivi de Production)
 //              — alimentées par la vue tableau de production.
@@ -23,6 +23,7 @@
 // pas via le proxy notion.js.
 
 const { openEphemeralDownload, extractFileId } = require('./_drive');
+const { authFonction } = require('./_funcauth');
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_VERSIONS = '3793eebb-2aeb-4d49-84ae-06d79cfb2704';
@@ -102,6 +103,13 @@ exports.handler = async (event) => {
   const fileId = extractFileId(body.fileId || '');
   if (!sujetCode || !fileId) {
     return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants (sujetCode, fileId)' }) };
+  }
+
+  // ── Autorisation (2/3b-2) : jeton de review borné à ce sujet (en-tête ou corps), OU membre identifié.
+  // Comble le trou assumé dans l'en-tête de ce fichier (« pas de verifyUser »). Fail-closed. ──
+  const az = await authFonction(event, body, { sujetCode });
+  if (!az.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Authentification requise' }) };
   }
 
   // ── Contrôle de cohérence Notion : le fileId doit appartenir au sujet (A ∪ B) ──

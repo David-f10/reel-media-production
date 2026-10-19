@@ -21,6 +21,7 @@
 const { openViewingPermission, isViewAlive, VIEW_IDLE_TTL_MS, extractFileId } = require('./_drive');
 const { getDriveOpenPermsStore } = require('./_blobs');
 const { fileIdsDuSujet } = require('./drive-download-review');
+const { authFonction } = require('./_funcauth');
 
 exports.handler = async (event) => {
   const headers = {
@@ -44,6 +45,13 @@ exports.handler = async (event) => {
   const fileId = extractFileId(body.fileId || '');
   if (!action || !fileId) {
     return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants (action, fileId)' }) };
+  }
+
+  // ── Autorisation (2/3b-2) : jeton de review (dans le CORPS — sendBeacon ne pose pas d'en-tête) borné
+  // à ce sujet, OU membre identifié. review.html envoie sujetCode pour open/heartbeat/close. Fail-closed.
+  const az = await authFonction(event, body, { sujetCode });
+  if (!az.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Authentification requise' }) };
   }
 
   // ── heartbeat / close : légers, sans Notion — la session existante EST le droit ──

@@ -5,10 +5,10 @@
 //     (l'app est sous alerte de conso Netlify), et aucune déconnexion en cours de session.
 //   • Liste blanche stricte : seules les 3 familles réellement appelées, en GET/POST/PATCH.
 //     PUT, DELETE, et tout autre chemin (/users, /blocks, /search, GET /databases nu…) → refus.
-//   • Période de grâce review : un appel SANS identité n'est permis QUE pour les 4 opérations de
-//     review.html (lien client public, sans compte) — ni plus, ni moins. Les liens déjà envoyés
-//     continuent de marcher. Cette exposition (lecture prod + retours, dépôt retour, statut) est
-//     celle d'AUJOURD'HUI ; elle sera refermée en 2/3b par des liens signés. Ici on ne l'élargit pas.
+//   • Review (2/3b-1) : un appel SANS identité n'est permis que porteur d'un JETON de review signé
+//     (x-review-token), lié à UN sujet, et chaque opération est bornée à ce sujet (query Code=…,
+//     query/POST/PATCH Sujet ID=…). Pas de grâce : aucune lecture anonyme de masse, un lien forgé
+//     (code deviné, sans signature valide) est refusé.
 //   • Garde anti self-promotion : aucun PATCH ne peut poser une propriété d'élévation (Role/Accès).
 //   • Projection de sécurité (1/3) conservée : 'Code acces' retiré de toute page renvoyée.
 //   • FAIL-CLOSED : le seul mode de défaillance est le REFUS, jamais le passage, jamais un 200 vide.
