@@ -2667,15 +2667,31 @@ async function demanderClarification(retourId, sujetId, version){
 }
 
 // ─── LIEN CLIENT ───
-function genererLienClient(sujetId, version, lienVideo) {
+// Le lien de visionnage est SIGNÉ server-side (review-sign) : la clé HMAC ne doit jamais atteindre le
+// navigateur. Le jeton (&t=…) lie le lien à CE sujet ; il n'ouvre que lui, et un lien fabriqué à la
+// main est refusé par le proxy. Renvoie '' si la signature échoue (fail-closed : jamais de lien non
+// signé diffusé). Async désormais — seul appelant : copierLienClient.
+async function genererLienClient(sujetId, version, lienVideo) {
   const s = sujets.find(s => s.id === sujetId);
   const code = s?.code || sujetId;
   const base = window.location.origin + window.location.pathname.replace('index.html','');
-  return `${base}review.html?code=${encodeURIComponent(code)}&v=${encodeURIComponent(version)}&url=${encodeURIComponent(lienVideo)}`;
+  let t = '';
+  try {
+    const res = await fetch('/.netlify/functions/review-sign', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'x-rm-id': (currentUser&&currentUser.id)||'', 'x-rm-code': localStorage.getItem('rm-code')||''},
+      body: JSON.stringify({ sujetId, code })
+    });
+    const d = await res.json().catch(() => ({}));
+    if(res.ok && d.ok && d.t) t = d.t;
+  } catch(_){}
+  if(!t) return ''; // signature impossible → aucun lien (jamais un lien non signé)
+  return `${base}review.html?code=${encodeURIComponent(code)}&v=${encodeURIComponent(version)}&url=${encodeURIComponent(lienVideo)}&t=${encodeURIComponent(t)}`;
 }
 
 async function copierLienClient(sujetId, version, lienVideo) {
-  const lien = genererLienClient(sujetId, version, lienVideo);
+  const lien = await genererLienClient(sujetId, version, lienVideo);
+  if(!lien) { toast('Impossible de générer le lien signé — réessaie', 'err'); return; }
   try {
     await navigator.clipboard.writeText(lien);
     // Ouvrir dans un nouvel onglet

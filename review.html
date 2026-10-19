@@ -352,9 +352,16 @@ let sujetData = null;
 let tousRetours = [];
 let versionsDisponibles = [];
 
+// Jeton de review signé (2/3b) : lu depuis l'URL (&t=…) et envoyé en en-tête à CHAQUE appel du proxy.
+// C'est lui qui autorise, borné à CE sujet. Sans jeton valide, le proxy refuse (401).
+let reviewToken = '';
+
 async function api(endpoint, method='GET', body=null) {
   const res = await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`, {
-    method, headers:{'Content-Type':'application/json'},
+    method,
+    headers: reviewToken
+      ? {'Content-Type':'application/json', 'x-review-token': reviewToken}
+      : {'Content-Type':'application/json'},
     body: body ? JSON.stringify(body) : null
   });
   if(!res.ok) throw new Error(`Erreur API ${res.status}`);
@@ -366,6 +373,7 @@ function getParams() {
   sujetCode = p.get('code') || '';
   versionActive = p.get('v') || 'V1';
   videoUrl = decodeURIComponent(p.get('url') || '');
+  reviewToken = p.get('t') || '';
 }
 
 function toEmbedUrl(url) {
