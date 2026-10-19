@@ -8,12 +8,14 @@ const CACHE_TTL = 60 * 1000; // 1 minute
 // Cache en mémoire (partagé entre les invocations chaudes)
 let membresCache = null;
 let cacheTimestamp = 0;
+let lastForcedRefresh = 0;          // borne anti-amplification du refresh-on-miss (code tout juste changé / membre neuf)
+const FORCE_FLOOR = 10 * 1000;      // au plus 1 relecture forcée par 10 s
 
-async function getMembres(token) {
+async function getMembres(token, force = false) {
   const now = Date.now();
 
-  // Retourner le cache si valide (< 1 minute)
-  if (membresCache && (now - cacheTimestamp) < CACHE_TTL) {
+  // Retourner le cache si valide (< 1 minute), sauf relecture forcée
+  if (!force && membresCache && (now - cacheTimestamp) < CACHE_TTL) {
     return membresCache;
   }
 
@@ -51,28 +53,57 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { id, code } = JSON.parse(event.body || '{}');
-    if (!id || !code) {
-      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants' }) };
-    }
+    const payload = JSON.parse(event.body || '{}');
 
     const NOTION_TOKEN = process.env.NOTION_TOKEN;
     if (!NOTION_TOKEN) {
       return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: 'Token Notion manquant' }) };
     }
 
-    // Récupérer les membres (cache ou Notion)
-    const membres = await getMembres(NOTION_TOKEN);
+    // ── action:'list' — liste des noms pour le SÉLECTEUR de login ──────────────
+    // On ne peut pas s'identifier avant de savoir qui on est : le select de login doit s'afficher
+    // SANS identité. Depuis le verrou du proxy (2/3), DB_EQUIPE n'est plus lisible par le proxy sans
+    // identité ; login.js (fetch server-side) sert donc la liste. Renvoie {id, nom, role, nomComplet,
+    // flags} — JAMAIS de code d'accès (ces noms/rôles sont déjà ceux qu'affiche le select de login).
+    if (payload.action === 'list') {
+      const membres = await getMembres(NOTION_TOKEN);
+      const equipe = membres.map(p => {
+        const pr = p.properties || {};
+        return {
+          id: p.id,
+          nom: pr.Nom?.title?.[0]?.plain_text || '',
+          nomComplet: pr['Nom complet']?.rich_text?.[0]?.plain_text || '',
+          role: pr.Role?.select?.name || '',
+          contactBrandDefaut: pr['Contact Brand défaut']?.checkbox || false,
+          chefDefaut: pr['Chef défaut']?.checkbox || false
+        };
+      }).filter(m => m.nom);
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, equipe }) };
+    }
 
-    // Trouver le membre par UUID Notion
-    const page = membres.find(p => p.id === id);
+    const { id, code } = payload;
+    if (!id || !code) {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants' }) };
+    }
+
+    // Récupérer les membres (cache ou Notion), puis vérifier.
+    let membres = await getMembres(NOTION_TOKEN);
+    let page = membres.find(p => p.id === id);
+    let codeNotion = page ? (page.properties['Code acces']?.rich_text?.[0]?.plain_text || '') : '';
+    // Refresh-on-miss BORNÉ : (id,code) qui ne matche pas la liste en cache → UNE relecture (gère un
+    // membre neuf ou un code tout juste changé sans attendre les 60 s). Un miss n'arrive qu'avec un code
+    // faux/neuf — jamais en régime normal ; FORCE_FLOOR borne à 1 relecture/10 s (anti-amplification).
+    if ((!page || codeNotion !== code) && (Date.now() - lastForcedRefresh > FORCE_FLOOR)) {
+      lastForcedRefresh = Date.now();
+      membres = await getMembres(NOTION_TOKEN, true);
+      page = membres.find(p => p.id === id);
+      codeNotion = page ? (page.properties['Code acces']?.rich_text?.[0]?.plain_text || '') : '';
+    }
 
     if (!page) {
       return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Membre introuvable' }) };
     }
-
     const pr = page.properties;
-    const codeNotion = pr['Code acces']?.rich_text?.[0]?.plain_text || '';
     const nom = pr.Nom?.title?.[0]?.plain_text || '';
     const role = pr.Role?.select?.name || 'Journaliste';
 

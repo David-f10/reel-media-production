@@ -61,6 +61,10 @@ exports.handler = async (event) => {
     const token = crypto.randomBytes(32).toString('base64url');
     await store.setJSON(token, {
       user: auth.user,
+      code,                 // Option A (2/3a) : le code accompagne l'identité pour que la session
+                            // handoff (navigateur externe) pose rm-code et ait l'app COMPLÈTE (sinon
+                            // DB_COMP/DB_CLIENTS_BRAND → 401 depuis le verrou du proxy). Vit ≤120 s dans
+                            // le blob server-side, usage unique (supprimé à la consommation).
       createdAt: now,
       expiresAt: now + TTL_MS
     });

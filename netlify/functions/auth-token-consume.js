@@ -54,5 +54,7 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers, body: JSON.stringify({ ok: false, error: 'Entrée corrompue' }) };
   }
 
-  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, user: entry.user }) };
+  // Option A (2/3a) : on renvoie aussi le code (il a vécu ≤120 s dans le blob, supprimé juste au-dessus)
+  // pour que la session handoff pose rm-code et ait l'app complète. Jamais mis dans l'URL ni journalisé.
+  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, user: entry.user, code: entry.code || '' }) };
 };
