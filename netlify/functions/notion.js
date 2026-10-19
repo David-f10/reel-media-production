@@ -76,6 +76,11 @@ function filtreSujetId(filter) {
   return null;
 }
 
+// 3/3b : valeur texte d'une propriété rich_text d'une page renvoyée (forme lecture plain_text).
+function rtVal(props, prop) {
+  const rt = props && props[prop] && props[prop].rich_text;
+  return (rt && rt[0] && rt[0].plain_text) || '';
+}
 // 3/3b : valeur de la propriété 'Sujet ID' d'une page (forme lecture plain_text OU écriture text.content).
 function sidDeProps(props) {
   const rt = props && props['Sujet ID'] && props['Sujet ID'].rich_text;
@@ -209,7 +214,6 @@ exports.handler = async function(event) {
       const nom = user.nom;
       const dbId = route.dbId ? norm(route.dbId) : null;
       const CASCADE = [DB_RETOURS, DB_VERSIONS, DB_COMMENTS, DB_MUSIQUES, DB_REFS, DB_CORRECTIONS].map(norm);
-      const ALLOW_BRUT = [DB_TACHES, DB_NOTIFS, DB_IDEES, DB_COMP, DB_CLIENTS].map(norm); // non-cartes, auto-scopés client
 
       if (route.kind === 'query') {
         if (dbId === norm(DB_PROD)) {
@@ -224,11 +228,22 @@ exports.handler = async function(event) {
           if (!sid || !ids.has(norm(sid))) {
             return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
           }
-        } else if (dbId === norm(DB_CLIENTS_BRAND)) {
-          // Roster commercial masqué (appLoadData attend une réponse → liste VIDE, pas 403).
+        } else if (dbId === norm(DB_NOTIFS)) {
+          // Ses notifications seulement (filtre de sortie Destinataire = lui — incontournable).
+          filtreSortie = (page) => rtVal(page && page.properties, 'Destinataire') === nom;
+        } else if (dbId === norm(DB_TACHES)) {
+          // Ses tâches seulement (Assigné OU Créé par = lui).
+          filtreSortie = (page) => {
+            const p = page && page.properties;
+            return rtVal(p, 'Assigné') === nom || rtVal(p, 'Créé par') === nom;
+          };
+        } else if (dbId === norm(DB_IDEES)) {
+          // Ses idées seulement (Proposé par = lui) — pas tout le pipeline éditorial.
+          filtreSortie = (page) => rtVal(page && page.properties, 'Proposé par') === nom;
+        } else if (dbId === norm(DB_CLIENTS_BRAND) || dbId === norm(DB_CLIENTS) || dbId === norm(DB_COMP)) {
+          // Roster clients / compteurs : un externe n'en a pas besoin (il ne crée pas de carte) → réponse
+          // VIDE (pas 403 : appLoadData charge DB_COMP + DB_CLIENTS_BRAND et doit recevoir une réponse).
           filtreSortie = () => false;
-        } else if (ALLOW_BRUT.includes(dbId)) {
-          // relai tel quel (tâches/notifs auto-scopées par le client ; idées visibles ; compteurs).
         } else {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) }; // ex. DB_EQUIPE
         }
