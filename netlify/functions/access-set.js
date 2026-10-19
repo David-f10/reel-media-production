@@ -9,6 +9,9 @@
 const { verifyUser } = require('./_auth');
 
 const ACCES_VALIDES = ['Complet', 'Externe'];
+// Notion traite un id AVEC ou SANS tirets comme la MÊME page → comparer les bruts laisserait passer
+// son propre id dé-tireté et contournerait la garde d'auto-modification. On normalise des deux côtés.
+const norm = (s) => String(s || '').replace(/-/g, '').toLowerCase();
 
 exports.handler = async (event) => {
   const headers = {
@@ -39,7 +42,8 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'targetId manquant' }) };
   }
   // Pas de modification de son PROPRE accès/clé (anti auto-promotion, même avec la clé).
-  if (targetId === auth.user.id) {
+  // Comparaison NORMALISÉE : sinon le même id sans tirets viserait la même page en passant la garde.
+  if (norm(targetId) === norm(auth.user.id)) {
     return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'On ne modifie pas son propre accès' }) };
   }
 

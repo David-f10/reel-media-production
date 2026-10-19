@@ -4805,7 +4805,8 @@ function renderEquipeList() {
       </div>`;
       }
       // Ligne avec réglages d'accès (pastille Complet/Externe · clé · réinit code · retrait).
-      const estMoi = !!(m.id && currentUser && m.id === currentUser.id);
+      // Compare NORMALISÉE (id Notion avec/sans tirets = même page) — cohérent avec la garde serveur.
+      const estMoi = !!(m.id && currentUser && String(m.id).replace(/-/g,'') === String(currentUser.id||'').replace(/-/g,''));
       const ext = m.acces === 'Externe';
       const swCol = ext ? 'blue' : 'green';
       const key = m.peutGererAcces === true;
