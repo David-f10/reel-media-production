@@ -3892,7 +3892,10 @@ async function initLogin() {
       id: p.id,
       nom: p.properties.Nom?.title?.[0]?.plain_text || '',
       nomComplet: p.properties['Nom complet']?.rich_text?.[0]?.plain_text || '', // prénom ↔ nom complet (recherche croisée)
-      code: p.properties['Code acces']?.rich_text?.[0]?.plain_text || '',
+      // ⚠️ NE PAS réintroduire ici un champ `code` (le 'Code acces' du membre). Il n'est lu
+      //    nulle part dans l'app, il ne doit JAMAIS descendre côté client, et le proxy
+      //    (netlify/functions/notion.js) le retire désormais des réponses. Le « compléter »
+      //    rouvrirait la fuite des codes d'accès de toute l'équipe.
       role: p.properties.Role?.select?.name || '',
       contactBrandDefaut: p.properties['Contact Brand défaut']?.checkbox || false,
       chefDefaut: p.properties['Chef défaut']?.checkbox || false
@@ -4710,7 +4713,7 @@ async function equippeAjouter() {
         'Role': {select: {name: role}}
       }
     });
-    equipe.push({id: newPage.id, nom, code, role});
+    equipe.push({id: newPage.id, nom, role}); // pas de `code` : le 'Code acces' n'est jamais stocké côté client (cf. chargerEquipe)
     refreshJournMonteursSelects();
     input.value = '';
     renderEquipeList();
