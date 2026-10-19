@@ -19,12 +19,18 @@ const { verifyReview } = require('./_review');
 // Ids utiles à la grâce review (review.html ne tape que ces deux bases via le proxy).
 const DB_PROD    = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
+const DB_EQUIPE  = 'df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 
 // Propriétés d'ÉLÉVATION : leur écriture par PATCH n'est JAMAIS permise via le proxy. Aucun flux
 // légitime ne les modifie par PATCH (le rôle n'est posé qu'à la CRÉATION d'un membre, par POST).
 // Les bloquer ferme le self-promotion (un externe se repasse en Complet depuis la console) sans
 // rien casser aujourd'hui. 'Accès'/'Acces' : le champ de niveau d'accès prévu pour la 3/3.
-const PROPS_ELEVATION = ['Role', 'Accès', 'Acces'];
+// Propriétés d'ÉLÉVATION interdites en PATCH via le proxy (toute la logique d'accès passe par les
+// fonctions dédiées access-set / code-reset, clé vérifiée). 'Peut gérer les accès' = la clé (3/3a).
+const PROPS_ELEVATION = ['Role', 'Accès', 'Acces', 'Peut gérer les accès'];
+// Sous-ensemble ACCÈS (sans Role) : interdit aussi à la CRÉATION d'un membre sauf porteur de la clé —
+// sinon on forgerait depuis la console un membre neuf déjà en « gère les accès » (auto-promotion).
+const PROPS_ACCES = ['Accès', 'Acces', 'Peut gérer les accès'];
 
 // Comparaison d'ids Notion tolérante aux tirets (dashed 36 car. ↔ dashless 32 car.).
 const norm = (s) => String(s || '').replace(/-/g, '').toLowerCase();
@@ -147,9 +153,16 @@ exports.handler = async function(event) {
         }
       }
     }
-    // Hook 3/3 : quand verifyUser renverra le niveau d'accès, borner ICI les écritures des externes
-    // (création de membre, écriture hors périmètre) selon user.acces. Rien à activer tant que le
-    // champ Accès n'existe pas — mais le point d'ancrage est posé, comme demandé avant la 3/3.
+    // 3/3a : créer un membre d'équipe en posant Accès/clé est réservé aux porteurs de la clé.
+    // (Le PATCH de ces champs est déjà interdit à tous par PROPS_ELEVATION → fonctions dédiées.)
+    // Role à la création reste permis à tout membre (comportement actuel de « Ajouter »).
+    if (method === 'POST' && route.kind === 'create'
+        && body && body.parent && norm(body.parent.database_id) === norm(DB_EQUIPE)
+        && body.properties && typeof body.properties === 'object'
+        && PROPS_ACCES.some(k => Object.prototype.hasOwnProperty.call(body.properties, k))
+        && !user.peutGererAcces) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Modification non autorisée' }) };
+    }
   }
 
   // ── 4. Relais Notion + projection de sécurité (1/3, inchangée) ────────────

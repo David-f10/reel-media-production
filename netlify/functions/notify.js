@@ -151,9 +151,13 @@ exports.handler = async (event) => {
   if (!az.ok) {
     return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Authentification requise' }) };
   }
+  // 3/3a : l'auteur d'une notif de MEMBRE est le nom AUTHENTIFIÉ, jamais body.auteur (sinon David
+  // pourrait créer une notif signée Chloé). Côté client review, l'auteur reste le nom du client (il
+  // n'est pas dans l'équipe ; le jeton prouve seulement qu'il visionne CE sujet).
+  const auteurReel = az.kind === 'member' ? ((az.user && az.user.nom) || '') : auteur;
 
   // Garde-fou identique à l'ancien createNotif côté client : pas se notifier soi-même
-  if (!destinataire || destinataire === auteur) {
+  if (!destinataire || destinataire === auteurReel) {
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, skipped: true }) };
   }
 
@@ -164,7 +168,7 @@ exports.handler = async (event) => {
 
   let notifId = null;
   try {
-    const notif = await createNotionNotif({ type, sujetId, sujetCode, sujetTitre, destinataire, auteur, message });
+    const notif = await createNotionNotif({ type, sujetId, sujetCode, sujetTitre, destinataire, auteur: auteurReel, message });
     notifId = notif?.id || null;
   } catch (e) {
     return { statusCode: 502, headers, body: JSON.stringify({ ok: false, error: 'Création notif Notion échouée: ' + e.message }) };
