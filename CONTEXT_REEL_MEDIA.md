@@ -1,6 +1,6 @@
 # PASSATION — Réel Média Production (contexte pilote)
 
-> Dernière mise à jour : 2026-10-09 (VUE SEMAINE des tâches + MOBILE : vue Liste seule & recherche mise en valeur · FICHE DE TÂCHE au clic · ALIGNEMENT des 3 tables de la vue Liste · colonne Client · recherche unifiée en vue Liste · la recherche montre TOUT · dates de dossier Drive · HYBRIDE · HAVANA)
+> Dernière mise à jour : 2026-10-19 (**FERMETURE DE LA FUITE DES CODES D'ACCÈS** — livraison 1/3 du chantier accès externes · VUE SEMAINE des tâches + MOBILE : vue Liste seule & recherche mise en valeur · FICHE DE TÂCHE au clic · ALIGNEMENT des 3 tables de la vue Liste · colonne Client · recherche unifiée en vue Liste · la recherche montre TOUT · dates de dossier Drive · HYBRIDE · HAVANA)
 
 ---
 ## 🔄 PROTOCOLE « SUCCESSION » (consigne permanente)
@@ -10,7 +10,25 @@ Quand David écrit le mot **`Succession`** (ou « fais une succession ») → le
 3. Présenter les 2 fichiers via present_files et dire : « Ouvre un nouveau chat dans ce projet, uploade PASSATION_CHAT.md, le nouveau Pilote reprendra ici. »
 Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire la passation sans poser de question.
 
-## 📌 SUJET CHAUD À LA REPRISE (2026-08-19)
+## 📌 SUJET CHAUD À LA REPRISE (2026-10-19)
+
+**CHANTIER ACCÈS JOURNALISTES EXTERNES — 3 livraisons validées par Claude Code. La 1/3 est vérifiée et livrée.**
+
+Besoin de David : des journalistes externes missionnés ne doivent voir **que les cartes sur lesquelles ils sont missionnés**, tout en pouvant déposer séquencier et montage et recevoir les notifs. Le même journaliste peut, si David le décide, basculer en accès complet (il travaille à la rédaction). Décision retenue : **l'app principale avec un cloisonnement**, pas un HTML séparé — parce que la fiche d'une mission compte **10 blocs** (dont Tournage et Post-prod · Stockage) qu'une page allégée perdrait.
+
+**Le cadrage a mis au jour une fuite béante** (voir l'entrée du 2026-10-19 dans l'historique) : le proxy renvoyait le `Code acces` de **tous** les membres dans le corps HTTP. **Fermée par la livraison 1/3.**
+
+**Ce qui reste :**
+- **Livraison 2/3 — LA SÉCURITÉ** (~180 l., 6 fichiers) : jeton d'identité au login · verrou du proxy · liste blanche de 4 motifs de `path` · blocage de l'écriture sur `DB_EQUIPE` sauf porteurs de clé · liens `review.html` signés avec période de grâce · `notify.js` authentifié. **Prompt à rédiger.**
+- **Livraison 3/3 — LE CLOISONNEMENT** (~220 l.) : lecture scopée (`Journaliste = la personne`, merge append-aware) · interrupteur Complet/Externe + clé « Peut gérer les accès » dans « Gérer l'équipe » · écriture scopée · portier Drive · téléchargement. **Prompt à rédiger.**
+- **Réglages décidés avec David** : pastille **Complet en vert** / **Externe en bleu**, clé **ambre** « Peut gérer les accès ». En rôle Externe, **pas d'accès à « Gérer l'équipe »** ; en rôle Interne, oui. Les externes **ne créent pas** de carte pour l'instant (Réel Média crée la carte, l'externe la trouve en se connectant) — ce qui sort le compteur de codes du chemin critique.
+- **Trois trous trouvés par Claude Code, à traiter dans la 2/3** : `review.html` peut écrire · `notify.js` est une porte ouverte · **le self-promotion** (un externe passé en Complet pourrait se re-promouvoir via la console).
+
+**ANALYSE EN ATTENTE, à faire APRÈS les 3 livraisons (arbitrage de David, 19 oct) :** la **suppression d'une carte**, à deux chemins — « Annuler le sujet » (le code a vécu, il reste pris, statut `Killed` + drapeau `abandonne`, barré) vs « Supprimer une erreur » (recul du compteur si c'est le dernier code attribué, sinon pierre tombale barrée). **L'affichage existe déjà** : `index.html` l.8591-8592 et 8646-8647 barrent un sujet `abandonne` et passent son code en `#8B0000`, mais seulement dans la page Historique qui lit le JSON figé. Trous mesurés sur l'historique : **D 174 · M 6 · F 10 · Y 0**.
+
+---
+
+## 📌 SUJET EN PAUSE (2026-08-19) — conso Netlify
 
 **Chantier A conso Netlify — cadré, prêt à lancer.** Alerte Netlify 75 % (94K/125K en juillet, sur ~2 semaines de rodage ; août non représentatif, congés). Plan **Free Legacy** confirmé plus avantageux que le nouveau modèle en crédits (qui facture 15 crédits par déploiement de production — punitif vu la cadence de David). **Ne pas migrer d'hébergeur** : le gaspillage suivrait ailleurs.
 
@@ -28,6 +46,23 @@ Le mot `Succession` évite de réexpliquer tout à chaque fin de chat. Produire 
 ═══════════════════════════════════════════════════════════════
 ## 📝 HISTORIQUE DES MODIFS
 ═══════════════════════════════════════════════════════════════
+
+### 2026-10-19 — 🔒 FERMETURE DE LA FUITE DES CODES D'ACCÈS (livraison 1/3 du chantier accès externes)
+- **`netlify/functions/notion.js` 41 → 64** (+23) · **`index.html` 8862 → 8865** (+3). Base de départ **`d8c606e`** (= `origin/main`), confirmée par le Pilote avant édition.
+- **CE QUI FUYAIT.** Le proxy renvoie la réponse Notion **brute** (`body: JSON.stringify(data)`). La requête de chargement de l'équipe (`/databases/df0e44e1-…/query`, au démarrage) faisait donc descendre `"Code acces": {...}` pour **chaque membre** dans le corps HTTP — **lisible dans l'onglet Réseau**. Chaîne d'exploitation complète : l'URL du site (**que les clients possèdent déjà**, via les liens `review.html`) + les 14 ids de bases **lisibles dans le dépôt public** → une requête → **tous les codes** → connexion en tant que n'importe qui.
+- **ORIGINE : 5 mois.** Apparue le **21 avril 2026, commit v46 (`4f229b0`)**, quand le login se faisait côté client. `login.js` est passé côté serveur le **21 mai** (`87317a1`), `EQUIPE_FALLBACK` a été vidé le même jour (v217, `defb878`) — **mais la lecture l.3895 est restée.**
+- **⚠️⚠️ L'ERREUR DU PILOTE, CORRIGÉE PAR CLAUDE CODE — À RETENIR.** Le Pilote a d'abord annoncé la fuite « colmatée » avec un correctif de **2 lignes côté client**. **FAUX.** Retirer `code:` du mapping empêche l'app de *garder* le code, mais **les codes restent dans le corps HTTP** : c'est le proxy qui les envoie. **Un correctif côté client ne ferme JAMAIS une fuite côté serveur.** Le vrai correctif est la projection serveur.
+- **LE CORRECTIF — projection dans `notion.js`, juste avant le renvoi.** `delete page.properties['Code acces']` appliqué aux **deux formes** de réponse : liste (`data.results[]`) et page unique (`data.properties`).
+  - **Suppression de la clé** (`delete`), pas un vidage de valeur.
+  - **Générique sur le NOM de propriété, jamais sur l'id de `DB_EQUIPE`** → si la base change d'id (migration Notion à venir), la protection tient.
+  - **AUCUN `try/catch` propre, volontairement.** Une projection qui échouerait en silence laisserait passer la réponse brute et **rouvrirait la faille**. Elle vit dans le `try` du handler, dont le `catch` renvoie un **500** → le seul mode de défaillance est « erreur », jamais « réponse brute avec les codes ». **Fail-closed.**
+- **Côté client, en défense en profondeur** : la lecture l.3895 (`chargerEquipe`) et le `code` du `equipe.push` l.4716 (`equippeAjouter`) retirés, **avec un commentaire d'avertissement à chaque emplacement purgé** pour qu'on ne les « complète » pas plus tard. Les **deux écritures légitimes intactes** : l.4451 (changer son propre code) et l.4712 (création d'un membre).
+- **LE CONTRÔLE QUI COMPTAIT, fait par le Pilote : la projection casse-t-elle le login ?** **NON.** `login.js` (l.75) et `_auth.js` (l.42) lisent bien `Code acces`, mais par **`fetch` direct vers `api.notion.com`** avec le token — ils **ne passent pas par le proxy**. Vérifié sur les 17 fonctions : **aucune** n'appelle Notion via le proxy. *(Règle qui en découle : toute fonction serveur qui aurait besoin d'un champ projeté doit faire son fetch direct, jamais passer par `notion.js`.)*
+- **Le code créé reste visible** : dans `equippeAjouter`, le code est **calculé côté client** (`base + '26'`) et affiché dans le toast depuis la **variable locale** — pas relu de la réponse. Le changement de son propre code vérifie l'ancien via `login.js` et ne relit rien non plus. **Aucune écriture ne dépend de la réponse projetée.**
+- **Projection testée par le Pilote sur 8 formes de réponse** — liste équipe, page unique, **schéma de base**, erreur Notion 404, `results` non-array, `results` truffé de `null`/`undefined`/nombres, `null`, liste d'utilisateurs Notion : **aucune fuite, aucune exception**. Effet de bord du cas « schéma de base » (une database a aussi un `.properties`) **sans portée** : aucun `GET /databases/{id}` nu dans l'app, tous les appels sont `/query`.
+- **Contrôles mécaniques** : `node --check` sur `notion.js` + les **2 blocs script** (8336 l. et 9 l.) → OK. Diff vs `origin/main` = **2 changements, rien d'autre**. Les 4 occurrences de `'Code acces'` dans `index.html` = 2 écritures + 2 commentaires, **zéro lecture**.
+- **Déploiement transparent** pour les 7 utilisateurs : aucun changement de comportement, pas de fenêtre particulière à prévoir.
+- **🐛 DETTE PRÉEXISTANTE TROUVÉE AU PASSAGE (pas introduite par cette livraison) : `rm-code` n'est jamais mis à jour après un changement de code.** Il est écrit au login (l.3991), supprimé au logout (l.4468), et **lu par trois fonctions réelles** : l'abonnement push (l.1716), le téléchargement d'une version (l.4855, `drive-download` fait `verifyUser(id, code)`) et l'auto-login Safari/Drive (l.4928). **Conséquence : qui change son code casse ses notifs et ses téléchargements jusqu'à une déconnexion/reconnexion.** Correctif trivial — `localStorage.setItem('rm-code', nouveau)` après le PATCH l.4451 — **à verser dans la livraison 2/3**, qui touche justement l'identité.
 
 ### 2026-10-09 (2) — Vue Semaine (Tâches) + Mobile (vue Liste & recherche), en un seul lot
 - **`index.html` 8616 → 8862** · **`css/views.css` 166 → 218** · **`css/layout.css` 269 → 282** · **`css/base.css`** (1 ligne). ⚠️ **LES QUATRE VONT ENSEMBLE.**
@@ -1738,13 +1773,13 @@ Second déclencheur : onglet resté visible mais **inactif ≥ 10 min** (via `au
 
 ### 2026-07-22 — ANALYSE (lecture seule) : ce qu'une couche serveur changerait
 
-**L'existant :** le proxy `notion.js` est un **relais PASSIF** — aucune validation. Et **84 appels Notion directs** sont éparpillés dans `index.html`.
+**L'existant :** le proxy `notion.js` est un **relais PASSIF** — aucune validation. *(⚠️ MIS À JOUR le 2026-10-19 : il porte désormais une **projection de sécurité** qui retire `Code acces` de toute page renvoyée — voir l'entrée du 19 oct. Mais il reste **non authentifié** et **laisse tout écrire** : c'est l'objet de la livraison 2/3.)* Et **84 appels Notion directs** sont éparpillés dans `index.html`.
 
 **Ce qu'une couche serveur apporterait :**
 - **Allocation des codes atomique** — le seul **corrupteur de données pivots**
 - **Cache des lectures** — un seul rentre, tout le monde est servi à la porte
 - **Logique métier centralisée** — aujourd'hui dupliquée sur les 84 sites
-- **Sécurité des écritures** — aujourd'hui **n'importe qui peut tout écrire via le proxy**
+- **Sécurité des écritures** — aujourd'hui **n'importe qui peut tout écrire via le proxy** *(toujours vrai au 2026-10-19 : la projection du 19 oct ne protège que les LECTURES du `Code acces`. Le verrou d'écriture = livraison 2/3.)*
 
 **LES LIMITES QUI RESTERAIENT MALGRÉ TOUT (à ne pas oublier en décidant) :**
 - Notion **sans transactions** → garantie **probabiliste**, jamais atomique
