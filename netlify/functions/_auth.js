@@ -55,7 +55,11 @@ async function verifyUser({ id, code }) {
     if (!codeNotion || codeNotion !== code) return { ok: false, error: 'Code incorrect' };
     const nom = page.properties.Nom?.title?.[0]?.plain_text || '';
     const role = page.properties.Role?.select?.name || 'Journaliste';
-    return { ok: true, user: { id: page.id, nom, role } };
+    // Niveau d'accès (3/3a) : champ ABSENT ou vide → 'Complet' (défaut SÛR : les membres existants ne
+    // sont jamais cloisonnés par surprise). 'Peut gérer les accès' absent → false (fail-closed sur la clé).
+    const acces = page.properties['Accès']?.select?.name || 'Complet';
+    const peutGererAcces = page.properties['Peut gérer les accès']?.checkbox === true;
+    return { ok: true, user: { id: page.id, nom, role, acces, peutGererAcces } };
   } catch (e) {
     return { ok: false, error: 'Service temporairement indisponible' };
   }

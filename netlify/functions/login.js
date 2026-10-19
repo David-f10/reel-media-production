@@ -75,7 +75,10 @@ exports.handler = async (event) => {
           nomComplet: pr['Nom complet']?.rich_text?.[0]?.plain_text || '',
           role: pr.Role?.select?.name || '',
           contactBrandDefaut: pr['Contact Brand défaut']?.checkbox || false,
-          chefDefaut: pr['Chef défaut']?.checkbox || false
+          chefDefaut: pr['Chef défaut']?.checkbox || false,
+          // Niveau d'accès (3/3a) : absent/vide → 'Complet' (défaut sûr) ; clé absente → false.
+          acces: pr['Accès']?.select?.name || 'Complet',
+          peutGererAcces: pr['Peut gérer les accès']?.checkbox === true
         };
       }).filter(m => m.nom);
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, equipe }) };
@@ -106,6 +109,8 @@ exports.handler = async (event) => {
     const pr = page.properties;
     const nom = pr.Nom?.title?.[0]?.plain_text || '';
     const role = pr.Role?.select?.name || 'Journaliste';
+    const acces = pr['Accès']?.select?.name || 'Complet';           // défaut sûr (cf. action:'list')
+    const peutGererAcces = pr['Peut gérer les accès']?.checkbox === true;
 
     if (!codeNotion || codeNotion !== code) {
       return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Code incorrect' }) };
@@ -116,7 +121,7 @@ exports.handler = async (event) => {
       headers,
       body: JSON.stringify({
         ok: true,
-        user: { id: page.id, nom, role }
+        user: { id: page.id, nom, role, acces, peutGererAcces }
       })
     };
 
