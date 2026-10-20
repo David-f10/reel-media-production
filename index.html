@@ -352,11 +352,11 @@
 <div class="overlay" id="ov-confirm">
   <div class="modal" style="max-width:360px">
     <div class="modal-hdr">
-      <div class="modal-title" style="color:var(--red)">Supprimer ce sujet ?</div>
+      <div class="modal-title" style="color:var(--red)">Supprimer une erreur ?</div>
       <button class="modal-close" onclick="closeOv('ov-confirm')">×</button>
     </div>
     <div style="padding:20px 22px">
-      <p style="font-size:13px;color:var(--text2);line-height:1.6">Vous êtes sur le point de supprimer <strong id="confirm-titre" style="color:var(--text)"></strong>. Cette action est irréversible.</p>
+      <p style="font-size:13px;color:var(--text2);line-height:1.6">Vous allez envoyer <strong id="confirm-titre" style="color:var(--text)"></strong> à la corbeille Notion (récupérable 30 jours). À réserver à un doublon créé par mégarde. Le numéro de code n'est pas réattribué.<br><span style="color:var(--text3);font-size:12px">Pour un projet qui a existé, utilisez plutôt « Annuler le sujet ».</span></p>
     </div>
     <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="closeOv('ov-confirm')">Annuler</button>
@@ -817,6 +817,7 @@ function parsePage(p){
     validationWordingEdito:pr['Validation Wording édito']?.checkbox||false,
     validationWordingBrand:pr['Validation Wording Brand']?.checkbox||false,
     priorite:pr['Priorité']?.select?.name||'',
+    abandonne:pr['Abandonné']?.checkbox||false,   // lot D : sujet annulé (visible, barré, code pris). Champ absent → false (sûr).
     retoursOuverts:0};  // rempli après chargement
 }
 
@@ -835,7 +836,7 @@ function cardHTML(s){
   return`<div class="card card--c" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
       <span style="display:flex;align-items:center;gap:5px">
-        <span class="card-code">${s.code||'—'}</span>${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:10px;color:var(--text3);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom">${nc}</span>`:''})()}
+        <span class="card-code"${s.abandonne?' style="color:#8B0000"':''}>${s.code||'—'}</span>${s.abandonne?'<span title="Sujet annulé" style="font-size:9px;color:#8B0000;border:1px solid #8B0000;border-radius:3px;padding:0 4px">⊘ annulé</span>':''}${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:10px;color:var(--text3);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom">${nc}</span>`:''})()}
         ${s.retoursOuverts>0?`<span style="font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span>`:''}
       </span>
       <div style="display:flex;align-items:center;gap:4px">
@@ -843,7 +844,7 @@ function cardHTML(s){
         <button class="card-del" onclick="event.stopPropagation();deleteSujet('${s.id}')" title="Supprimer">🗑</button>
       </div>
     </div>
-    <div class="card-title" title="${s.titre.replace(/"/g,'&quot;')}">${s.titre}</div>
+    <div class="card-title"${s.abandonne?' style="text-decoration:line-through;color:var(--text3)"':''} title="${s.titre.replace(/"/g,'&quot;')}">${s.titre}</div>
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${s.journaliste||'Non attribué'}${s.chef?` · ${s.chef}`:''}</span><span style="flex:1"></span><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
     <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
   </div>`;
@@ -1001,7 +1002,7 @@ function openDetail(id, forcePadOpen=false){
   };
   const activeStep = forcePadOpen ? 'pad' : (statusMap[s.statut] || 'brief');
   const stIdx=STATUS_ORDER.indexOf(s.statut);
-  let html=`<div class="stepper">${STATUS_ORDER.map((st,i)=>{
+  let html=(s.abandonne?`<div style="background:rgba(139,0,0,0.12);border:1px solid #8B0000;color:#8B0000;border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px">⊘ Sujet annulé — il reste visible et barré, le code ${escapeHtml(s.code||'')} reste réservé (jamais réattribué).</div>`:'')+`<div class="stepper">${STATUS_ORDER.map((st,i)=>{
     const cl=st===s.statut?'cur':i<stIdx?'done':'';
     return`<button class="st-btn ${cl}" onclick="updStatut('${id}','${st}',this)">${st}</button>`;
   }).join('')}</div>`;
@@ -1448,6 +1449,11 @@ function openDetail(id, forcePadOpen=false){
       <div id="cc-comment-${id}" style="font-size:10px;text-align:right;margin-top:2px;color:var(--text3)">0 / ${LIMITE_TEXTE}</div>
     </div>
   </div>`;
+  // Lot D — cycle de vie : « Annuler le sujet » (tombstone) / « Réactiver ». Jamais la corbeille,
+  // jamais le compteur ; la suppression d'une erreur reste le 🗑 (deleteSujet).
+  html += step('Cycle de vie', s.abandonne?'p-red Annulé':'p-gray Actif', s.abandonne
+    ? `<div style="padding:4px 22px 18px"><div style="font-size:12px;color:#8B0000;margin-bottom:10px">⊘ Ce sujet est annulé : visible et barré, code <strong>${escapeHtml(s.code||'')}</strong> réservé (jamais réattribué).</div><button onclick="reactiverSujet('${id}')" class="nav-btn" style="width:100%;font-size:12px">↩ Réactiver le sujet</button></div>`
+    : `<div style="padding:4px 22px 18px"><div style="font-size:12px;color:var(--text2);margin-bottom:10px">Annuler garde le projet visible, <strong>barré</strong>, et son code reste pris. Pour un doublon créé par erreur, utilise la corbeille (🗑).</div><button onclick="annulerSujet('${id}')" class="nav-btn" style="width:100%;font-size:12px;color:#8B0000;border-color:#8B0000">⊘ Annuler le sujet</button></div>`);
   document.getElementById('d-steps').innerHTML=html;
   openOv('ov-detail');
   // Ajuster la hauteur du titre une fois la modale visible (sinon scrollHeight=0)
@@ -6084,19 +6090,64 @@ function exportExcel(){
   toast('Excel téléchargé','ok');
 }
 
-function deleteSujet(id){
+// Lot D — « Supprimer une erreur » : réservé à un doublon SANS histoire. On refuse si le sujet porte
+// des retours ou des versions (ils deviendraient orphelins), ET on refuse aussi si la vérification
+// échoue (fail-closed : un sujet gardé à tort se rattrape, un sujet supprimé à tort laisse des
+// orphelins). Dans les deux cas on oriente vers « Annuler le sujet ». Pas de recul du compteur : le
+// code est sauté, jamais réattribué (un trou dans la séquence est moins grave qu'une collision).
+async function deleteSujet(id){
   const s = sujets.find(x => x.id === id);
   if(!s){ toast('Ce sujet n\'existe plus — rechargez la page','err'); return; }
+  let aDesEnfants;
+  try {
+    const [ret, ver] = await Promise.all([
+      api('/databases/'+DB_RETOURS+'/query','POST',{filter:{property:'Sujet ID',rich_text:{equals:id}},page_size:1}),
+      api('/databases/'+DB_VERSIONS+'/query','POST',{filter:{property:'Sujet ID',rich_text:{equals:id}},page_size:1})
+    ]);
+    aDesEnfants = (ret.results && ret.results.length>0) || (ver.results && ver.results.length>0);
+  } catch(e){
+    toast('Vérification impossible — par sécurité, suppression refusée. Utilise « Annuler le sujet ».','err');
+    return;
+  }
+  if(aDesEnfants){
+    toast('Ce sujet a des retours ou des versions — utilise « Annuler le sujet » (il reste barré).','err');
+    return;
+  }
   document.getElementById('confirm-titre').textContent = s.titre || '';
   document.getElementById('confirm-btn').onclick=async()=>{
     closeOv('ov-confirm');
     try{
       await api(`/pages/${id}`,'PATCH',{archived:true});
-      toast('Sujet supprimé','ok');
+      toast('Erreur supprimée (corbeille Notion, récupérable 30 j)','ok');
       await loadSujets();
     }catch(e){toast('Erreur : '+e.message,'err');}
   };
   openOv('ov-confirm');
+}
+
+// Lot D — « Annuler le sujet » : le projet reste visible et barré, son code reste pris. Jamais la
+// corbeille, jamais le compteur. Réactiver = l'inverse (undo d'une annulation faite par erreur).
+async function annulerSujet(id){
+  const s = sujets.find(x => x.id === id);
+  if(!s){ toast('Ce sujet n\'existe plus — rechargez la page','err'); return; }
+  if(!await confirmerAction(`Annuler « ${escapeHtml(s.titre||s.code||'')} » ? Le projet reste visible et barré, son code reste pris (jamais réattribué).`, 'Annuler le sujet', 'Retour')) return;
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{'Abandonné':{checkbox:true}}});
+    toast('Sujet annulé','ok');
+    await loadSujets();
+    if(document.getElementById('ov-detail')?.classList.contains('open')) openDetail(id);
+  } catch(e){ toast('Erreur : '+e.message,'err'); }
+}
+async function reactiverSujet(id){
+  const s = sujets.find(x => x.id === id);
+  if(!s){ toast('Ce sujet n\'existe plus — rechargez la page','err'); return; }
+  if(!await confirmerAction(`Réactiver « ${escapeHtml(s.titre||s.code||'')} » ? Il cesse d'être barré.`, 'Réactiver', 'Retour')) return;
+  try {
+    await api('/pages/'+id,'PATCH',{properties:{'Abandonné':{checkbox:false}}});
+    toast('Sujet réactivé','ok');
+    await loadSujets();
+    if(document.getElementById('ov-detail')?.classList.contains('open')) openDetail(id);
+  } catch(e){ toast('Erreur : '+e.message,'err'); }
 }
 
 function openOv(id){document.getElementById(id).classList.add('open');}
@@ -7944,10 +7995,10 @@ function renderListe() {
     const col = FMT_COLORS[s.format] || '#888';
     const dotCol = stColor(s.statut);
     html += `<tr onclick="openDetail('${s.id}')">
-      <td class="td-code col-codefmt" style="--fmt-color:${col}">${s.code||'—'}</td>
+      <td class="td-code col-codefmt" style="--fmt-color:${col}${s.abandonne?';color:#8B0000':''}">${s.code||'—'}${s.abandonne?' ⊘':''}</td>
       <td class="td-titre" title="${(s.titre||'').replace(/"/g,'&quot;')}">
         <div style="display:flex;align-items:center;gap:6px;min-width:0">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.titre}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap${s.abandonne?';text-decoration:line-through;color:var(--text3)':''}">${s.titre}</span>
           ${s.sousFormat?`<span style="flex-shrink:0;font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3)">${s.sousFormat}</span>`:''}
         </div>
       </td>
@@ -8942,7 +8993,7 @@ function cardHTMLHighlight(s, q) {
   return`<div class="card card--c" onclick="openDetail('${s.id}')" style="${priCol?`border-right:3px solid ${priCol}`:''}">
     <div class="card-hdr">
       <span style="display:flex;align-items:center;gap:5px">
-        <span class="card-code">${highlightText(s.code||'—',q)}</span>${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:10px;color:var(--text3);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom">${highlightText(nc,q)}</span>`:''})()}
+        <span class="card-code"${s.abandonne?' style="color:#8B0000"':''}>${highlightText(s.code||'—',q)}</span>${s.abandonne?'<span title="Sujet annulé" style="font-size:9px;color:#8B0000;border:1px solid #8B0000;border-radius:3px;padding:0 4px">⊘ annulé</span>':''}${(()=>{const nc=nomClientDeCode(s.code,s.format);return nc?`<span title="${nc.replace(/"/g,'&quot;')}" style="font-size:10px;color:var(--text3);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom">${highlightText(nc,q)}</span>`:''})()}
         ${s.retoursOuverts>0?`<span style="font-size:10px;background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-family:var(--mono);font-weight:600">🔔 ${s.retoursOuverts}</span>`:''}
       </span>
       <div style="display:flex;align-items:center;gap:6px">
@@ -8951,7 +9002,7 @@ function cardHTMLHighlight(s, q) {
         <button class="card-del" onclick="event.stopPropagation();deleteSujet('${s.id}')" title="Supprimer">🗑</button>
       </div>
     </div>
-    <div class="card-title" title="${s.titre.replace(/"/g,'&quot;')}">${highlightText(s.titre,q)}</div>
+    <div class="card-title"${s.abandonne?' style="text-decoration:line-through;color:var(--text3)"':''} title="${s.titre.replace(/"/g,'&quot;')}">${highlightText(s.titre,q)}</div>
     <div class="card-meta"><div class="av" style="background:${col}">${init}</div><span class="card-j">${highlightText(s.journaliste||'Non attribué',q)}${s.chef?' · '+s.chef:''}</span><span style="flex:1"></span><div class="sdot" style="background:${dotCol}"></div><span class="stxt">${s.statut||'Nouveau'}${s.tourJ1?' · 🎬 '+fmtDate(s.tourJ1):s.diffusion?' · 📅 '+fmtDate(s.diffusion):''}</span></div>
     <div class="prog"><div class="prog-bar" style="width:${prog}%;background:${dotCol}"></div></div>
   </div>`;
