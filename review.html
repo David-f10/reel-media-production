@@ -681,9 +681,12 @@ async function chargerTousRetours() {
   if(!sujetId) return;
   // UNE requête (Sujet ID seul), puis tri en JS à défauts sûrs — aucun filtre Notion ajouté.
   //   • tousRetours  = les retours de la personne connectée (le compte des « en cours » en dépend — INCHANGÉ).
-  //   • histoRetours = TOUS les retours CLIENT du sujet (Source='Client'), pour que le second interlocuteur
-  //                    lise ce que le premier a déjà demandé. Les retours internes de l'équipe
-  //                    (Source='Équipe' ou absent) ne sont JAMAIS inclus dans l'historique montré au client.
+  //   • histoRetours = les retours CLIENT du sujet (Source='Client', NON brouillon), pour que le second
+  //                    interlocuteur lise ce que le premier a déjà demandé.
+  // La vraie barrière est CÔTÉ SERVEUR : la voie review de notion.js pose un filtre de sortie qui ne
+  // laisse descendre que Source='Client' && !Brouillon — les retours internes de l'équipe et les
+  // brouillons non validés ne quittent jamais le serveur. Le filtre JS ci-dessous est une défense en
+  // profondeur (il tient si le serveur était un jour affaibli), pas la garantie à lui seul.
   try {
     const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
       filter: {property:'Sujet ID', rich_text:{equals: sujetId}},
@@ -691,7 +694,10 @@ async function chargerTousRetours() {
     });
     const all = data.results || [];
     tousRetours  = all.filter(r => (r.properties.Auteur?.rich_text?.[0]?.plain_text || '') === clientNom);
-    histoRetours = all.filter(r => (r.properties.Source?.select?.name || '') === 'Client');
+    histoRetours = all.filter(r =>
+      (r.properties.Source?.select?.name || '') === 'Client' &&
+      !(r.properties.Brouillon?.checkbox)
+    );
     retoursErreur = false;
     afficherRetours();
   } catch(e) {
