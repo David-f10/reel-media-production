@@ -818,6 +818,7 @@ function parsePage(p){
     validationWordingBrand:pr['Validation Wording Brand']?.checkbox||false,
     priorite:pr['Priorité']?.select?.name||'',
     abandonne:pr['Abandonné']?.checkbox||false,   // lot D : sujet annulé (visible, barré, code pris). Champ absent → false (sûr).
+    creePar:pr['Créé par']?.rich_text?.[0]?.plain_text||'',  // lot 0 : auteur de la carte (écrit à la création). Cartes d'avant ce lot → vide.
     retoursOuverts:0};  // rempli après chargement
 }
 
@@ -1070,8 +1071,8 @@ function openDetail(id, forcePadOpen=false){
         </select>
       </div>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:12px;color:var(--text2)">Créé le</span>
-        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${createdFmt}</span>
+        <span style="font-size:12px;color:var(--text2)">${s.creePar?'Créé par':'Créé le'}</span>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${s.creePar?escapeHtml(s.creePar)+' · '+createdFmt:createdFmt}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
         <span style="font-size:12px;color:var(--text2)">Dernière modification</span>
@@ -2408,6 +2409,7 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
         'Déclinaison n°':{number:numDecli}
       }
     });
+    await marquerCreePar(newPage.id); // lot 0 : auteur = celui qui crée (non-bloquant)
     // Incrémenter compteur Desk
     await api('/pages/'+c.id,'PATCH',{properties:{'Dernier numéro':{number:c.dernierNumero+1}}});
     c.dernierNumero++;
@@ -2423,6 +2425,7 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
       'Sujet parent code':{rich_text:[{text:{content:parent.code}}]},
       'Déclinaison n°':{number:numDecli}
     },created_time:new Date().toISOString(),last_edited_time:new Date().toISOString()})));
+    newSujet.creePar = (currentUser && currentUser.nom) || ''; // affichage immédiat (le PATCH ci-dessus alimente Notion)
     sujets.unshift(newSujet);
     document.getElementById('cnt-all').textContent = sujets.length;
     renderCards();
@@ -5988,6 +5991,7 @@ async function createSujet(){
       if(contactPrincipal)props['Contact Brand']={select:{name:contactPrincipal}};
       if(contactSecond)props['Contact Brand 2']={select:{name:contactSecond}};
       const newPageBrand = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+      await marquerCreePar(newPageBrand.id); // lot 0 (non-bloquant)
       // Incrémenter compteur Brand
       await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
       // Notif au journaliste
@@ -6020,6 +6024,7 @@ async function createSujet(){
       if(contactPrincipal)props['Contact Brand']={select:{name:contactPrincipal}};
       if(contactSecond)props['Contact Brand 2']={select:{name:contactSecond}};
       const newPageDecli = await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
+      await marquerCreePar(newPageDecli.id); // lot 0 (non-bloquant)
       // Notif au journaliste
       const auteurDecli = currentUser?.nom || 'Inconnu';
       if(journ) await createNotif('nouveau_sujet', newPageDecli.id, codeVal, titre, journ, auteurDecli,
@@ -6047,6 +6052,7 @@ async function createSujet(){
     if(sfVal2)props['Sous-format']={select:{name:sfVal2}};
     const newPage=await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
     const pageId=newPage.id;
+    await marquerCreePar(pageId); // lot 0 (non-bloquant)
     const nv=c.dernierNumero+1;
     await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
     // Sauvegarder les liens de référence si Desk
@@ -6088,6 +6094,17 @@ function exportExcel(){
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Production');
   XLSX.writeFile(wb,`reel-media-${new Date().toISOString().split('T')[0]}.xlsx`);
   toast('Excel téléchargé','ok');
+}
+
+// Lot 0 — trace d'auteur. Écrit SÉPARÉMENT par un PATCH APRÈS la création, dans un try/catch qui
+// n'échoue JAMAIS : la carte doit exister même si l'écriture de l'auteur casse (sans auteur plutôt
+// que pas de carte). Le nom est TOUJOURS currentUser.nom (identité authentifiée), jamais une valeur
+// du formulaire — même principe que le correctif notify.js de la 3/3a.
+async function marquerCreePar(pageId){
+  const nom = (currentUser && currentUser.nom) || '';
+  if(!pageId || !nom) return;
+  try { await api('/pages/'+pageId,'PATCH',{properties:{'Créé par':{rich_text:[{text:{content:nom}}]}}}); }
+  catch(_){ /* non-bloquant : la carte existe déjà, elle restera sans auteur */ }
 }
 
 // Lot D — « Supprimer une erreur » : réservé à un doublon SANS histoire. On refuse si le sujet porte
@@ -7104,6 +7121,7 @@ async function demarrerIdee(id) {
         'Notes chef':{rich_text:idee.description?[{text:{content:idee.description}}]:[]}
       }
     });
+    await marquerCreePar(newPage.id); // lot 0 : auteur = celui qui DÉMARRE l'idée (le proposeur reste en Journaliste). Non-bloquant.
     // Incrémenter compteur
     await api('/pages/'+c.id,'PATCH',{properties:{'Dernier numéro':{number:c.dernierNumero+1}}});
     c.dernierNumero++;
@@ -7974,6 +7992,7 @@ function renderListe() {
     {key:'tourJ1', label:'Tournage', w:'90px'},
     {key:'monteur', label:'Monteur', w:'90px', cls:'td-mont'},
     {key:'lastEdited', label:'Modif', w:'90px'},
+    {key:'creePar', label:'Créé', w:'120px', cls:'m-hide', nosort:true}, // lot 0 : qui + quand
   ];
 
   function sortIcon(key) {
@@ -8016,6 +8035,7 @@ function renderListe() {
       <td class="td-date m-meta">${s.tourJ1?fmtDate(s.tourJ1):'—'}</td>
       <td class="td-mont">${s.monteur1||s.journaliste||'—'}</td>
       <td class="m-hide" style="font-size:11px;color:var(--text3);white-space:nowrap">${fmtModif(s.lastEdited)}</td>
+      <td class="m-hide" style="font-size:11px;color:var(--text3);white-space:nowrap">${(()=>{const a=s.creePar?escapeHtml(s.creePar):'';const d=s.created?fmtDate(s.created):'';return a?(a+(d?' · '+d:'')):(d||'—');})()}</td>
       <td class="m-act" onclick="event.stopPropagation()">
         <button onclick="deleteSujet('${s.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px" title="Supprimer">🗑</button>
       </td>
