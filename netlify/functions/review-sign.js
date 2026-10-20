@@ -7,6 +7,7 @@
 
 const { verifyUser } = require('./_auth');
 const { signReview } = require('./_review');
+const { perimetreIds, norm } = require('./_perimetre'); // 3/3b : un externe ne signe que SON périmètre
 
 exports.handler = async (event) => {
   const headers = {
@@ -36,6 +37,17 @@ exports.handler = async (event) => {
   const auth = await verifyUser({ id: rid, code: rcode });
   if (!auth.ok) {
     return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Identité requise' }) };
+  }
+
+  // 3/3b : un externe ne peut signer un lien de visionnage que vers un sujet de SON périmètre
+  // (sinon il diffuserait un lien hors de son périmètre). Un Complet signe n'importe quel sujet.
+  if (auth.user.acces === 'Externe') {
+    let ids;
+    try { ids = await perimetreIds(auth.user.nom, process.env.NOTION_TOKEN); }
+    catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ ok: false, error: 'Périmètre indisponible' }) }; }
+    if (!ids.has(norm(sujetId))) {
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Hors périmètre' }) };
+    }
   }
 
   if (!process.env.REVIEW_SIGN_SECRET) {

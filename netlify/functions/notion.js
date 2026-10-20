@@ -15,11 +15,24 @@
 
 const { verifyUser } = require('./_auth');
 const { verifyReview } = require('./_review');
+const { pageDansPerimetre, perimetreIds } = require('./_perimetre'); // 3/3b : cloisonnement externe
 
 // Ids utiles à la grâce review (review.html ne tape que ces deux bases via le proxy).
 const DB_PROD    = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
 const DB_EQUIPE  = 'df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
+// 3/3b : bases pour le cloisonnement d'un EXTERNE.
+const DB_VERSIONS     = '3793eebb-2aeb-4d49-84ae-06d79cfb2704';
+const DB_COMMENTS     = '45fda8a6-dfbc-42c1-a26f-de09c289037b';
+const DB_MUSIQUES     = 'd9d3579257bc49059e6cd683a8b02fef';
+const DB_REFS         = '4ae84e174ee9473888eaa15112fcc6ee';
+const DB_CORRECTIONS  = '9a3c2b06-69d4-4f04-a2bb-7a25b84209e1';
+const DB_TACHES       = '0241d8dc-00a1-461c-9efa-00eb7e5fac70';
+const DB_NOTIFS       = '4398775b-c11f-4d73-99c4-9fc31c33ce8b';
+const DB_IDEES        = 'b164bf282a4e4ac78a15d5e894019daa';
+const DB_COMP         = 'f9b8d090-6c9e-4513-a67c-db2d82941a29';
+const DB_CLIENTS      = '228c6efb-eb59-42ef-8926-7ce34816cb96';
+const DB_CLIENTS_BRAND= '67abbb5f-f6a6-4937-89e3-6c852c515a8e';
 
 // Propriétés d'ÉLÉVATION : leur écriture par PATCH n'est JAMAIS permise via le proxy. Aucun flux
 // légitime ne les modifie par PATCH (le rôle n'est posé qu'à la CRÉATION d'un membre, par POST).
@@ -61,6 +74,32 @@ function filtreSujetId(filter) {
     return c ? ((c.rich_text && c.rich_text.equals) || null) : null;
   }
   return null;
+}
+
+// 3/3b : valeur texte d'une propriété rich_text d'une page renvoyée (forme lecture plain_text).
+function rtVal(props, prop) {
+  const rt = props && props[prop] && props[prop].rich_text;
+  return (rt && rt[0] && rt[0].plain_text) || '';
+}
+// 3/3b : valeur de la propriété 'Sujet ID' d'une page (forme lecture plain_text OU écriture text.content).
+function sidDeProps(props) {
+  const rt = props && props['Sujet ID'] && props['Sujet ID'].rich_text;
+  if (!rt || !rt[0]) return null;
+  return rt[0].plain_text || (rt[0].text && rt[0].text.content) || null;
+}
+// 3/3b : relit une page pour connaître son 'Sujet ID' (sert à borner un PATCH sur une page cascade).
+// FAIL-CLOSED : toute erreur → null → l'appelant refuse.
+async function sujetIdDeLaPage(pageId, token) {
+  try {
+    const r = await fetch('https://api.notion.com/v1/pages/' + pageId, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28' }
+    });
+    if (!r.ok) return null;
+    const p = await r.json();
+    return sidDeProps(p && p.properties);
+  } catch (e) {
+    return null;
+  }
 }
 
 exports.handler = async function(event) {
@@ -110,6 +149,10 @@ exports.handler = async function(event) {
   }
 
   // ── 3. Autorisation ───────────────────────────────────────────────────────
+  // 3/3b : flags appliqués APRÈS le relai, pour le cloisonnement d'un externe (filtrage de la réponse
+  // ou vérification d'une page unique). Restent nuls pour tout le monde sauf un externe.
+  let filtreSortie = null;       // prédicat(page) → garde la page ; applique à data.results
+  let verifPageExterne = false;  // GET d'une page : vérifier son périmètre après relai
   if (!user) {
     // Aucune identité équipe → on EXIGE un jeton de review signé (x-review-token), lié à UN sujet,
     // et on borne chaque opération à CE sujet. Plus de lecture anonyme de masse (porte 1), et un lien
@@ -163,6 +206,75 @@ exports.handler = async function(event) {
         && !user.peutGererAcces) {
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Modification non autorisée' }) };
     }
+
+    // ── 3/3b : CLOISONNEMENT EXTERNE ─────────────────────────────────────────
+    // N'exécute QUE pour acces==='Externe' : le chemin Complet (les 7) est inchangé par construction.
+    // FAIL-CLOSED partout : un doute refuse (jamais un 200 vide en guise de refus — les refus sont 403).
+    if (user.acces === 'Externe') {
+      const nom = user.nom;
+      const dbId = route.dbId ? norm(route.dbId) : null;
+      const CASCADE = [DB_RETOURS, DB_VERSIONS, DB_COMMENTS, DB_MUSIQUES, DB_REFS, DB_CORRECTIONS].map(norm);
+
+      if (route.kind === 'query') {
+        if (dbId === norm(DB_PROD)) {
+          // Production : relai, puis filtre de sortie aux sujets du périmètre (incontournable, patron 1/3).
+          filtreSortie = (page) => pageDansPerimetre(page, nom);
+        } else if (CASCADE.includes(dbId)) {
+          // Cascade : la query DOIT porter 'Sujet ID' = un sujet du périmètre.
+          const sid = filtreSujetId(body && body.filter);
+          let ids;
+          try { ids = await perimetreIds(nom, NOTION_TOKEN); }
+          catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
+          if (!sid || !ids.has(norm(sid))) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
+          }
+        } else if (dbId === norm(DB_NOTIFS)) {
+          // Ses notifications seulement (filtre de sortie Destinataire = lui — incontournable).
+          filtreSortie = (page) => rtVal(page && page.properties, 'Destinataire') === nom;
+        } else if (dbId === norm(DB_TACHES)) {
+          // Ses tâches seulement (Assigné OU Créé par = lui).
+          filtreSortie = (page) => {
+            const p = page && page.properties;
+            return rtVal(p, 'Assigné') === nom || rtVal(p, 'Créé par') === nom;
+          };
+        } else if (dbId === norm(DB_IDEES)) {
+          // Ses idées seulement (Proposé par = lui) — pas tout le pipeline éditorial.
+          filtreSortie = (page) => rtVal(page && page.properties, 'Proposé par') === nom;
+        } else if (dbId === norm(DB_CLIENTS_BRAND) || dbId === norm(DB_CLIENTS) || dbId === norm(DB_COMP)) {
+          // Roster clients / compteurs : un externe n'en a pas besoin (il ne crée pas de carte) → réponse
+          // VIDE (pas 403 : appLoadData charge DB_COMP + DB_CLIENTS_BRAND et doit recevoir une réponse).
+          filtreSortie = () => false;
+        } else {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) }; // ex. DB_EQUIPE
+        }
+      } else if (route.kind === 'page' && method === 'GET') {
+        verifPageExterne = true; // on ne connaît le type/périmètre de la page qu'après l'avoir lue
+      } else if (route.kind === 'page' && method === 'PATCH') {
+        // Écriture : un de SES sujets (DB_PROD), OU une page cascade dont le Sujet ID est au périmètre.
+        let ids;
+        try { ids = await perimetreIds(nom, NOTION_TOKEN); }
+        catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
+        if (!ids.has(norm(route.pageId))) {
+          const sid = await sujetIdDeLaPage(route.pageId, NOTION_TOKEN);
+          if (sid === null || !ids.has(norm(sid))) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
+          }
+        }
+      } else if (route.kind === 'create') {
+        // Pas de création de carte (DB_PROD) ni de membre (DB_EQUIPE) ; une page cascade à SON sujet.
+        const parent = body && body.parent && norm(body.parent.database_id);
+        if (parent === norm(DB_PROD) || parent === norm(DB_EQUIPE)) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
+        }
+        const sid = sidDeProps(body && body.properties);
+        let ids;
+        try { ids = await perimetreIds(nom, NOTION_TOKEN); }
+        catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
+        if (!sid || !ids.has(norm(sid))) {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
+        }
+      }
+    }
   }
 
   // ── 4. Relais Notion + projection de sécurité (1/3, inchangée) ────────────
@@ -191,6 +303,30 @@ exports.handler = async function(event) {
     if (data && typeof data === 'object') {
       if (Array.isArray(data.results)) data.results.forEach(retirerPropSecrete);
       if (data.properties) retirerPropSecrete(data);
+    }
+
+    // ── 3/3b : filtrage/vérif de sortie pour un externe (reste inerte pour les autres) ──
+    if (filtreSortie && data && Array.isArray(data.results)) {
+      data.results = data.results.filter(filtreSortie); // garde les pages du périmètre
+    }
+    if (verifPageExterne && user) {
+      // GET d'une page par un externe : autorisé seulement si c'est un de ses sujets, ou une page cascade
+      // dont le Sujet ID est au périmètre. Sinon 403 — on ne renvoie PAS la page. Fail-closed sur erreur.
+      let dansPerim = false;
+      try {
+        if (data && data.parent && norm(data.parent.database_id) === norm(DB_PROD)) {
+          dansPerim = pageDansPerimetre(data, user.nom);
+        } else {
+          const sid = sidDeProps(data && data.properties);
+          if (sid) {
+            const ids = await perimetreIds(user.nom, NOTION_TOKEN);
+            dansPerim = ids.has(norm(sid));
+          }
+        }
+      } catch (e) { dansPerim = false; }
+      if (!dansPerim) {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
+      }
     }
 
     return { statusCode: response.status, headers, body: JSON.stringify(data) };
