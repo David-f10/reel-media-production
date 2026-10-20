@@ -85,7 +85,22 @@
   /* RETOURS LIST */
   .retours-list { flex: 1; overflow-y: auto; min-height: 0; }
   .retour-item { padding: 10px 16px; border-bottom: 1px solid var(--border); }
-  .retour-item.other-version { opacity: 0.4; }
+  /* Historique inter-versions : lisible et distinct de la version courante — plus jamais une note
+     de bas de page à 40 % d'opacité. C'est la première chose que doit lire le client (lot B1). */
+  .histo-head { padding: 11px 16px 5px; font-size: 11px; font-weight: 600; color: var(--text); letter-spacing: 0.01em; background: var(--bg2); }
+  .histo-sub { padding: 0 16px 10px; font-size: 10.5px; color: var(--text3); line-height: 1.5; background: var(--bg2); border-bottom: 1px solid var(--border); }
+  .retour-item.histo { border-left: 2px solid var(--border2); background: var(--bg2); }
+  .r-sectile { padding: 10px 16px 5px; font-size: 11px; font-weight: 600; color: var(--text2); border-top: 1px solid var(--border); background: var(--bg3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .r-auteur { font-size: 10px; color: var(--text2); font-weight: 600; margin-bottom: 3px; }
+  .r-etat { font-size: 10px; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .r-etat.ok { color: var(--green); background: var(--green-dim); border: 1px solid rgba(29,158,117,0.3); }
+  .r-etat.imposs { color: #ff6b35; background: rgba(255,107,53,0.12); border: 1px solid rgba(255,107,53,0.3); }
+  .r-etat.clarif { color: #EF9F27; background: rgba(239,159,39,0.12); border: 1px solid rgba(239,159,39,0.3); }
+  .r-etat.attente { color: var(--text3); border: 1px solid var(--border2); }
+  .r-raison { font-size: 10.5px; color: #ff6b35; font-style: italic; margin-top: 4px; line-height: 1.5; }
+  .r-reform { font-size: 11px; color: var(--text2); line-height: 1.5; border-left: 2px solid #378ADD; padding: 3px 0 3px 9px; margin-top: 6px; }
+  .r-reform-by { font-size: 9px; color: #378ADD; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .histo-err { padding: 14px 16px; font-size: 11.5px; color: #EF9F27; background: rgba(239,159,39,0.08); border-bottom: 1px solid rgba(239,159,39,0.3); line-height: 1.5; }
   .retour-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
   .r-tc { font-family: var(--mono); font-size: 10px; color: var(--red); background: var(--red-dim); padding: 1px 6px; border-radius: 4px; }
   .r-cat { font-size: 10px; color: var(--text3); background: var(--bg4); padding: 1px 6px; border-radius: 4px; }
@@ -349,7 +364,9 @@ let versionActive = 'V1';
 let _validationEnvoi = false; // garde de ré-entrée de confirmerValidation (variable module, jamais le DOM)
 let videoUrl = '';
 let sujetData = null;
-let tousRetours = [];
+let tousRetours = [];      // retours de la personne connectée (le compte des « en cours » en dépend — inchangé)
+let histoRetours = [];     // B1 : TOUS les retours CLIENT du sujet, pour l'historique inter-versions
+let retoursErreur = false; // B1 : un échec de chargement doit SE VOIR, jamais un vide muet
 let versionsDisponibles = [];
 
 // Jeton de review signé (2/3b) : lu depuis l'URL (&t=…) et envoyé en en-tête à CHAQUE appel du proxy.
@@ -652,95 +669,149 @@ function changerVersion(v) {
   afficherRetours();
 }
 
+// Échappement HTML — AUCUN champ Notion n'est injecté brut dans le DOM (desc/auteur/reformulation
+// viennent du client ou de l'équipe). Règle maison ; review.html n'avait pas de helper, on l'ajoute.
+function escapeHtml(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 async function chargerTousRetours() {
   if(!sujetId) return;
+  // UNE requête (Sujet ID seul), puis tri en JS à défauts sûrs — aucun filtre Notion ajouté.
+  //   • tousRetours  = les retours de la personne connectée (le compte des « en cours » en dépend — INCHANGÉ).
+  //   • histoRetours = les retours CLIENT du sujet (Source='Client', NON brouillon), pour que le second
+  //                    interlocuteur lise ce que le premier a déjà demandé.
+  // La vraie barrière est CÔTÉ SERVEUR : la voie review de notion.js pose un filtre de sortie qui ne
+  // laisse descendre que Source='Client' && !Brouillon — les retours internes de l'équipe et les
+  // brouillons non validés ne quittent jamais le serveur. Le filtre JS ci-dessous est une défense en
+  // profondeur (il tient si le serveur était un jour affaibli), pas la garantie à lui seul.
   try {
     const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
-      filter: {and:[
-        {property:'Sujet ID', rich_text:{equals: sujetId}},
-        {property:'Auteur', rich_text:{equals: clientNom}}
-      ]},
+      filter: {property:'Sujet ID', rich_text:{equals: sujetId}},
       sorts: [{timestamp:'created_time', direction:'ascending'}]
     });
-    tousRetours = data.results;
+    const all = data.results || [];
+    tousRetours  = all.filter(r => (r.properties.Auteur?.rich_text?.[0]?.plain_text || '') === clientNom);
+    histoRetours = all.filter(r =>
+      (r.properties.Source?.select?.name || '') === 'Client' &&
+      !(r.properties.Brouillon?.checkbox)
+    );
+    retoursErreur = false;
     afficherRetours();
   } catch(e) {
-    // Fallback sans filtre and
-    try {
-      const data = await api('/databases/' + DB_RETOURS + '/query', 'POST', {
-        filter: {property:'Sujet ID', rich_text:{equals: sujetId}},
-        sorts: [{timestamp:'created_time', direction:'ascending'}]
-      });
-      tousRetours = data.results.filter(r =>
-        (r.properties.Auteur?.rich_text?.[0]?.plain_text || '') === clientNom
-      );
-      afficherRetours();
-    } catch(e2) { console.warn('Retours:', e2); }
+    // Pas de repli muet : on signale l'échec et on l'affiche. Un bloc vide se confondrait avec
+    // « aucune demande antérieure » — exactement ce qu'il ne faut pas laisser croire.
+    console.warn('Retours:', e);
+    retoursErreur = true;
+    afficherRetours();
   }
+}
+
+// Badge d'état d'une demande, depuis Statut (Ouvert / Corrigé / ⛔ Impossible / Clarification).
+function badgeEtatRetour(statut){
+  if(statut==='Corrigé')       return '<span class="r-etat ok">✓ Pris en compte</span>';
+  if(statut==='⛔ Impossible') return '<span class="r-etat imposs">⛔ Non réalisable</span>';
+  if(statut==='Clarification') return '<span class="r-etat clarif">✎ Clarification demandée</span>';
+  return '<span class="r-etat attente">• En cours</span>';
+}
+
+// Ordre des versions pour trier l'historique (V1 < V2 < … < V9).
+function numVersion(v){ const m = String(v||'').match(/(\d+)/); return m ? parseInt(m[1],10) : 0; }
+
+// Une ligne d'historique : demande d'une autre version OU d'un autre interlocuteur du même client.
+// Si l'équipe a reformulé la demande, on montre la reformulation et par qui (champs Reformulation /
+// Reformulé par / Timecode reformulé). Tous les champs affichés sont échappés.
+function ligneHisto(r){
+  const pr = r.properties;
+  const desc      = pr.Description?.title?.[0]?.plain_text || '';
+  const cat       = pr['Catégorie']?.select?.name || '';
+  const tc        = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+  const version   = pr.Version?.select?.name || '';
+  const auteur    = pr.Auteur?.rich_text?.[0]?.plain_text || '';
+  const statut    = pr.Statut?.select?.name || 'Ouvert';
+  const raison    = pr['Raison impossible']?.rich_text?.[0]?.plain_text || '';
+  const reform    = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
+  const reformPar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
+  const tcReform  = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
+  return `<div class="retour-item histo">
+    <div class="retour-item-top">
+      ${version?`<span class="r-version-badge">${escapeHtml(version)}</span>`:''}
+      ${tc?`<span class="r-tc">${escapeHtml(tc)}</span>`:''}
+      ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
+      ${badgeEtatRetour(statut)}
+    </div>
+    ${auteur?`<div class="r-auteur">${escapeHtml(auteur)}</div>`:''}
+    <div class="r-desc">${escapeHtml(desc)}</div>
+    ${(statut==='⛔ Impossible' && raison)?`<div class="r-raison">${escapeHtml(raison)}</div>`:''}
+    ${reform?`<div class="r-reform"><span class="r-reform-by">↳ Reformulé par ${escapeHtml(reformPar||"l'équipe")}</span>${tcReform?` <span class="r-tc">${escapeHtml(tcReform)}</span>`:''}<div style="margin-top:2px">${escapeHtml(reform)}</div></div>`:''}
+  </div>`;
 }
 
 function afficherRetours() {
   const list = document.getElementById('retours-list');
   const countEl = document.getElementById('retours-count');
 
-  // Retours version active
-  const retoursCourants = tousRetours.filter(r =>
+  // Échec de chargement : on le DIT (jamais un vide muet qui se confondrait avec « aucune demande »).
+  if(retoursErreur){
+    if(countEl) countEl.textContent = '—';
+    list.innerHTML = `<div class="histo-err">⚠️ Impossible de charger les retours pour l'instant. Rechargez la page — ceci ne veut pas dire « aucune demande antérieure ».</div>`;
+    return;
+  }
+
+  // Mes retours sur la version courante (ce que la personne connectée a écrit ici).
+  const mesCourants = tousRetours.filter(r =>
     (r.properties.Version?.select?.name || '') === versionActive
   );
-  // Retours autres versions (corrigés ou pas)
-  const retourAutres = tousRetours.filter(r =>
-    (r.properties.Version?.select?.name || '') !== versionActive
-  );
+  // Historique = tout le côté client SAUF mes retours sur la version courante (montrés plus bas) :
+  // donc les autres versions, ET les demandes des autres interlocuteurs, y compris sur cette version.
+  const histo = histoRetours
+    .filter(r => !(
+      (r.properties.Version?.select?.name || '') === versionActive &&
+      (r.properties.Auteur?.rich_text?.[0]?.plain_text || '') === clientNom
+    ))
+    .sort((a,b) => numVersion(a.properties.Version?.select?.name) - numVersion(b.properties.Version?.select?.name));
 
-  countEl.textContent = retoursCourants.length;
+  if(countEl) countEl.textContent = mesCourants.length;
 
-  if(!tousRetours.length) {
-    list.innerHTML = '<div class="empty-retours">Aucun retour pour le moment<br><span style="font-size:11px">Vos retours apparaîtront ici</span></div>';
+  if(!histo.length && !mesCourants.length){
+    list.innerHTML = `<div class="empty-retours">Aucun retour pour le moment<br><span style="font-size:11px">Vos retours apparaîtront ici</span></div>`;
     return;
   }
 
   let html = '';
 
-  // Retours de la version active
-  retoursCourants.forEach(r => {
-    const pr = r.properties;
-    const desc = pr.Description?.title?.[0]?.plain_text || '';
-    const cat = pr['Catégorie']?.select?.name || '';
-    const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
-    const statut = pr.Statut?.select?.name || 'Ouvert';
-    const corrige = statut === 'Corrigé';
-    const date = new Date(r.created_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-    html += `<div class="retour-item"${corrige?' style="border-left:2px solid #1D9E75"':''}>
-      <div class="retour-item-top">
-        ${tc?`<span class="r-tc">${tc}</span>`:''}
-        ${cat?`<span class="r-cat">${cat}</span>`:''}
-        ${corrige?`<span style="font-size:10px;color:#1D9E75;background:rgba(29,158,117,0.12);border:1px solid rgba(29,158,117,0.3);padding:1px 6px;border-radius:3px">✓ Pris en compte</span>`:''}
-      </div>
-      <div class="r-desc">${desc}</div>
-      <div class="r-meta">${date}</div>
-    </div>`;
-  });
+  // 1) L'HISTORIQUE D'ABORD — la première chose que lit le client (le cœur de B1).
+  if(histo.length){
+    html += `<div class="histo-head">Ce qui a déjà été demandé sur ce projet</div>`;
+    html += `<div class="histo-sub">Versions précédentes et demandes de vos collègues. À lire avant d'ajouter un retour : une demande peut déjà porter sur le même point.</div>`;
+    html += histo.map(ligneHisto).join('');
+  }
 
-  // Séparateur + retours autres versions (en gris)
-  if(retourAutres.length) {
-    html += `<div style="padding:8px 16px;font-size:10px;color:var(--text3);background:var(--bg3);text-transform:uppercase;letter-spacing:0.06em;border-top:1px solid var(--border)">Retours des autres versions</div>`;
-    retourAutres.forEach(r => {
+  // 2) MES retours sur la version courante.
+  html += `<div class="r-sectile">Vos retours sur la ${escapeHtml(versionActive)}</div>`;
+  if(mesCourants.length){
+    html += mesCourants.map(r => {
       const pr = r.properties;
-      const desc = pr.Description?.title?.[0]?.plain_text || '';
-      const cat = pr['Catégorie']?.select?.name || '';
-      const tc = pr.Timecode?.rich_text?.[0]?.plain_text || '';
-      const version = pr.Version?.select?.name || '';
-      const statut = pr.Statut?.select?.name || '';
-      html += `<div class="retour-item other-version">
+      const desc    = pr.Description?.title?.[0]?.plain_text || '';
+      const cat     = pr['Catégorie']?.select?.name || '';
+      const tc      = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+      const statut  = pr.Statut?.select?.name || 'Ouvert';
+      const corrige = statut === 'Corrigé';
+      const date    = new Date(r.created_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+      return `<div class="retour-item"${corrige?' style="border-left:2px solid var(--green)"':''}>
         <div class="retour-item-top">
-          <span class="r-version-badge">${version}</span>
-          ${tc?`<span class="r-tc">${tc}</span>`:''}
-          ${cat?`<span class="r-cat">${cat}</span>`:''}
-          ${statut==='Corrigé'?`<span class="r-status-ok">✓</span>`:''}
+          ${tc?`<span class="r-tc">${escapeHtml(tc)}</span>`:''}
+          ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
+          ${corrige?`<span class="r-etat ok">✓ Pris en compte</span>`:''}
         </div>
-        <div class="r-desc">${desc}</div>
+        <div class="r-desc">${escapeHtml(desc)}</div>
+        <div class="r-meta">${escapeHtml(date)}</div>
       </div>`;
-    });
+    }).join('');
+  } else {
+    html += `<div class="empty-retours" style="padding:16px">Vous n'avez pas encore écrit de retour sur cette version.</div>`;
   }
 
   list.innerHTML = html;

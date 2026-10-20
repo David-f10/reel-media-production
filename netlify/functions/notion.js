@@ -172,6 +172,18 @@ exports.handler = async function(event) {
       // chargerTousRetours() : le filtre doit porter 'Sujet ID' = sujetId DU JETON.
       const sid = filtreSujetId(body && body.filter);
       autorise = !!sid && norm(sid) === norm(rev.sujetId);
+      // Borne la RÉPONSE au serveur : un client ne reçoit QUE ses retours (Source='Client') et
+      // JAMAIS un brouillon non validé (Brouillon=true). Les retours internes de l'équipe (sans
+      // Source, ou brouillon en cours) ne descendent plus dans le navigateur. Filtrer à l'affichage
+      // ne cloisonne pas ; ce filtre de SORTIE borne le payload et tient même si review.html change.
+      // Même mécanisme que la branche Externe (filtreSortie). Effet voulu : quand l'équipe valide un
+      // brouillon (validerTousRetours pose Brouillon:false), la demande devient visible du client.
+      filtreSortie = (page) => {
+        const p = page && page.properties;
+        if (!p) return false;
+        const src = p.Source && p.Source.select && p.Source.select.name;
+        return src === 'Client' && !(p.Brouillon && p.Brouillon.checkbox);
+      };
     } else if (route.kind === 'create') {
       // Dépôt d'un retour : page dans DB_RETOURS, propriété 'Sujet ID' = sujetId DU JETON.
       const sid = body && body.properties && body.properties['Sujet ID'] && body.properties['Sujet ID'].rich_text
