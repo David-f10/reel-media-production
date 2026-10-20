@@ -4994,11 +4994,14 @@ async function telechargerVersion(fileId, btnEl) {
   // rempli après le POST. La page courante (carte + vidéo) reste intacte, et les
   // téléchargements successifs réutilisent le même onglet 'rm-download'.
   const win = window.open('', 'rm-download');
+  // 3/3b-2 : on transmet le sujet de la fiche ouverte (_detailSujetId) → le serveur borne le
+  // téléchargement au périmètre d'un externe. Pour un Complet, ce champ est ignoré (accès complet).
+  const sujetCode = (sujets.find(s => s.id === _detailSujetId) || {}).code || '';
   try {
     const res = await fetch('/.netlify/functions/drive-download', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: currentUser.id, code, fileId})
+      body: JSON.stringify({id: currentUser.id, code, fileId, sujetCode})
     });
     const data = await res.json().catch(() => ({}));
     if(!res.ok || !data.ok) throw new Error(data.error || 'HTTP ' + res.status);

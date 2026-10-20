@@ -55,4 +55,23 @@ async function perimetreIds(nom, token) {
   return ids;
 }
 
-module.exports = { pageDansPerimetre, perimetreIds, norm, CHAMPS };
+// 3/3b-2 : `nom` est-il sur le sujet de code `sujetCode` ? Une query DB_PROD ciblée
+// {and:[ Code = sujetCode, or(5 champs = nom) ]} (2 niveaux, dans la limite Notion). Pas de cache
+// (téléchargement rare, et on veut la vérité fraîche). Lève en cas d'échec → l'appelant refuse.
+async function estSurSujetCode(nom, sujetCode, token) {
+  if (!nom || !sujetCode) return false;
+  const filter = { and: [
+    { property: 'Code', rich_text: { equals: sujetCode } },
+    { or: CHAMPS.map(c => ({ property: c, select: { equals: nom } })) }
+  ]};
+  const r = await fetch('https://api.notion.com/v1/databases/' + DB_PROD + '/query', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filter, page_size: 1 })
+  });
+  if (!r.ok) throw new Error('perimetre sujet ' + r.status);
+  const d = await r.json();
+  return (d.results || []).length > 0;
+}
+
+module.exports = { pageDansPerimetre, perimetreIds, estSurSujetCode, norm, CHAMPS };
