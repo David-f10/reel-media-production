@@ -15,6 +15,8 @@
 
 const { verifyUser } = require('./_auth');
 const { openEphemeralDownload, extractFileId } = require('./_drive');
+const { fileIdsDuSujet } = require('./drive-download-review'); // 3/3b-2 : portier A∪B déjà éprouvé
+const { estSurSujetCode } = require('./_perimetre');           // 3/3b-2 : le sujet est-il au périmètre ?
 
 exports.handler = async (event) => {
   const headers = {
@@ -42,6 +44,29 @@ exports.handler = async (event) => {
   const auth = await verifyUser({ id, code });
   if (!auth.ok) {
     return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: auth.error || 'Non autorisé' }) };
+  }
+
+  // ── 3/3b-2 : un EXTERNE ne télécharge que des fichiers de SES cartes. Complet : inchangé. ──
+  // Deux vérifs, fail-closed : (1) l'externe est sur le sujet annoncé ; (2) le fileId appartient bien à
+  // ce sujet (portier A∪B de drive-download-review). Les deux empêchent de réclamer un fichier d'un
+  // sujet hors périmètre, OU un fichier d'un autre sujet sous couvert d'un code qu'on possède.
+  if (auth.user.acces === 'Externe') {
+    const sujetCode = String(body.sujetCode || '').trim();
+    if (!sujetCode) {
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Hors périmètre' }) };
+    }
+    let surSujet;
+    try { surSujet = await estSurSujetCode(auth.user.nom, sujetCode, process.env.NOTION_TOKEN); }
+    catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ ok: false, error: 'Périmètre indisponible' }) }; }
+    if (!surSujet) {
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Hors périmètre' }) };
+    }
+    let fileIds;
+    try { fileIds = await fileIdsDuSujet(sujetCode); }
+    catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ ok: false, error: 'Fichiers indisponibles' }) }; }
+    if (fileIds === null || !fileIds.includes(fileId)) {
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Hors périmètre' }) };
+    }
   }
 
   try {
