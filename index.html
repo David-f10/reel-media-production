@@ -424,10 +424,11 @@
     <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
       <div class="field" id="ret-origine-field" style="display:none">
         <div class="field-label">Origine du retour</div>
-        <select id="ret-origine">
+        <select id="ret-origine" onchange="var d=document.getElementById('ret-demandeur');if(d)d.style.display=this.value==='Client'?'block':'none'">
           <option value="">🙋 Mon retour</option>
           <option value="Client">👤 Retour client</option>
         </select>
+        <input type="text" id="ret-demandeur" placeholder="Nom du client qui a demandé (ex. Camille)" maxlength="120" style="display:none;margin-top:8px">
       </div>
       <div class="fg">
         <div class="field">
@@ -2029,7 +2030,7 @@ async function submitRetour() {
         'Sujet ID': {rich_text:[{text:{content: retourSujetId}}]},
         'Sujet titre': {rich_text:[{text:{content: sujet?.titre||''}}]},
         'Brouillon': {checkbox: true},
-        ...(document.getElementById('ret-origine')?.value === 'Client' ? {'Source':{select:{name:'Client'}}} : {})
+        ...(document.getElementById('ret-origine')?.value === 'Client' ? Object.assign({'Source':{select:{name:'Client'}}}, (document.getElementById('ret-demandeur')?.value||'').trim() ? {'Demandé par':{rich_text:[{text:{content:document.getElementById('ret-demandeur').value.trim()}}]}} : {}) : {})
       }
     });
     closeOv('ov-retour');
@@ -2084,7 +2085,7 @@ async function submitPlayerRetour(sujetId, version) {
         'Sujet titre': {rich_text:[{text:{content:sujet?.titre||''}}]},
         'Brouillon': {checkbox: true},
         ...(tcFin ? {'Timecode fin':{rich_text:[{text:{content:tcFin}}]}} : {}),
-        ...(document.getElementById('player-origine')?.value === 'Client' ? {'Source':{select:{name:'Client'}}} : {})
+        ...(document.getElementById('player-origine')?.value === 'Client' ? Object.assign({'Source':{select:{name:'Client'}}}, (document.getElementById('player-demandeur')?.value||'').trim() ? {'Demandé par':{rich_text:[{text:{content:document.getElementById('player-demandeur').value.trim()}}]}} : {}) : {})
       }
     });
     if(document.getElementById('player-desc')) document.getElementById('player-desc').value = '';
@@ -2122,6 +2123,17 @@ async function submitPlayerRetour(sujetId, version) {
 // Re-lecture FAIL-CLOSED (contrairement à champToujoursACa, fail-OPEN) : le doute — erreur,
 // timeout, page archivée — renvoie null → l'action destructive est REFUSÉE. Un bouton visible
 // n'est jamais une autorisation : la vérité, c'est cette relecture fraîche au moment d'agir.
+// Le DEMANDEUR d'un retour (jamais le transcripteur). Retour interne équipe → l'auteur. Retour client →
+// 'Demandé par' s'il est renseigné ; sinon l'auteur UNIQUEMENT si le retour a été déposé EN LIGNE (l'auteur
+// EST alors le client) ; sinon '' — on ne montre jamais le membre qui a saisi comme s'il avait demandé.
+function nomDemandeur(pr){
+  const source = pr.Source?.select?.name || 'Équipe';
+  const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '';
+  if(source !== 'Client') return auteur;
+  const dp = pr['Demandé par']?.rich_text?.[0]?.plain_text || '';
+  if(dp) return dp;
+  return pr['Déposé en ligne']?.checkbox ? auteur : '';
+}
 // Lot A — un retour non envoyé (TOUTE source) : inerte (ne compte pas, ne notifie pas).
 function estBrouillonRetour(pr){ return !!(pr && pr.Brouillon && pr.Brouillon.checkbox); }
 // Lot A — brouillon GÉRABLE par l'équipe (éditer/supprimer/valider) = brouillon NON déposé en ligne
@@ -2815,7 +2827,7 @@ async function loadRetours(sujetId) {
             </div>
             ${estAdapte?`<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${texteLibre(desc)}</div><div class="retour-desc"><span style="font-size:9px;color:var(--blue);font-weight:600">↳ Adapté par ${texteLibre(reformulePar||'chef')}</span>${tcReformule?` <span class="retour-tc">${tcReformule}</span>`:''}<div style="margin-top:2px">${texteLibre(reformulation)}</div></div>`:`<div class="retour-desc">${texteLibre(desc)}</div>`}
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${texteLibre(pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser')}</div>`:''}
-            <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
+            <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${escapeHtml(source==='Client'?(nomDemandeur(pr)||'Client'):auteur)}${(source==='Client' && !(pr['Déposé en ligne']?.checkbox) && auteur)?` · <span style="color:var(--text3)">saisi par ${escapeHtml(auteur)}</span>`:''} · ${date}</div>
             ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">❓ Clarifier</button>`:''}
           </div>
           ${brouillon?brouillonActions:clarification?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}')" title="Répondre (adapter la clarification)" style="width:18px;height:18px;border-radius:50%;border:2px solid #378ADD;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.background='rgba(55,138,221,0.15)'" onmouseout="this.style.background='transparent'">✏️</div>`:`<span style="font-size:9px;color:#378ADD;white-space:nowrap;text-align:center">⏳ En<br>attente</span>`}</div>`:(!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
@@ -5175,7 +5187,7 @@ function openPlayer(url, label, sujetId, version) {
         <!-- Formulaire (masqué par loadPlayerRetours si la version affichée n'est pas la courante) -->
         <div id="player-form-wrap" style="border-top:1px solid #1E1E2A;padding:12px 16px;background:#16161F;flex-shrink:0">
           <div style="font-size:10px;font-weight:600;color:#9898B0;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Laisser un retour</div>
-          ${(currentUser?.role==='Brand'||currentUser?.role==='Chef') ? `<select id="player-origine" style="width:100%;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;margin-bottom:8px"><option value="">🙋 Mon retour</option><option value="Client">👤 Retour client</option></select>` : ''}
+          ${(currentUser?.role==='Brand'||currentUser?.role==='Chef') ? `<select id="player-origine" onchange="var d=document.getElementById('player-demandeur');if(d)d.style.display=this.value==='Client'?'block':'none'" style="width:100%;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;margin-bottom:8px"><option value="">🙋 Mon retour</option><option value="Client">👤 Retour client</option></select><input type="text" id="player-demandeur" placeholder="Nom du client qui a demandé" maxlength="120" style="display:none;width:100%;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;margin-bottom:8px">` : ''}
           <div style="display:flex;gap:8px;margin-bottom:8px">
             <input type="text" id="player-tc" placeholder="1:24"
               style="width:70px;background:#1E1E2A;border:1px solid #2A2A3A;color:#F0F0F5;padding:6px 8px;border-radius:6px;font-size:12px;font-family:monospace;transition:border-color 0.15s"
@@ -5376,7 +5388,7 @@ async function loadPlayerRetours(sujetId, version) {
             </div>
             ${estAdapte?`<div style="font-size:11px;color:#5A5A70;font-style:italic;border-left:2px solid #2A2A3A;padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${texteLibre(desc)}</div><div style="font-size:12px;color:#9898B0;line-height:1.5"><span style="font-size:9px;color:#378ADD;font-weight:600">↳ Adapté par ${texteLibre(reformulePar||'chef')}</span>${tcReformule?` <span style="font-family:monospace;font-size:10px;color:#E63946;background:rgba(230,57,70,0.12);padding:1px 6px;border-radius:4px">${tcReformule}</span>`:''}<div style="margin-top:2px">${texteLibre(reformulation)}</div></div>`:`<div style="font-size:12px;color:#9898B0;line-height:1.5">${texteLibre(desc)}</div>`}
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${texteLibre(pr['Raison impossible']?.rich_text?.[0]?.plain_text||'')}</div>`:''}
-            <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${auteur} · ${date}</div>
+            <div style="font-size:10px;color:#5A5A70;margin-top:4px">${brouillon?`<span style="color:#E63946;font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${escapeHtml(source==='Client'?(nomDemandeur(pr)||'Client'):auteur)}${(source==='Client' && !(pr['Déposé en ligne']?.checkbox) && auteur)?` · saisi par ${escapeHtml(auteur)}`:''} · ${date}</div>
             ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}','${version}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:-apple-system,sans-serif">❓ Clarifier</button>`:''}
             ${(r.id===_inlineAdaptId && peutAdapter)?`<div style="margin-top:8px;padding:10px;background:rgba(55,138,221,0.06);border:1px solid rgba(55,138,221,0.25);border-radius:6px">
               <input id="player-adapt-tc" value="${(tcReformule||tc).replace(/"/g,'&quot;')}" placeholder="Timecode (optionnel)" onblur="formatTc(this)" onkeydown="tcKeydown(event,'player-adapt-desc')" style="width:100%;box-sizing:border-box;background:#0E0E14;border:1px solid #2A2A3A;color:#C8C8D8;font-size:11px;padding:5px 8px;border-radius:4px;font-family:monospace;margin-bottom:6px">

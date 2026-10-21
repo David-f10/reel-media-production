@@ -737,6 +737,9 @@ function ligneHisto(r){
   const reformPar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
   const tcReform  = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
   const brouillon = !!pr.Brouillon?.checkbox; // A : brouillon en ligne d'un autre interlocuteur → lecture seule
+  // Le nom montré est le DEMANDEUR, jamais le membre qui a transcrit : 'Demandé par' sinon, pour un
+  // retour déposé en ligne, l'Auteur (= le client) ; une transcription sans demandeur nommé → aucun nom.
+  const nomDem = (pr['Demandé par']?.rich_text?.[0]?.plain_text) || (pr['Déposé en ligne']?.checkbox ? auteur : '');
   return `<div class="retour-item histo">
     <div class="retour-item-top">
       ${version?`<span class="r-version-badge">${escapeHtml(version)}</span>`:''}
@@ -744,7 +747,7 @@ function ligneHisto(r){
       ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
       ${brouillon?'<span class="r-etat" style="color:#EF9F27;border:1px solid rgba(239,159,39,0.4)">brouillon · non envoyé</span>':badgeEtatRetour(statut)}
     </div>
-    ${auteur?`<div class="r-auteur">${escapeHtml(auteur)}</div>`:''}
+    ${nomDem?`<div class="r-auteur">${escapeHtml(nomDem)}</div>`:''}
     <div class="r-desc">${escapeHtml(desc)}</div>
     ${(statut==='⛔ Impossible' && raison)?`<div class="r-raison">${escapeHtml(raison)}</div>`:''}
     ${reform?`<div class="r-reform"><span class="r-reform-by">↳ Reformulé par ${escapeHtml(reformPar||"l'équipe")}</span>${tcReform?` <span class="r-tc">${escapeHtml(tcReform)}</span>`:''}<div style="margin-top:2px">${escapeHtml(reform)}</div></div>`:''}
@@ -878,6 +881,7 @@ async function soumettre() {
       'Timecode': {rich_text:[{text:{content:tc}}]},
       'Statut': {select:{name:'Ouvert'}},
       'Auteur': {rich_text:[{text:{content:clientNom}}]},
+      'Demandé par': {rich_text:[{text:{content:clientNom}}]},
       'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
       'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
       'Source': {select:{name:'Client'}},
