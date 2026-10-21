@@ -364,7 +364,7 @@ let _validationEnvoi = false; // garde de ré-entrée de confirmerValidation (va
 let videoUrl = '';
 let sujetData = null;
 let tousRetours = [];      // retours de la personne connectée (le compte des « en cours » en dépend — inchangé)
-let histoRetours = [];     // B1 : retours CLIENT ENVOYÉS du sujet, pour l'historique inter-versions
+let histoRetours = [];     // B1/A : contenu CLIENT du sujet (envoyés + brouillons en ligne des autres), historique
 let tousRetoursBruts = []; // A : la réponse brute du serveur (pour dériver le n° de série à l'envoi)
 let retoursErreur = false; // B1 : un échec de chargement doit SE VOIR, jamais un vide muet
 let versionsDisponibles = [];
@@ -694,10 +694,11 @@ async function chargerTousRetours() {
     const all = data.results || [];
     tousRetoursBruts = all; // A : conservé pour dériver le n° de série (max + 1) à l'envoi
     tousRetours  = all.filter(r => (r.properties.Auteur?.rich_text?.[0]?.plain_text || '') === clientNom);
-    histoRetours = all.filter(r =>
-      (r.properties.Source?.select?.name || '') === 'Client' &&
-      !(r.properties.Brouillon?.checkbox)
-    );
+    // A : on inclut AUSSI les brouillons en ligne des autres interlocuteurs (lecture seule, au nom de
+    // leur auteur) : si Thomas voit ce que Camille a déjà rédigé, même non envoyé, il ne demande pas
+    // l'inverse. Le serveur ne laisse descendre que du contenu client (jamais l'équipe). Mes propres
+    // retours de la version courante sont montrés plus bas (mesCourants) → exclus de l'historique.
+    histoRetours = all.filter(r => (r.properties.Source?.select?.name || '') === 'Client');
     retoursErreur = false;
     afficherRetours();
   } catch(e) {
@@ -735,12 +736,13 @@ function ligneHisto(r){
   const reform    = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
   const reformPar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
   const tcReform  = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
+  const brouillon = !!pr.Brouillon?.checkbox; // A : brouillon en ligne d'un autre interlocuteur → lecture seule
   return `<div class="retour-item histo">
     <div class="retour-item-top">
       ${version?`<span class="r-version-badge">${escapeHtml(version)}</span>`:''}
       ${tc?`<span class="r-tc">${escapeHtml(tc)}</span>`:''}
       ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
-      ${badgeEtatRetour(statut)}
+      ${brouillon?'<span class="r-etat" style="color:#EF9F27;border:1px solid rgba(239,159,39,0.4)">brouillon · non envoyé</span>':badgeEtatRetour(statut)}
     </div>
     ${auteur?`<div class="r-auteur">${escapeHtml(auteur)}</div>`:''}
     <div class="r-desc">${escapeHtml(desc)}</div>
@@ -941,19 +943,28 @@ async function confirmerEnvoiSerie(){
   try {
     const drafts = mesBrouillonsVersion();
     if(!drafts.length){ fermerPopup('popup-envoyer'); return; }
-    const maxSerie = tousRetoursBruts.reduce((m,r)=>Math.max(m, r.properties['Série']?.number||0), 0);
-    const serie = maxSerie + 1;
-    for(const r of drafts){
-      await api('/pages/'+r.id,'PATCH',{properties:{'Brouillon':{checkbox:false},'Série':{number:serie}}});
+    // L'ENVOI passe par la fonction dédiée : elle dérive le numéro de SÉRIE côté serveur (le navigateur
+    // n'en envoie aucun) et bascule tous les brouillons en une seule série. On ne fait que fournir les
+    // ids de NOS brouillons de la version.
+    const res = await fetch('/.netlify/functions/envoyer-retours', {
+      method: 'POST',
+      headers: reviewToken ? {'Content-Type':'application/json','x-review-token':reviewToken} : {'Content-Type':'application/json'},
+      body: JSON.stringify({ sujetId, version: versionActive, ids: drafts.map(r => r.id) })
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.ok){
+      toast('Envoi incomplet — réessayez' + (data && data.sent ? ` (${data.sent} partis)` : ''));
+      fermerPopup('popup-envoyer');
+      await chargerTousRetours();
+      return;
     }
-    // Sujet → « Retours » (garde anti-régression : jamais reculer un statut déjà avancé)
+    // Sujet → « Retours » (garde anti-régression) via la voie proxy déjà autorisée (PATCH Statut du sujet).
     const statutsAvances = ['Retours','Validation chef','PAD'];
     if(sujetId && !statutsAvances.includes(sujetData?.statut||'')){
-      await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}});
-      if(sujetData) sujetData.statut='Retours';
+      try { await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}}); if(sujetData) sujetData.statut='Retours'; } catch(_){}
     }
-    // UNE notification pour toute la série (là où chaque dépôt notifiait avant).
-    await notifierEquipe('retour', `${clientNom} a envoyé ${drafts.length} retour${drafts.length>1?'s':''} (série ${serie}) sur ${sujetCode} (${versionActive})`);
+    // UNE notification pour toute la série (là où chaque dépôt notifiait avant). Série = celle du serveur.
+    await notifierEquipe('retour', `${clientNom} a envoyé ${data.sent} retour${data.sent>1?'s':''} (série ${data.serie}) sur ${sujetCode} (${versionActive})`);
     fermerPopup('popup-envoyer');
     toast('Retours envoyés ✓');
     await chargerTousRetours();

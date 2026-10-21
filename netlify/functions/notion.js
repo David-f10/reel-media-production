@@ -121,9 +121,6 @@ async function pageBrouillonClientEnLigne(pageId, sujetId, token) {
     return src === 'Client' && enLigne && brouillon && !!sid && norm(sid) === norm(sujetId);
   } catch (e) { return false; }
 }
-// Lot A : seuls ces champs peuvent être posés par le client lors de l'ENVOI d'un brouillon.
-const CHAMPS_ENVOI_BROUILLON = new Set(['Brouillon', 'Série']);
-
 exports.handler = async function(event) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -225,13 +222,11 @@ exports.handler = async function(event) {
         // Cas existant : PATCH du SEUL 'Statut' sur LE sujet du jeton.
         autorise = true;
       } else if (await pageBrouillonClientEnLigne(route.pageId, rev.sujetId, NOTION_TOKEN)) {
-        // Lot A : le client gère SON brouillon en ligne (de CE sujet). Deux gestes bornés :
-        //  • envoi       : properties ⊆ { Brouillon, Série } (bascule Brouillon→false + numéro de série) ;
-        //  • suppression : { archived:true } seul (un retour mal déposé ne reste jamais coincé).
-        const hasArchived = body && Object.prototype.hasOwnProperty.call(body, 'archived');
-        const suppression = body && body.archived === true && keys.length === 0;              // { archived:true } SEUL
-        const envoi = !hasArchived && keys.length > 0 && keys.every(k => CHAMPS_ENVOI_BROUILLON.has(k)); // properties ⊆ whitelist, sans archived
-        autorise = suppression || envoi;
+        // Lot A : par le proxy, le client ne peut QUE SUPPRIMER son brouillon en ligne ({ archived:true }
+        // SEUL — un retour mal déposé ne reste jamais coincé). L'ENVOI (bascule Brouillon + numéro de
+        // série) passe par la fonction dédiée envoyer-retours.js, qui dérive la série CÔTÉ SERVEUR : le
+        // navigateur n'écrit JAMAIS 'Brouillon' ni 'Série' par cette voie.
+        autorise = body && body.archived === true && keys.length === 0;
       }
     }
     if (!autorise) {
