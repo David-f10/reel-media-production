@@ -101,6 +101,28 @@ async function sujetIdDeLaPage(pageId, token) {
     return null;
   }
 }
+// Lot A : la page `pageId` est-elle un brouillon CLIENT EN LIGNE du sujet `sujetId` ? Sert à autoriser
+// l'envoi (bascule Brouillon→false + Série) et la SUPPRESSION d'un brouillon par le client via la voie
+// review. Le discriminant est le marqueur FIGÉ 'Déposé en ligne' (posé par review.html au dépôt), jamais
+// l'auteur : une transcription de l'équipe (Source='Client', Brouillon, sans ce marqueur) n'est donc
+// JAMAIS gérable par le client. FAIL-CLOSED : toute erreur → false → l'appelant refuse.
+async function pageBrouillonClientEnLigne(pageId, sujetId, token) {
+  try {
+    const r = await fetch('https://api.notion.com/v1/pages/' + pageId, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28' }
+    });
+    if (!r.ok) return false;
+    const p = await r.json();
+    const pr = p && p.properties; if (!pr) return false;
+    const src = pr.Source && pr.Source.select && pr.Source.select.name;
+    const enLigne = !!(pr['Déposé en ligne'] && pr['Déposé en ligne'].checkbox);
+    const brouillon = !!(pr.Brouillon && pr.Brouillon.checkbox);
+    const sid = sidDeProps(pr);
+    return src === 'Client' && enLigne && brouillon && !!sid && norm(sid) === norm(sujetId);
+  } catch (e) { return false; }
+}
+// Lot A : seuls ces champs peuvent être posés par le client lors de l'ENVOI d'un brouillon.
+const CHAMPS_ENVOI_BROUILLON = new Set(['Brouillon', 'Série']);
 
 exports.handler = async function(event) {
   const headers = {
@@ -178,11 +200,17 @@ exports.handler = async function(event) {
       // ne cloisonne pas ; ce filtre de SORTIE borne le payload et tient même si review.html change.
       // Même mécanisme que la branche Externe (filtreSortie). Effet voulu : quand l'équipe valide un
       // brouillon (validerTousRetours pose Brouillon:false), la demande devient visible du client.
+      // Lot A : on relâche le filtre pour laisser descendre AUSSI les brouillons déposés EN LIGNE par le
+      // client (il doit les relire/modifier/envoyer). Les transcriptions de l'équipe (Source='Client',
+      // Brouillon, SANS marqueur 'Déposé en ligne') ne descendent toujours jamais. Marqueur figé, donc
+      // aucune dérive si la composition de l'équipe change ; aucune lecture DB_EQUIPE sur ce chemin.
       filtreSortie = (page) => {
         const p = page && page.properties;
         if (!p) return false;
         const src = p.Source && p.Source.select && p.Source.select.name;
-        return src === 'Client' && !(p.Brouillon && p.Brouillon.checkbox);
+        if (src !== 'Client') return false;                                 // jamais de contenu interne équipe
+        if (!(p.Brouillon && p.Brouillon.checkbox)) return true;            // retour client ENVOYÉ → descend
+        return !!(p['Déposé en ligne'] && p['Déposé en ligne'].checkbox);   // brouillon : seulement si déposé EN LIGNE
       };
     } else if (route.kind === 'create') {
       // Dépôt d'un retour : page dans DB_RETOURS, propriété 'Sujet ID' = sujetId DU JETON.
@@ -191,10 +219,20 @@ exports.handler = async function(event) {
         && body.properties['Sujet ID'].rich_text[0].text.content;
       autorise = !!(body && body.parent && norm(body.parent.database_id) === norm(DB_RETOURS) && sid && norm(sid) === norm(rev.sujetId));
     } else if (route.kind === 'page' && method === 'PATCH') {
-      // PATCH du SEUL 'Statut', ET uniquement sur LE sujet du jeton (id de page = sujetId du jeton).
       const props = body && body.properties;
       const keys = props && typeof props === 'object' ? Object.keys(props) : [];
-      autorise = norm(route.pageId) === norm(rev.sujetId) && keys.length === 1 && keys[0] === 'Statut';
+      if (norm(route.pageId) === norm(rev.sujetId) && keys.length === 1 && keys[0] === 'Statut') {
+        // Cas existant : PATCH du SEUL 'Statut' sur LE sujet du jeton.
+        autorise = true;
+      } else if (await pageBrouillonClientEnLigne(route.pageId, rev.sujetId, NOTION_TOKEN)) {
+        // Lot A : le client gère SON brouillon en ligne (de CE sujet). Deux gestes bornés :
+        //  • envoi       : properties ⊆ { Brouillon, Série } (bascule Brouillon→false + numéro de série) ;
+        //  • suppression : { archived:true } seul (un retour mal déposé ne reste jamais coincé).
+        const hasArchived = body && Object.prototype.hasOwnProperty.call(body, 'archived');
+        const suppression = body && body.archived === true && keys.length === 0;              // { archived:true } SEUL
+        const envoi = !hasArchived && keys.length > 0 && keys.every(k => CHAMPS_ENVOI_BROUILLON.has(k)); // properties ⊆ whitelist, sans archived
+        autorise = suppression || envoi;
+      }
     }
     if (!autorise) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Hors périmètre du lien' }) };

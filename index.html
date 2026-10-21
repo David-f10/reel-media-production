@@ -2122,6 +2122,13 @@ async function submitPlayerRetour(sujetId, version) {
 // Re-lecture FAIL-CLOSED (contrairement à champToujoursACa, fail-OPEN) : le doute — erreur,
 // timeout, page archivée — renvoie null → l'action destructive est REFUSÉE. Un bouton visible
 // n'est jamais une autorisation : la vérité, c'est cette relecture fraîche au moment d'agir.
+// Lot A — un retour non envoyé (TOUTE source) : inerte (ne compte pas, ne notifie pas).
+function estBrouillonRetour(pr){ return !!(pr && pr.Brouillon && pr.Brouillon.checkbox); }
+// Lot A — brouillon GÉRABLE par l'équipe (éditer/supprimer/valider) = brouillon NON déposé en ligne
+// (= saisie/transcription équipe). Un brouillon déposé EN LIGNE est au client : visible, mais l'équipe
+// ne l'envoie pas à sa place. Discriminant = marqueur FIGÉ 'Déposé en ligne', jamais l'auteur (zéro dérive).
+function estBrouillonEquipe(pr){ return estBrouillonRetour(pr) && !(pr['Déposé en ligne'] && pr['Déposé en ligne'].checkbox); }
+
 async function relireBrouillon(retourId) {
   try {
     const page = await Promise.race([
@@ -2131,7 +2138,7 @@ async function relireBrouillon(retourId) {
     if(!page || page.archived) return null;
     const pr = page.properties || {};
     return {
-      brouillon: (pr.Source?.select?.name||'Équipe')==='Équipe' && (pr.Brouillon?.checkbox||false),
+      brouillon: estBrouillonEquipe(pr),   // lot A : gérable par l'équipe = brouillon NON déposé en ligne
       auteur: (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim(),
       desc: pr.Description?.title?.[0]?.plain_text||'',
       version: pr.Version?.select?.name||'V1',
@@ -2757,15 +2764,15 @@ async function loadRetours(sujetId) {
     // Boutons de tête (empilés). (1) Brouillons — chef → tous les brouillons Équipe, sinon → les miens.
     const isChefUser = currentUser?.role === 'Chef';
     const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || chefParDefaut();
-    const hasBrouillonEquipe = retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
+    const hasBrouillonEquipe = retours.some(r => estBrouillonEquipe(r.properties));
     const myName = (currentUser?.nom||'').trim();
-    const hasMesBrouillons = !!myName && retours.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
+    const hasMesBrouillons = !!myName && retours.some(r => estBrouillonEquipe(r.properties) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
     const btnBrouillon = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
       ? `<button onclick="validerTousRetours('${sujetId}', this)" class="nav-btn primary" style="width:100%;font-size:12px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button>`
       : '';
     // (2) Tout marquer corrigé — même périmètre que la coche manuelle : statut 'Ouvert', version affichée,
     // non brouillon (Clarification/Impossible/Corrigé exclus, autres versions exclues). Vert = couleur du « Corrigé ».
-    const nOuvertsSel = selVer ? retours.filter(r => (r.properties.Statut?.select?.name)==='Ouvert' && (r.properties.Version?.select?.name)===selVer && !((r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false))).length : 0;
+    const nOuvertsSel = selVer ? retours.filter(r => (r.properties.Statut?.select?.name)==='Ouvert' && (r.properties.Version?.select?.name)===selVer && !estBrouillonRetour(r.properties)).length : 0;
     const btnCorriger = nOuvertsSel > 0
       ? `<button onclick="corrigerTousRetours('${sujetId}','${selVer}',this)" class="nav-btn" style="width:100%;font-size:12px;border-color:var(--green);color:var(--green)">✓ Tout marquer corrigé · ${selVer} (${nOuvertsSel})</button>`
       : '';
@@ -2782,19 +2789,20 @@ async function loadRetours(sujetId) {
       const statut = pr.Statut?.select?.name || 'Ouvert';
       const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
       const source = pr.Source?.select?.name || 'Équipe';
-      const brouillon = source==='Équipe' && (pr.Brouillon?.checkbox||false);
+      const brouillon = estBrouillonRetour(pr);          // tout brouillon : rendu « draft » + opacity + titre
+      const brouillonEquipe = estBrouillonEquipe(pr);    // gérable par l'équipe (éditer/supprimer) — PAS les brouillons client
       const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
       const corrige = statut === 'Corrigé';
       const impossible = statut === '⛔ Impossible';
       const estMoi = (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim() === myName;
-      const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border2)'">🗑</div>`:''}</div>` : '';
+      const brouillonActions = brouillonEquipe ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border2)'">🗑</div>`:''}</div>` : '';
       const reformulation = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
       const reformulePar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
       const tcReformule = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
       const estAdapte = !!reformulation;
       const peutAdapter = isChefUser && !corrige && !impossible && !brouillon && !estMoi;
       const clarification = statut === 'Clarification';
-      const peutDemander = source==='Client' && !isChefUser && statut==='Ouvert' && !estAdapte;
+      const peutDemander = source==='Client' && !isChefUser && statut==='Ouvert' && !estAdapte && !brouillon;
       return `<div class="retour-row" style="${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':clarification?'border-left:2px solid #378ADD':''}"${brouillon?' title="Retour en brouillon, non validé"':''}>
           <div style="flex:1;min-width:0${brouillon?';opacity:0.55':''}">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
@@ -2902,7 +2910,7 @@ async function validerTousRetours(sujetId, btnEl, version) {
     // Garde de périmètre : chef → tous les brouillons Équipe ; sinon → uniquement les siens.
     const estChef = currentUser?.role === 'Chef';
     const myName = (currentUser?.nom||'').trim();
-    const aValider = data.results.filter(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (estChef || (!!myName && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName)));
+    const aValider = data.results.filter(r => estBrouillonEquipe(r.properties) && (estChef || (!!myName && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName)));
     if(!aValider.length) { toast('Aucun retour à valider','err'); return; } // bouton intact : état « envoi » pas encore posé
     if(btnEl) { btnEl.textContent = '⏳ Envoi en cours…'; btnEl.style.pointerEvents = 'none'; }
     for(const r of aValider) {
@@ -2935,7 +2943,7 @@ async function corrigerTousRetours(sujetId, selVer, btnEl) {
     const aCorriger = data.results.filter(r =>
       (r.properties.Statut?.select?.name)==='Ouvert' &&
       (r.properties.Version?.select?.name)===selVer &&
-      !((r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false)));
+      !estBrouillonRetour(r.properties));
     const n = aCorriger.length;
     if(!n) { toast('Aucun retour ouvert sur ' + selVer,'err'); return; } // bouton intact, aucune écriture
     const ok = await confirmerAction(
@@ -5318,9 +5326,9 @@ async function loadPlayerRetours(sujetId, version) {
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
     const isChefUser = currentUser?.role === 'Chef';
     const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || chefParDefaut();
-    const hasBrouillonEquipe = retoursAff.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false));
+    const hasBrouillonEquipe = retoursAff.some(r => estBrouillonEquipe(r.properties));
     const myName = (currentUser?.nom||'').trim();
-    const hasMesBrouillons = !!myName && retoursAff.some(r => (r.properties.Source?.select?.name||'Équipe')==='Équipe' && (r.properties.Brouillon?.checkbox||false) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
+    const hasMesBrouillons = !!myName && retoursAff.some(r => estBrouillonEquipe(r.properties) && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName);
     let html = ((isChefUser && hasBrouillonEquipe) || (!isChefUser && hasMesBrouillons))
       ? `<div style="padding:8px 14px;border-bottom:1px solid #1E1E2A;background:#16161F"><button onclick="validerTousRetours('${sujetId}', this, '${version}')" class="nav-btn primary" style="width:100%;font-size:11px">${isChefUser ? 'Valider tous les retours' : 'Valider mes retours'}</button></div>`
       : '';
@@ -5339,12 +5347,13 @@ async function loadPlayerRetours(sujetId, version) {
         const statut = pr.Statut?.select?.name || 'Ouvert';
         const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
         const source = pr.Source?.select?.name || 'Équipe';
-        const brouillon = source==='Équipe' && (pr.Brouillon?.checkbox||false);
+        const brouillon = estBrouillonRetour(pr);          // tout brouillon : rendu « draft » + opacity
+        const brouillonEquipe = estBrouillonEquipe(pr);    // gérable par l'équipe — PAS les brouillons client
         const date = new Date(r.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
         const corrige = statut === 'Corrigé';
         const impossible = statut === '⛔ Impossible';
         const estMoi = (pr.Auteur?.rich_text?.[0]?.plain_text||'').trim() === myName;
-        const brouillonActions = brouillon ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}','${version}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#378ADD'" onmouseout="this.style.borderColor='#2A2A3A'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}','${version}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#E63946'" onmouseout="this.style.borderColor='#2A2A3A'">🗑</div>`:''}</div>` : '';
+        const brouillonActions = brouillonEquipe ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${estMoi?`<div onclick="ouvrirEditionBrouillon('${r.id}','${sujetId}','${version}')" title="Modifier le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#378ADD'" onmouseout="this.style.borderColor='#2A2A3A'">✏️</div>`:''}${(estMoi||isChefUser)?`<div onclick="supprimerBrouillon('${r.id}','${sujetId}','${version}')" title="Supprimer le brouillon" style="width:18px;height:18px;border-radius:50%;border:2px solid #2A2A3A;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='#E63946'" onmouseout="this.style.borderColor='#2A2A3A'">🗑</div>`:''}</div>` : '';
         const opacity = (!isActive || brouillon) ? 'opacity:0.45;' : '';
 
         const reformulation = pr.Reformulation?.rich_text?.[0]?.plain_text || '';
@@ -5353,7 +5362,7 @@ async function loadPlayerRetours(sujetId, version) {
         const estAdapte = !!reformulation;
         const peutAdapter = isChefUser && !corrige && !impossible && !brouillon && !estMoi;
         const clarification = statut === 'Clarification';
-        const peutDemander = source==='Client' && !isChefUser && statut==='Ouvert' && !estAdapte;
+        const peutDemander = source==='Client' && !isChefUser && statut==='Ouvert' && !estAdapte && !brouillon;
         html += `<div style="${opacity}display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1E1E2A;${corrige?'border-left:2px solid #1D9E75':impossible?'border-left:2px solid #ff6b35':clarification?'border-left:2px solid #378ADD':''};transition:background 0.1s"
           onmouseover="this.style.background='#16161F'" onmouseout="this.style.background='transparent'">
           <div style="flex:1;min-width:0">

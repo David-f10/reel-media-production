@@ -269,11 +269,10 @@
       </div>
       <textarea class="form-input" id="r-desc" placeholder="Décrivez votre retour..." style="min-height:64px;resize:none;margin-bottom:8px"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();soumettre()}"></textarea>
-      <button class="btn-envoyer" onclick="soumettre()">Envoyer ce retour →</button>
+      <button class="btn-envoyer" onclick="soumettre()">Ajouter à mes retours</button>
       <div class="btn-actions">
         <div class="cloture-titre">Quand vous avez terminé</div>
-        <button id="btn-fini" class="btn-cloture" onclick="marquerFini()" style="background:var(--bg4);border:1px solid var(--border2);color:var(--text2)">✔ J'ai fini mes retours</button>
-        <button class="btn-cloture" onclick="ouvrirEnvoi()" style="background:#2A2A3A;border:1px solid #3A3A4A;color:var(--text);font-weight:600">📨 Envoyer les retours à l'équipe</button>
+        <button id="btn-envoyer-serie" class="btn-cloture" onclick="ouvrirEnvoiSerie()" style="display:none;background:var(--green);border:1px solid var(--green);color:#04150f;font-weight:600">📨 Envoyer mes retours →</button>
         <button class="btn-valider btn-cloture" onclick="ouvrirValidation()" style="font-weight:600">✅ Valider cette version</button>
         <a class="btn-dl" id="btn-dl" href="#" target="_blank" style="justify-content:center;margin-top:2px">⬇ Télécharger</a>
       </div>
@@ -341,11 +340,11 @@
 <div class="popup-overlay" id="popup-envoyer">
   <div class="popup-card">
     <div class="popup-icon">📨</div>
-    <div class="popup-title">Envoyer les retours ?</div>
-    <div class="popup-sub">Vous allez <strong>clôturer les retours pour toute votre équipe</strong>. L'équipe Réel Média sera notifiée qu'elle peut les traiter. Confirmer ?</div>
+    <div class="popup-title">Envoyer vos retours ?</div>
+    <div class="popup-sub" id="popup-envoyer-sub">Vous allez envoyer vos retours à l'équipe. Une fois envoyés, ils ne sont plus modifiables.</div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="popup-btn" onclick="fermerPopup('popup-envoyer')" style="flex:1">Annuler</button>
-      <button onclick="confirmerEnvoi()" style="flex:1;background:#2A2A3A;border:1px solid #3A3A4A;color:var(--text);padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:600">Confirmer l'envoi</button>
+      <button id="btn-confirmer-envoi" onclick="confirmerEnvoiSerie()" style="flex:1;background:var(--green);border:none;color:#fff;padding:9px 20px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:600">📨 Envoyer</button>
     </div>
   </div>
 </div>
@@ -365,7 +364,8 @@ let _validationEnvoi = false; // garde de ré-entrée de confirmerValidation (va
 let videoUrl = '';
 let sujetData = null;
 let tousRetours = [];      // retours de la personne connectée (le compte des « en cours » en dépend — inchangé)
-let histoRetours = [];     // B1 : TOUS les retours CLIENT du sujet, pour l'historique inter-versions
+let histoRetours = [];     // B1 : retours CLIENT ENVOYÉS du sujet, pour l'historique inter-versions
+let tousRetoursBruts = []; // A : la réponse brute du serveur (pour dériver le n° de série à l'envoi)
 let retoursErreur = false; // B1 : un échec de chargement doit SE VOIR, jamais un vide muet
 let versionsDisponibles = [];
 
@@ -605,9 +605,8 @@ async function init() {
   buildVersionTabs();
   // Charger le player avec la version active
   chargerPlayer(versionActive);
-  // Charger tous les retours du client
+  // Charger tous les retours du client (afficherRetours gère le bouton « Envoyer mes retours »)
   await chargerTousRetours();
-  majBoutonFini(); // état « J'ai fini / Reprendre » selon sessionStorage (par personne + sujet)
 }
 
 function buildVersionTabs() {
@@ -693,6 +692,7 @@ async function chargerTousRetours() {
       sorts: [{timestamp:'created_time', direction:'ascending'}]
     });
     const all = data.results || [];
+    tousRetoursBruts = all; // A : conservé pour dériver le n° de série (max + 1) à l'envoi
     tousRetours  = all.filter(r => (r.properties.Auteur?.rich_text?.[0]?.plain_text || '') === clientNom);
     histoRetours = all.filter(r =>
       (r.properties.Source?.select?.name || '') === 'Client' &&
@@ -789,10 +789,29 @@ function afficherRetours() {
     html += histo.map(ligneHisto).join('');
   }
 
-  // 2) MES retours sur la version courante.
+  // 2) MES retours sur la version courante : d'abord les BROUILLONS (non envoyés, supprimables),
+  //    puis les retours déjà ENVOYÉS. L'envoi se fait par le bouton « Envoyer mes N retours ».
   html += `<div class="r-sectile">Vos retours sur la ${escapeHtml(versionActive)}</div>`;
-  if(mesCourants.length){
-    html += mesCourants.map(r => {
+  const mesBrouillons = mesCourants.filter(r => r.properties.Brouillon?.checkbox);
+  const mesEnvoyes    = mesCourants.filter(r => !r.properties.Brouillon?.checkbox);
+  if(mesBrouillons.length || mesEnvoyes.length){
+    html += mesBrouillons.map(r => {
+      const pr = r.properties;
+      const desc = pr.Description?.title?.[0]?.plain_text || '';
+      const cat  = pr['Catégorie']?.select?.name || '';
+      const tc   = pr.Timecode?.rich_text?.[0]?.plain_text || '';
+      return `<div class="retour-item" style="border-left:2px solid #EF9F27">
+        <div class="retour-item-top">
+          ${tc?`<span class="r-tc">${escapeHtml(tc)}</span>`:''}
+          ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
+          <span class="r-etat" style="color:#EF9F27;border:1px solid rgba(239,159,39,0.4)">brouillon · non envoyé</span>
+          <span style="flex:1"></span>
+          <button onclick="supprimerMonBrouillon('${r.id}')" title="Supprimer ce brouillon" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px">🗑</button>
+        </div>
+        <div class="r-desc">${escapeHtml(desc)}</div>
+      </div>`;
+    }).join('');
+    html += mesEnvoyes.map(r => {
       const pr = r.properties;
       const desc    = pr.Description?.title?.[0]?.plain_text || '';
       const cat     = pr['Catégorie']?.select?.name || '';
@@ -804,7 +823,7 @@ function afficherRetours() {
         <div class="retour-item-top">
           ${tc?`<span class="r-tc">${escapeHtml(tc)}</span>`:''}
           ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
-          ${corrige?`<span class="r-etat ok">✓ Pris en compte</span>`:''}
+          ${corrige?`<span class="r-etat ok">✓ Pris en compte</span>`:`<span class="r-etat" style="color:var(--text3);border:1px solid var(--border2)">envoyé</span>`}
         </div>
         <div class="r-desc">${escapeHtml(desc)}</div>
         <div class="r-meta">${escapeHtml(date)}</div>
@@ -815,6 +834,7 @@ function afficherRetours() {
   }
 
   list.innerHTML = html;
+  majBoutonEnvoi(mesBrouillons.length);
 }
 
 // Conversion timecode : chiffres seuls → M:SS (les 2 derniers = secondes, le reste = minutes).
@@ -846,6 +866,10 @@ async function soumettre() {
   descEl.style.borderColor='';
 
   try {
+    // Lot A : on dépose un BROUILLON. Rien n'est transmis, rien n'est notifié, le sujet ne passe PAS
+    // en « Retours » tant que le client n'a pas cliqué « Envoyer ». Le marqueur figé 'Déposé en ligne'
+    // dit au serveur que c'est un vrai brouillon client (à faire redescendre et gérable par le client),
+    // par opposition à une transcription saisie par l'équipe.
     const props = {
       'Description': {title:[{text:{content:desc}}]},
       'Version': {select:{name:versionActive}},
@@ -854,25 +878,87 @@ async function soumettre() {
       'Auteur': {rich_text:[{text:{content:clientNom}}]},
       'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
       'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
-      'Source': {select:{name:'Client'}}
+      'Source': {select:{name:'Client'}},
+      'Brouillon': {checkbox:true},
+      'Déposé en ligne': {checkbox:true}
     };
     if(cat) props['Catégorie'] = {select:{name:cat}};
 
     await api('/pages','POST',{parent:{database_id:DB_RETOURS},properties:props});
 
-    // Sujet → statut Retours
-    if(sujetId) await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}});
-
-    // Notif équipe (cloche + push via notify.js) : chef + journaliste + monteur de
-    // la version concernée + contact Brand, dédupliqués.
-    await notifierEquipe('retour', `${clientNom} a laissé un retour sur ${sujetCode} (${versionActive})${tc?' · '+tc:''}${cat?' · '+cat:''}`);
-
     document.getElementById('r-desc').value='';
     document.getElementById('r-tc').value='';
     document.getElementById('r-cat').value='';
-    toast('Retour envoyé ✓');
+    toast('Ajouté à vos retours (brouillon)');
     await chargerTousRetours();
   } catch(e){toast('Erreur : '+e.message);}
+}
+
+// Lot A — supprimer MON brouillon (non envoyé). PATCH {archived:true} ; le proxy ne l'autorise que sur
+// un brouillon client EN LIGNE de CE sujet. Un retour mal déposé ne reste jamais coincé.
+async function supprimerMonBrouillon(id){
+  if(!id) return;
+  try {
+    await api('/pages/'+id,'PATCH',{archived:true});
+    toast('Brouillon supprimé');
+    await chargerTousRetours();
+  } catch(e){ toast('Erreur : '+e.message); }
+}
+
+// Mes brouillons sur la version courante (ce que « Envoyer » transmettra).
+function mesBrouillonsVersion(){
+  return tousRetours.filter(r =>
+    (r.properties.Version?.select?.name||'') === versionActive &&
+    (r.properties.Brouillon?.checkbox));
+}
+
+// Lot A — bouton « Envoyer mes N retours » : visible seulement si j'ai des brouillons sur CETTE version.
+function majBoutonEnvoi(nb){
+  const b = document.getElementById('btn-envoyer-serie');
+  if(!b) return;
+  if(nb>0){ b.style.display=''; b.textContent = `📨 Envoyer ${nb} retour${nb>1?'s':''} →`; }
+  else { b.style.display='none'; }
+}
+
+// Lot A — pop-up récap AVANT l'envoi : le décompte et le n° de série s'affichent avant le clic.
+function ouvrirEnvoiSerie(){
+  const n = mesBrouillonsVersion().length;
+  if(!n){ toast('Aucun brouillon à envoyer sur cette version'); return; }
+  const maxSerie = tousRetoursBruts.reduce((m,r)=>Math.max(m, r.properties['Série']?.number||0), 0);
+  const serie = maxSerie + 1;
+  const sub = document.getElementById('popup-envoyer-sub');
+  if(sub) sub.innerHTML = `Vous allez envoyer <strong>${n} retour${n>1?'s':''}</strong> sur la <strong>${escapeHtml(versionActive)}</strong> — ce sera votre <strong>série ${serie}</strong>. Une fois envoyés, ils partent à l'équipe et ne sont plus modifiables.`;
+  document.getElementById('popup-envoyer').style.display = 'flex';
+}
+
+// Lot A — envoi : bascule mes brouillons de la version en Brouillon:false + même n° de Série ;
+// passe le sujet en « Retours » (garde anti-régression) ; UNE seule notification pour la série.
+let _envoiSerieEnCours = false;
+async function confirmerEnvoiSerie(){
+  if(_envoiSerieEnCours) return; _envoiSerieEnCours = true;
+  const btn = document.getElementById('btn-confirmer-envoi');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Envoi…'; }
+  try {
+    const drafts = mesBrouillonsVersion();
+    if(!drafts.length){ fermerPopup('popup-envoyer'); return; }
+    const maxSerie = tousRetoursBruts.reduce((m,r)=>Math.max(m, r.properties['Série']?.number||0), 0);
+    const serie = maxSerie + 1;
+    for(const r of drafts){
+      await api('/pages/'+r.id,'PATCH',{properties:{'Brouillon':{checkbox:false},'Série':{number:serie}}});
+    }
+    // Sujet → « Retours » (garde anti-régression : jamais reculer un statut déjà avancé)
+    const statutsAvances = ['Retours','Validation chef','PAD'];
+    if(sujetId && !statutsAvances.includes(sujetData?.statut||'')){
+      await api('/pages/'+sujetId,'PATCH',{properties:{'Statut':{select:{name:'Retours'}}}});
+      if(sujetData) sujetData.statut='Retours';
+    }
+    // UNE notification pour toute la série (là où chaque dépôt notifiait avant).
+    await notifierEquipe('retour', `${clientNom} a envoyé ${drafts.length} retour${drafts.length>1?'s':''} (série ${serie}) sur ${sujetCode} (${versionActive})`);
+    fermerPopup('popup-envoyer');
+    toast('Retours envoyés ✓');
+    await chargerTousRetours();
+  } catch(e){ toast('Erreur : '+e.message); }
+  finally { _envoiSerieEnCours=false; if(btn){ btn.disabled=false; btn.textContent='📨 Envoyer'; } }
 }
 
 // Destinataires d'un retour client : chef + journaliste + monteur de LA version
