@@ -106,6 +106,12 @@
   .r-cat { font-size: 10px; color: var(--text3); background: var(--bg4); padding: 1px 6px; border-radius: 4px; }
   .r-version-badge { font-size: 9px; font-family: var(--mono); color: var(--text3); border: 1px solid var(--border2); padding: 1px 5px; border-radius: 3px; }
   .r-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  /* Pliage des demandes longues : 3 lignes, « voir la suite » au clic (le bouton n'apparaît que si ça déborde). */
+  .r-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .r-clamp.r-open { -webkit-line-clamp: unset; overflow: visible; }
+  .r-voir { font-size: 10px; color: var(--text3); background: none; border: none; cursor: pointer; padding: 2px 0 0; font-family: var(--font); }
+  /* Mention de transcription (côté client) : honnête, distincte d'un nom d'auteur, sans prénom interne. */
+  .r-transmis { font-size: 10px; color: var(--text3); font-style: italic; margin-bottom: 3px; }
   .r-meta { font-size: 10px; color: var(--text3); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
   .r-status-ok { color: var(--green); font-size: 10px; }
   .empty-retours { padding: 32px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.6; }
@@ -724,6 +730,13 @@ function numVersion(v){ const m = String(v||'').match(/(\d+)/); return m ? parse
 // Une ligne d'historique : demande d'une autre version OU d'un autre interlocuteur du même client.
 // Si l'équipe a reformulé la demande, on montre la reformulation et par qui (champs Reformulation /
 // Reformulé par / Timecode reformulé). Tous les champs affichés sont échappés.
+// Demande affichée avec pliage à 3 lignes + « voir la suite » (révélé seulement si ça déborde, cf.
+// la passe dans afficherRetours). Texte échappé.
+function descPliable(desc){
+  return `<div class="r-desc r-clamp">${escapeHtml(desc)}</div>`
+    + `<button class="r-voir" style="display:none" onclick="this.previousElementSibling.classList.toggle('r-open');this.textContent=this.previousElementSibling.classList.contains('r-open')?'réduire':'voir la suite'">voir la suite</button>`;
+}
+
 function ligneHisto(r){
   const pr = r.properties;
   const desc      = pr.Description?.title?.[0]?.plain_text || '';
@@ -737,6 +750,9 @@ function ligneHisto(r){
   const reformPar = pr['Reformulé par']?.rich_text?.[0]?.plain_text || '';
   const tcReform  = pr['Timecode reformulé']?.rich_text?.[0]?.plain_text || '';
   const brouillon = !!pr.Brouillon?.checkbox; // A : brouillon en ligne d'un autre interlocuteur → lecture seule
+  // Le nom montré est le DEMANDEUR, jamais le membre qui a transcrit : 'Demandé par' sinon, pour un
+  // retour déposé en ligne, l'Auteur (= le client) ; une transcription sans demandeur nommé → aucun nom.
+  const nomDem = (pr['Demandé par']?.rich_text?.[0]?.plain_text) || (pr['Déposé en ligne']?.checkbox ? auteur : '');
   return `<div class="retour-item histo">
     <div class="retour-item-top">
       ${version?`<span class="r-version-badge">${escapeHtml(version)}</span>`:''}
@@ -744,8 +760,8 @@ function ligneHisto(r){
       ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
       ${brouillon?'<span class="r-etat" style="color:#EF9F27;border:1px solid rgba(239,159,39,0.4)">brouillon · non envoyé</span>':badgeEtatRetour(statut)}
     </div>
-    ${auteur?`<div class="r-auteur">${escapeHtml(auteur)}</div>`:''}
-    <div class="r-desc">${escapeHtml(desc)}</div>
+    ${nomDem?`<div class="r-auteur">${escapeHtml(nomDem)}</div>`:(!(pr['Déposé en ligne']?.checkbox)?`<div class="r-transmis">transmis par Réel Média</div>`:'')}
+    ${descPliable(desc)}
     ${(statut==='⛔ Impossible' && raison)?`<div class="r-raison">${escapeHtml(raison)}</div>`:''}
     ${reform?`<div class="r-reform"><span class="r-reform-by">↳ Reformulé par ${escapeHtml(reformPar||"l'équipe")}</span>${tcReform?` <span class="r-tc">${escapeHtml(tcReform)}</span>`:''}<div style="margin-top:2px">${escapeHtml(reform)}</div></div>`:''}
   </div>`;
@@ -786,7 +802,7 @@ function afficherRetours() {
 
   // 1) L'HISTORIQUE D'ABORD — la première chose que lit le client (le cœur de B1).
   if(histo.length){
-    html += `<div class="histo-head">Ce qui a déjà été demandé sur ce projet</div>`;
+    html += `<div class="histo-head">Ce qui a déjà été demandé sur ce projet (${histo.length})</div>`;
     html += `<div class="histo-sub">Versions précédentes et demandes de vos collègues. À lire avant d'ajouter un retour : une demande peut déjà porter sur le même point.</div>`;
     html += histo.map(ligneHisto).join('');
   }
@@ -810,7 +826,7 @@ function afficherRetours() {
           <span style="flex:1"></span>
           <button onclick="supprimerMonBrouillon('${r.id}')" title="Supprimer ce brouillon" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px">🗑</button>
         </div>
-        <div class="r-desc">${escapeHtml(desc)}</div>
+        ${descPliable(desc)}
       </div>`;
     }).join('');
     html += mesEnvoyes.map(r => {
@@ -827,7 +843,7 @@ function afficherRetours() {
           ${cat?`<span class="r-cat">${escapeHtml(cat)}</span>`:''}
           ${corrige?`<span class="r-etat ok">✓ Pris en compte</span>`:`<span class="r-etat" style="color:var(--text3);border:1px solid var(--border2)">envoyé</span>`}
         </div>
-        <div class="r-desc">${escapeHtml(desc)}</div>
+        ${descPliable(desc)}
         <div class="r-meta">${escapeHtml(date)}</div>
       </div>`;
     }).join('');
@@ -836,6 +852,13 @@ function afficherRetours() {
   }
 
   list.innerHTML = html;
+  // Révèle « voir la suite » uniquement sur les demandes qui débordent réellement de leurs 3 lignes.
+  list.querySelectorAll('.r-clamp').forEach(el => {
+    if(el.scrollHeight > el.clientHeight + 2){
+      const b = el.nextElementSibling;
+      if(b && b.classList.contains('r-voir')) b.style.display = '';
+    }
+  });
   majBoutonEnvoi(mesBrouillons.length);
 }
 
@@ -878,6 +901,7 @@ async function soumettre() {
       'Timecode': {rich_text:[{text:{content:tc}}]},
       'Statut': {select:{name:'Ouvert'}},
       'Auteur': {rich_text:[{text:{content:clientNom}}]},
+      'Demandé par': {rich_text:[{text:{content:clientNom}}]},
       'Sujet ID': {rich_text:[{text:{content:sujetId}}]},
       'Sujet titre': {rich_text:[{text:{content:sujetData?.titre||''}}]},
       'Source': {select:{name:'Client'}},
