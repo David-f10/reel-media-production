@@ -258,7 +258,7 @@ exports.handler = async function(event) {
     if (user.acces === 'Externe') {
       const nom = user.nom;
       const dbId = route.dbId ? norm(route.dbId) : null;
-      const CASCADE = [DB_RETOURS, DB_VERSIONS, DB_COMMENTS, DB_MUSIQUES, DB_REFS, DB_CORRECTIONS].map(norm);
+      const CASCADE = [DB_RETOURS, DB_VERSIONS, DB_COMMENTS, DB_MUSIQUES, DB_REFS].map(norm);
 
       if (route.kind === 'query') {
         if (dbId === norm(DB_PROD)) {
@@ -284,6 +284,16 @@ exports.handler = async function(event) {
           } else {
             filtreSortie = (page) => ids.has(norm(sidDeProps(page && page.properties)));
           }
+        } else if (dbId === norm(DB_CORRECTIONS)) {
+          // Historique : NON cloisonné, relayé tel quel (aucun filtre de sortie). Deux raisons :
+          //  (1) la base Corrections n'a pas de 'Sujet ID' — rien à borner par périmètre ;
+          //  (2) sa base, /data/archives-historique.json, est DÉJÀ servie EN STATIQUE — le navigateur
+          //      de l'externe l'a en entier — donc cloisonner l'enrichissement Notion par-dessus serait
+          //      du théâtre, et viderait l'écran Historique sans le dire.
+          // ⚠️ CONDITION : si /data/archives-historique.json est un jour FERMÉ (p.ex. lot G, vrais
+          //    comptes clients), cette exception DOIT être revue — l'historique redeviendrait sensible.
+          // Lecture seule : l'écriture d'une correction par un externe reste refusée plus bas
+          // (create/PATCH), faute de 'Sujet ID' au périmètre.
         } else if (dbId === norm(DB_NOTIFS)) {
           // Ses notifications seulement (filtre de sortie Destinataire = lui — incontournable).
           filtreSortie = (page) => rtVal(page && page.properties, 'Destinataire') === nom;

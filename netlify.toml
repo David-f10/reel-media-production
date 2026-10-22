@@ -25,3 +25,32 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Sécurité (publish = "."). Ne JAMAIS servir en statique la SOURCE des fonctions, la config, les
+# dépendances ni les docs internes. force = true pour masquer même les fichiers qui existent.
+# ⚠️ /netlify/* = la SOURCE ; l'INVOCATION se fait sur /.netlify/functions/* (AVEC point) — chemin
+# distinct, jamais touché par ces règles. Ne touchent pas non plus index.html, review.html, /css/*,
+# layout.css, sw.js, manifest.json, offline.html ni les icônes (.png).
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package.json"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/netlify.toml"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/*.md"
+  to = "/404.html"
+  status = 404
+  force = true
