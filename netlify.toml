@@ -49,8 +49,10 @@
   status = 404
   force = true
 
+# Netlify n'a pas de glob par extension (le splat ne vaut qu'en FIN de chemin) : chaque fichier
+# sensible de la racine est donc nommé LITTÉRALEMENT. CONTEXT_REEL_MEDIA.md est le seul .md à la racine.
 [[redirects]]
-  from = "/*.md"
+  from = "/CONTEXT_REEL_MEDIA.md"
   to = "/404.html"
   status = 404
   force = true
