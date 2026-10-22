@@ -265,13 +265,24 @@ exports.handler = async function(event) {
           // Production : relai, puis filtre de sortie aux sujets du périmètre (incontournable, patron 1/3).
           filtreSortie = (page) => pageDansPerimetre(page, nom);
         } else if (CASCADE.includes(dbId)) {
-          // Cascade : la query DOIT porter 'Sujet ID' = un sujet du périmètre.
-          const sid = filtreSujetId(body && body.filter);
+          // Cascade. Deux formes :
+          //  • query scopée à UN sujet (Sujet ID extractible) → ce sujet doit être au périmètre
+          //    (garde d'entrée, bon marché : 403 sinon) ;
+          //  • query TRANSVERSE (or / {} / and imbriqué — pas de Sujet ID extractible ; p.ex.
+          //    chargerRetoursActionnables sur {or:Statut}, chargerHistorique sur {}) → JAMAIS 403 :
+          //    on relaie puis on BORNE la réponse aux sujets du périmètre (filtre de sortie
+          //    incontournable, patron DB_PROD). Toute requête transverse, même non auditée, est
+          //    ainsi scopée — jamais cassée, jamais fuyante.
           let ids;
           try { ids = await perimetreIds(nom, NOTION_TOKEN); }
           catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
-          if (!sid || !ids.has(norm(sid))) {
-            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
+          const sid = filtreSujetId(body && body.filter);
+          if (sid) {
+            if (!ids.has(norm(sid))) {
+              return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
+            }
+          } else {
+            filtreSortie = (page) => ids.has(norm(sidDeProps(page && page.properties)));
           }
         } else if (dbId === norm(DB_NOTIFS)) {
           // Ses notifications seulement (filtre de sortie Destinataire = lui — incontournable).
