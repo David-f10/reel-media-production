@@ -39,4 +39,15 @@ function getDriveOpenPermsStore() {
   return getStore({ name: 'drive-open-perms', siteID, token });
 }
 
-module.exports = { getPushStore, getAuthTokenStore, getDriveOpenPermsStore };
+// Throttle de connexion (espace client) : verrou FERME par IP, partagé entre instances.
+// Clé = 'ip:<ip>' ; valeur = { c, t, until }. Lève si Blobs non configuré → le throttle fail-open.
+function getThrottleStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (!siteID || !token) {
+    throw new Error('Netlify Blobs non configuré : NETLIFY_SITE_ID et NETLIFY_BLOBS_TOKEN requis');
+  }
+  return getStore({ name: 'login-throttle', siteID, token });
+}
+
+module.exports = { getPushStore, getAuthTokenStore, getDriveOpenPermsStore, getThrottleStore };
