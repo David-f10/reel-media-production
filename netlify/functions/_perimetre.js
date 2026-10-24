@@ -17,6 +17,10 @@ const CACHE_TTL = 60 * 1000;
 // une fonction tuée par timeout est pire qu'un 429 rendu vite.
 const WAIT_CAP_MS = 4000;
 const DEFAULT_BUDGET_MS = 6000;
+// Schéma DB_PROD caché 10 min : on ne met dans le OR que les champs dont les OPTIONS contiennent
+// réellement `nom`. Notion rejette (400 validation_error) tout select:{equals:X} si X n'est pas une
+// option DE CE champ — un externe absent d'un champ cassait sinon le OR ENTIER. Les options changent rarement.
+const SCHEMA_TTL = 10 * 60 * 1000;
 
 // Notion traite un id AVEC ou SANS tirets comme la même page → on compare toujours normalisé.
 const norm = (s) => String(s == null ? '' : s).replace(/-/g, '').toLowerCase();
@@ -30,12 +34,41 @@ function pageDansPerimetre(page, nom) {
 
 const _cache = new Map(); // nom → { ids: Set<normId>, ts }  — résultat caché 60 s
 const _enVol = new Map(); // nom → Promise<Set<normId>>       — dédup des appels EN VOL
+let _schema = null;       // { champs: Map<champ, Set<option>>, ts } — options par champ, caché 10 min
 
-// La query paginée DB_PROD (or sur les 5 champs), avec RÉESSAI sur 429 UNIQUEMENT (rate-limit Notion).
-// Toute autre erreur lève → l'appelant refuse (fail-closed). Respecte Retry-After si présent, sinon
-// backoff exponentiel (au plus 4 réessais). Un 429 encore en échec après réessais lève aussi → 502.
-async function _fetchPerimetre(nom, token, deadline) {
-  const filter = { or: CHAMPS.map(c => ({ property: c, select: { equals: nom } })) };
+// Lit le schéma DB_PROD (caché 10 min) → Map<champ, Set<noms d'options>>. Échec → lève (fail-closed : on
+// ne sait pas quels champs sont valides, donc on refuse plutôt que deviner). `force` ignore le cache.
+async function _schemaChamps(token, force) {
+  const now = Date.now();
+  if (!force && _schema && (now - _schema.ts) < SCHEMA_TTL) return _schema.champs;
+  const r = await fetch('https://api.notion.com/v1/databases/' + DB_PROD, {
+    headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28' }
+  });
+  if (!r.ok) throw new Error('perimetre schema ' + r.status);
+  const d = await r.json();
+  const props = (d && d.properties) || {};
+  const champs = new Map();
+  for (const c of CHAMPS) {
+    const opts = (props[c] && props[c].select && props[c].select.options) || [];
+    champs.set(c, new Set(opts.map(o => o && o.name)));
+  }
+  _schema = { champs, ts: now };
+  return champs;
+}
+function _viderSchema() { _schema = null; }
+
+// Sous-ensemble des 5 CHAMPS dont les options contiennent EXACTEMENT `nom`. Ne mettre QUE ceux-là dans le
+// OR évite le 400 Notion. Aucun champ → l'appelant renvoie un périmètre vide (Set()/false), pas une erreur.
+async function champsAvecOption(nom, token, force) {
+  const m = await _schemaChamps(token, force);
+  return CHAMPS.filter(c => { const s = m.get(c); return !!(s && s.has(nom)); });
+}
+
+// Query paginée DB_PROD (OR sur les champs VALIDES pour `nom`), RÉESSAI sur 429 UNIQUEMENT, borné par
+// `deadline` (horloge murale). 400 → erreur marquée (status400) pour le filet d'au-dessus. Toute autre
+// erreur (429 épuisé, etc.) lève → l'appelant refuse (fail-closed). Respecte Retry-After (plafonné).
+async function _queryPerimetre(nom, champs, token, deadline) {
+  const filter = { or: champs.map(c => ({ property: c, select: { equals: nom } })) };
   const ids = new Set();
   let cursor = null, pages = 0;
   do {
@@ -57,13 +90,37 @@ async function _fetchPerimetre(nom, token, deadline) {
       await new Promise(res => setTimeout(res, attente));
       tent++;
     }
-    if (!r.ok) { console.error('perimetre query ' + r.status + ' : ' + await r.text().catch(() => '')); throw new Error('perimetre query ' + r.status); } // 429 épuisé OU autre erreur → fail-closed (log du corps Notion pour diagnostic)
+    if (!r.ok) {
+      console.error('perimetre query ' + r.status + ' : ' + await r.text().catch(() => '')); // corps Notion pour diagnostic
+      const e = new Error('perimetre query ' + r.status);
+      if (r.status === 400) e.status400 = true;        // signale au filet (option retirée ?) → vidange + 1 réessai
+      throw e;                                          // fail-closed
+    }
     const d = await r.json();
     (d.results || []).forEach(p => ids.add(norm(p.id)));
     cursor = d.has_more ? d.next_cursor : null;
     pages++;
   } while (cursor && pages < 20);
   return ids;
+}
+
+// Ensemble des ids des sujets de `nom`. On ne requête QUE les champs dont `nom` est une option (schéma
+// caché) → plus de 400 quand un externe est absent d'un champ. Aucun champ valide → périmètre VIDE
+// (Set(), pas de query, pas d'erreur). FILET : si la query 400 malgré le filtrage (une option retirée
+// depuis le cache), on vide le schéma et on réessaie UNE fois ; si ça 400 encore → lève (→ 502). Les
+// autres erreurs (429 épuisé…) lèvent directement.
+async function _fetchPerimetre(nom, token, deadline) {
+  let champs = await champsAvecOption(nom, token, false);
+  if (!champs.length) return new Set();
+  try {
+    return await _queryPerimetre(nom, champs, token, deadline);
+  } catch (e) {
+    if (!e || !e.status400) throw e;
+    _viderSchema();
+    champs = await champsAvecOption(nom, token, true);   // schéma frais
+    if (!champs.length) return new Set();
+    return await _queryPerimetre(nom, champs, token, deadline); // un seul réessai ; re-400 → lève
+  }
 }
 
 // Ensemble des ids (normalisés) des sujets de `nom`. Caché 60 s. À FROID, les appelants CONCURRENTS
@@ -88,21 +145,30 @@ function perimetreIds(nom, token, deadline) {
   return p;
 }
 
-// 3/3b-2 : `nom` est-il sur le sujet de code `sujetCode` ? Une query DB_PROD ciblée
-// {and:[ Code = sujetCode, or(5 champs = nom) ]} (2 niveaux, dans la limite Notion). Pas de cache
-// (téléchargement rare, et on veut la vérité fraîche). Lève en cas d'échec → l'appelant refuse.
+// 3/3b-2 : `nom` est-il sur le sujet de code `sujetCode` ? {and:[ Code=sujetCode, or(champs VALIDES=nom) ]}.
+// MÊME filtrage par schéma + MÊME filet 400 que perimetreIds (sans lui, Paul aurait eu ses panneaux mais
+// ni téléchargement ni visionnage). Aucun champ valide → false (sur aucun sujet). Pas de cache de résultat
+// (téléchargement rare, vérité fraîche). Lève en cas d'échec → l'appelant refuse (fail-closed).
 async function estSurSujetCode(nom, sujetCode, token) {
   if (!nom || !sujetCode) return false;
-  const filter = { and: [
-    { property: 'Code', rich_text: { equals: sujetCode } },
-    { or: CHAMPS.map(c => ({ property: c, select: { equals: nom } })) }
-  ]};
-  const r = await fetch('https://api.notion.com/v1/databases/' + DB_PROD + '/query', {
+  const query = (champs) => fetch('https://api.notion.com/v1/databases/' + DB_PROD + '/query', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filter, page_size: 1 })
+    body: JSON.stringify({ filter: { and: [
+      { property: 'Code', rich_text: { equals: sujetCode } },
+      { or: champs.map(c => ({ property: c, select: { equals: nom } })) }
+    ] }, page_size: 1 })
   });
-  if (!r.ok) throw new Error('perimetre sujet ' + r.status);
+  let champs = await champsAvecOption(nom, token, false);
+  if (!champs.length) return false;
+  let r = await query(champs);
+  if (r.status === 400) {                 // filet : option retirée depuis le cache → vidange + 1 réessai
+    _viderSchema();
+    champs = await champsAvecOption(nom, token, true);
+    if (!champs.length) return false;
+    r = await query(champs);
+  }
+  if (!r.ok) { console.error('perimetre sujet ' + r.status + ' : ' + await r.text().catch(() => '')); throw new Error('perimetre sujet ' + r.status); }
   const d = await r.json();
   return (d.results || []).length > 0;
 }
