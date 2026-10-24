@@ -23,36 +23,57 @@ function pageDansPerimetre(page, nom) {
   return CHAMPS.some(c => (p[c] && p[c].select && p[c].select.name) === nom);
 }
 
-const _cache = new Map(); // nom → { ids: Set<normId>, ts }
+const _cache = new Map(); // nom → { ids: Set<normId>, ts }  — résultat caché 60 s
+const _enVol = new Map(); // nom → Promise<Set<normId>>       — dédup des appels EN VOL
 
-// Ensemble des ids (normalisés) des sujets de `nom`. Caché 60 s par nom. À FROID : une query DB_PROD
-// (or sur les 5 champs). Lève en cas d'échec Notion → l'appelant DOIT refuser (fail-closed), jamais relayer.
-async function perimetreIds(nom, token) {
-  if (!nom) return new Set();
-  const now = Date.now();
-  const hit = _cache.get(nom);
-  if (hit && (now - hit.ts) < CACHE_TTL) return hit.ids;
-
+// La query paginée DB_PROD (or sur les 5 champs), avec RÉESSAI sur 429 UNIQUEMENT (rate-limit Notion).
+// Toute autre erreur lève → l'appelant refuse (fail-closed). Respecte Retry-After si présent, sinon
+// backoff exponentiel (au plus 4 réessais). Un 429 encore en échec après réessais lève aussi → 502.
+async function _fetchPerimetre(nom, token) {
   const filter = { or: CHAMPS.map(c => ({ property: c, select: { equals: nom } })) };
   const ids = new Set();
   let cursor = null, pages = 0;
   do {
     const b = { filter, page_size: 100 };
     if (cursor) b.start_cursor = cursor;
-    const r = await fetch('https://api.notion.com/v1/databases/' + DB_PROD + '/query', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-      body: JSON.stringify(b)
-    });
-    if (!r.ok) throw new Error('perimetre query ' + r.status);
+    let r, tent = 0;
+    for (;;) {
+      r = await fetch('https://api.notion.com/v1/databases/' + DB_PROD + '/query', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+        body: JSON.stringify(b)
+      });
+      if (r.status !== 429 || tent >= 4) break;        // réessai sur 429 SEULEMENT
+      const ra = parseFloat(r.headers && r.headers.get && r.headers.get('retry-after'));
+      const attente = (ra > 0 ? ra * 1000 : Math.min(8000, 400 * Math.pow(2, tent)));
+      await new Promise(res => setTimeout(res, attente));
+      tent++;
+    }
+    if (!r.ok) throw new Error('perimetre query ' + r.status); // 429 épuisé OU autre erreur → fail-closed
     const d = await r.json();
     (d.results || []).forEach(p => ids.add(norm(p.id)));
     cursor = d.has_more ? d.next_cursor : null;
     pages++;
   } while (cursor && pages < 20);
-
-  _cache.set(nom, { ids, ts: now });
   return ids;
+}
+
+// Ensemble des ids (normalisés) des sujets de `nom`. Caché 60 s. À FROID, les appelants CONCURRENTS
+// attendent LA MÊME promesse (une seule query DB_PROD pour toute la rafale) : c'est ça qui évite que
+// l'ouverture d'une fiche par un externe tire N query périmètre en parallèle → 429 → 502. Lève en cas
+// d'échec Notion (après réessais sur 429) → l'appelant DOIT refuser (fail-closed), jamais relayer ;
+// l'échec n'est pas caché (l'entrée en vol est retirée), la prochaine tentative repart à neuf.
+function perimetreIds(nom, token) {
+  if (!nom) return Promise.resolve(new Set());
+  const hit = _cache.get(nom);
+  if (hit && (Date.now() - hit.ts) < CACHE_TTL) return Promise.resolve(hit.ids);
+  const enVol = _enVol.get(nom);
+  if (enVol) return enVol;
+  const p = _fetchPerimetre(nom, token)
+    .then(ids => { _cache.set(nom, { ids, ts: Date.now() }); return ids; })
+    .finally(() => { _enVol.delete(nom); });
+  _enVol.set(nom, p);
+  return p;
 }
 
 // 3/3b-2 : `nom` est-il sur le sujet de code `sujetCode` ? Une query DB_PROD ciblée
