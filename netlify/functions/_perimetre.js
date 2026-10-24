@@ -12,6 +12,11 @@
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const CHAMPS = ['Journaliste', 'Responsable montage', 'Monteur V1', 'Monteur V2', 'Monteur V3'];
 const CACHE_TTL = 60 * 1000;
+// Réessai 429 : plafond d'UNE attente (Retry-After INCLUS) et budget de temps par défaut si aucune
+// échéance n'est fournie. notion.js passe l'échéance GLOBALE de l'invocation (défaut Netlify = 10 s) :
+// une fonction tuée par timeout est pire qu'un 429 rendu vite.
+const WAIT_CAP_MS = 4000;
+const DEFAULT_BUDGET_MS = 6000;
 
 // Notion traite un id AVEC ou SANS tirets comme la même page → on compare toujours normalisé.
 const norm = (s) => String(s == null ? '' : s).replace(/-/g, '').toLowerCase();
@@ -29,7 +34,7 @@ const _enVol = new Map(); // nom → Promise<Set<normId>>       — dédup des a
 // La query paginée DB_PROD (or sur les 5 champs), avec RÉESSAI sur 429 UNIQUEMENT (rate-limit Notion).
 // Toute autre erreur lève → l'appelant refuse (fail-closed). Respecte Retry-After si présent, sinon
 // backoff exponentiel (au plus 4 réessais). Un 429 encore en échec après réessais lève aussi → 502.
-async function _fetchPerimetre(nom, token) {
+async function _fetchPerimetre(nom, token, deadline) {
   const filter = { or: CHAMPS.map(c => ({ property: c, select: { equals: nom } })) };
   const ids = new Set();
   let cursor = null, pages = 0;
@@ -45,7 +50,10 @@ async function _fetchPerimetre(nom, token) {
       });
       if (r.status !== 429 || tent >= 4) break;        // réessai sur 429 SEULEMENT
       const ra = parseFloat(r.headers && r.headers.get && r.headers.get('retry-after'));
-      const attente = (ra > 0 ? ra * 1000 : Math.min(8000, 400 * Math.pow(2, tent)));
+      // Plafond d'UNE attente appliqué AUSSI à Retry-After : Notion peut répondre un délai en dizaines
+      // de secondes → non plafonné, la fonction serait tuée par timeout (pire qu'un 429 rendu vite).
+      const attente = Math.min(WAIT_CAP_MS, ra > 0 ? ra * 1000 : 400 * Math.pow(2, tent));
+      if (Date.now() + attente > deadline) break;      // budget GLOBAL (horloge murale) épuisé → on cesse, on lèvera
       await new Promise(res => setTimeout(res, attente));
       tent++;
     }
@@ -63,13 +71,17 @@ async function _fetchPerimetre(nom, token) {
 // l'ouverture d'une fiche par un externe tire N query périmètre en parallèle → 429 → 502. Lève en cas
 // d'échec Notion (après réessais sur 429) → l'appelant DOIT refuser (fail-closed), jamais relayer ;
 // l'échec n'est pas caché (l'entrée en vol est retirée), la prochaine tentative repart à neuf.
-function perimetreIds(nom, token) {
+function perimetreIds(nom, token, deadline) {
   if (!nom) return Promise.resolve(new Set());
   const hit = _cache.get(nom);
   if (hit && (Date.now() - hit.ts) < CACHE_TTL) return Promise.resolve(hit.ids);
   const enVol = _enVol.get(nom);
   if (enVol) return enVol;
-  const p = _fetchPerimetre(nom, token)
+  // `deadline` = échéance ABSOLUE (ms epoch) partagée avec le reste de l'invocation (notion.js la pose à
+  // l'entrée du handler). Absente (appelant tiers) → repli sur un budget interne, pour ne jamais retomber
+  // dans un réessai non borné. La rafale concurrente partage la MÊME promesse → l'échéance du 1er appelant.
+  const dl = deadline || (Date.now() + DEFAULT_BUDGET_MS);
+  const p = _fetchPerimetre(nom, token, dl)
     .then(ids => { _cache.set(nom, { ids, ts: Date.now() }); return ids; })
     .finally(() => { _enVol.delete(nom); });
   _enVol.set(nom, p);

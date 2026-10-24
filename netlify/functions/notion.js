@@ -48,6 +48,13 @@ const PROPS_ACCES = ['Accès', 'Acces', 'Peut gérer les accès'];
 // Comparaison d'ids Notion tolérante aux tirets (dashed 36 car. ↔ dashless 32 car.).
 const norm = (s) => String(s || '').replace(/-/g, '').toLowerCase();
 
+// Réessai 429 du relais + budget de temps GLOBAL de l'invocation. Le défaut Netlify est 10 s par appel
+// synchrone (aucun override dans netlify.toml) : on borne l'HORLOGE MURALE depuis l'entrée du handler,
+// bien en-dessous, pour qu'une rafale ne tue jamais la fonction par timeout (pire qu'un 429 rendu vite).
+const RELAY_MAX_TENT = 3;    // 1 essai + 3 réessais au plus, sur 429 UNIQUEMENT
+const WAIT_CAP_MS    = 4000; // plafond d'UNE attente (Retry-After inclus)
+const BUDGET_MS      = 6000; // budget global (ms) ; une query Notion peut prendre 1–2 s → marge laissée
+
 // Classe le `path` en l'une des 3 familles réellement appelées, en vérifiant la méthode.
 // Retourne null (→ refus) pour tout le reste : aucun GET /databases nu, pas de PUT/DELETE.
 function classer(method, path) {
@@ -140,6 +147,10 @@ exports.handler = async function(event) {
 
   const method = event.httpMethod;
   const path = event.queryStringParameters?.path || '';
+
+  // Échéance GLOBALE de l'invocation (horloge murale) : partagée par perimetreIds ET le relais, pour que
+  // la SOMME des attentes + des allers-retours Notion ne dépasse jamais le budget. Posée ici, au plus tôt.
+  const DEADLINE = Date.now() + BUDGET_MS;
 
   // ── 1. Liste blanche méthode + chemin (fail-closed) ───────────────────────
   const route = classer(method, path);
@@ -274,7 +285,7 @@ exports.handler = async function(event) {
           //    incontournable, patron DB_PROD). Toute requête transverse, même non auditée, est
           //    ainsi scopée — jamais cassée, jamais fuyante.
           let ids;
-          try { ids = await perimetreIds(nom, NOTION_TOKEN); }
+          try { ids = await perimetreIds(nom, NOTION_TOKEN, DEADLINE); }
           catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
           const sid = filtreSujetId(body && body.filter);
           if (sid) {
@@ -318,7 +329,7 @@ exports.handler = async function(event) {
       } else if (route.kind === 'page' && method === 'PATCH') {
         // Écriture : un de SES sujets (DB_PROD), OU une page cascade dont le Sujet ID est au périmètre.
         let ids;
-        try { ids = await perimetreIds(nom, NOTION_TOKEN); }
+        try { ids = await perimetreIds(nom, NOTION_TOKEN, DEADLINE); }
         catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
         if (!ids.has(norm(route.pageId))) {
           const sid = await sujetIdDeLaPage(route.pageId, NOTION_TOKEN);
@@ -334,7 +345,7 @@ exports.handler = async function(event) {
         }
         const sid = sidDeProps(body && body.properties);
         let ids;
-        try { ids = await perimetreIds(nom, NOTION_TOKEN); }
+        try { ids = await perimetreIds(nom, NOTION_TOKEN, DEADLINE); }
         catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
         if (!sid || !ids.has(norm(sid))) {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
@@ -343,18 +354,41 @@ exports.handler = async function(event) {
     }
   }
 
-  // ── 4. Relais Notion + projection de sécurité (1/3, inchangée) ────────────
+  // ── 4. Relais Notion (réessai 429 borné par DEADLINE) + projection (1/3) ──
   const url = `https://api.notion.com/v1${path}`;
   try {
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Bearer ${NOTION_TOKEN}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: (method === 'POST' || method === 'PATCH') ? event.body : undefined
-    });
+    let response, tent = 0;
+    for (;;) {
+      response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${NOTION_TOKEN}`,
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json'
+        },
+        body: (method === 'POST' || method === 'PATCH') ? event.body : undefined
+      });
+      // 429 SEUL est réessayé (un 429 Notion est renvoyé AVANT exécution → réessayer une écriture est
+      // sans risque de double-écriture, et c'est cohérent avec api() client). Toute autre erreur sort.
+      if (response.status !== 429 || tent >= RELAY_MAX_TENT) break;
+      const ra = parseFloat(response.headers && response.headers.get && response.headers.get('retry-after'));
+      const attente = Math.min(WAIT_CAP_MS, ra > 0 ? ra * 1000 : 400 * Math.pow(2, tent));
+      if (Date.now() + attente > DEADLINE) break; // budget GLOBAL (horloge murale) épuisé → on rend vite
+      await new Promise(res => setTimeout(res, attente));
+      tent++;
+    }
+
+    // Erreur Notion (429 persistant inclus) : NE PAS relayer le corps brut — ses messages peuvent nommer
+    // la base interrogée. On renvoie le STATUT réel + un corps NEUTRE, et on garde le détail en logs
+    // serveur. Conséquence voulue : un 429 ressort DONC en 429 (réessayable par api() client), jamais
+    // masqué en 403 par verifPageExterne (qui, sur un corps d'erreur sans parent/properties, refuserait).
+    // Fail-closed : jamais un 200 fabriqué.
+    if (!response.ok) {
+      let detail = '';
+      try { detail = await response.text(); } catch (_) {}
+      console.error('relais Notion ' + response.status + ' [' + route.kind + ' ' + (route.dbId || route.pageId || '') + ']' + (detail ? ' ' + detail : ''));
+      return { statusCode: response.status, headers, body: JSON.stringify({ error: 'Notion ' + response.status }) };
+    }
 
     const data = await response.json();
 
@@ -385,7 +419,7 @@ exports.handler = async function(event) {
         } else {
           const sid = sidDeProps(data && data.properties);
           if (sid) {
-            const ids = await perimetreIds(user.nom, NOTION_TOKEN);
+            const ids = await perimetreIds(user.nom, NOTION_TOKEN, DEADLINE);
             dansPerim = ids.has(norm(sid));
           }
         }
