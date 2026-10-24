@@ -26,14 +26,26 @@ let _cache = null, _ts = 0, _lastForce = 0;
 async function _getContacts(token, dbId, force) {
   const now = Date.now();
   if (!force && _cache && (now - _ts) < CACHE_TTL) return _cache;
-  const r = await fetch('https://api.notion.com/v1/databases/' + dbId + '/query', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ page_size: 100 })
-  });
-  if (!r.ok) throw new Error('contacts query ' + r.status);
-  const d = await r.json();
-  _cache = d.results || []; _ts = now;
+  // Pagination RÉELLE : sans elle, au-delà de 100 contacts les suivants ne pourraient plus se connecter,
+  // silencieusement. Appels Notion (pas des invocations Netlify), et seulement sur cache froid. Garde-fou
+  // 20 pages (2000 contacts) comme apiQueryAll côté app.
+  const all = [];
+  let cursor = null, pages = 0;
+  do {
+    const body = { page_size: 100 };
+    if (cursor) body.start_cursor = cursor;
+    const r = await fetch('https://api.notion.com/v1/databases/' + dbId + '/query', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('contacts query ' + r.status);
+    const d = await r.json();
+    all.push(...(d.results || []));
+    cursor = d.has_more ? d.next_cursor : null;
+    pages++;
+  } while (cursor && pages < 20);
+  _cache = all; _ts = now;
   return _cache;
 }
 
