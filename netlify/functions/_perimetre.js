@@ -57,7 +57,7 @@ async function _fetchPerimetre(nom, token, deadline) {
       await new Promise(res => setTimeout(res, attente));
       tent++;
     }
-    if (!r.ok) throw new Error('perimetre query ' + r.status); // 429 épuisé OU autre erreur → fail-closed
+    if (!r.ok) { console.error('perimetre query ' + r.status + ' : ' + await r.text().catch(() => '')); throw new Error('perimetre query ' + r.status); } // 429 épuisé OU autre erreur → fail-closed (log du corps Notion pour diagnostic)
     const d = await r.json();
     (d.results || []).forEach(p => ids.add(norm(p.id)));
     cursor = d.has_more ? d.next_cursor : null;
