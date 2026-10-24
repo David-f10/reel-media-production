@@ -286,10 +286,11 @@ exports.handler = async function(event) {
           //    ainsi scopée — jamais cassée, jamais fuyante.
           let ids;
           try { ids = await perimetreIds(nom, NOTION_TOKEN, DEADLINE); }
-          catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
+          catch (e) { console.error('périmètre indisponible 502 [' + route.kind + ' ' + method + '] nom=' + nom + ' : ' + (e && e.message || '')); return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
           const sid = filtreSujetId(body && body.filter);
           if (sid) {
             if (!ids.has(norm(sid))) {
+              console.error('cloisonnement 403 [query ' + (route.dbId || '') + '] nom=' + nom + ' sid=' + norm(sid));
               return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
             }
           } else {
@@ -330,7 +331,7 @@ exports.handler = async function(event) {
         // Écriture : un de SES sujets (DB_PROD), OU une page cascade dont le Sujet ID est au périmètre.
         let ids;
         try { ids = await perimetreIds(nom, NOTION_TOKEN, DEADLINE); }
-        catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
+        catch (e) { console.error('périmètre indisponible 502 [' + route.kind + ' ' + method + '] nom=' + nom + ' : ' + (e && e.message || '')); return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
         if (!ids.has(norm(route.pageId))) {
           const sid = await sujetIdDeLaPage(route.pageId, NOTION_TOKEN);
           if (sid === null || !ids.has(norm(sid))) {
@@ -346,7 +347,7 @@ exports.handler = async function(event) {
         const sid = sidDeProps(body && body.properties);
         let ids;
         try { ids = await perimetreIds(nom, NOTION_TOKEN, DEADLINE); }
-        catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
+        catch (e) { console.error('périmètre indisponible 502 [' + route.kind + ' ' + method + '] nom=' + nom + ' : ' + (e && e.message || '')); return { statusCode: 502, headers, body: JSON.stringify({ error: 'Périmètre indisponible' }) }; }
         if (!sid || !ids.has(norm(sid))) {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
         }
@@ -425,6 +426,7 @@ exports.handler = async function(event) {
         }
       } catch (e) { dansPerim = false; }
       if (!dansPerim) {
+        console.error('cloisonnement 403 [page GET ' + route.pageId + '] nom=' + user.nom);
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Hors périmètre' }) };
       }
     }
