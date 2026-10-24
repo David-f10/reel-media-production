@@ -640,7 +640,7 @@ async function api(endpoint,method='GET',body=null,_r=0){
   if(body)opts.body=JSON.stringify(body);
   const res=await fetch(`/.netlify/functions/notion?path=${encodeURIComponent(endpoint)}`,opts);
   if((res.status===429||res.status===503)&&_r<3){await new Promise(r=>setTimeout(r,Math.pow(2,_r)*800));return api(endpoint,method,body,_r+1);}
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.message||'Erreur API');}
+  if(!res.ok){const e=await res.json().catch(()=>({}));console.error('[api] '+method+' '+endpoint+' → '+res.status+(e&&e.error?' '+e.error:''));const _err=new Error(e.message||'Erreur API');_err.status=res.status;throw _err;}
   return res.json();
 }
 
@@ -3152,6 +3152,7 @@ async function loadVersions(sujetId) {
       </div>
       ${renderBloc(versions[selIdx], selIdx)}`;
   } catch(e) {
+    console.error('[loadVersions] '+sujetId+' status='+(e&&e.status)+' :', e);
     const el2 = document.getElementById('versions-list-'+sujetId);
     if(el2) el2.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement versions</div>';
   }
@@ -4591,6 +4592,7 @@ async function loadComments(sujetId) {
       </div>`;
     }).join('');
   } catch(e) {
+    console.error('[loadComments] '+sujetId+' status='+(e&&e.status)+' :', e);
     const listEl = document.getElementById('comments-list-' + sujetId);
     if(listEl) listEl.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement commentaires</div>';
   }
