@@ -7,13 +7,14 @@
 const { verifyClient } = require('./_authclient');
 const { verifierThrottle, enregistrerEchec, enregistrerSucces } = require('./_throttle');
 
-// CORS : reflète l'Origin seulement si c'est le site (SITE_ORIGIN) ou un *.netlify.app. Sinon pas d'en-tête
-// (le même-origine de client.html n'en a pas besoin). Protection navigateur uniquement — curl l'ignore.
+// CORS (F4) : reflète l'Origin UNIQUEMENT si c'est notre hôte exact ou SITE_ORIGIN (domaine custom éventuel).
+// Plus de regex large *.netlify.app (qui acceptait n'importe quel site Netlify). client.html est
+// même-origine → n'a de toute façon pas besoin de CORS ; ceci ne sert qu'à un éventuel front custom.
+// Protection navigateur uniquement — curl l'ignore.
 function acao(event) {
   const o = (event.headers && (event.headers.origin || event.headers.Origin)) || '';
-  const site = process.env.SITE_ORIGIN || '';
-  if (o && (o === site || /^https:\/\/[a-z0-9-]+\.netlify\.app$/i.test(o))) return o;
-  return '';
+  const hotes = [process.env.SITE_ORIGIN, 'https://reel-media-production.netlify.app'].filter(Boolean);
+  return (o && hotes.indexOf(o) !== -1) ? o : '';
 }
 function clientIp(event) {
   const h = event.headers || {};
@@ -47,7 +48,7 @@ exports.handler = async (event) => {
 
   const v = await verifyClient({ mail, code: body.code });
   if (v.ok) {
-    enregistrerSucces(ip, mail);
+    await enregistrerSucces(ip, mail); // async désormais (efface le compteur mail dans Blobs)
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, nom: v.contact.nom, marque: v.contact.marque || '' }) };
   }
   if (v.raison === 'indispo') return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
