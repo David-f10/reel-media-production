@@ -12,11 +12,11 @@ const { verifyClient } = require('./_authclient');
 const { projetsDeMarque } = require('./_perimetreclient');
 const { verifierThrottle, enregistrerEchec } = require('./_throttle');
 
+// CORS (F4) : hôte exact + SITE_ORIGIN seulement ; plus de regex large *.netlify.app. Voir login-client.js.
 function acao(event) {
   const o = (event.headers && (event.headers.origin || event.headers.Origin)) || '';
-  const site = process.env.SITE_ORIGIN || '';
-  if (o && (o === site || /^https:\/\/[a-z0-9-]+\.netlify\.app$/i.test(o))) return o;
-  return '';
+  const hotes = [process.env.SITE_ORIGIN, 'https://reel-media-production.netlify.app'].filter(Boolean);
+  return (o && hotes.indexOf(o) !== -1) ? o : '';
 }
 function clientIp(event) {
   const h = event.headers || {};

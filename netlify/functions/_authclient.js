@@ -58,7 +58,11 @@ const _actif = (pr) => { const a = pr && pr['Actif']; return a ? !!a.checkbox : 
 async function verifyClient({ mail, code }) {
   const token = process.env.NOTION_TOKEN;
   const dbId = process.env.DB_CONTACTS_CLIENT;
-  if (!token || !dbId) return { ok: false, raison: 'indispo' };
+  if (!token || !dbId) {
+    // F5 : ce 503 était MUET (4 h de débogage le 24-25). Booléens de PRÉSENCE uniquement, aucune valeur.
+    console.error('verifyClient indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')');
+    return { ok: false, raison: 'indispo' };
+  }
   const m = norm(mail);
   const c = String(code == null ? '' : code);
   if (!m || !c) return { ok: false, raison: 'auth' };
