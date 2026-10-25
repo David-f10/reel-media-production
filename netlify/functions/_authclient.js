@@ -19,7 +19,8 @@
 
 const CACHE_TTL = 60 * 1000;
 const FORCE_FLOOR = 10 * 1000;
-const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
+const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();         // mails
+const normId = (s) => String(s == null ? '' : s).replace(/-/g, '').toLowerCase(); // ids Notion (tirets ignorés)
 
 let _cache = null, _ts = 0, _lastForce = 0;
 
@@ -87,4 +88,36 @@ async function verifyClient({ mail, code }) {
   }
 }
 
-module.exports = { verifyClient };
+// F1 — relecture LIVE par id (jeton de session). Même base, même cache 60 s que verifyClient, mais clé = id
+// du contact (tiré du jeton), PAS mail+code. Sert à projets-client : vérifier Actif (révocation ~60 s) et
+// récupérer le Code Brand courant. → { ok:true, codeBrand, marque } | { ok:false, raison:'auth'|'indispo' }.
+//   'auth'    = contact disparu ou désactivé → le jeton ne vaut plus → l'appelant renvoie 401 (re-login).
+//   'indispo' = config/Notion → 503.
+async function contactActif(id) {
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.DB_CONTACTS_CLIENT;
+  if (!token || !dbId) {
+    console.error('contactActif indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')');
+    return { ok: false, raison: 'indispo' };
+  }
+  const want = normId(id);
+  if (!want) return { ok: false, raison: 'auth' };
+  try {
+    const trouver = (liste) => liste.find(p => normId(p.id) === want);
+    const vivant = (p) => !!p && _actif(p.properties);
+    let contacts = await _getContacts(token, dbId, false);
+    let page = trouver(contacts);
+    if (!vivant(page) && (Date.now() - _lastForce > FORCE_FLOOR)) { // refresh-on-miss borné (désactivation récente)
+      _lastForce = Date.now();
+      contacts = await _getContacts(token, dbId, true);
+      page = trouver(contacts);
+    }
+    if (!vivant(page)) return { ok: false, raison: 'auth' }; // disparu / désactivé → re-login
+    return { ok: true, codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque') };
+  } catch (e) {
+    console.error('contactActif indispo : ' + (e && e.message || ''));
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
+module.exports = { verifyClient, contactActif };

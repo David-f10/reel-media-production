@@ -6,6 +6,7 @@
 
 const { verifyClient } = require('./_authclient');
 const { verifierThrottle, enregistrerEchec, enregistrerSucces } = require('./_throttle');
+const { signer } = require('./_clienttoken');
 
 // CORS (F4) : reflète l'Origin UNIQUEMENT si c'est notre hôte exact ou SITE_ORIGIN (domaine custom éventuel).
 // Plus de regex large *.netlify.app (qui acceptait n'importe quel site Netlify). client.html est
@@ -48,8 +49,15 @@ exports.handler = async (event) => {
 
   const v = await verifyClient({ mail, code: body.code });
   if (v.ok) {
-    await enregistrerSucces(ip, mail); // async désormais (efface le compteur mail dans Blobs)
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, nom: v.contact.nom, marque: v.contact.marque || '' }) };
+    // F1 : on émet un JETON DE SESSION signé (identité seule). Secret absent → fail-closed 503 + log booléen,
+    // jamais de repli sur l'ancien mécanisme. Le code n'est PAS renvoyé : il ne doit plus subsister côté client.
+    const jeton = signer(v.contact.id);
+    if (!jeton.ok) {
+      console.error('login-client indispo : CLIENT_SIGN_SECRET=' + !!process.env.CLIENT_SIGN_SECRET);
+      return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
+    }
+    await enregistrerSucces(ip, mail); // async (efface le compteur mail dans Blobs)
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, token: jeton.token, nom: v.contact.nom, marque: v.contact.marque || '' }) };
   }
   if (v.raison === 'indispo') return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
   await enregistrerEchec(ip, mail);

@@ -86,7 +86,8 @@
   (function () {
     var LOGIN = '/.netlify/functions/login-client';
     var PROJETS = '/.netlify/functions/projets-client';
-    var K_MAIL = 'rmc-mail', K_CODE = 'rmc-code', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
+    var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
+    var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
     var $ = function (id) { return document.getElementById(id); };
     function montrer(vue) {
@@ -95,7 +96,7 @@
     }
     function lire(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
     function ecrire(o) { try { Object.keys(o).forEach(function (k) { localStorage.setItem(k, o[k]); }); } catch (e) {} }
-    function effacer() { try { [K_MAIL, K_CODE, K_NOM, K_MARQUE].forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} }
+    function effacer() { try { [K_TOKEN, K_NOM, K_MARQUE].concat(K_LEGACY).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} }
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
     // ── Connexion ──
@@ -120,8 +121,8 @@
         return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b, retry: r.headers.get('Retry-After') }; });
       }).then(function (res) {
         $('btn-login').disabled = false;
-        if (res.status === 200 && res.body && res.body.ok) {
-          ecrire(fromLogin(mail, code, res.body));
+        if (res.status === 200 && res.body && res.body.ok && res.body.token) {
+          ecrire(fromLogin(res.body));
           entrerAccueil();
           return;
         }
@@ -133,7 +134,7 @@
         var m = $('msg-login'); m.className = 'msg wait'; m.textContent = 'Service temporairement indisponible, réessayez.';
       });
     });
-    function fromLogin(mail, code, b) { var o = {}; o[K_MAIL] = mail; o[K_CODE] = code; o[K_NOM] = b.nom || ''; o[K_MARQUE] = b.marque || ''; return o; }
+    function fromLogin(b) { var o = {}; o[K_TOKEN] = b.token || ''; o[K_NOM] = b.nom || ''; o[K_MARQUE] = b.marque || ''; return o; } // F1 : on stocke le JETON, jamais le code
 
     // ── Accueil + projets ──
     $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); });
@@ -158,7 +159,7 @@
       zone.innerHTML = '<p class="sub">Chargement…</p>';
       fetch(PROJETS, {
         method: 'POST',
-        headers: { 'x-rmc-mail': lire(K_MAIL), 'x-rmc-code': lire(K_CODE) }
+        headers: { 'x-rmc-token': lire(K_TOKEN) }
       }).then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; });
       }).then(function (res) {
@@ -188,9 +189,11 @@
       $('btn-reessayer').addEventListener('click', chargerProjets);
     }
 
-    // ── Démarrage : projets-client est la source de vérité (re-vérifie l'identité). ──
-    if (lire(K_MAIL) && lire(K_CODE)) entrerAccueil();
-    else montrer('vue-login');
+    // ── Démarrage : projets-client (via le jeton) est la source de vérité. ──
+    // F1 : migration douce — un navigateur portant encore l'ancien stockage (mail+code) sans jeton est
+    // PURGÉ et atterrit proprement sur la connexion, jamais sur une erreur.
+    if (lire(K_TOKEN)) entrerAccueil();
+    else { try { K_LEGACY.forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} montrer('vue-login'); }
   })();
   </script>
 </body>
