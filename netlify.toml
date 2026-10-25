@@ -26,6 +26,18 @@
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
+# Espace client (lot G) : jamais mis en cache. Combiné à l'exclusion SW (sw.js), garantit qu'un client
+# ne tourne jamais sur un client.html / client-etat.js périmé (décalage code↔serveur = panne muette).
+[[headers]]
+  for = "/client.html"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/client-etat.js"
+  [headers.values]
+    Cache-Control = "no-store"
+
 # Sécurité (publish = "."). Ne JAMAIS servir en statique la SOURCE des fonctions, la config, les
 # dépendances ni les docs internes. force = true pour masquer même les fichiers qui existent.
 # ⚠️ /netlify/* = la SOURCE ; l'INVOCATION se fait sur /.netlify/functions/* (AVEC point) — chemin

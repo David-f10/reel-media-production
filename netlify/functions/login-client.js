@@ -48,7 +48,7 @@ exports.handler = async (event) => {
   const v = await verifyClient({ mail, code: body.code });
   if (v.ok) {
     enregistrerSucces(ip, mail);
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, nom: v.contact.nom }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, nom: v.contact.nom, marque: v.contact.marque || '' }) };
   }
   if (v.raison === 'indispo') return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
   await enregistrerEchec(ip, mail);

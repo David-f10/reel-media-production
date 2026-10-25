@@ -73,7 +73,10 @@ async function verifyClient({ mail, code }) {
       page = trouver(contacts);
     }
     if (!bon(page)) return { ok: false, raison: 'auth' }; // mail inconnu / code faux / inactif → MÊME réponse
-    return { ok: true, contact: { id: page.id, mail: m, nom: _nom(page.properties), codeBrand: _rt(page.properties, 'Code Brand') } };
+    // `marque` = nom d'affichage DÉNORMALISÉ sur le contact (comme Code Brand), posé par l'admin en tranche 3
+    // depuis la marque choisie, jamais tapé. Absent → '' (l'écran affiche « Vos projets » sans marque). Lu
+    // sur la ligne déjà chargée → zéro requête supplémentaire, y compris sur le chemin chaud projets-client.
+    return { ok: true, contact: { id: page.id, mail: m, nom: _nom(page.properties), codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque') } };
   } catch (e) {
     console.error('verifyClient indispo : ' + (e && e.message || ''));
     return { ok: false, raison: 'indispo' };
