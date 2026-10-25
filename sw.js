@@ -45,6 +45,11 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
+  // 0. Espace client — JAMAIS servi par le SW (fraîcheur critique : un client.html périmé rejouerait un
+  // décalage code↔serveur). Réseau direct, + Cache-Control:no-store côté header. Les vrais clients n'ont
+  // de toute façon pas de SW (seul index.html l'enregistre) ; ceci couvre un appareil d'équipe qui ouvrirait la page.
+  if (url.pathname === '/client.html' || url.pathname === '/client-etat.js') return;
+
   // 1. Functions Netlify — toujours réseau, jamais cache
   if (url.pathname.startsWith('/.netlify/functions/')) return;
 
