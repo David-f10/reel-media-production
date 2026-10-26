@@ -113,7 +113,9 @@ async function contactActif(id) {
       page = trouver(contacts);
     }
     if (!vivant(page)) return { ok: false, raison: 'auth' }; // disparu / désactivé → re-login
-    return { ok: true, codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque') };
+    // `nom` ajouté (tranche 2) : estampillage SERVEUR de l'Auteur d'un retour depuis la fiche lue EN LIVE
+    // (montage-client ne fait jamais confiance au navigateur pour l'auteur). Additif — projets-client l'ignore.
+    return { ok: true, nom: _nom(page.properties), codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque') };
   } catch (e) {
     console.error('contactActif indispo : ' + (e && e.message || ''));
     return { ok: false, raison: 'indispo' };

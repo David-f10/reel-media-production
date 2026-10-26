@@ -44,6 +44,7 @@ function extractFileId(raw) {
 }
 
 const _titre = (pr) => ((pr && pr['Titre'] && pr['Titre'].title) || []).map(t => t.plain_text || '').join('');
+const _titreSujet = _titre; // DB_PROD porte aussi le film dans une propriété title 'Titre'
 const _dateEnvoi = (pr) => (pr && pr['Date envoi client'] && pr['Date envoi client'].date && pr['Date envoi client'].date.start) || '';
 
 async function _query(dbId, body, token) {
@@ -133,8 +134,8 @@ async function autoriserMontage(event, params, deadline) {
 
   return {
     ok: true,
-    contact: { id: vt.id, codeBrand, marque: liv.marque || '' },
-    sujet: { code: sujetCode, pageId: sujetPage.id },
+    contact: { id: vt.id, nom: liv.nom || '', codeBrand, marque: liv.marque || '' }, // nom : estampillage serveur de l'Auteur d'un retour (fiche lue en live)
+    sujet: { code: sujetCode, pageId: sujetPage.id, titre: _titreSujet(sujetPage.properties) },
     versions,
     courante // null = sujet exposé mais aucune version encore envoyée (vrai vide, PAS une panne)
   };
