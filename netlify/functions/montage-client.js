@@ -26,7 +26,23 @@ const { autoriserMontage } = require('./_montageclient');
 const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
 const MAX_TEXTE = 5000;
 const MAX_TC = 120;
-const MAX_CAT = 120;
+
+// Options FERMÉES du select « Catégorie » de 📋 Retours. DOIT RESTER ALIGNÉE sur les options du select
+// Catégorie de 📋 Retours : deux endroits à tenir (ici ET Notion) si Master en ajoute une un jour.
+// Un select Notion CRÉE l'option quand on y écrit un nom inconnu → toute valeur libre du navigateur
+// polluerait DURABLEMENT la taxonomie de l'équipe (elle resterait dans tous ses filtres). On n'écrit
+// donc JAMAIS que l'une de ces huit chaînes, choisie par la valeur client ; hors liste → champ OMIS
+// (le retour reste écrit, non catégorisé : on ne perd pas la parole d'un client pour une étiquette).
+const CATEGORIES = ['🔊 Audio', '🖼 Image', '🎬 Rush', '🎨 Graphisme', '📺 Accroche', '💬 Sous-titres', '🎤 Voix', '🎵 Musique'];
+// Appariement tolérant au sélecteur de variation emoji (U+FE0F) : un navigateur peut envoyer « 🖼️ Image »
+// (avec VS16) là où l'option stockée est « 🖼 Image ». On compare NORMALISÉ mais on renvoie la chaîne
+// CANONIQUE de CATEGORIES — jamais les octets du navigateur. Pas de correspondance → null (champ omis).
+const _normCat = (s) => String(s || '').replace(/️/g, '').trim();
+function categorieCanonique(entree) {
+  const n = _normCat(entree);
+  if (!n) return null;
+  return CATEGORIES.find(c => _normCat(c) === n) || null;
+}
 
 function acao(event) {
   const o = (event.headers && (event.headers.origin || event.headers.Origin)) || '';
@@ -171,7 +187,8 @@ exports.handler = async (event) => {
     if (!texte) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Le retour est vide' }) };
     if (texte.length > MAX_TEXTE) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Retour trop long' }) };
     const timecode = String(body.timecode || '').trim().slice(0, MAX_TC);
-    const categorie = String(body.categorie || '').trim().slice(0, MAX_CAT);
+    // Validée contre l'ensemble FERMÉ (ci-dessus) — jamais la valeur libre du navigateur dans le select.
+    const categorie = categorieCanonique(body.categorie);
 
     // Version INTERNE de la courante — JAMAIS le rang client. C'est ce lien qui garde les retours de
     // l'espace comparables avec ceux de review.
