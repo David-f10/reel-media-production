@@ -567,6 +567,12 @@ const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
 let sujets=[],sujetsArchives=[],idees=[],taches=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
 let mapClientsParCode = new Map(); // code client → nom, reconstruite à chaque (re)chargement de `clients`
 let currentUser=null; // {id, nom, role}
+// `_accesConfigure` : affordance d'INTERFACE du portail « Gérer l'équipe », PAS une frontière de sécurité
+// (la frontière est SERVEUR : notion.js PROPS_ACCES + access-set, clé vérifiée). Vient du verify (booléen
+// global, ne révèle jamais QUI porte la clé), persisté en localStorage → forgeable à false sans gain réel.
+// Défaut SÛR = true (feature active → non-gestionnaires exclus) tant qu'un verify ne dit pas l'inverse.
+let _accesConfigure = true;
+let _accesHydrate = false; // les champs acces/peutGererAcces de `equipe` ont-ils été relus EN LIVE ?
 
 function getPrefixe(p){
   const prop=p['Préfixe'];
@@ -4029,6 +4035,7 @@ async function initLogin() {
   if(saved) {
     try {
       currentUser = JSON.parse(saved);
+      try { const c = localStorage.getItem('rm-acc-cfg'); _accesConfigure = (c === null ? true : c === 'true'); } catch(_){ _accesConfigure = true; }
       if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser({id:currentUser.id,username:currentUser.nom});Sentry.setTag('role',currentUser.role||'inconnu');}
       showApp();
       return;
@@ -4049,6 +4056,7 @@ async function doLogin(){
     const data=await res.json();
     if(!data.ok){errEl.textContent=data.error||'Code incorrect';errEl.style.display='block';if(btn)btn.textContent='Accéder →';return;}
     currentUser=data.user;localStorage.setItem('rm-user',JSON.stringify(currentUser));localStorage.setItem('rm-code',code);errEl.style.display='none';
+    _accesConfigure = (data.accesConfigure !== false); try { localStorage.setItem('rm-acc-cfg', String(_accesConfigure)); } catch(_){}
     if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser({id:currentUser.id,username:currentUser.nom});Sentry.setTag('role',currentUser.role||'inconnu');}
     showApp();
   }catch(e){errEl.textContent='Service indisponible — réessayez';errEl.style.display='block';}
@@ -4533,6 +4541,8 @@ function doLogout() {
   if(typeof Sentry!=='undefined'&&Sentry.setUser){Sentry.setUser(null);}
   localStorage.removeItem('rm-user');
   localStorage.removeItem('rm-code');
+  try { localStorage.removeItem('rm-acc-cfg'); } catch(_){}
+  _accesConfigure = true; _accesHydrate = false;
   currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app-shell').style.display = 'none';
@@ -4743,8 +4753,11 @@ async function loadRetoursBadges() {
 // "Feature active" = les champs Notion sont renseignés pour au moins un membre (une clé posée ou un
 // Externe). Tant qu'ils n'existent pas (déploiement), tout est au défaut sûr → feature OFF → l'écran
 // « Gérer l'équipe » se comporte EXACTEMENT comme aujourd'hui (aucun changement visible pour les 7).
+// Affordance d'INTERFACE seulement, PAS une frontière de sécurité (celle-ci est serveur : notion.js
+// PROPS_ACCES + access-set, clé vérifiée). Lit le booléen `accesConfigure` du verify (« une clé / un
+// cloisonnement existe quelque part », sans révéler QUI). Les champs par membre ne descendent plus en clair.
 function _accesFeatureActif() {
-  return (equipe || []).some(m => m && (m.peutGererAcces === true || (m.acces && m.acces !== 'Complet')));
+  return _accesConfigure === true;
 }
 function _suisGestionnaireAcces() { return currentUser?.peutGererAcces === true; }
 // « Gérer l'équipe » dépend de la CLÉ (pas du niveau) — mais seulement une fois la feature configurée,
@@ -4754,10 +4767,47 @@ function _hdrsMembre() {
   return {'Content-Type':'application/json', 'x-rm-id':(currentUser&&currentUser.id)||'', 'x-rm-code':localStorage.getItem('rm-code')||''};
 }
 
-function openGererJournalistes() {
+async function openGererJournalistes() {
   if(!peutOuvrirEquipe()) { toast('Réservé aux gestionnaires d\'accès', 'err'); return; }
-  renderEquipeList();
   openOv('ov-equipe');
+  if(_suisGestionnaireAcces()) {
+    // Le gestionnaire a besoin des niveaux PAR membre : on les relit EN LIVE par le proxy (la liste de
+    // login ne les expose plus). Réserve 2 : si ça échoue, renderEquipeList affiche une erreur, jamais
+    // un tableau faux.
+    _accesHydrate = false;
+    renderEquipeChargement();
+    await hydraterAccesEquipe();
+    renderEquipeList();
+  } else {
+    renderEquipeList();
+  }
+}
+
+// Relit acces/peutGererAcces de TOUS les membres par le proxy (DB_EQUIPE ; le proxy strippe 'Code acces')
+// et les fusionne dans `equipe`. Gestionnaire seulement. Échec → _accesHydrate reste false (→ écran d'erreur).
+async function hydraterAccesEquipe() {
+  try {
+    const data = await apiQueryAll('/databases/' + DB_EQUIPE + '/query', {});
+    const parId = {};
+    (data.results || []).forEach(p => {
+      const q = p.properties || {};
+      parId[String(p.id).replace(/-/g,'')] = {
+        acces: q['Accès']?.select?.name || 'Complet',
+        peut: q['Peut gérer les accès']?.checkbox === true
+      };
+    });
+    equipe.forEach(m => { const h = parId[String(m.id||'').replace(/-/g,'')]; if(h){ m.acces = h.acces; m.peutGererAcces = h.peut; } });
+    _accesHydrate = true;
+    return true;
+  } catch(e) {
+    _accesHydrate = false;
+    console.error('hydratation accès : ' + (e && e.message || ''));
+    return false;
+  }
+}
+function renderEquipeChargement() {
+  const c = document.getElementById('equipe-list');
+  if(c) c.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0">Lecture des accès…</div>';
 }
 
 // Change le niveau d'accès d'un AUTRE membre (voie serveur, clé vérifiée — le proxy interdit ce PATCH).
@@ -4821,6 +4871,12 @@ function renderEquipeList() {
   const roles = ['Chef','Journaliste','Monteur','Brand'];
   const source = equipe.length > 0 ? equipe : journalistes.map(j => ({nom:j, role:'Journaliste'}));
   const gest = _suisGestionnaireAcces(); // porteur de la clé → contrôles d'accès ; sinon liste simple (= actuel)
+  if(gest && !_accesHydrate) {
+    // Réserve 2 : accès non lus → ERREUR, jamais un tableau qui MENT (tout « Complet », personne de clé).
+    container.innerHTML = '<div style="font-size:12.5px;color:var(--red);padding:10px 0">Impossible de lire les accès.</div>'
+      + '<button class="nav-btn" style="font-size:12px" onclick="openGererJournalistes()">Réessayer</button>';
+    return;
+  }
   let html = '';
   roles.forEach(role => {
     const membres = source.filter(m => m.role === role);

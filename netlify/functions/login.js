@@ -92,10 +92,9 @@ exports.handler = async (event) => {
           nomComplet: pr['Nom complet']?.rich_text?.[0]?.plain_text || '',
           role: pr.Role?.select?.name || '',
           contactBrandDefaut: pr['Contact Brand défaut']?.checkbox || false,
-          chefDefaut: pr['Chef défaut']?.checkbox || false,
-          // Niveau d'accès (3/3a) : absent/vide → 'Complet' (défaut sûr) ; clé absente → false.
-          acces: pr['Accès']?.select?.name || 'Complet',
-          peutGererAcces: pr['Peut gérer les accès']?.checkbox === true
+          chefDefaut: pr['Chef défaut']?.checkbox || false
+          // acces / peutGererAcces NE descendent PLUS ici : non authentifié, ils révéleraient QUI porte
+          // la clé « gère les accès ». L'écran de gestion les relit par le proxy, une fois connecté.
         };
       }).filter(m => m.nom);
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, equipe }) };
@@ -144,12 +143,20 @@ exports.handler = async (event) => {
     }
 
     await enregistrerSucces(ip, id, POLICE_EQUIPE);
+    // Booléen GLOBAL « le cloisonnement est configuré » (une clé OU un accès non-Complet existe quelque
+    // part), SANS révéler QUI. Sert au portail de l'écran « Gérer l'équipe » — affordance d'interface,
+    // pas une frontière de sécurité (celle-ci est serveur : PROPS_ACCES / access-set, clé vérifiée).
+    const accesConfigure = (membres || []).some(p => {
+      const q = (p && p.properties) || {};
+      return (q['Peut gérer les accès']?.checkbox === true) || (q['Accès']?.select?.name && q['Accès'].select.name !== 'Complet');
+    });
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         ok: true,
-        user: { id: page.id, nom, role, acces, peutGererAcces }
+        user: { id: page.id, nom, role, acces, peutGererAcces },
+        accesConfigure
       })
     };
 
