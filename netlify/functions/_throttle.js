@@ -1,100 +1,121 @@
 // netlify/functions/_throttle.js
-// Lot G — limitation des tentatives de connexion de l'espace client, SANS base ni service externe (Netlify
-// Blobs, déjà dans la stack). Politique validée :
-//   • PAR IP = verrou FERME, PARTAGÉ entre instances (Blobs). L'attaquant paie ; bloquer une IP ne
-//     verrouille aucun compte. Verrou caché en mémoire par instance → 0 lecture Blobs tant qu'une IP est
-//     verrouillée.
-//   • PAR MAIL = ralentissement PROGRESSIF (0,0,2,4,8,16,30 s cap), JAMAIS de verrou sec → un attaquant qui
-//     pilonne l'adresse d'un vrai client le ralentit sans jamais l'enfermer dehors (au pire ~30 s).
-//     DÉSORMAIS PERSISTÉ dans Blobs comme l'IP (F3) : on ne laisse pas la protection dépendre d'une mémoire
-//     par instance qu'on ne sait pas observer.
-// FAIL-OPEN : Blobs indisponible/non configuré → le throttle ne bloque rien (verifyClient protège encore),
-//   MAIS c'est désormais LOGGÉ une fois (F2) — plus de protection silencieusement absente.
-// Dépendance IP : le verrou ferme exige un vrai IP client ; en-tête vide → loggé une fois (F6).
-// Dosage quota : écriture Blobs seulement sur échec / succès (changement d'état).
+// Limitation des tentatives de connexion, partagée par les DEUX portes (client + équipe) via Netlify Blobs.
+// PARAMÉTRÉE par une « police » : chaque porte a ses seuils, ses clés Blobs (préfixe DISTINCT → aucune
+// collision entre portes) et, PAR AXE, le choix verrou-dur vs ralentissement progressif.
+//
+//   • Client (POLICE_CLIENT, défaut) : axe IP = verrou FERME (10 échecs/10 min → 15 min), axe secondaire
+//     = mail, progressif. Les clients ont chacun leur IP → un verrou dur est un gain pur.
+//   • Équipe (POLICE_EQUIPE) : les sept sont derrière UNE IP (NAT bureau). AUCUN verrou dur — ni sur l'IP
+//     (il enfermerait tout le bureau) ni sur le compte (un attaquant enfermerait délibérément le porteur
+//     de la clé « gère les accès »). Les DEUX axes sont progressifs : compte (id) 4 essais libres puis
+//     5/10/20/30 s ; IP seuil haut (~30) puis 30 s plafond.
+//
+// FAIL-OPEN : Blobs indisponible → ne bloque rien (verifyUser/verifyClient protègent encore), loggé 1×.
+// Dosage quota : écriture Blobs seulement sur échec / succès.
 
 const { getThrottleStore } = require('./_blobs');
 
-const IP_WINDOW_MS = 10 * 60 * 1000, IP_SEUIL = 10, IP_LOCK_MS = 15 * 60 * 1000;
-const MAIL_WINDOW_MS = 10 * 60 * 1000, MAIL_CAP_S = 30;
-const normMail = (s) => String(s == null ? '' : s).trim().toLowerCase();
+const W = 10 * 60 * 1000; // fenêtre commune : 10 min
 
-const _ipLock = new Map(); // ip -> lockedUntil (cache instance du verrou ferme Blobs)
-let _logStoreIndispo = false, _logIpVide = false; // F2 / F6 : un seul log par instance, pas de flood
+const POLICE_CLIENT = {
+  prefixe: 'c',
+  ip:  { type: 'dur',  cle: 'ip', windowMs: W, seuil: 10, lockMs: 15 * 60 * 1000 },
+  sec: { type: 'prog', cle: 'm',  windowMs: W, libres: 2, base: 2, capS: 30 }
+};
+const POLICE_EQUIPE = {
+  prefixe: 'e',
+  ip:  { type: 'prog', cle: 'ip', windowMs: W, libres: 30, base: 30, capS: 30 }, // NAT bureau : seuil haut, pas de lock
+  sec: { type: 'prog', cle: 'id', windowMs: W, libres: 4, base: 5, capS: 30 }    // compte : 4 libres puis 5/10/20/30 s
+};
+
+const normMail = (s) => String(s == null ? '' : s).trim().toLowerCase();
+const _lockDur = new Map(); // clé Blobs → until (cache instance d'un verrou FERME)
+let _logStoreIndispo = false, _logA1Vide = false;
 
 function _store() {
   try { return getThrottleStore(); }
   catch (e) {
-    if (!_logStoreIndispo) { // F2
-      console.error('throttle : store Blobs indisponible (NETLIFY_SITE_ID / NETLIFY_BLOBS_TOKEN ?) — throttle INACTIF, fail-open');
-      _logStoreIndispo = true;
-    }
+    if (!_logStoreIndispo) { console.error('throttle : store Blobs indisponible (NETLIFY_SITE_ID / NETLIFY_BLOBS_TOKEN ?) — throttle INACTIF, fail-open'); _logStoreIndispo = true; }
     return null;
   }
 }
-// délai (s) par mail selon le nb d'échecs : 0,0,2,4,8,16,30(cap)…
-function _cooldownMail(c) { return c <= 2 ? 0 : Math.min(MAIL_CAP_S, Math.pow(2, c - 2)); }
+const _key = (pol, axe, val) => pol.prefixe + ':' + axe.cle + ':' + val;
+const _cooldownProg = (axe, c) => (c <= axe.libres ? 0 : Math.min(axe.capS, axe.base * Math.pow(2, c - axe.libres - 1)));
+const _val = (axe, v) => (axe.cle === 'm' ? normMail(v) : v); // le mail est normalisé ; l'id non
 
-// À appeler AVANT verifyClient. → { bloque:bool, retryAfter?:s }.
-async function verifierThrottle(ip, mail) {
+// Vérifie un axe → secondes d'attente (0 = libre).
+async function _verifAxe(store, pol, axe, v, now) {
+  const val = _val(axe, v);
+  if (val === '' || val == null) return 0;
+  const key = _key(pol, axe, val);
+  if (axe.type === 'dur') {
+    const u = _lockDur.get(key);
+    if (u && u > now) return Math.ceil((u - now) / 1000);
+    if (u) _lockDur.delete(key);
+    try {
+      const e = await store.get(key, { type: 'json' });
+      if (e && e.until && e.until > now) { _lockDur.set(key, e.until); return Math.ceil((e.until - now) / 1000); }
+    } catch (e) { console.error('throttle read [' + key + '] : ' + (e && e.message || '')); }
+    return 0;
+  }
+  try {
+    const e = await store.get(key, { type: 'json' });
+    if (e && e.last && (now - e.last) < axe.windowMs) {
+      const reste = _cooldownProg(axe, e.c || 0) * 1000 - (now - e.last);
+      if (reste > 0) return Math.ceil(reste / 1000);
+    }
+  } catch (e) { console.error('throttle read [' + key + '] : ' + (e && e.message || '')); }
+  return 0;
+}
+
+async function _echecAxe(store, pol, axe, v, now) {
+  const val = _val(axe, v);
+  if (val === '' || val == null) return;
+  const key = _key(pol, axe, val);
+  try {
+    let e = await store.get(key, { type: 'json' }).catch(() => null);
+    if (axe.type === 'dur') {
+      if (!e || (now - (e.t || 0)) > axe.windowMs) e = { c: 0, t: now };
+      e.c++;
+      if (e.c >= axe.seuil) { e.until = now + axe.lockMs; _lockDur.set(key, e.until); }
+    } else {
+      if (!e || (now - (e.last || 0)) > axe.windowMs) e = { c: 0, last: now };
+      e.c++; e.last = now;
+    }
+    await store.setJSON(key, e);
+  } catch (e) { console.error('throttle write [' + key + '] : ' + (e && e.message || '')); }
+}
+
+// a1 = IP ; a2 = valeur de l'axe secondaire (mail côté client, id de membre côté équipe).
+async function verifierThrottle(a1, a2, police) {
+  const pol = police || POLICE_CLIENT;
   const now = Date.now();
-  if (!ip && !_logIpVide) { // F6
-    console.error('throttle : en-tête IP client vide (x-nf-client-connection-ip absent) — verrou IP INACTIF');
-    _logIpVide = true;
-  }
-  if (ip) { const u = _ipLock.get(ip); if (u && u > now) return { bloque: true, retryAfter: Math.ceil((u - now) / 1000) }; if (u) _ipLock.delete(ip); }
+  if (!a1 && !_logA1Vide) { console.error('throttle : en-tête IP client vide (x-nf-client-connection-ip absent) — axe IP INACTIF'); _logA1Vide = true; }
   const store = _store();
-  if (!store) return { bloque: false }; // fail-open (loggé une fois dans _store)
-  if (ip) {
-    try {
-      const e = await store.get('ip:' + ip, { type: 'json' });
-      if (e && e.until && e.until > now) { _ipLock.set(ip, e.until); return { bloque: true, retryAfter: Math.ceil((e.until - now) / 1000) }; }
-    } catch (e) { console.error('throttle ip read : ' + (e && e.message || '')); } // fail-open
-  }
-  const m = normMail(mail);
-  if (m) {
-    try {
-      const e = await store.get('m:' + m, { type: 'json' });
-      if (e && e.last && (now - e.last) < MAIL_WINDOW_MS) {
-        const reste = _cooldownMail(e.c || 0) * 1000 - (now - e.last);
-        if (reste > 0) return { bloque: true, retryAfter: Math.ceil(reste / 1000) };
-      }
-    } catch (e) { console.error('throttle mail read : ' + (e && e.message || '')); } // fail-open
-  }
+  if (!store) return { bloque: false }; // fail-open
+  if (a1) { const r = await _verifAxe(store, pol, pol.ip, a1, now); if (r > 0) return { bloque: true, retryAfter: r }; }
+  const r2 = await _verifAxe(store, pol, pol.sec, a2, now);
+  if (r2 > 0) return { bloque: true, retryAfter: r2 };
   return { bloque: false };
 }
 
-// À appeler sur un ÉCHEC d'identifiants (raison:'auth'). Incrémente mail ET IP dans Blobs (+ verrou IP au seuil).
-async function enregistrerEchec(ip, mail) {
+// Sur un ÉCHEC d'identifiants : incrémente l'axe IP et l'axe secondaire.
+async function enregistrerEchec(a1, a2, police) {
+  const pol = police || POLICE_CLIENT;
   const now = Date.now();
   const store = _store();
   if (!store) return;
-  if (ip) {
-    try {
-      let e = await store.get('ip:' + ip, { type: 'json' }).catch(() => null);
-      if (!e || (now - (e.t || 0)) > IP_WINDOW_MS) e = { c: 0, t: now };
-      e.c++;
-      if (e.c >= IP_SEUIL) { e.until = now + IP_LOCK_MS; _ipLock.set(ip, e.until); }
-      await store.setJSON('ip:' + ip, e);
-    } catch (e) { console.error('throttle ip write : ' + (e && e.message || '')); }
-  }
-  const m = normMail(mail);
-  if (m) {
-    try {
-      let e = await store.get('m:' + m, { type: 'json' }).catch(() => null);
-      if (!e || (now - (e.last || 0)) > MAIL_WINDOW_MS) e = { c: 0, last: now };
-      e.c++; e.last = now;
-      await store.setJSON('m:' + m, e);
-    } catch (e) { console.error('throttle mail write : ' + (e && e.message || '')); }
-  }
+  if (a1) await _echecAxe(store, pol, pol.ip, a1, now);
+  await _echecAxe(store, pol, pol.sec, a2, now);
 }
 
-// À appeler sur un SUCCÈS (login client). Efface le compteur mail dans Blobs. IP laissée. Best-effort.
-async function enregistrerSucces(ip, mail) {
+// Sur un SUCCÈS : efface le compteur de l'axe secondaire (mail / id). IP laissée. Best-effort.
+async function enregistrerSucces(a1, a2, police) {
+  const pol = police || POLICE_CLIENT;
   const store = _store();
   if (!store) return;
-  const m = normMail(mail);
-  if (m) { try { await store.delete('m:' + m); } catch (e) { /* best-effort */ } }
+  const val = _val(pol.sec, a2);
+  if (val) { try { await store.delete(_key(pol, pol.sec, val)); } catch (e) { /* best-effort */ } }
 }
 
-module.exports = { verifierThrottle, enregistrerEchec, enregistrerSucces };
+module.exports = { verifierThrottle, enregistrerEchec, enregistrerSucces, POLICE_EQUIPE };
