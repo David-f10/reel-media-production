@@ -13,9 +13,12 @@
 //     pas échouer l'action, et ne se transforme pas en succès (la réponse ne dépend que de l'écriture primaire).
 //   • Signalement d'équipe = chemin. valider-client porte un jeton CLIENT → il ne peut PAS appeler notify.js
 //     (qui exige un membre ou un jeton de review). Il crée donc lui-même les pages 📥 Notifications (la SOURCE
-//     de la cloche équipe), une par destinataire, best-effort. Le push Web instantané de notify.js n'est PAS
-//     répliqué ici (il exigerait VAPID + Blobs + web-push → hors « un écran », et toucherait la lane équipe
-//     si on le partageait) : la cloche reste alimentée. Enhancement signalé dans la PR, pas décidé en douce.
+//     de la cloche équipe), une par destinataire, best-effort.
+//     DETTE ASSUMÉE (pas un manque) : le push Web instantané de notify.js n'est PAS répliqué ici. Le
+//     partager imposerait de coupler VAPID + Blobs + web-push à la lane équipe — exactement le couplage
+//     qu'on refuse depuis le début. Et ça n'en vaut pas le prix : l'équipe est dans HAVANA tous les jours,
+//     une validation client n'est pas un événement à la minute, la cloche (📥 Notifications) suffit à la
+//     surfacer. À rouvrir seulement si ce signalement devient temps-réel critique.
 //
 // INVARIANT (spec §4) : une version validée est TOUJOURS la dernière. Si une version plus récente a été
 // envoyée depuis le chargement de la page du client, son action est PÉRIMÉE → refus franc (409 perime:true),
