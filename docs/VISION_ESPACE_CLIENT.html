@@ -1,0 +1,652 @@
+<title>Espace client complet</title>
+<meta charset="utf-8">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   OÙ VA L'ESPACE CLIENT — vision, tranches 2 à 4. Version 2.
+
+   CHANGEMENT MAJEUR DEPUIS LA v1 : review.html n'est plus la destination du
+   client. La validation d'un montage SE FAIT DANS L'ESPACE. Décision de
+   David, 26/10. Conséquences :
+     • plus aucun lien porteur envoyé au client — l'accès passe par sa session
+     • plus de ré-identification (prénom/entreprise) : il est déjà authentifié
+     • les notifications par mail pointent vers l'espace, jamais vers une review
+     • review.html reste l'outil de l'ÉQUIPE, il ne disparaît pas
+
+   Ceci n'est PAS la maquette de construction. MAQUETTE_ESPACE_CLIENT.html
+   reste la cible de la PR 3 : connexion + liste nue.
+
+   Direction artistique de review.html : fond #08080F, accent rouge #E63946,
+   vert #1D9E75 pour la validation, carte bordée, DM Sans / DM Mono.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --bg:#08080F; --bg2:#0F0F1A; --bg3:#16161F; --bg4:#1E1E2A;
+  --line:#1E1E2A; --line2:#2A2A3A;
+  --txt:#F0F0F5; --txt2:#9898B0; --txt3:#5A5A70;
+  --rouge:#E63946; --rouge-fort:#F04B57; --rouge-voile:rgba(230,57,70,.12); --rouge-bord:rgba(230,57,70,.30);
+  --amber:#EF9F27; --amber-voile:rgba(239,159,39,.12); --amber-bord:rgba(239,159,39,.38);
+  --vert:#1D9E75; --vert-voile:rgba(29,158,117,.12); --vert-bord:rgba(29,158,117,.32);
+  --sans:'DM Sans',system-ui,-apple-system,sans-serif;
+  --mono:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg3)}
+
+/* bandeau de la maquette — n'existe pas en production */
+.mk{background:var(--bg3);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.mk-in{max-width:1060px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:11px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.mk-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3)}
+.mk-r{display:flex;flex-wrap:wrap;gap:4px}
+.mk-btn{font-family:var(--sans);font-size:12px;font-weight:500;color:var(--txt2);background:transparent;border:1px solid var(--line2);padding:5px 11px;border-radius:5px;cursor:pointer}
+.mk-btn[aria-pressed="true"],.mk-btn[aria-selected="true"]{background:var(--bg4);color:var(--txt);border-color:#3A3A50}
+.mk-btn:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+
+.note{display:none;font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--amber);
+      background:var(--amber-voile);border-left:2px solid var(--amber-bord);padding:8px 11px;margin:0 0 13px;border-radius:0 5px 5px 0}
+body.notes .note{display:block}
+
+.wrap{max-width:1060px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 72px}
+.hidden{display:none!important}
+
+/* ── en-tête commun ─────────────────────────────────────────────────────── */
+.head{padding-block:34px 18px;border-bottom:1px solid var(--line);margin-bottom:28px}
+.head-mark{display:flex;align-items:center;gap:10px;margin-bottom:13px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt3)}
+.head h1{font-size:clamp(24px,4.6vw,31px);font-weight:500;letter-spacing:-.025em;margin:0 0 10px;text-wrap:balance}
+.head-id{font-size:13.5px;color:var(--txt2);display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline}
+.head-id a{color:var(--txt2);text-decoration:none;border-bottom:1px solid var(--line2)}
+.head-id a:hover{color:var(--txt);border-bottom-color:var(--txt3)}
+.maj{font-family:var(--mono);font-size:11px;color:var(--txt3)}
+
+h2{font-size:11.5px;font-family:var(--mono);letter-spacing:.15em;text-transform:uppercase;color:var(--txt3);
+   font-weight:400;margin:36px 0 14px;display:flex;flex-wrap:wrap;align-items:baseline;gap:9px}
+h2 .n{color:var(--txt3);font-size:11px;font-variant-numeric:tabular-nums}
+h2 .quota{margin-left:auto;font-size:10.5px;letter-spacing:.06em;text-transform:none;color:var(--txt2)}
+h2:first-of-type{margin-top:0}
+
+.code{flex:none;font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.06em;
+  color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:3px 8px;border-radius:4px}
+
+.bouton{flex:none;background:var(--rouge);color:#fff;border:1px solid var(--rouge);
+  font-family:var(--sans);font-size:14px;font-weight:700;padding:10px 17px;border-radius:7px;cursor:pointer;
+  text-decoration:none;display:inline-block;white-space:nowrap;transition:background .12s,border-color .12s}
+.bouton:hover{background:var(--rouge-fort);border-color:var(--rouge-fort)}
+.bouton.vert{background:transparent;color:var(--vert);border-color:var(--vert-bord);font-weight:500}
+.bouton.vert:hover{background:var(--vert);color:#04150F;border-color:var(--vert)}
+.lnk{font-size:12.5px;color:var(--txt2);text-decoration:none;border:1px solid var(--line2);
+  background:var(--bg3);padding:6px 11px;border-radius:6px;display:inline-block;white-space:nowrap;transition:color .12s,border-color .12s}
+.lnk:hover{color:var(--txt);border-color:var(--txt3)}
+.lnk + .lnk{margin-left:7px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+
+/* ── 1. ce qui attend le client ─────────────────────────────────────────── */
+.attente{display:flex;flex-direction:column;gap:11px}
+.att{background:var(--bg2);border:1px solid var(--rouge-bord);border-left:3px solid var(--rouge);
+  border-radius:9px;padding:17px 19px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+.att-m{min-width:0;flex:1 1 260px;display:flex;flex-direction:column;gap:7px}
+.att-t{font-size:16px;font-weight:500;letter-spacing:-.005em}
+.att-l{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12.5px;color:var(--txt2)}
+.att-l .mono{font-family:var(--mono);font-size:11.5px;color:var(--txt3)}
+
+/* ── les chiffres — REMIS, mais réduits à ce qui répond à une question.
+   « 11 mois de collaboration » et « 4 journalistes mobilisés » étaient de la
+   plaquette : coupés. Une date de début est un fait, pas une vanité. */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.stat{background:var(--bg2);padding:16px 17px 14px}
+.stat-n{font-family:var(--mono);font-size:25px;font-weight:500;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;display:block;line-height:1.1}
+.stat-n.petit{font-size:17px;padding-block:5px 3px}
+.stat-l{font-size:11.5px;color:var(--txt2);margin-top:6px;display:block}
+
+/* ── 2. en cours, avec la progression ───────────────────────────────────── */
+.live{display:flex;flex-direction:column;gap:9px}
+.lrow{background:var(--bg2);border:1px solid var(--line);border-left:2px solid var(--amber);
+  border-radius:8px;padding:15px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.lrow-m{min-width:0;flex:1 1 240px;display:flex;flex-direction:column;gap:5px}
+.lrow-t{font-size:15.5px;font-weight:500}
+.lrow-s{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12.5px;color:var(--txt2)}
+.pill{flex:none;font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:4px;white-space:nowrap;
+  background:var(--amber-voile);color:var(--amber);border:1px solid var(--amber-bord)}
+.pill.ok{background:var(--vert-voile);color:var(--vert);border-color:var(--vert-bord)}
+
+/* la progression : information, pas interface — aucun contrôle à manipuler */
+.etapes{display:flex;gap:4px;margin-top:9px;max-width:330px}
+.et{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.et-b{height:3px;border-radius:2px;background:var(--line2)}
+.et-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.et.fait .et-b{background:var(--txt3)} .et.fait .et-l{color:var(--txt2)}
+.et.ici .et-b{background:var(--amber)} .et.ici .et-l{color:var(--amber)}
+.et.ici.fini .et-b{background:var(--vert)} .et.ici.fini .et-l{color:var(--vert)}
+
+/* ── 3. les livrés ──────────────────────────────────────────────────────── */
+.tw{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.t{width:100%;border-collapse:collapse;font-size:14.5px}
+.t th{font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--txt3);
+  font-weight:400;text-align:left;padding:11px 15px;background:var(--bg3);border-bottom:1px solid var(--line)}
+.t td{padding:12px 15px;border-bottom:1px solid var(--line);vertical-align:middle;background:var(--bg2)}
+.t tr:last-child td{border-bottom:none}
+.t tr:hover td{background:var(--bg3)}
+.c-code{width:1%;white-space:nowrap}
+.c-t{min-width:0} .c-t b{font-weight:500;display:block} .c-t span{font-size:12px;color:var(--txt3)}
+.c-who{font-size:13px;color:var(--txt2);white-space:nowrap;width:1%}
+.c-d{font-family:var(--mono);font-size:12px;color:var(--txt2);white-space:nowrap;font-variant-numeric:tabular-nums;width:1%}
+.c-a{width:1%;white-space:nowrap}
+.replier{margin-top:13px;font-size:12.5px;color:var(--txt3);display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+
+/* ── 4. l'équipe, réduite à l'interlocutrice ────────────────────────────── */
+.ref{background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:15px 17px;
+  display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.av{width:40px;height:40px;flex:none;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--mono);font-size:13px;font-weight:500;
+  background:var(--rouge-voile);color:var(--rouge);border:1px solid var(--rouge-bord)}
+.ref-b{min-width:0;flex:1 1 200px}
+.ref-n{font-size:15px;font-weight:500}
+.ref-m{font-size:12.5px;color:var(--txt2);margin-top:2px}
+
+/* ══ VUE AVIS — la validation, DANS l'espace ═══════════════════════════════ */
+.retour-lien{font-size:13px;color:var(--txt2);text-decoration:none;display:inline-flex;align-items:center;gap:7px;
+  border-bottom:1px solid transparent;margin-bottom:16px}
+.retour-lien:hover{color:var(--txt);border-bottom-color:var(--line2)}
+.rv-head{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:baseline}
+.rv-head h1{font-size:clamp(21px,4vw,27px);font-weight:500;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.rv-meta{font-family:var(--mono);font-size:11.5px;color:var(--txt3)}
+
+.rv{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:16px;align-items:start}
+.scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  display:grid;place-items:center;min-height:430px}
+.scene-v{aspect-ratio:9/16;height:410px;max-width:100%;background:linear-gradient(170deg,#1b1b24,#0b0b12);
+  display:grid;place-items:center;position:relative}
+.scene-play{width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);
+  display:grid;place-items:center;color:#fff;font-size:17px;padding-left:3px}
+.scene-bas{position:absolute;left:0;right:0;bottom:0;padding:11px 13px;display:flex;gap:10px;align-items:center;
+  background:linear-gradient(to top,rgba(0,0,0,.72),transparent);font-family:var(--mono);font-size:11px;color:#cfcfdc}
+
+.panneau{background:var(--bg2);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  display:flex;flex-direction:column}
+.pan-t{padding:12px 15px;background:var(--bg3);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:500}
+.pan-n{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);
+  padding:2px 8px;border-radius:8px;flex:none}
+.retours{display:flex;flex-direction:column}
+.ret{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.ret-h{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.ret-tc{font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);
+  border:1px solid var(--rouge-bord);padding:1px 7px;border-radius:4px}
+.ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
+.ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
+.ret-q{font-size:11.5px;color:var(--txt3);font-family:var(--mono)}
+
+/* LE SÉLECTEUR DE VERSION — les numéros sont CLIENT, jamais internes. */
+.vers{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.vch{font-family:var(--sans);font-size:12.5px;color:var(--txt2);background:transparent;
+  border:1px solid var(--line2);padding:6px 13px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.vch[aria-selected="true"]{background:var(--bg4);color:var(--txt);border-color:#3A3A50}
+.vch .pt{font-family:var(--mono);font-size:10px;color:var(--txt3);margin-left:7px}
+.vch[aria-selected="true"] .pt{color:var(--vert)}
+.vch:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+
+.bouton.gris2{background:transparent;color:var(--txt2);border-color:var(--line2);font-weight:500}
+.bouton.gris2:hover{background:var(--bg4);color:var(--txt);border-color:var(--txt3)}
+.close.gris{background:var(--bg3);border-top-color:var(--line);color:var(--txt2)}
+.close.gris b{color:var(--txt)}
+
+/* bandeau d'une version close — remplace le formulaire, qui n'a plus lieu d'être */
+.close{padding:15px;background:var(--vert-voile);border-top:1px solid var(--vert-bord);
+  color:var(--vert);font-size:13px;line-height:1.55}
+.close b{font-weight:600}
+
+/* L'HISTORIQUE DES VERSIONS — motif .histo de review.html. Les retours d'une
+   version précédente restent lisibles, en retrait, pour que le client voie ce
+   qu'il a déjà demandé pendant qu'il regarde la suivante. */
+.histo-t{padding:11px 15px 4px;background:var(--bg2);border-top:1px solid var(--line);
+  font-size:12px;font-weight:600;color:var(--txt2)}
+.histo-s{padding:0 15px 10px;background:var(--bg2);font-size:11px;color:var(--txt3);line-height:1.5}
+.ret.histo{background:var(--bg2);border-left:2px solid var(--line2);opacity:.72}
+.ret.histo .ret-tc{color:var(--txt3);background:var(--bg4);border-color:var(--line2)}
+
+.forme{border-top:1px solid var(--line);background:var(--bg3);padding:14px 15px;display:flex;flex-direction:column;gap:10px}
+.forme-t{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt3)}
+.forme-r{display:flex;gap:8px}
+input,select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:6px;
+  color:var(--txt);font-family:var(--sans);font-size:13.5px;padding:9px 11px}
+input::placeholder,textarea::placeholder{color:var(--txt3)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rouge)}
+.forme-r input{font-family:var(--mono);max-width:128px}
+textarea{resize:vertical;min-height:72px;line-height:1.5}
+.fin{border-top:1px solid var(--line);padding:14px 15px;display:flex;flex-direction:column;gap:9px}
+.fin .bouton{width:100%;text-align:center}
+.fin-n{font-size:11.5px;color:var(--txt3);line-height:1.5;margin:0}
+
+/* ══ PREMIER ACCÈS ════════════════════════════════════════════════════════ */
+.premier{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:30px 32px;max-width:640px}
+.premier h3{font-size:19px;font-weight:500;letter-spacing:-.015em;margin:0 0 10px}
+.premier > p{color:var(--txt2);font-size:14px;margin:0 0 18px;max-width:52ch}
+.pts{display:flex;flex-direction:column;gap:11px;margin:0 0 22px;padding:0;list-style:none}
+.pts li{display:flex;gap:11px;align-items:baseline;font-size:14px;color:var(--txt2)}
+.pts .p{flex:none;font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);
+  border:1px solid var(--rouge-bord);width:21px;height:21px;border-radius:50%;display:grid;place-items:center}
+
+.foot{margin-top:42px;padding-top:21px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--txt3);display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(max-width:900px){
+  .rv{grid-template-columns:minmax(0,1fr)}
+  .scene{min-height:0} .scene-v{height:min(420px,62vh)}
+}
+@media(max-width:640px){
+  .t thead{display:none}
+  .t,.t tbody,.t tr,.t td{display:block;width:auto}
+  .t tr{border-bottom:1px solid var(--line);padding:6px 0}
+  .t tr:last-child{border-bottom:none}
+  .t td{border:none;padding:4px 15px;background:var(--bg2)}
+  .t td.c-code{padding-top:13px}
+  .t td.c-a{padding-bottom:14px;padding-top:9px}
+  .t tr:hover td{background:var(--bg2)}
+  .head{padding-block:26px 16px}
+  h2 .quota{margin-left:0;flex-basis:100%}
+  .premier{padding:24px 20px}
+}
+</style>
+
+<div class="mk"><div class="mk-in">
+  <span class="mk-lbl">Vision v2 · la validation entre dans l'espace</span>
+  <div class="mk-r" role="tablist">
+    <button class="mk-btn" role="tab" aria-selected="true"  data-v="espace">Mon espace</button>
+    <button class="mk-btn" role="tab" aria-selected="false" data-v="avis">Voir un montage</button>
+    <button class="mk-btn" role="tab" aria-selected="false" data-v="premier">Premier accès</button>
+    <button class="mk-btn" id="bascule" aria-pressed="false">Notes</button>
+  </div>
+</div></div>
+
+<div class="wrap">
+
+<!-- ══════════ MON ESPACE ══════════ -->
+<section id="v-espace">
+  <div class="head">
+    <div class="head-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 633.6 641.7" style="height:24px;width:auto;border-radius:4px;flex:none">
+      <rect fill="#001349" width="633.6" height="641.7"/>
+      <path fill="#ff451a" d="M337.28,382.47c-1.77-16.84-16.86-29.06-33.7-27.29l-158.58,16.67c-16.84,1.77-29.06,16.86-27.29,33.7h0c1.77,16.84,16.86,29.06,33.7,27.29l158.58-16.67c16.84-1.77,29.06-16.86,27.29-33.7h0Z"/>
+      <g fill="#fff">
+        <path d="M293.79,313.65l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+        <path d="M192.93,282.31c0,4.92.91,5.31,10.1,5.83v3.76h-36.79v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l23.96-3.63,1.42,11.66c7.25-8.03,11.01-11.79,16.32-11.79s8.81,3.24,8.81,8.94c0,4.92-3.24,10.88-9.07,10.88-2.46,0-3.89-1.17-5.44-2.46-2.59-1.94-4.4-3.24-6.22-3.24-2.98,0-3.89,2.98-3.89,8.94v28.63Z"/>
+        <path d="M237.88,260.67c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.69,18.52-23.06.13-29.53-14.9-29.53-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM251.87,255.88c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M299.28,260.67c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.68,18.52-23.06.13-29.54-14.9-29.54-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM313.27,255.88c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M173.76,338.74c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l24.35-3.63,1.42,8.16c6.87-4.27,12.44-8.29,20.21-8.29,9.2,0,13.99,5.05,16.45,9.2,5.05-3.24,12.57-9.2,20.99-9.2,13.08,0,18.78,7.38,18.78,18.78v32.9c0,4.92.78,5.44,7.51,5.83v3.76h-32.64v-3.76c3.5-.39,6.09.13,6.09-4.79v-33.03c0-7.25-3.89-11.27-9.2-11.27-4.27.13-8.29,2.33-9.59,8.55-.39,1.43-.39,4.02-.39,5.57v30.18c0,4.92,2.59,4.4,6.09,4.79v3.76h-31.22v-3.76c3.63-.39,6.09.13,6.09-4.79v-33.03c0-6.61-2.85-11.27-8.42-11.27-4.79,0-8.94,2.33-10.23,8.55-.39,1.55-.39,3.76-.39,5.57v30.18c0,4.92,2.46,4.4,6.09,4.79v3.76h-32.77v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44Z"/>
+        <path d="M298.63,354.54c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.69,18.52-23.06.13-29.53-14.9-29.53-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM312.62,349.75c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M400.71,376.18v-90.01l-.52-.52-24.78,2.49c-.48.05-.96.07-1.44.06l-2.92-.06c-6.74-.39-7.51-.91-7.51-5.96v-81.35l-.52-.39-25.78,2.72v3.63l4.4.78c1.68.39,2.72,1.55,2.72,6.35v68.27c0,5.05-.78,5.57-7.51,5.96v3.76h34.2s.69,0,1.62.02c1.53.04,3.06.19,4.57.46.8.14,1.59.28,1.59.28,1.81.26,2.85,1.55,2.85,6.35v26.92c-2.59-1.04-6.35-1.43-10.23-1.43-8.55,0-16.45,2.46-22.02,7.64-5.83,5.31-9.33,13.86-9.33,24.87,0,19.43,8.68,30.31,23.45,30.31,4.27,0,11.53-2.59,18.14-7.77v6.22h26.94v-3.76c-6.87-.39-7.9-.91-7.9-5.83ZM381.67,368.92c0,2.33-.39,5.05-1.94,7-1.17,1.55-3.11,2.85-6.74,2.85-7.64,0-12.95-8.55-12.95-24.35,0-19.56,5.96-25.39,12.57-25.39,4.53,0,7,2.33,8.16,4.27.91,1.81.91,4.79.91,7.25v28.37Z"/>
+        <path d="M415.86,338.74c0-4.92-.91-6.09-2.72-6.22l-4.02-.65v-3.76l25.13-3.5.78.52v51.04c0,4.92.78,5.44,7.51,5.83v3.76h-34.07v-3.76c6.48-.39,7.38-.91,7.38-5.83v-37.44ZM435.17,308.81c0,5.57-3.89,10.23-10.23,10.23s-9.97-4.66-9.97-10.23,3.5-9.97,10.1-9.97,10.1,4.66,10.1,9.97Z"/>
+        <path d="M497.73,370.86c0,6.48,1.17,8.29,3.11,9.2,1.42.52,3.63.65,5.18.52l.13,3.24c-4.02,2.07-9.72,3.5-16.58,3.5-6.35,0-8.94-3.24-10.1-7.38-4.4,2.85-9.2,7.38-17.1,7.38-12.31,0-18.14-8.68-18.14-17.88,0-7,3.11-12.18,13.08-15.16,8.03-2.33,18.01-5.31,21.63-8.29v-7.12c0-7-2.98-9.85-7-9.85-3.76,0-7.38,1.94-10.36,13.73-.91,3.11-2.72,4.66-5.44,4.66-3.24,0-10.23-2.07-10.23-7.64,0-7.38,9.33-15.29,27.59-15.29,21.89,0,24.22,10.36,24.22,17.88v28.5ZM478.95,350.92c-2.98,1.3-6.87,3.11-10.49,5.31-3.24,1.94-4.79,4.92-4.79,10.62,0,7.13,3.76,11.92,8.68,11.92,2.72,0,6.61-1.68,6.61-7.77v-20.08Z"/>
+        <path d="M233.05,219.71l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+      </g>
+    </svg><span>Espace client</span></div>
+    <h1>Refashion</h1>
+    <div class="head-id"><span>Bonjour Camille</span> <a href="#" onclick="return false">Déconnexion</a>
+      <span class="maj">à jour il y a 4 min</span></div>
+  </div>
+
+  <h2>À relire <span class="n">2</span></h2>
+  <p class="note">TRANCHE 2 · Le seul bloc qui demande une action, donc le premier. Source : DB_VERSIONS,
+  versions sans retour du contact. Les numéros affichés ici sont les numéros CLIENT, recalculés — voir la
+  règle de numérotation sur la vue montage. Le bouton N'OUVRE PLUS review.html — il bascule sur la vue « Donner mon
+  de montage DANS l'espace. Aucun lien porteur fabriqué, aucune ré-identification. Les notifications par mail
+  doivent pointer ICI, sinon ce bloc ne sera jamais vu.</p>
+  <div class="attente">
+    <div class="att">
+      <div class="att-m">
+        <div class="att-t">Le vrai coût d'un jean — format long</div>
+        <div class="att-l"><span class="code">B33F</span><span>Version 2</span><span class="mono">déposée le 24 octobre</span></div>
+      </div>
+      <button class="bouton" data-go="avis">Voir le montage →</button>
+    </div>
+    <div class="att">
+      <div class="att-m">
+        <div class="att-t">Atelier de réparation, Lyon</div>
+        <div class="att-l"><span class="code">B33H</span><span>Version 1</span><span class="mono">déposée le 22 octobre</span></div>
+      </div>
+      <button class="bouton" data-go="avis">Voir le montage →</button>
+    </div>
+  </div>
+
+  <h2>Votre collaboration</h2>
+  <p class="note">TRANCHE 2 · REMIS À TA DEMANDE, mais réduit. La v1 affichait aussi « 11 mois de
+  collaboration » et « 4 journalistes mobilisés » : de la plaquette, et le second pouvait se lire à
+  l'envers (« mon compte est éparpillé sur quatre personnes »). Ici, trois faits. Calculés côté serveur
+  depuis DB_PROD sur le préfixe de code de la marque — jamais dans le navigateur.</p>
+  <div class="stats">
+    <div class="stat"><span class="stat-n">14</span><span class="stat-l">films livrés</span></div>
+    <div class="stat"><span class="stat-n">3</span><span class="stat-l">en cours</span></div>
+    <div class="stat"><span class="stat-n petit">mars 2026</span><span class="stat-l">depuis</span></div>
+  </div>
+
+  <h2>En cours <span class="n">3</span></h2>
+  <p class="note">TRANCHE 2 · DB_PROD, projets non diffusés. DEUX CHOSES À CADRER. (1) La barre se déduit du
+  statut de production, mais le client n'a pas à voir vos états internes : il faut une traduction côté
+  serveur vers les quatre étapes. (2) La pastille ne répète PAS l'étape, elle porte une DATE. Sans date
+  fiable, pas de pastille — mieux vaut rien qu'une promesse molle.</p>
+  <div class="live">
+    <div class="lrow">
+      <div class="lrow-m">
+        <div class="lrow-t">Portrait — la ressourcerie de Saint-Ouen</div>
+        <div class="lrow-s"><span class="code">B33K</span><span>Juliette Cohen</span></div>
+        <div class="etapes">
+          <div class="et fait"><div class="et-b"></div><div class="et-l">Tournage</div></div>
+          <div class="et ici"><div class="et-b"></div><div class="et-l">Montage</div></div>
+          <div class="et"><div class="et-b"></div><div class="et-l">Validation</div></div>
+          <div class="et"><div class="et-b"></div><div class="et-l">Diffusion</div></div>
+        </div>
+      </div>
+      <span class="pill">V1 attendue le 6 novembre</span>
+    </div>
+    <div class="lrow">
+      <div class="lrow-m">
+        <div class="lrow-t">Refashion « Tu préfères ? » — saison 2</div>
+        <div class="lrow-s"><span class="code">B33M</span><span>Mathilde Kaczkowski</span></div>
+        <div class="etapes">
+          <div class="et ici"><div class="et-b"></div><div class="et-l">Tournage</div></div>
+          <div class="et"><div class="et-b"></div><div class="et-l">Montage</div></div>
+          <div class="et"><div class="et-b"></div><div class="et-l">Validation</div></div>
+          <div class="et"><div class="et-b"></div><div class="et-l">Diffusion</div></div>
+        </div>
+      </div>
+      <span class="pill">Tournage le 12 novembre</span>
+    </div>
+    <div class="lrow">
+      <div class="lrow-m">
+        <div class="lrow-t">Le vrai coût d'un jean — format court</div>
+        <div class="lrow-s"><span class="code">B33G</span><span>Juliette Cohen</span></div>
+        <div class="etapes">
+          <div class="et fait"><div class="et-b"></div><div class="et-l">Tournage</div></div>
+          <div class="et fait"><div class="et-b"></div><div class="et-l">Montage</div></div>
+          <div class="et fait"><div class="et-b"></div><div class="et-l">Validation</div></div>
+          <div class="et ici fini"><div class="et-b"></div><div class="et-l">Diffusion</div></div>
+        </div>
+      </div>
+      <span class="pill ok">Diffusion le 4 novembre</span>
+    </div>
+  </div>
+
+  <h2>Livrés <span class="n">14</span> <span class="quota">3 téléchargements restants ce mois</span></h2>
+  <p class="note">TRANCHE 2 pour le tableau · TRANCHE 4 pour le téléchargement. Le quota du lot C s'affiche
+  AVANT le tableau, pas en erreur au quatrième clic : le design porte la contrainte. « Revoir » rouvre la vue
+  de montage en lecture seule, toujours dans l'espace. « Télécharger » passe par une variante client de
+  drive-download, avec le même contrôle de périmètre que projets-client. Les dix films plus anciens sont
+  repliés : l'archive ne doit pas pousser la page à quatre écrans.</p>
+  <div class="tw">
+    <table class="t">
+      <thead><tr><th>Code</th><th>Film</th><th>Réalisé par</th><th>Diffusion</th><th></th></tr></thead>
+      <tbody>
+        <tr><td class="c-code"><span class="code">B33D</span></td>
+          <td class="c-t"><b>Refashion « Tu préfères ? »</b><span>Format court · 1 min 20</span></td>
+          <td class="c-who">Mathilde Kaczkowski</td><td class="c-d">17 oct. 2026</td>
+          <td class="c-a"><a class="lnk" href="#" onclick="return false">Revoir</a><a class="lnk" href="#" onclick="return false">Télécharger</a></td></tr>
+        <tr><td class="c-code"><span class="code">B33C</span></td>
+          <td class="c-t"><b>La seconde main en chiffres</b><span>Motion design · 55 s</span></td>
+          <td class="c-who">Réel Média</td><td class="c-d">2 oct. 2026</td>
+          <td class="c-a"><a class="lnk" href="#" onclick="return false">Revoir</a><a class="lnk" href="#" onclick="return false">Télécharger</a></td></tr>
+        <tr><td class="c-code"><span class="code">B33B</span></td>
+          <td class="c-t"><b>Atelier textile, Roubaix</b><span>Reportage · 3 min 40</span></td>
+          <td class="c-who">Juliette Cohen</td><td class="c-d">18 sept. 2026</td>
+          <td class="c-a"><a class="lnk" href="#" onclick="return false">Revoir</a><a class="lnk" href="#" onclick="return false">Télécharger</a></td></tr>
+        <tr><td class="c-code"><span class="code">B33A</span></td>
+          <td class="c-t"><b>Pourquoi vos vêtements durent moins longtemps</b><span>Format long · 6 min</span></td>
+          <td class="c-who">Mathilde Kaczkowski</td><td class="c-d">29 août 2026</td>
+          <td class="c-a"><a class="lnk" href="#" onclick="return false">Revoir</a><a class="lnk" href="#" onclick="return false">Télécharger</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="replier"><span>10 films plus anciens</span><a class="lnk" href="#" onclick="return false">Tout afficher</a></div>
+
+  <h2>Votre interlocutrice</h2>
+  <p class="note">TRANCHE 2 · RÉDUIT DEPUIS LA v1, et c'est une décision d'entreprise, pas de design. La v1
+  listait toute l'équipe avec le nombre de films par personne : ça dit à un client qui travaille pour lui,
+  les rend démarchables, et invite au « je veux untel sur celui-là ». Ici on ne nomme que la référente.
+  Si tu veux remettre l'équipe complète, c'est ton choix — dis-le.</p>
+  <div class="ref">
+    <div class="av">MK</div>
+    <div class="ref-b">
+      <div class="ref-n">Mathilde Kaczkowski</div>
+      <div class="ref-m">Votre référente chez Réel Média</div>
+    </div>
+    <a class="lnk" href="#" onclick="return false">Lui écrire</a>
+  </div>
+
+  <div class="foot">
+    <span>Une remarque sur un film ? Laissez-la directement dessus, c'est plus rapide qu'un mail.</span>
+    <span>Réel Média</span>
+  </div>
+</section>
+
+<!-- ══════════ DONNER MON AVIS — dans l'espace ══════════ -->
+<section id="v-avis" class="hidden">
+  <div class="head" style="padding-block:28px 16px;margin-bottom:22px">
+    <div class="head-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 633.6 641.7" style="height:24px;width:auto;border-radius:4px;flex:none">
+      <rect fill="#001349" width="633.6" height="641.7"/>
+      <path fill="#ff451a" d="M337.28,382.47c-1.77-16.84-16.86-29.06-33.7-27.29l-158.58,16.67c-16.84,1.77-29.06,16.86-27.29,33.7h0c1.77,16.84,16.86,29.06,33.7,27.29l158.58-16.67c16.84-1.77,29.06-16.86,27.29-33.7h0Z"/>
+      <g fill="#fff">
+        <path d="M293.79,313.65l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+        <path d="M192.93,282.31c0,4.92.91,5.31,10.1,5.83v3.76h-36.79v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l23.96-3.63,1.42,11.66c7.25-8.03,11.01-11.79,16.32-11.79s8.81,3.24,8.81,8.94c0,4.92-3.24,10.88-9.07,10.88-2.46,0-3.89-1.17-5.44-2.46-2.59-1.94-4.4-3.24-6.22-3.24-2.98,0-3.89,2.98-3.89,8.94v28.63Z"/>
+        <path d="M237.88,260.67c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.69,18.52-23.06.13-29.53-14.9-29.53-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM251.87,255.88c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M299.28,260.67c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.68,18.52-23.06.13-29.54-14.9-29.54-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM313.27,255.88c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M173.76,338.74c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l24.35-3.63,1.42,8.16c6.87-4.27,12.44-8.29,20.21-8.29,9.2,0,13.99,5.05,16.45,9.2,5.05-3.24,12.57-9.2,20.99-9.2,13.08,0,18.78,7.38,18.78,18.78v32.9c0,4.92.78,5.44,7.51,5.83v3.76h-32.64v-3.76c3.5-.39,6.09.13,6.09-4.79v-33.03c0-7.25-3.89-11.27-9.2-11.27-4.27.13-8.29,2.33-9.59,8.55-.39,1.43-.39,4.02-.39,5.57v30.18c0,4.92,2.59,4.4,6.09,4.79v3.76h-31.22v-3.76c3.63-.39,6.09.13,6.09-4.79v-33.03c0-6.61-2.85-11.27-8.42-11.27-4.79,0-8.94,2.33-10.23,8.55-.39,1.55-.39,3.76-.39,5.57v30.18c0,4.92,2.46,4.4,6.09,4.79v3.76h-32.77v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44Z"/>
+        <path d="M298.63,354.54c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.69,18.52-23.06.13-29.53-14.9-29.53-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM312.62,349.75c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M400.71,376.18v-90.01l-.52-.52-24.78,2.49c-.48.05-.96.07-1.44.06l-2.92-.06c-6.74-.39-7.51-.91-7.51-5.96v-81.35l-.52-.39-25.78,2.72v3.63l4.4.78c1.68.39,2.72,1.55,2.72,6.35v68.27c0,5.05-.78,5.57-7.51,5.96v3.76h34.2s.69,0,1.62.02c1.53.04,3.06.19,4.57.46.8.14,1.59.28,1.59.28,1.81.26,2.85,1.55,2.85,6.35v26.92c-2.59-1.04-6.35-1.43-10.23-1.43-8.55,0-16.45,2.46-22.02,7.64-5.83,5.31-9.33,13.86-9.33,24.87,0,19.43,8.68,30.31,23.45,30.31,4.27,0,11.53-2.59,18.14-7.77v6.22h26.94v-3.76c-6.87-.39-7.9-.91-7.9-5.83ZM381.67,368.92c0,2.33-.39,5.05-1.94,7-1.17,1.55-3.11,2.85-6.74,2.85-7.64,0-12.95-8.55-12.95-24.35,0-19.56,5.96-25.39,12.57-25.39,4.53,0,7,2.33,8.16,4.27.91,1.81.91,4.79.91,7.25v28.37Z"/>
+        <path d="M415.86,338.74c0-4.92-.91-6.09-2.72-6.22l-4.02-.65v-3.76l25.13-3.5.78.52v51.04c0,4.92.78,5.44,7.51,5.83v3.76h-34.07v-3.76c6.48-.39,7.38-.91,7.38-5.83v-37.44ZM435.17,308.81c0,5.57-3.89,10.23-10.23,10.23s-9.97-4.66-9.97-10.23,3.5-9.97,10.1-9.97,10.1,4.66,10.1,9.97Z"/>
+        <path d="M497.73,370.86c0,6.48,1.17,8.29,3.11,9.2,1.42.52,3.63.65,5.18.52l.13,3.24c-4.02,2.07-9.72,3.5-16.58,3.5-6.35,0-8.94-3.24-10.1-7.38-4.4,2.85-9.2,7.38-17.1,7.38-12.31,0-18.14-8.68-18.14-17.88,0-7,3.11-12.18,13.08-15.16,8.03-2.33,18.01-5.31,21.63-8.29v-7.12c0-7-2.98-9.85-7-9.85-3.76,0-7.38,1.94-10.36,13.73-.91,3.11-2.72,4.66-5.44,4.66-3.24,0-10.23-2.07-10.23-7.64,0-7.38,9.33-15.29,27.59-15.29,21.89,0,24.22,10.36,24.22,17.88v28.5ZM478.95,350.92c-2.98,1.3-6.87,3.11-10.49,5.31-3.24,1.94-4.79,4.92-4.79,10.62,0,7.13,3.76,11.92,8.68,11.92,2.72,0,6.61-1.68,6.61-7.77v-20.08Z"/>
+        <path d="M233.05,219.71l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+      </g>
+    </svg><span>Espace client</span></div>
+    <a class="retour-lien" href="#" data-go="espace">← Mes projets</a>
+    <div class="rv-head">
+      <h1>Le vrai coût d'un jean — format long</h1>
+      <span class="code">B33F</span>
+      <span class="rv-meta" id="rv-meta">Version 2 · déposée le 24 octobre</span>
+    </div>
+    <div class="vers" role="tablist">
+      <button class="vch" role="tab" aria-selected="false" data-ver="1">Version 1<span class="pt">retours envoyés</span></button>
+      <button class="vch" role="tab" aria-selected="true"  data-ver="2">Version 2<span class="pt">à relire</span></button>
+    </div>
+  </div>
+
+  <p class="note">⚠️ RÈGLE DE NUMÉROTATION — À TENIR DANS TOUT L'ESPACE.
+  En interne vos montages Brand s'appellent V1, V2, V3, V4… Quand la V4 est validée en interne et montrée
+  au client, elle devient SA Version 1. S'il demande des corrections, votre V5 devient SA Version 2.
+  CONSÉQUENCE : aucun numéro interne ne doit JAMAIS sortir dans l'espace client — sinon il voit
+  « Version 4 » puis « Version 7 », il compte, et il demande ce qu'il y avait entre les deux.
+  Le numéro client se CALCULE : c'est le rang de la version parmi celles envoyées au client, classées par
+  DATE D'ENVOI. On ne stocke pas un numéro client à la main, il dériverait. On stocke la date d'envoi, qui
+  ne bouge plus une fois posée — donc le rang ne bouge plus non plus. PIÈGE : si une version est montrée
+  puis remplacée, le rang des suivantes ne doit PAS glisser. Une fois exposée, une version garde son
+  numéro, même si vous la remplacez derrière.</p>
+  <p class="note">⚠️ LES TROIS ÉTATS D'UNE VERSION CLIENT, et un trou trouvé dans le circuit actuel.
+  CORRECTION D'UNE FAUTE DE LOGIQUE : la v4 affichait « Version 1 validée » À CÔTÉ d'une « Version 2 en
+  cours ». Impossible — on ne fabrique une version suivante que parce que la précédente n'a PAS été validée.
+  INVARIANT À TENIR : une version validée est TOUJOURS la dernière. S'il existe une version après une
+  version validée, c'est une incohérence de données, pas un cas métier.
+  LES TROIS ÉTATS, dits du point de vue du client : « à relire » (envoyée, il n'a rien fait),
+  « retours envoyés » (il a demandé des corrections, ce tour est clos), « validée » (terminal, le film part
+  en diffusion). LE TROU : aujourd'hui review.html n'a qu'un bouton, « Valider cette version ». Un client
+  qui laisse trois retours et ferme son navigateur ne signale jamais qu'il a FINI — l'équipe ne sait pas si
+  d'autres arrivent. D'où le second bouton « Envoyer mes retours », qui clôt le tour. Deux actions
+  terminales, jamais une seule. Et PAS de quatrième état « validée avec remarques » : un client qui écrit
+  « ok mais corrige la faute » demande une correction, pas une validation — sinon vous facturez une
+  diffusion sur un film que le client croit encore modifiable.</p>
+  <p class="note">⚠️ DÉCISION DE PRODUCTION À PRENDRE — pas un choix d'affichage.
+  Le client retrouve TOUJOURS ses retours, version par version : c'est la trace de ce qu'il a demandé, il y
+  a droit. La question ouverte est la VIDÉO des versions passées. Les laisser regardables, c'est ouvrir
+  « en fait je préférais la fin de la V1 » et rouvrir des décisions closes. Les fermer, c'est assumer que la
+  version en cours est la seule qui compte. La maquette montre le cas OUVERT (les deux versions se
+  regardent) ; si tu fermes, le chip « Version 1 » affiche les retours et un visuel grisé, sans lecteur.
+  À trancher avant la tranche 2.</p>
+  <p class="note">TRANCHE 2 · LE CHANTIER PRINCIPAL. C'est review.html rapatrié dans l'espace, servi par la
+  SESSION du client au lieu d'un lien porteur. À construire : lecture de la vidéo depuis Drive sous contrôle
+  de périmètre, écriture dans DB_RETOURS rattachée au contact authentifié, et la validation de version.
+  review.html NE DISPARAÎT PAS — il reste l'outil de l'équipe.</p>
+
+  <div class="rv">
+    <div class="scene">
+      <div class="scene-v">
+        <div class="scene-play">▶</div>
+        <div class="scene-bas"><span class="code">B33F</span><span>00:00 / 02:14</span></div>
+      </div>
+    </div>
+
+    <div class="panneau hidden" id="pan-1">
+      <div class="pan-t"><span>Mes retours</span><span class="pan-n">3</span></div>
+      <div class="retours">
+        <div class="ret">
+          <div class="ret-h"><span class="ret-tc">00:48</span><span class="ret-cat">Son</span></div>
+          <div class="ret-x">La musique couvre un peu la voix sur le passage de l'atelier.</div>
+          <div class="ret-q">il y a 9 jours</div>
+        </div>
+        <div class="ret">
+          <div class="ret-h"><span class="ret-tc">02:02</span><span class="ret-cat">Montage</span></div>
+          <div class="ret-x">On peut couper les trois dernières secondes, le plan traîne.</div>
+          <div class="ret-q">il y a 9 jours</div>
+        </div>
+        <div class="ret">
+          <div class="ret-h"><span class="ret-tc">01:10</span><span class="ret-cat">Texte à l'écran</span></div>
+          <div class="ret-x">« Refashion » doit s'écrire sans espace, c'est notre marque déposée.</div>
+          <div class="ret-q">il y a 9 jours</div>
+        </div>
+      </div>
+      <div class="close gris"><b>Vous avez envoyé ces trois retours le 18 octobre.</b>
+        Ils ont été repris dans la version 2, que vous pouvez relire maintenant.</div>
+    </div>
+
+    <div class="panneau" id="pan-2">
+      <div class="pan-t"><span>Mes retours</span><span class="pan-n">2</span></div>
+      <div class="retours">
+        <div class="ret">
+          <div class="ret-h"><span class="ret-tc">00:14</span><span class="ret-cat">Texte à l'écran</span></div>
+          <div class="ret-x">Le chiffre de 2 700 litres mériterait sa source à l'image, on nous la demande toujours.</div>
+          <div class="ret-q">il y a 2 jours</div>
+        </div>
+        <div class="ret">
+          <div class="ret-h"><span class="ret-tc">01:32</span><span class="ret-cat">Montage</span></div>
+          <div class="ret-x">La transition vers l'atelier est un peu sèche, un battement de plus suffirait.</div>
+          <div class="ret-q">il y a 2 jours</div>
+        </div>
+      </div>
+
+      <div class="forme">
+        <div class="forme-t">Laisser un retour</div>
+        <div class="forme-r">
+          <input type="text" placeholder="00:00" aria-label="Timecode">
+          <select aria-label="Catégorie">
+            <option>— Catégorie —</option><option>Montage</option><option>Texte à l'écran</option>
+            <option>Son</option><option>Image</option><option>Autre</option>
+          </select>
+        </div>
+        <textarea placeholder="Décrivez votre retour…" aria-label="Votre retour"></textarea>
+        <button class="bouton" type="button">Ajouter à mes retours</button>
+      </div>
+
+      <div class="fin">
+        <div class="forme-t">Quand vous avez terminé</div>
+        <button class="bouton vert" type="button">Valider cette version</button>
+        <button class="bouton gris2" type="button">Envoyer mes retours</button>
+        <p class="fin-n">Valider clôt le film : il part en diffusion tel quel.
+          Envoyer vos retours clôt ce tour de relecture et lance une nouvelle version.
+          Dans les deux cas l'équipe est prévenue tout de suite.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ PREMIER ACCÈS ══════════ -->
+<section id="v-premier" class="hidden">
+  <div class="head">
+    <div class="head-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 633.6 641.7" style="height:24px;width:auto;border-radius:4px;flex:none">
+      <rect fill="#001349" width="633.6" height="641.7"/>
+      <path fill="#ff451a" d="M337.28,382.47c-1.77-16.84-16.86-29.06-33.7-27.29l-158.58,16.67c-16.84,1.77-29.06,16.86-27.29,33.7h0c1.77,16.84,16.86,29.06,33.7,27.29l158.58-16.67c16.84-1.77,29.06-16.86,27.29-33.7h0Z"/>
+      <g fill="#fff">
+        <path d="M293.79,313.65l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+        <path d="M192.93,282.31c0,4.92.91,5.31,10.1,5.83v3.76h-36.79v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l23.96-3.63,1.42,11.66c7.25-8.03,11.01-11.79,16.32-11.79s8.81,3.24,8.81,8.94c0,4.92-3.24,10.88-9.07,10.88-2.46,0-3.89-1.17-5.44-2.46-2.59-1.94-4.4-3.24-6.22-3.24-2.98,0-3.89,2.98-3.89,8.94v28.63Z"/>
+        <path d="M237.88,260.67c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.69,18.52-23.06.13-29.53-14.9-29.53-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM251.87,255.88c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M299.28,260.67c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.68,18.52-23.06.13-29.54-14.9-29.54-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM313.27,255.88c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M173.76,338.74c0-4.92-.91-5.96-2.72-6.22l-4.02-.65v-3.63l24.35-3.63,1.42,8.16c6.87-4.27,12.44-8.29,20.21-8.29,9.2,0,13.99,5.05,16.45,9.2,5.05-3.24,12.57-9.2,20.99-9.2,13.08,0,18.78,7.38,18.78,18.78v32.9c0,4.92.78,5.44,7.51,5.83v3.76h-32.64v-3.76c3.5-.39,6.09.13,6.09-4.79v-33.03c0-7.25-3.89-11.27-9.2-11.27-4.27.13-8.29,2.33-9.59,8.55-.39,1.43-.39,4.02-.39,5.57v30.18c0,4.92,2.59,4.4,6.09,4.79v3.76h-31.22v-3.76c3.63-.39,6.09.13,6.09-4.79v-33.03c0-6.61-2.85-11.27-8.42-11.27-4.79,0-8.94,2.33-10.23,8.55-.39,1.55-.39,3.76-.39,5.57v30.18c0,4.92,2.46,4.4,6.09,4.79v3.76h-32.77v-3.76c6.74-.39,7.51-.91,7.51-5.83v-37.44Z"/>
+        <path d="M298.63,354.54c0,13.73,4.15,23.71,15.93,23.71,7.25,0,12.82-2.72,16.97-11.27l3.37,1.81c-4.27,11.27-12.05,18.52-26.69,18.52-23.06.13-29.53-14.9-29.53-31.48s7.64-31.35,29.92-31.35c23.84,0,27.07,15.41,27.07,25.13,0,4.02-2.2,4.92-6.74,4.92h-30.31ZM312.62,349.75c2.72,0,3.76-.52,3.76-3.76,0-7.64-1.42-16.97-8.29-16.97-7.25,0-9.46,10.62-9.46,20.73h13.99Z"/>
+        <path d="M400.71,376.18v-90.01l-.52-.52-24.78,2.49c-.48.05-.96.07-1.44.06l-2.92-.06c-6.74-.39-7.51-.91-7.51-5.96v-81.35l-.52-.39-25.78,2.72v3.63l4.4.78c1.68.39,2.72,1.55,2.72,6.35v68.27c0,5.05-.78,5.57-7.51,5.96v3.76h34.2s.69,0,1.62.02c1.53.04,3.06.19,4.57.46.8.14,1.59.28,1.59.28,1.81.26,2.85,1.55,2.85,6.35v26.92c-2.59-1.04-6.35-1.43-10.23-1.43-8.55,0-16.45,2.46-22.02,7.64-5.83,5.31-9.33,13.86-9.33,24.87,0,19.43,8.68,30.31,23.45,30.31,4.27,0,11.53-2.59,18.14-7.77v6.22h26.94v-3.76c-6.87-.39-7.9-.91-7.9-5.83ZM381.67,368.92c0,2.33-.39,5.05-1.94,7-1.17,1.55-3.11,2.85-6.74,2.85-7.64,0-12.95-8.55-12.95-24.35,0-19.56,5.96-25.39,12.57-25.39,4.53,0,7,2.33,8.16,4.27.91,1.81.91,4.79.91,7.25v28.37Z"/>
+        <path d="M415.86,338.74c0-4.92-.91-6.09-2.72-6.22l-4.02-.65v-3.76l25.13-3.5.78.52v51.04c0,4.92.78,5.44,7.51,5.83v3.76h-34.07v-3.76c6.48-.39,7.38-.91,7.38-5.83v-37.44ZM435.17,308.81c0,5.57-3.89,10.23-10.23,10.23s-9.97-4.66-9.97-10.23,3.5-9.97,10.1-9.97,10.1,4.66,10.1,9.97Z"/>
+        <path d="M497.73,370.86c0,6.48,1.17,8.29,3.11,9.2,1.42.52,3.63.65,5.18.52l.13,3.24c-4.02,2.07-9.72,3.5-16.58,3.5-6.35,0-8.94-3.24-10.1-7.38-4.4,2.85-9.2,7.38-17.1,7.38-12.31,0-18.14-8.68-18.14-17.88,0-7,3.11-12.18,13.08-15.16,8.03-2.33,18.01-5.31,21.63-8.29v-7.12c0-7-2.98-9.85-7-9.85-3.76,0-7.38,1.94-10.36,13.73-.91,3.11-2.72,4.66-5.44,4.66-3.24,0-10.23-2.07-10.23-7.64,0-7.38,9.33-15.29,27.59-15.29,21.89,0,24.22,10.36,24.22,17.88v28.5ZM478.95,350.92c-2.98,1.3-6.87,3.11-10.49,5.31-3.24,1.94-4.79,4.92-4.79,10.62,0,7.13,3.76,11.92,8.68,11.92,2.72,0,6.61-1.68,6.61-7.77v-20.08Z"/>
+        <path d="M233.05,219.71l16.32-8.95c5.84-3.22,8.48-4.15,11.17-2.12,2.79,2.11,4.02,6.93,2.23,9.31-1.95,2.59-5.03,3.02-10.14,3.55l-18.71,1.79-.87-3.58Z"/>
+      </g>
+    </svg><span>Espace client</span></div>
+    <h1>Refashion</h1>
+    <div class="head-id"><span>Bonjour Camille</span> <a href="#" onclick="return false">Déconnexion</a></div>
+  </div>
+
+  <p class="note">TRANCHE 2 · MANQUAIT TOTALEMENT À LA v1. Un client qu'on vient de brancher voyait cinq
+  sections vides — au moment précis où il se fait son opinion. Cet écran remplace le vide tant qu'il n'y a
+  ni film livré, ni film en cours, ni version à valider. Il ne doit JAMAIS s'afficher à la place d'une
+  panne : un échec de calcul reste un « service indisponible », jamais un « premier accès ».</p>
+
+  <div class="premier">
+    <h3>Bienvenue dans votre espace, Camille.</h3>
+    <p>Vos films apparaîtront ici au fur et à mesure. Rien à installer, rien à télécharger —
+       tout se passe sur cette page.</p>
+    <ul class="pts">
+      <li><span class="p">1</span><span>Quand un montage est prêt, il s'affiche en haut avec prêt à être regardé.</span></li>
+      <li><span class="p">2</span><span>Vous laissez vos retours sur l'image, au moment précis qui vous gêne.</span></li>
+      <li><span class="p">3</span><span>Une fois validé, le film rejoint votre archive, consultable et téléchargeable.</span></li>
+    </ul>
+    <div class="ref">
+      <div class="av">MK</div>
+      <div class="ref-b">
+        <div class="ref-n">Mathilde Kaczkowski</div>
+        <div class="ref-m">Votre référente chez Réel Média</div>
+      </div>
+      <a class="lnk" href="#" onclick="return false">Lui écrire</a>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function () {
+  var vues = ['espace','avis','premier'];
+  var onglets = [].slice.call(document.querySelectorAll('.mk-btn[data-v]'));
+
+  function montrer(v) {
+    vues.forEach(function (x) { document.getElementById('v-' + x).classList.toggle('hidden', x !== v); });
+    onglets.forEach(function (o) { o.setAttribute('aria-selected', String(o.dataset.v === v)); });
+    window.scrollTo(0, 0);
+  }
+  onglets.forEach(function (o) { o.addEventListener('click', function () { montrer(o.dataset.v); }); });
+
+  // Dans l'espace, « donner mon avis » ne quitte PAS le site : il change de vue.
+  [].slice.call(document.querySelectorAll('[data-go]')).forEach(function (el) {
+    el.addEventListener('click', function (e) { e.preventDefault(); montrer(el.dataset.go); });
+  });
+
+  // le sélecteur de version — numéros CLIENT
+  var chips = [].slice.call(document.querySelectorAll('.vch'));
+  var meta = document.getElementById('rv-meta');
+  var textes = { '1': 'Version 1 · déposée le 15 octobre', '2': 'Version 2 · déposée le 24 octobre' };
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      var v = c.dataset.ver;
+      chips.forEach(function (x) { x.setAttribute('aria-selected', String(x === c)); });
+      ['1','2'].forEach(function (x) { document.getElementById('pan-' + x).classList.toggle('hidden', x !== v); });
+      meta.textContent = textes[v];
+    });
+  });
+
+  var b = document.getElementById('bascule');
+  b.addEventListener('click', function () {
+    var on = document.body.classList.toggle('notes');
+    b.setAttribute('aria-pressed', String(on));
+  });
+})();
+</script>
