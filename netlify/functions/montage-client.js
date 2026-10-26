@@ -56,8 +56,10 @@ const _cb = (pr, k) => !!(pr && pr[k] && pr[k].checkbox);
 const _title = (pr, k) => ((pr && pr[k] && pr[k].title) || []).map(t => t.plain_text || '').join('');
 const _dateSet = (pr, k) => !!(pr && pr[k] && pr[k].date && pr[k].date.start);
 // Version INTERNE (V1-V9) portée par la page DB_VERSIONS de la version client.
-const _versionInterne = (v) => (v && v.brut && v.brut.properties && v.brut.properties.Version
-  && v.brut.properties.Version.select && v.brut.properties.Version.select.name) || '';
+// ⚠️ DB_VERSIONS.Version est de type TEXT (rich_text) — ce n'est PAS un select. C'est DB_RETOURS.Version
+// qui est un select V1-V9. On LIT donc ici en rich_text ; l'ÉCRITURE vers DB_RETOURS.Version (plus bas)
+// reste un select. (Confondre les deux renvoyait '' → retour estampillé d'une version vide, non comparable.)
+const _versionInterne = (v) => (((v && v.brut && v.brut.properties && v.brut.properties.Version) || {}).rich_text || []).map(function (t) { return t.plain_text || ''; }).join('');
 
 async function notionFetch(pathApi, method, token, bodyObj) {
   const r = await fetch('https://api.notion.com/v1' + pathApi, {
