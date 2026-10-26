@@ -137,7 +137,11 @@ exports.handler = async (event) => {
     catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
     const versions = az.versions.map(v => ({ rang: v.rang, dateEnvoi: v.dateEnvoi, etat: etatVersion(v, retours) }));
-    const courante = az.courante ? { rang: az.versions[az.versions.length - 1].rang } : null;
+    // courante.fileId DESCEND (seule la courante) : le navigateur en a besoin pour monter le lecteur Drive.
+    // Ce n'est ni un champ Notion ni un id de page — c'est l'id de fichier Drive, inhérent à la lecture, et
+    // sans permission ouverte (drive-view-client, condition 4) il ne donne accès à rien. Les fileId des
+    // versions PASSÉES ne descendent jamais → cohérent avec « les versions passées ne se regardent pas ».
+    const courante = az.courante ? { rang: az.versions[az.versions.length - 1].rang, fileId: az.courante.fileId } : null;
 
     // Version affichée = rang demandé (défaut : courante). Hors bornes → on retombe sur la courante
     // plutôt que d'échouer (une lecture ne casse pas pour un rang douteux).
