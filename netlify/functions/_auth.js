@@ -14,18 +14,30 @@ const FORCE_FLOOR = 10 * 1000;      // au plus 1 relecture forcée par 10 s
 async function getMembres(token, force = false) {
   const now = Date.now();
   if (!force && membresCache && (now - cacheTimestamp) < CACHE_TTL) return membresCache;
-  const res = await fetch(`https://api.notion.com/v1/databases/${DB_EQUIPE}/query`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Notion-Version': '2022-06-28',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ page_size: 100 })
-  });
-  if (!res.ok) throw new Error(`Notion API error: ${res.status}`);
-  const data = await res.json();
-  membresCache = data.results;
+  // Pagination RÉELLE : sans elle, au-delà de 100 membres les suivants ne pourraient plus s'authentifier,
+  // SILENCIEUSEMENT. Garde-fou 20 pages. 30 membres aujourd'hui, mais bombe à retardement (même classe
+  // que celle désamorcée côté client en PR 2bis / côté login.js).
+  const all = [];
+  let cursor = null, pages = 0;
+  do {
+    const body = { page_size: 100 };
+    if (cursor) body.start_cursor = cursor;
+    const res = await fetch(`https://api.notion.com/v1/databases/${DB_EQUIPE}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`Notion API error: ${res.status}`);
+    const data = await res.json();
+    all.push(...(data.results || []));
+    cursor = data.has_more ? data.next_cursor : null;
+    pages++;
+  } while (cursor && pages < 20);
+  membresCache = all;
   cacheTimestamp = now;
   return membresCache;
 }
@@ -61,6 +73,9 @@ async function verifyUser({ id, code }) {
     const peutGererAcces = page.properties['Peut gérer les accès']?.checkbox === true;
     return { ok: true, user: { id: page.id, nom, role, acces, peutGererAcces } };
   } catch (e) {
+    // Ne plus avaler l'erreur (ex. 401 Notion) en silence — c'est le chemin chaud de chaque appel proxy,
+    // et ce catch muet était l'angle mort de diagnostic du 24. Message seul, aucun secret.
+    console.error('verifyUser indispo : ' + (e && e.message || ''));
     return { ok: false, error: 'Service temporairement indisponible' };
   }
 }
