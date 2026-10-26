@@ -169,6 +169,7 @@ exports.handler = async function(event) {
   const rid   = (event.headers && (event.headers['x-rm-id']   || event.headers['X-Rm-Id']))   || '';
   const rcode = (event.headers && (event.headers['x-rm-code'] || event.headers['X-Rm-Code'])) || '';
   let user = null;
+  let equipeIds = null; // set des ids DB_EQUIPE, renvoyé par verifyUser depuis le fetch qu'il vient de payer
   if (rid && rcode) {
     const auth = await verifyUser({ id: rid, code: rcode });
     if (!auth.ok) {
@@ -176,6 +177,7 @@ exports.handler = async function(event) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Identité invalide' }) };
     }
     user = auth.user;
+    equipeIds = auth.equipeIds || null;
   }
 
   // ── 3. Autorisation ───────────────────────────────────────────────────────
@@ -251,6 +253,23 @@ exports.handler = async function(event) {
           return { statusCode: 403, headers, body: JSON.stringify({ error: 'Modification non autorisée' }) };
         }
       }
+    }
+    // CLASSE DE FAILLE — la garde anti-élévation ci-dessus est une LISTE NOIRE sur body.properties : tout
+    // champ d'un PATCH de page HORS `properties` lui est INVISIBLE. Un PATCH de page Notion peut porter
+    // `archived`, `icon`, `cover` sans aucun `properties` — aucun n'était vu par la garde ci-dessus.
+    //   • `archived` (true OU false) : le SEUL destructif → fermé ici. true = retirer un membre ; false =
+    //     le RÉINTÉGRER (retirer se voit dans l'app, réintégrer ne se voit nulle part) — d'où le test sur
+    //     la PRÉSENCE de la clé, pas sa valeur.
+    //   • `icon` / `cover` : passent eux aussi hors de la garde `properties`, laissés ouverts DÉLIBÉRÉMENT
+    //     (non destructifs). Ce n'est PAS un oubli, et ils ne sont PAS couverts par ce bloc.
+    // Règle : archiver/réintégrer une page de DB_EQUIPE est réservé au porteur de la clé (même frontière
+    // que les champs d'accès). DB_EQUIPE ET ELLE SEULE, via le set d'ids déjà lu par verifyUser (zéro
+    // aller-retour) → l'archivage des sujets/idées/tâches/versions… reste libre pour tous.
+    if (method === 'PATCH' && route.kind === 'page'
+        && body && typeof body === 'object' && Object.prototype.hasOwnProperty.call(body, 'archived')
+        && equipeIds && equipeIds.has(norm(route.pageId))
+        && !user.peutGererAcces) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: 'Modification non autorisée' }) };
     }
     // 3/3a : créer un membre d'équipe en posant Accès/clé est réservé aux porteurs de la clé.
     // (Le PATCH de ces champs est déjà interdit à tous par PROPS_ELEVATION → fonctions dédiées.)
