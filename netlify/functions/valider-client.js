@@ -133,8 +133,8 @@ exports.handler = async (event) => {
     return { statusCode: 409, headers, body: JSON.stringify({ ok: false, perime: true, error: 'Une version plus récente est arrivée — rechargez votre espace' }) };
   }
 
-  const internalV = (courante.brut && courante.brut.properties && courante.brut.properties.Version
-    && courante.brut.properties.Version.select && courante.brut.properties.Version.select.name) || '';
+  // ⚠️ DB_VERSIONS.Version = TEXT (rich_text), PAS un select (DB_RETOURS.Version l'est). Lecture en rich_text.
+  const internalV = ((courante.brut && courante.brut.properties && courante.brut.properties.Version && courante.brut.properties.Version.rich_text) || []).map(function (t) { return t.plain_text || ''; }).join('');
   const dejaValidee = _dateSet(courante.brut && courante.brut.properties, 'Date validation client');
 
   // ───────────────────────────────── VALIDER ─────────────────────────────────
@@ -163,6 +163,8 @@ exports.handler = async (event) => {
   // ───────────────────────────── ENVOYER MES RETOURS ─────────────────────────
   // (action === 'envoyer-retours')
   if (dejaValidee) return { statusCode: 409, headers, body: JSON.stringify({ ok: false, error: 'Cette version est déjà validée' }) };
+  // Version interne vide = anomalie de données : on ne pilote pas une bascule de tour à l'aveugle → 503.
+  if (!internalV) { console.error('valider-client : version interne absente ' + courante.pageId); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
   // Brouillons EN LIGNE du client pour la courante (mêmes critères qu'envoyer-retours.js côté review).
   let drafts;
