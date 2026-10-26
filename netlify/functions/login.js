@@ -2,8 +2,15 @@
 // Vérifie le code d'accès via Notion 👥 Équipe
 // Cache 1 minute — résilience sans compromis sécurité
 
+const { verifierThrottle, enregistrerEchec, enregistrerSucces, POLICE_EQUIPE } = require('./_throttle');
+
 const DB_EQUIPE = 'df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const CACHE_TTL = 60 * 1000; // 1 minute
+
+function clientIp(event) {
+  const h = event.headers || {};
+  return String(h['x-nf-client-connection-ip'] || '').trim() || String(h['x-forwarded-for'] || '').split(',')[0].trim() || '';
+}
 
 // Cache en mémoire (partagé entre les invocations chaudes)
 let membresCache = null;
@@ -19,20 +26,30 @@ async function getMembres(token, force = false) {
     return membresCache;
   }
 
-  const res = await fetch(`https://api.notion.com/v1/databases/${DB_EQUIPE}/query`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Notion-Version': '2022-06-28',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ page_size: 100 })
-  });
-
-  if (!res.ok) throw new Error(`Notion API error: ${res.status}`);
-
-  const data = await res.json();
-  membresCache = data.results;
+  // Pagination RÉELLE : sans elle, au-delà de 100 membres les suivants ne pourraient ni se connecter ni
+  // apparaître dans le sélecteur, SILENCIEUSEMENT. Garde-fou 20 pages. 30 membres aujourd'hui, mais c'était
+  // une bombe à retardement (même classe que celle désamorcée côté client en PR 2bis).
+  const all = [];
+  let cursor = null, pages = 0;
+  do {
+    const body = { page_size: 100 };
+    if (cursor) body.start_cursor = cursor;
+    const res = await fetch(`https://api.notion.com/v1/databases/${DB_EQUIPE}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`Notion API error: ${res.status}`);
+    const data = await res.json();
+    all.push(...(data.results || []));
+    cursor = data.has_more ? data.next_cursor : null;
+    pages++;
+  } while (cursor && pages < 20);
+  membresCache = all;
   cacheTimestamp = now;
   return membresCache;
 }
@@ -89,6 +106,14 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants' }) };
     }
 
+    // Throttle porte ÉQUIPE (NAT bureau) : ralentissement progressif compte(id)+IP, JAMAIS de verrou dur.
+    // AVANT toute vérification → protège aussi Notion de la charge de brute-force.
+    const ip = clientIp(event);
+    const t = await verifierThrottle(ip, id, POLICE_EQUIPE);
+    if (t.bloque) {
+      return { statusCode: 429, headers: { ...headers, 'Retry-After': String(t.retryAfter || 1) }, body: JSON.stringify({ ok: false, error: 'Trop de tentatives, réessayez dans un instant' }) };
+    }
+
     // Récupérer les membres (cache ou Notion), puis vérifier.
     let membres = await getMembres(NOTION_TOKEN);
     let page = membres.find(p => p.id === id);
@@ -104,6 +129,7 @@ exports.handler = async (event) => {
     }
 
     if (!page) {
+      await enregistrerEchec(ip, id, POLICE_EQUIPE);
       return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Membre introuvable' }) };
     }
     const pr = page.properties;
@@ -113,9 +139,11 @@ exports.handler = async (event) => {
     const peutGererAcces = pr['Peut gérer les accès']?.checkbox === true;
 
     if (!codeNotion || codeNotion !== code) {
+      await enregistrerEchec(ip, id, POLICE_EQUIPE);
       return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Code incorrect' }) };
     }
 
+    await enregistrerSucces(ip, id, POLICE_EQUIPE);
     return {
       statusCode: 200,
       headers,
@@ -126,6 +154,8 @@ exports.handler = async (event) => {
     };
 
   } catch (e) {
+    // Ne plus avaler l'erreur (ex. 401 Notion) en silence — c'est le trou de diagnostic du 24, côté équipe.
+    console.error('login indispo : ' + (e && e.message || ''));
     return {
       statusCode: 503,
       headers,
