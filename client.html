@@ -25,6 +25,8 @@
       /* accent de la marque = ROUGE #E63946 (review.html --red) ; aucun bleu */
       --rouge:#E63946; --rouge-fort:#F04B57; --rouge-voile:rgba(230,57,70,.12); --rouge-bord:rgba(230,57,70,.30);
       --amber:#EF9F27; --amber-voile:rgba(239,159,39,.12); --amber-bord:rgba(239,159,39,.42);
+      /* vert = validation (repris de la maquette VISION_ESPACE_CLIENT) */
+      --vert:#1D9E75; --vert-voile:rgba(29,158,117,.12); --vert-bord:rgba(29,158,117,.32);
       --sans:'DM Sans',system-ui,-apple-system,sans-serif;
       --mono:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
       color-scheme:dark;
@@ -108,8 +110,63 @@
 
     .sub{color:var(--txt2);font-size:14px}  /* « Chargement… » (zone-projets / vue-chargement) */
 
+    /* ── écran « Voir un montage » (tranche 2) — classes reprises de la maquette VISION_ESPACE_CLIENT ── */
+    .mt-head{padding-block:28px 0;border-bottom:1px solid var(--line);margin-bottom:22px}
+    .retour-lien{font-size:13px;color:var(--txt2);text-decoration:none;display:inline-flex;align-items:center;gap:7px;border-bottom:1px solid transparent;margin-bottom:16px}
+    .retour-lien:hover{color:var(--txt);border-bottom-color:var(--line2)}
+    .rv-head{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:baseline}
+    .rv-head h1{font-size:clamp(21px,4vw,27px);font-weight:500;letter-spacing:-.02em;margin:0;text-wrap:balance}
+    .rv-head .code{flex:none;font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.06em;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:3px 8px;border-radius:4px}
+    .rv-meta{font-family:var(--mono);font-size:11.5px;color:var(--txt3)}
+    .vers{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 18px}
+    .vch{font-family:var(--sans);font-size:12.5px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:7px 12px;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+    .vch[aria-selected="true"]{background:var(--bg4);color:var(--txt);border-color:#3A3A50}
+    .vch .pt{font-family:var(--mono);font-size:10px;color:var(--txt3);margin-left:7px}
+    .vch[aria-selected="true"] .pt{color:var(--vert)}
+    .vch:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+    .rv{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:16px;align-items:start}
+    .scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .scene-v{aspect-ratio:9/16;height:410px;max-width:100%;background:linear-gradient(170deg,#1b1b24,#0b0b12);display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
+    .scene-grise{filter:grayscale(1);opacity:.55}
+    .mt-iframe{width:100%;aspect-ratio:9/16;height:410px;max-width:100%;border:0;display:block;background:#000}
+    .panneau{background:var(--bg2);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+    .pan-t{padding:12px 15px;background:var(--bg3);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:500}
+    .pan-n{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:2px 7px;border-radius:9px}
+    .retours{display:flex;flex-direction:column}
+    .ret{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+    .ret-h{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+    .ret-tc{font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:1px 7px;border-radius:4px}
+    .ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
+    .ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
+    .forme{border-top:1px solid var(--line);background:var(--bg3);padding:14px 15px;display:flex;flex-direction:column;gap:10px}
+    .forme-t{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt3)}
+    .forme-r{display:flex;gap:8px}
+    .forme-r input{font-family:var(--mono);max-width:128px}
+    .forme-r select{flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);font-size:14px;padding:10px 12px}
+    .forme textarea{width:100%;min-height:76px;resize:vertical;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);font-size:14px;padding:10px 12px}
+    .forme textarea:focus,.forme-r select:focus,.forme-r input:focus{outline:none;border-color:var(--rouge);background:var(--bg3)}
+    .fin{border-top:1px solid var(--line);padding:14px 15px;display:flex;flex-direction:column;gap:9px}
+    .fin .bouton{width:100%;text-align:center}
+    .fin-n{font-size:11.5px;color:var(--txt3);line-height:1.5;margin:0}
+    .bouton{background:var(--rouge);color:#fff;border:1px solid var(--rouge);font-family:var(--sans);font-size:14px;font-weight:500;padding:10px 16px;border-radius:7px;cursor:pointer;transition:background .12s,border-color .12s}
+    .bouton:hover{background:var(--rouge-fort);border-color:var(--rouge-fort)}
+    .bouton[disabled]{opacity:.5;cursor:not-allowed}
+    .bouton.vert{background:transparent;color:var(--vert);border-color:var(--vert-bord);font-weight:500}
+    .bouton.vert:hover{background:var(--vert);color:#04150F;border-color:var(--vert)}
+    .bouton.gris2{background:transparent;color:var(--txt2);border-color:var(--line2);font-weight:500}
+    .bouton.gris2:hover{background:var(--bg4);color:var(--txt);border-color:var(--txt3)}
+    .close{padding:15px;font-size:13px;line-height:1.5}
+    .close.gris{background:var(--bg3);border-top:1px solid var(--line);color:var(--txt2)}
+    .close.gris b{color:var(--txt);font-weight:600}
+    .mt-bandeau{background:var(--amber-voile);border:1px solid var(--amber-bord);color:var(--amber);border-radius:8px;padding:11px 14px;font-size:13.5px;margin-bottom:16px}
+    .voir-montage{flex:none;margin-left:auto;background:transparent;color:var(--rouge);border:1px solid var(--rouge-bord);font-family:var(--sans);font-size:12.5px;padding:6px 11px;border-radius:6px;cursor:pointer;transition:background .12s}
+    .voir-montage:hover{background:var(--rouge-voile)}
+    .lien-reessai{background:transparent;border:0;color:var(--amber);text-decoration:underline;cursor:pointer;font:inherit}
+    @media (max-width:620px){ .rv{grid-template-columns:minmax(0,1fr)} .scene-v,.mt-iframe{height:min(420px,62vh)} }
+
     /* ⚠️ !important OBLIGATOIRE : #vue-login porte display:flex (sélecteur d'id) → sans !important, .hidden
-       (classe) perd et la bascule entre vues est morte. Vérifié. */
+       (classe) perd et la bascule entre vues est morte. Vérifié. vue-montage n'a AUCUNE règle display par
+       sélecteur d'id, pour que .hidden gagne sans lutte. */
     .hidden{display:none!important}
 
     @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -193,6 +250,22 @@
       <div id="zone-projets" role="status" aria-live="polite"></div>
     </div>
 
+    <!-- ÉCRAN « Voir un montage » — tranche 2. Le JS remplit mt-vers (pastilles) et mt-corps (scène +
+         panneau, OU état vide, OU indispo). En-tête persistant, corps re-rendu à chaque version. -->
+    <div id="vue-montage" class="hidden">
+      <div class="mt-head">
+        <a href="#" id="mt-retour" class="retour-lien">← Mes projets</a>
+        <div class="rv-head">
+          <h1 id="mt-titre"></h1>
+          <span class="code" id="mt-code"></span>
+          <span class="rv-meta" id="mt-meta"></span>
+        </div>
+        <div class="vers" id="mt-vers" role="tablist"></div>
+      </div>
+      <div id="mt-notice" aria-live="polite"></div>
+      <div id="mt-corps" role="status" aria-live="polite"></div>
+    </div>
+
   </div>
 
   <script src="/client-etat.js"></script>
@@ -200,18 +273,23 @@
   (function () {
     var LOGIN = '/.netlify/functions/login-client';
     var PROJETS = '/.netlify/functions/projets-client';
+    var MONTAGE = '/.netlify/functions/montage-client';
+    var DRIVEVIEW = '/.netlify/functions/drive-view-client';
+    var VALIDER = '/.netlify/functions/valider-client';
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
     var $ = function (id) { return document.getElementById(id); };
     function montrer(vue) {
-      ['vue-chargement', 'vue-login', 'vue-accueil'].forEach(function (v) { $(v).classList.add('hidden'); });
+      ['vue-chargement', 'vue-login', 'vue-accueil', 'vue-montage'].forEach(function (v) { $(v).classList.add('hidden'); });
       $(vue).classList.remove('hidden');
     }
     function lire(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
     function ecrire(o) { try { Object.keys(o).forEach(function (k) { localStorage.setItem(k, o[k]); }); } catch (e) {} }
     function effacer() { try { [K_TOKEN, K_NOM, K_MARQUE].concat(K_LEGACY).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} }
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    // esc() n'échappe PAS les guillemets (spec §8) → escAttr pour les valeurs serveur en position d'ATTRIBUT.
+    function escAttr(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
     // ── Connexion ──
     $('btn-voir').addEventListener('click', function () {
@@ -288,7 +366,8 @@
       if (etat === 'EXPIRE') { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
       if (etat === 'LISTE') {
         var items = body.projets.map(function (p) {
-          return '<li><span class="code">' + esc(p.code) + '</span><span>' + esc(p.titre) + '</span></li>';
+          return '<li><span class="code">' + esc(p.code) + '</span><span>' + esc(p.titre) + '</span>' +
+            '<button type="button" class="voir-montage" data-code="' + escAttr(p.code) + '">Voir le montage →</button></li>';
         }).join('');
         zone.innerHTML = '<ul class="projets">' + items + '</ul>';
         return;
@@ -302,6 +381,197 @@
         '<div><button type="button" id="btn-reessayer">Réessayer</button></div></div>';
       $('btn-reessayer').addEventListener('click', chargerProjets);
     }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════════════
+    // ═══ VUE MONTAGE (tranche 2) — TOUT le JavaScript de l'écran « Voir un montage » tient dans ce bloc.
+    // Lectures (montage-client), vidéo (drive-view-client), actions terminales (valider-client). Dépend
+    // seulement des helpers existants ($, lire, esc, montrer, effacer, allerLogin). Aucune logique montage
+    // ailleurs dans l'IIFE ; seuls un bouton d'entrée (rendre LISTE) et escAttr ont été ajoutés en dehors.
+    // ════════════════════════════════════════════════════════════════════════════════════════════════
+
+    // Les HUIT catégories FERMÉES de 📋 Retours (alignées sur montage-client.js qui valide contre elles ;
+    // la maquette montrait une autre liste — incompatible, on suit le serveur). Hors liste → le serveur omet.
+    var CATS = ['🔊 Audio', '🖼 Image', '🎬 Rush', '🎨 Graphisme', '📺 Accroche', '💬 Sous-titres', '🎤 Voix', '🎵 Musique'];
+    var MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    var ETIQ = { 'a-relire': 'à relire', 'retours-envoyes': 'retours envoyés', 'validee': 'validée' };
+
+    // État de la vue en cours. fileId = SEULEMENT celui de la courante (jamais une version passée).
+    var M = { code: '', rangAff: 0, nbVersions: 0, fileId: '', hb: null, notice: '' };
+
+    function mFmtDate(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? (parseInt(m[3], 10) + ' ' + MOIS[parseInt(m[2], 10) - 1]) : ''; }
+    function mBattementsStop() { if (M.hb) { clearInterval(M.hb); M.hb = null; } }
+    function mQuitter() { mBattementsStop(); M.fileId = ''; montrer('vue-accueil'); }
+
+    function ouvrirMontage(code) { mBattementsStop(); M.code = code; M.rangAff = 0; M.nbVersions = 0; M.fileId = ''; M.notice = ''; montrer('vue-montage'); mCharger(); }
+
+    function mPost(url, corps) {
+      return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify(corps) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); });
+    }
+
+    // ── Lecture : UN appel qui peint tout le shell (titre, pastilles, panneau). La vidéo suit en 2e appel. ──
+    function mCharger(rang) {
+      $('mt-corps').innerHTML = '<p class="sub">Chargement…</p>';
+      var corps = { action: 'lire', sujetCode: M.code };
+      if (rang) corps.rang = rang;
+      mPost(MONTAGE, corps).then(function (res) { mRendre(res.status, res.body); }).catch(function () { mIndispo(); });
+    }
+
+    function mRendre(status, data) {
+      if (status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+      if (status !== 200 || !data || !data.ok) { mIndispo(); return; }  // 503/échec → distinct d'un vide
+      $('mt-titre').textContent = data.titre || 'Montage';
+      $('mt-code').textContent = M.code;
+      M.nbVersions = (data.versions || []).length;
+      // notice one-shot (ex. péremption) affichée en tête, puis consommée
+      $('mt-notice').innerHTML = M.notice ? ('<div class="mt-bandeau">' + esc(M.notice) + '</div>') : '';
+      M.notice = '';
+      // courante null = VRAI vide (exposé, rien encore envoyé) — surtout pas une erreur, pas de lecteur/formulaire
+      if (!data.courante) { mVide(); return; }
+
+      var aff = data.affichee ? data.affichee.rang : data.courante.rang;
+      M.rangAff = aff;
+      var vAff = data.versions[aff - 1];
+      var estCourante = (aff === data.courante.rang);
+      $('mt-meta').textContent = vAff ? ('Version ' + vAff.rang + ' · déposée le ' + mFmtDate(vAff.dateEnvoi)) : '';
+
+      $('mt-vers').innerHTML = data.versions.map(function (v) {
+        return '<button class="vch" role="tab" type="button" data-rang="' + v.rang + '" aria-selected="' + (v.rang === aff) + '">Version ' + v.rang + '<span class="pt">' + esc(ETIQ[v.etat] || '') + '</span></button>';
+      }).join('');
+
+      var rets = data.retours || [];
+      var retoursHtml = rets.length ? rets.map(function (r) {
+        return '<div class="ret"><div class="ret-h"><span class="ret-tc">' + esc(r.timecode || '—') + '</span>' +
+          (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + '</div>' +
+          '<div class="ret-x">' + esc(r.texte) + '</div></div>';
+      }).join('') : '<div class="ret"><div class="ret-x" style="color:var(--txt3)">Aucun retour sur cette version.</div></div>';
+
+      // Formulaire + actions SEULEMENT sur la courante OUVERTE ; sinon bandeau de version close (pas de formulaire grisé).
+      var formulaire = (estCourante && vAff.etat === 'a-relire');
+      var bas = formulaire ? (mFormeHtml() + mFinHtml()) : ('<div class="close gris"><b>' + esc(mBandeauEtat(vAff.etat)) + '</b></div>');
+
+      // Vidéo : la courante seule a un lecteur ; une version passée montre un visuel grisé, pas de lecteur (décision David).
+      var scene = estCourante
+        ? '<div class="scene" id="mt-scene"><div class="scene-v"><p class="sub" style="color:var(--txt3)">Chargement de la vidéo…</p></div></div>'
+        : '<div class="scene"><div class="scene-v scene-grise"><p class="sub" style="color:var(--txt3)">La vidéo des versions précédentes n\'est plus disponible. Vos retours restent consultables.</p></div></div>';
+
+      $('mt-corps').innerHTML = '<div class="rv">' + scene +
+        '<div class="panneau"><div class="pan-t"><span>Mes retours</span><span class="pan-n">' + rets.length + '</span></div>' +
+        '<div class="retours">' + retoursHtml + '</div>' + bas + '</div></div>';
+
+      if (formulaire) {
+        $('mt-ajout').addEventListener('click', mAjouter);
+        $('mt-valider').addEventListener('click', function () { mTerminal('valider'); });
+        $('mt-envoyer').addEventListener('click', function () { mTerminal('envoyer-retours'); });
+      }
+      [].slice.call($('mt-vers').querySelectorAll('.vch')).forEach(function (b) {
+        b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; mCharger(rg); } });
+      });
+
+      // 2e appel, APRÈS le rendu du shell : ouvre la permission Drive puis monte l'iframe (remplissage localisé).
+      if (estCourante) mOuvrirVideo(data.courante.fileId);
+      else { mBattementsStop(); M.fileId = ''; }
+    }
+
+    function mFormeHtml() {
+      var opts = CATS.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('');
+      return '<div class="forme"><div class="forme-t">Laisser un retour</div>' +
+        '<div class="forme-r"><input type="text" id="mt-tc" placeholder="00:00" aria-label="Timecode">' +
+        '<select id="mt-cat" aria-label="Catégorie"><option value="">— Catégorie —</option>' + opts + '</select></div>' +
+        '<textarea id="mt-txt" placeholder="Décrivez votre retour…" aria-label="Votre retour"></textarea>' +
+        '<button class="bouton" type="button" id="mt-ajout">Ajouter à mes retours</button>' +
+        '<div class="msg" id="mt-forme-msg" role="status" aria-live="polite"></div></div>';
+    }
+    function mFinHtml() {
+      return '<div class="fin"><div class="forme-t">Quand vous avez terminé</div>' +
+        '<button class="bouton vert" type="button" id="mt-valider">Valider cette version</button>' +
+        '<button class="bouton gris2" type="button" id="mt-envoyer">Envoyer mes retours</button>' +
+        '<p class="fin-n">Valider clôt le film : il part en diffusion tel quel. Envoyer vos retours clôt ce tour de relecture et lance une nouvelle version. Dans les deux cas l\'équipe est prévenue tout de suite.</p>' +
+        '<div class="msg" id="mt-fin-msg" role="status" aria-live="polite"></div></div>';
+    }
+    function mBandeauEtat(etat) {
+      if (etat === 'validee') return 'Vous avez validé cette version. Le film part en diffusion.';
+      if (etat === 'retours-envoyes') return 'Vous avez envoyé vos retours sur cette version. Une nouvelle version suivra.';
+      return 'Cette version est close.';
+    }
+
+    // ── Vidéo : ouvre la permission (drive-view-client), puis iframe par PROPRIÉTÉ DOM (jamais innerHTML :
+    //    esc() n'échappe pas les guillemets d'attribut — ne pas « simplifier » en innerHTML, spec §8). ──
+    function mOuvrirVideo(fileId) {
+      M.fileId = fileId;
+      mPost(DRIVEVIEW, { action: 'open', sujetCode: M.code, fileId: fileId }).then(function (res) {
+        if (!$('mt-scene')) return; // l'utilisateur a changé de version entre-temps
+        if (res.status === 200 && res.body && res.body.ok) { mMonterIframe(fileId); mBattementsDemarrer(); }
+        else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
+        else mSceneIndispo();
+      }).catch(function () { if ($('mt-scene')) mSceneIndispo(); });
+    }
+    function mMonterIframe(fileId) {
+      var scene = $('mt-scene'); if (!scene) return;
+      scene.innerHTML = '';
+      var f = document.createElement('iframe');
+      f.src = 'https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview'; // propriété DOM, pas d'attribut HTML
+      f.className = 'mt-iframe';
+      f.setAttribute('allow', 'autoplay');
+      f.setAttribute('allowfullscreen', '');
+      scene.appendChild(f);
+    }
+    function mSceneIndispo() {
+      var scene = $('mt-scene'); if (!scene) return;
+      scene.innerHTML = '<div class="scene-v"><p class="sub" style="color:var(--amber)">Vidéo indisponible pour l\'instant. <button type="button" class="lien-reessai" id="mt-video-reessai">Réessayer</button></p></div>';
+      $('mt-video-reessai').addEventListener('click', function () { mOuvrirVideo(M.fileId); });
+    }
+
+    // ── Battements : 60 s tant que la vue est ouverte (PAS conditionné à lecture/pause → une pause < idle
+    //    3 min ne tue pas la session). alive:false → ré-ouverture transparente. Retour d'onglet → battre tout
+    //    de suite (couvre le throttling des minuteurs d'arrière-plan). ──
+    function mBattementsDemarrer() { mBattementsStop(); M.hb = setInterval(mBattre, 60000); }
+    function mBattre() {
+      if (!M.fileId || $('vue-montage').classList.contains('hidden')) return;
+      mPost(DRIVEVIEW, { action: 'heartbeat', fileId: M.fileId }).then(function (res) {
+        if (res.body && res.body.alive === false) mOuvrirVideo(M.fileId); // session morte → ré-ouvrir transparent
+      }).catch(function () {});
+    }
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && M.fileId && !$('vue-montage').classList.contains('hidden')) mBattre(); });
+
+    // ── Ajout d'un retour (réversible) : recharge le panneau au succès. ──
+    function mAjouter() {
+      var txt = $('mt-txt').value.trim(), tc = $('mt-tc').value.trim(), cat = $('mt-cat').value, msg = $('mt-forme-msg');
+      msg.className = 'msg'; msg.textContent = '';
+      if (!txt) { msg.className = 'msg err'; msg.textContent = 'Décrivez votre retour.'; return; }
+      $('mt-ajout').disabled = true;
+      mPost(MONTAGE, { action: 'ajouter-retour', sujetCode: M.code, texte: txt, timecode: tc, categorie: cat }).then(function (res) {
+        if (res.status === 200 && res.body && res.body.ok) { mCharger(M.rangAff); return; } // panneau rechargé → le retour apparaît
+        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        var m = $('mt-forme-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; }
+        var b = $('mt-ajout'); if (b) b.disabled = false;
+      }).catch(function () { var m = $('mt-forme-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; } var b = $('mt-ajout'); if (b) b.disabled = false; });
+    }
+
+    // ── Actions terminales : nbVersions = ce que la vue a affiché (garde de péremption serveur). ──
+    function mTerminal(action) {
+      var bV = $('mt-valider'), bE = $('mt-envoyer'); if (bV) bV.disabled = true; if (bE) bE.disabled = true;
+      mPost(VALIDER, { action: action, sujetCode: M.code, nbVersions: M.nbVersions }).then(function (res) {
+        if (res.status === 200 && res.body && res.body.ok) { mCharger(); return; }   // recharge → état bascule, formulaire→bandeau
+        if (res.status === 409 && res.body && res.body.perime) {                     // une version plus récente est arrivée
+          M.notice = 'Une version plus récente est arrivée. On recharge votre espace.'; mCharger(); return;
+        }
+        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        var m = $('mt-fin-msg'); if (m) { m.className = 'msg wait'; m.textContent = (res.body && res.body.error) || 'Action impossible, réessayez.'; }
+        if (bV) bV.disabled = false; if (bE) bE.disabled = false;
+      }).catch(function () { var m = $('mt-fin-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; } if (bV) bV.disabled = false; if (bE) bE.disabled = false; });
+    }
+
+    function mVide() { mBattementsStop(); M.fileId = ''; $('mt-vers').innerHTML = ''; $('mt-meta').textContent = ''; $('mt-corps').innerHTML = '<div class="etat-vide">Aucune version à relire pour l\'instant. Vous serez prévenu·e dès qu\'un montage est prêt.</div>'; }
+    function mIndispo() { mBattementsStop(); M.fileId = ''; $('mt-vers').innerHTML = ''; $('mt-meta').textContent = ''; $('mt-corps').innerHTML = '<div class="etat-indispo">Service temporairement indisponible.<div><button type="button" id="mt-reessayer">Réessayer</button></div></div>'; $('mt-reessayer').addEventListener('click', function () { mCharger(M.rangAff || undefined); }); }
+
+    // Entrées & sortie (délégation : le bouton « Voir le montage → » est rendu par rendre LISTE).
+    $('zone-projets').addEventListener('click', function (e) {
+      var t = e.target; while (t && t !== this && !(t.className && String(t.className).indexOf('voir-montage') !== -1)) t = t.parentNode;
+      if (t && t !== this && t.getAttribute) { var c = t.getAttribute('data-code'); if (c) ouvrirMontage(c); }
+    });
+    $('mt-retour').addEventListener('click', function (e) { e.preventDefault(); mQuitter(); });
+    // ═══ FIN VUE MONTAGE ═══════════════════════════════════════════════════════════════════════════════
 
     // ── Démarrage : projets-client (via le jeton) est la source de vérité. ──
     // F1 : migration douce — un navigateur portant encore l'ancien stockage (mail+code) sans jeton est
