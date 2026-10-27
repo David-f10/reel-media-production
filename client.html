@@ -501,7 +501,12 @@
           return '<tr><td class="c-code"><span class="code">' + esc(p.code) + '</span></td>' +
             '<td class="c-t"><b>' + esc(p.titre) + '</b>' + ((p.sousFormat || p.duree) ? ('<span>' + esc([p.sousFormat, p.duree].filter(Boolean).join(' · ')) + '</span>') : '') + '</td>' +
             '<td class="c-who">' + esc(p.realisePar) + '</td><td class="c-d">' + esc(dateFrCourte(p.dateDiffusion)) + '</td>' +
-            '<td class="c-a"><a class="lnk" href="#" data-code="' + escAttr(p.code) + '">Revoir</a></td></tr>';
+            // « Revoir » (data-code → ouvre le montage) + « Télécharger » (data-dl-code → télécharge SANS
+            // ouvrir de permission de visionnage ; absent si aucune version envoyée). Pas de data-code sur le
+            // télécharger → la délégation montage ne le capte pas.
+            '<td class="c-a"><a class="lnk" href="#" data-code="' + escAttr(p.code) + '">Revoir</a>' +
+            (p.rang ? ' · <a class="lnk" href="#" data-dl-code="' + escAttr(p.code) + '" data-dl-rang="' + p.rang + '">Télécharger</a>' : '') +
+            '</td></tr>';
         };
         var visibles = livres.slice(0, SEUIL), caches = livres.slice(SEUIL);
         h += '<h2>Livrés <span class="n">' + livres.length + '</span></h2><div class="tw"><table class="t">' +
@@ -517,6 +522,26 @@
       zone.innerHTML = h;
       var tout = $('livres-toutafficher');
       if (tout) tout.addEventListener('click', function (e) { e.preventDefault(); var c = $('livres-caches'); if (c) c.classList.remove('hidden'); var rp = $('livres-replier'); if (rp) rp.style.display = 'none'; });
+    }
+
+    // ── Téléchargement depuis le tableau Livrés : récupérer un film fini SANS passer par la vue montage,
+    //    donc SANS ouvrir de permission de visionnage Drive. Même contrat que le montage : drive-download-client
+    //    résout par { sujetCode, rang }, aucun fileId ne descend. Fenêtre nommée ouverte AU CLIC (geste
+    //    utilisateur → pas bloquée). 401 → re-login. Échec → le lien devient « Réessayer » (data-* conservés). ──
+    function telechargerLivre(code, rang, el) {
+      if (!code || !Number.isInteger(rang) || rang < 1) return;
+      var win = window.open('', 'rmc-download');
+      var label = el ? el.textContent : '';
+      if (el) { el.textContent = 'Préparation…'; el.style.pointerEvents = 'none'; }
+      var fini = function (txt) { if (el) { el.textContent = txt || label; el.style.pointerEvents = ''; } };
+      mPost(DOWNLOAD, { sujetCode: code, rang: rang }).then(function (res) {
+        if (res.status === 401) { if (win && !win.closed) win.close(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 200 && res.body && res.body.ok && res.body.downloadUrl) {
+          if (win && !win.closed) win.location = res.body.downloadUrl;
+          else { var a = document.createElement('a'); a.href = res.body.downloadUrl; a.target = '_blank'; document.body.appendChild(a); a.click(); a.remove(); }
+          fini(label);
+        } else { if (win && !win.closed) win.close(); fini('Réessayer'); }
+      }).catch(function () { if (win && !win.closed) win.close(); fini('Réessayer'); });
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -784,8 +809,13 @@
     // Délégation : tout élément porteur d'un data-code dans l'accueil (« Voir le montage → » de À relire,
     // « Revoir » des Livrés) ouvre la vue montage. On clé sur data-code, pas sur une classe de style.
     $('zone-projets').addEventListener('click', function (e) {
-      var t = e.target; while (t && t !== this && !(t.getAttribute && t.getAttribute('data-code'))) t = t.parentNode;
-      if (t && t !== this && t.getAttribute && t.getAttribute('data-code')) { e.preventDefault(); ouvrirMontage(t.getAttribute('data-code')); }
+      // Remonter jusqu'à un élément porteur d'une action : ouvrir le montage (data-code) OU télécharger
+      // (data-dl-code). Le télécharger doit rester SYNCHRONE au clic (window.open non bloqué).
+      var t = e.target; while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-code') || t.getAttribute('data-dl-code')))) t = t.parentNode;
+      if (!t || t === this || !t.getAttribute) return;
+      var dl = t.getAttribute('data-dl-code');
+      if (dl) { e.preventDefault(); telechargerLivre(dl, parseInt(t.getAttribute('data-dl-rang'), 10), t); return; }
+      if (t.getAttribute('data-code')) { e.preventDefault(); ouvrirMontage(t.getAttribute('data-code')); }
     });
     $('mt-retour').addEventListener('click', function (e) { e.preventDefault(); mQuitter(); });
     // ═══ FIN VUE MONTAGE ═══════════════════════════════════════════════════════════════════════════════

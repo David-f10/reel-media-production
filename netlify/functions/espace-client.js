@@ -175,7 +175,11 @@ exports.handler = async (event) => {
       if (livre) {
         const dd = dstart(pr, 'Date de diffusion');
         if (dd && (!plusAncienneDiffusion || dd < plusAncienneDiffusion)) plusAncienneDiffusion = dd;
-        livres.push({ code, titre, sousFormat: sel(pr, 'Sous-format'), duree: rt(pr, 'Durée'), realisePar: realisePar(pr), dateDiffusion: dd });
+        // rang = rang client de la DERNIÈRE version envoyée (= vsClient.length, l'ordre par Date envoi
+        // client). Sert au bouton « Télécharger » du tableau Livrés : drive-download-client résout par
+        // { sujetCode, rang }, aucun fileId ne descend. null si aucune version envoyée → pas de bouton
+        // (même logique que aMontage : pas de lien vers un fichier qui n'existe pas pour le client).
+        livres.push({ code, titre, sousFormat: sel(pr, 'Sous-format'), duree: rt(pr, 'Durée'), realisePar: realisePar(pr), dateDiffusion: dd, rang: vsClient.length || null });
       } else {
         const etape = etapeClient(pr, enAttenteClient);
         // aMontage : y a-t-il un montage à (re)voir depuis la ligne En cours ? Une version client existe
