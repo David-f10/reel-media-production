@@ -597,14 +597,12 @@
       var formulaire = (estCourante && vAff.etat === 'a-relire');
       var bas = formulaire ? (mFormeHtml() + mFinHtml()) : ('<div class="close gris"><b>' + esc(mBandeauEtat(vAff.etat)) + '</b></div>');
 
-      // Vidéo : la courante seule a un lecteur ; une version passée montre un visuel grisé, pas de lecteur (décision David).
-      var scene = estCourante
-        ? '<div class="scene" id="mt-scene"><div class="scene-v"><p class="sub" style="color:var(--txt3)">Chargement de la vidéo…</p></div></div>'
-        : '<div class="scene"><div class="scene-v scene-grise"><p class="sub" style="color:var(--txt3)">La vidéo des versions précédentes n\'est plus disponible. Vos retours restent consultables.</p></div></div>';
+      // Vidéo : TOUTE version affichée a un lecteur (tranche 4 : la condition 4 est tombée, les versions
+      // passées se regardent aussi). Le lecteur s'ouvre par RANG (drive-view-client résout le fileId).
+      var scene = '<div class="scene" id="mt-scene"><div class="scene-v"><p class="sub" style="color:var(--txt3)">Chargement de la vidéo…</p></div></div>';
 
-      // Téléchargement : sur CHAQUE version envoyée (pas seulement la courante — différence assumée côté
-      // serveur). Une version passée n'est plus visionnable ici mais reste téléchargeable. Le serveur
-      // résout le fichier à partir du RANG ; aucun fileId de version ne descend dans la page.
+      // Téléchargement : sur CHAQUE version envoyée. Le serveur résout le fichier à partir du RANG ; aucun
+      // fileId de version ne descend dans la page.
       var telHtml = '<button class="bouton gris2" type="button" id="mt-tel">⬇ Télécharger cette version</button>' +
         '<div class="msg" id="mt-tel-msg" role="status" aria-live="polite"></div>';
 
@@ -635,9 +633,9 @@
         b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; mCharger(rg); } });
       });
 
-      // 2e appel, APRÈS le rendu du shell : ouvre la permission Drive puis monte l'iframe (remplissage localisé).
-      if (estCourante) mOuvrirVideo(data.courante.fileId);
-      else { mBattementsStop(); M.fileId = ''; }
+      // 2e appel, APRÈS le rendu du shell : ouvre la permission Drive pour la version AFFICHÉE (courante OU
+      // passée — toute version envoyée se regarde) par son RANG, puis monte l'iframe (remplissage localisé).
+      mOuvrirVideo(aff);
     }
 
     // Copie STRICTE de formatTc (review.html / index.html) : chiffres seuls → « min:ss ».
@@ -673,11 +671,12 @@
 
     // ── Vidéo : ouvre la permission (drive-view-client), puis iframe par PROPRIÉTÉ DOM (jamais innerHTML :
     //    esc() n'échappe pas les guillemets d'attribut — ne pas « simplifier » en innerHTML, spec §8). ──
-    function mOuvrirVideo(fileId) {
-      M.fileId = fileId;
-      mPost(DRIVEVIEW, { action: 'open', sujetCode: M.code, fileId: fileId }).then(function (res) {
+    function mOuvrirVideo(rang) {
+      // open par RANG : le serveur résout et RENVOIE le fileId (on ne l'a plus d'avance). On le garde pour
+      // les battements et le close. L'iframe est montée par propriété DOM (jamais innerHTML, spec §8).
+      mPost(DRIVEVIEW, { action: 'open', sujetCode: M.code, rang: rang }).then(function (res) {
         if (!$('mt-scene')) return; // l'utilisateur a changé de version entre-temps
-        if (res.status === 200 && res.body && res.body.ok) { mMonterIframe(fileId); mBattementsDemarrer(); }
+        if (res.status === 200 && res.body && res.body.ok && res.body.fileId) { M.fileId = res.body.fileId; mMonterIframe(res.body.fileId); mBattementsDemarrer(); }
         else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
         else mSceneIndispo();
       }).catch(function () { if ($('mt-scene')) mSceneIndispo(); });
@@ -695,7 +694,7 @@
     function mSceneIndispo() {
       var scene = $('mt-scene'); if (!scene) return;
       scene.innerHTML = '<div class="scene-v"><p class="sub" style="color:var(--amber)">Vidéo indisponible pour l\'instant. <button type="button" class="lien-reessai" id="mt-video-reessai">Réessayer</button></p></div>';
-      $('mt-video-reessai').addEventListener('click', function () { mOuvrirVideo(M.fileId); });
+      $('mt-video-reessai').addEventListener('click', function () { mOuvrirVideo(M.rangAff); });
     }
 
     // ── Suppression de MON brouillon non envoyé. Le serveur re-vérifie toutes les gardes (appartenance au
@@ -745,7 +744,7 @@
     function mBattre() {
       if (!M.fileId || $('vue-montage').classList.contains('hidden')) return;
       mPost(DRIVEVIEW, { action: 'heartbeat', fileId: M.fileId }).then(function (res) {
-        if (res.body && res.body.alive === false) mOuvrirVideo(M.fileId); // session morte → ré-ouvrir transparent
+        if (res.body && res.body.alive === false) mOuvrirVideo(M.rangAff); // session morte → ré-ouvrir transparent (par rang)
       }).catch(function () {});
     }
     document.addEventListener('visibilitychange', function () { if (!document.hidden && M.fileId && !$('vue-montage').classList.contains('hidden')) mBattre(); });
