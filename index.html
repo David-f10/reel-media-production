@@ -5827,6 +5827,14 @@ async function _padAppliquer(id, { diffusee, date }) {
   else { s.enStock = true; s.diffusion = ''; }
   toast('PAD validé','ok');
   refreshUI(id);
+  // ── Validation client automatique : le passage en PAD EST le signal de validation client (un film ne
+  //    part pas en PAD sans accord client). Le serveur pose « Date validation client » sur la courante, SI
+  //    pas déjà posée (la date du client, s'il a validé depuis l'espace, gagne). FIRE-AND-FORGET : le PAD
+  //    est déjà écrit ci-dessus, cet appel ne doit JAMAIS casser le flux ni afficher d'erreur. Sans courante
+  //    (PAD sans version envoyée) le serveur répond { sansVersion:true } = non-événement, qu'on ignore.
+  //    Raisonnement complet (dont le cas où un PAD trop précoce fait lire « validé » au client) et décision
+  //    de ne PAS mettre de garde de rôle : voir netlify/functions/valider-pad.js.
+  fetch('/.netlify/functions/valider-pad', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ sujetId:id }) }).catch(()=>{});
 }
 
 async function updStatut(id,statut,btnEl){
