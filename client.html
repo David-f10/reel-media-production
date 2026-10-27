@@ -463,6 +463,11 @@
         $('mt-ajout').addEventListener('click', mAjouter);
         $('mt-valider').addEventListener('click', function () { mTerminal('valider'); });
         $('mt-envoyer').addEventListener('click', function () { mTerminal('envoyer-retours'); });
+        // Timecode : formatage identique à review.html/index.html (0035 → 0:35), + ESPACE qui convertit
+        // et saute à la description (l'espace est avalée). Le cap serveur (MAX_TC) reste inchangé.
+        var tcEl = $('mt-tc');
+        tcEl.addEventListener('blur', function () { mFormatTc(tcEl); });
+        tcEl.addEventListener('keydown', function (e) { if (e.key === ' ') { e.preventDefault(); mFormatTc(tcEl); var d = $('mt-txt'); if (d) d.focus(); } });
       }
       [].slice.call($('mt-vers').querySelectorAll('.vch')).forEach(function (b) {
         b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; mCharger(rg); } });
@@ -473,6 +478,15 @@
       else { mBattementsStop(); M.fileId = ''; }
     }
 
+    // Copie STRICTE de formatTc (review.html / index.html) : chiffres seuls → « min:ss ».
+    function mFormatTc(input) {
+      var d = String(input.value || '').replace(/[^0-9]/g, '');
+      if (!d) { input.value = ''; return; }
+      var sec = d.slice(-2);
+      while (sec.length < 2) sec = '0' + sec;
+      var min = d.length > 2 ? String(parseInt(d.slice(0, -2), 10)) : '0';
+      input.value = min + ':' + sec;
+    }
     function mFormeHtml() {
       var opts = CATS.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('');
       return '<div class="forme"><div class="forme-t">Laisser un retour</div>' +

@@ -154,8 +154,12 @@ exports.handler = async (event) => {
     // SIGNALEMENT best-effort (après confirmation) : Statut sujet + cloche équipe. Échec loggé, jamais remonté.
     try { await notionFetch('/pages/' + az.sujet.pageId, 'PATCH', token, { properties: { 'Statut': { select: { name: 'Validation chef' } } } }); }
     catch (e) { console.error('valider-client statut (best-effort) : ' + (e && e.message || '')); }
+    // Repli explicite : internalV est fiable depuis #163 (lecture rich_text), mais s'il manquait, le
+    // message équipe disait « a validé la  de B33D » (un trou). Repli → « dernière version ». (Le chemin
+    // envoyer-retours, lui, refuse déjà en 503 sur internalV vide, l. ~167 — il n'atteint jamais ce trou.)
+    const vLabel = internalV || 'dernière version';
     await signalerEquipe(az, internalV, 'version_validee',
-      `${az.contact.nom || 'Le client'} a validé la ${internalV} de ${az.sujet.code}${az.sujet.titre ? ' — ' + az.sujet.titre : ''}`, token);
+      `${az.contact.nom || 'Le client'} a validé la ${vLabel} de ${az.sujet.code}${az.sujet.titre ? ' — ' + az.sujet.titre : ''}`, token);
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   }
