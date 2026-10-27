@@ -10,7 +10,7 @@
 // DÉCISIONS (arbitrages de David, gelés) :
 //  • 4 étapes sur l'axe CLIENT, pas interne. Traduction CÔTÉ SERVEUR (confidentialité) — voir etapeClient.
 //  • Livré = Statut 'PAD' OU Date de diffusion PASSÉE. JAMAIS 'Diffusé' (0 occurrence sur 526 sujets,
-//    vérifié). Validation (étape) = DÉRIVÉE : une version envoyée sans validation client (balle au client),
+//    vérifié). Validation (étape) = DÉRIVÉE : une version envoyée, pas validée, SANS retours envoyés (balle au client),
 //    pas un statut. « Validation chef » est interne → rangé en Montage.
 //  • Réalisé par = Journaliste, repli « Réel Média ».
 //  • Interlocutrice = Contact Brand du projet le PLUS RÉCENT du client ; vide → bloc masqué (null).
@@ -82,7 +82,7 @@ const realisePar = (pr) => sel(pr, 'Journaliste') || 'Réel Média';
 
 // Étape CLIENT (0..2) d'un projet EN COURS (non livré). En-cours ne touche JAMAIS Diffusion : PAD et date
 // passée sont « livrés » (ailleurs). L'étape reflète l'état RÉEL, pas une date d'air programmée :
-//  (2) Validation : DÉRIVÉE — une version envoyée au client et pas encore validée (balle au client).
+//  (2) Validation : DÉRIVÉE — courante envoyée, pas validée, ET sans retours envoyés (balle au client).
 //  (1) Montage : Post-prod, Montage, Retours, Validation chef (interne).
 //  (0) Tournage : Brief/Idée, Séquencier*, En tournage (défaut sûr).
 function etapeClient(pr, aVersionEnAttenteClient) {
@@ -167,7 +167,6 @@ exports.handler = async (event) => {
       const retoursEnvoyes = courante ? (retoursParSujet[p.id] || []).some(r => sel(r.properties, 'Source') === 'Client' && cb(r.properties, 'Déposé en ligne') && !cb(r.properties, 'Brouillon') && sel(r.properties, 'Version') === vInterne) : false;
       // « à relire » = une courante envoyée, non validée, sans retours envoyés (il n'a rien fait).
       const estARelire = !!courante && !valideeClient && !retoursEnvoyes;
-      // « balle au client » (pour l'étape Validation) = courante envoyée et pas encore validée.
       // Balle au client (→ étape Validation) UNIQUEMENT si la courante est envoyée, pas validée, ET sans
       // retours envoyés. Tour clos (retours envoyés) → l'étape retombe sur le statut interne (Montage) :
       // « vous avez parlé, on retravaille », pas « on vous attend » (correctif du mensonge observé sur B33D).
