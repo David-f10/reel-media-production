@@ -31,7 +31,6 @@ const sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
 const cb = (pr, k) => !!(pr && pr[k] && pr[k].checkbox);
 const dstart = (pr, k) => (pr && pr[k] && pr[k].date && pr[k].date.start) || '';
 const dateOnly = (iso) => String(iso || '').slice(0, 10);
-const lien = (titre) => /\/file\/d\/|drive\.google|vimeo|youtu/.test(String(titre || ''));
 const numVersion = (v) => { const m = /V\s*(\d+)/i.exec(String(v || '')); return m ? parseInt(m[1], 10) : null; };
 function extractFileId(raw) { const s = String(raw || ''); const m = s.match(/\/file\/d\/([\w-]+)/); return m ? m[1] : (/[?&]id=([\w-]{10,})/.test(s) ? s.match(/[?&]id=([\w-]{10,})/)[1] : ''); }
 
@@ -93,9 +92,11 @@ exports.handler = async (event) => {
       const code = rt(pr, 'Code'), titre = ti(pr, 'Titre');
       const base = { code, titre, sujetId: p.id };
       const vs = parSujet[norm(p.id)] || [];
-      // Candidates : AVEC lien, NON Annulée, numéro de version parsable.
-      const cand = vs.filter(v => lien(ti(v.properties, 'Titre')) && sel(v.properties, 'Statut') !== 'Annulée' && numVersion(rt(v.properties, 'Version')) !== null);
-      if (!cand.length) { aRevoir.push({ ...base, raison: 'aucune version avec lien vidéo (ou toutes Annulées / sans numéro)' }); return; }
+      // Candidates : lien vidéo EXPLOITABLE (fileId NON VIDE — un lien de dossier, ou un champ présent mais
+      // sans id de fichier, ne compte pas : sinon le projet s'exposerait et se marquerait validé sans rien à
+      // regarder), NON Annulée, numéro de version parsable. On teste extractFileId, pas la seule présence d'un motif.
+      const cand = vs.filter(v => extractFileId(ti(v.properties, 'Titre')) !== '' && sel(v.properties, 'Statut') !== 'Annulée' && numVersion(rt(v.properties, 'Version')) !== null);
+      if (!cand.length) { aRevoir.push({ ...base, raison: 'aucune version avec un lien vidéo exploitable (ou toutes Annulées / sans numéro)' }); return; }
 
       const maxN = Math.max(...cand.map(v => numVersion(rt(v.properties, 'Version'))));
       let tied = cand.filter(v => numVersion(rt(v.properties, 'Version')) === maxN);
@@ -108,18 +109,23 @@ exports.handler = async (event) => {
         chosen = tied.slice().sort((a, b) => a.created_time < b.created_time ? 1 : -1)[0]; // plus récent
       }
 
+      const vPr = chosen.properties;
+      const envoiExistant = dstart(vPr, 'Date envoi client'); // date RÉELLE déjà posée (prime, jamais réécrite)
       const creeLe = dateOnly(chosen.created_time);
       const diffusion = dstart(pr, 'Date de diffusion');
       const livre = sel(pr, 'Statut') === 'PAD' || (diffusion && diffusion < auj);
-      // Date « envoi client » : createdTime, sauf lot d'import → date de diffusion, sinon ambigu.
+      // Date de référence = ce qui EST / SERAIT en base, jamais une autre. Si « Date envoi client » est déjà
+      // posée, c'est ELLE (l'apply, idempotent, ne la réécrit pas). Sinon la date calculée (createdTime, sauf
+      // lot d'import → date de diffusion), qui est exactement ce que l'apply écrirait. Le dry-run affiche donc
+      // toujours la date qui finira en base — y compris pour l'ancrage de « Date validation client » d'un livré.
       let dateEnvoi;
-      if (creeLe && creeLe !== LOT_IMPORT) dateEnvoi = creeLe;
+      if (envoiExistant) dateEnvoi = dateOnly(envoiExistant);
+      else if (creeLe && creeLe !== LOT_IMPORT) dateEnvoi = creeLe;
       else if (diffusion) dateEnvoi = dateOnly(diffusion);
       else { aRevoir.push({ ...base, raison: 'version du lot d\'import sans date de diffusion → date d\'envoi à fournir', versionLabel: rt(chosen.properties, 'Version') }); return; }
 
       // Idempotence : qu'est-ce qui MANQUE réellement ? (la fonction apply n'écrira que ça)
-      const vPr = chosen.properties;
-      const dejaEnvoi = !!dstart(vPr, 'Date envoi client');
+      const dejaEnvoi = !!envoiExistant;
       const dejaValide = !!dstart(vPr, 'Date validation client');
       const dejaVisible = cb(pr, 'Visible espace client');
       const aPoser = [];
