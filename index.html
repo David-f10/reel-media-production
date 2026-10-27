@@ -486,10 +486,12 @@
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
         <input type="text" id="equipe-new-nom" placeholder="Nom complet..." style="width:100%;font-size:13px;padding:8px 12px">
         <select id="equipe-new-role" style="width:100%;font-size:13px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;outline:none">
+          <option value="Chef">Chef</option>
           <option value="Journaliste">Journaliste</option>
           <option value="Monteur">Monteur</option>
+          <option value="Pigiste">Pigiste</option>
           <option value="Brand">Brand</option>
-          <option value="Chef">Chef</option>
+          <option value="Compta">Compta</option>
         </select>
         <button class="nav-btn primary" onclick="equippeAjouter()" style="width:100%;padding:9px">+ Ajouter et créer l'accès</button>
       </div>
@@ -3999,7 +4001,9 @@ function peuplerSelect(liste) {
     {role:'Chef',        label:'Chefs'},
     {role:'Journaliste', label:'Journalistes'},
     {role:'Monteur',     label:'Monteurs'},
+    {role:'Pigiste',     label:'Pigistes'},
     {role:'Brand',       label:'Brand'},
+    {role:'Compta',      label:'Compta'},
   ];
   const connus = groupes.map(g => g.role);
   let html = '<option value="">Choisir...</option>';
@@ -4939,7 +4943,7 @@ function afficherNouveauCode(nom, code) {
 function renderEquipeList() {
   const container = document.getElementById('equipe-list');
   if(!container) return;
-  const roles = ['Chef','Journaliste','Monteur','Brand'];
+  const roles = ['Chef','Journaliste','Monteur','Pigiste','Brand','Compta']; // aligné sur le select Role de 👥 Équipe
   const source = equipe.length > 0 ? equipe : journalistes.map(j => ({nom:j, role:'Journaliste'}));
   const gest = _suisGestionnaireAcces(); // porteur de la clé → contrôles d'accès ; sinon liste simple (= actuel)
   if(gest && !_accesHydrate) {
@@ -4948,27 +4952,23 @@ function renderEquipeList() {
       + '<button class="nav-btn" style="font-size:12px" onclick="openGererJournalistes()">Réessayer</button>';
     return;
   }
-  let html = '';
-  roles.forEach(role => {
-    const membres = source.filter(m => m.role === role);
-    if(!membres.length) return;
-    html += `<div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin:10px 0 6px">${role}</div>`;
-    html += membres.map(m => {
-      if(!gest) {
-        // Liste SIMPLE — strictement identique à avant (aucun changement visible hors gestionnaire).
-        return `
+  // Rendu d'UNE ligne membre (identique à l'existant) — extrait pour servir aussi le groupe « Autres ».
+  const rendreMembre = (m) => {
+    if(!gest) {
+      // Liste SIMPLE — strictement identique à avant (aucun changement visible hors gestionnaire).
+      return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:4px">
         <span style="font-size:13px">${m.nom||m}</span>
         <button onclick="equipeSupprimerJournaliste('${m.id||''}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0">×</button>
       </div>`;
-      }
-      // Ligne avec réglages d'accès (pastille Complet/Externe · clé · réinit code · retrait).
-      // Compare NORMALISÉE (id Notion avec/sans tirets = même page) — cohérent avec la garde serveur.
-      const estMoi = !!(m.id && currentUser && String(m.id).replace(/-/g,'') === String(currentUser.id||'').replace(/-/g,''));
-      const ext = m.acces === 'Externe';
-      const swCol = ext ? 'blue' : 'green';
-      const key = m.peutGererAcces === true;
-      return `
+    }
+    // Ligne avec réglages d'accès (pastille Complet/Externe · clé · réinit code · retrait).
+    // Compare NORMALISÉE (id Notion avec/sans tirets = même page) — cohérent avec la garde serveur.
+    const estMoi = !!(m.id && currentUser && String(m.id).replace(/-/g,'') === String(currentUser.id||'').replace(/-/g,''));
+    const ext = m.acces === 'Externe';
+    const swCol = ext ? 'blue' : 'green';
+    const key = m.peutGererAcces === true;
+    return `
       <div style="display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--bg3);border-radius:var(--r);margin-bottom:4px">
         <span style="font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(m.nom||'')}${estMoi?' <span style="font-size:9.5px;color:var(--text3)">toi</span>':''}</span>
         <button ${estMoi?'disabled':`onclick="changerAcces('${escJs(m.id)}','${ext?'Complet':'Externe'}')"`} title="Ce que la personne voit" style="border:1px solid var(--${swCol});background:var(--${swCol}-dim);color:var(--${swCol});font-size:9px;font-weight:600;padding:3px 8px;border-radius:99px;cursor:${estMoi?'default':'pointer'};white-space:nowrap;min-width:58px;text-align:center;opacity:${estMoi?'0.5':'1'}">${ext?'Externe':'Complet'}</button>
@@ -4976,8 +4976,16 @@ function renderEquipeList() {
         <button onclick="reinitCode('${escJs(m.id)}','${escJs(m.nom||'')}')" title="Réinitialiser le code" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px">↻</button>
         <button onclick="equipeSupprimerJournaliste('${escJs(m.id||'')}')" title="Retirer" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:0">×</button>
       </div>`;
-    }).join('');
-  });
+  };
+  const rendreGroupe = (label, membres) => membres.length
+    ? `<div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin:10px 0 6px">${label}</div>` + membres.map(rendreMembre).join('')
+    : '';
+  let html = '';
+  roles.forEach(role => { html += rendreGroupe(role, source.filter(m => m.role === role)); });
+  // « Autres » : un rôle renseigné hors de la liste connue (nouveau rôle Notion, faute de frappe) ne doit
+  // PAS disparaître en silence du panneau d'admin — même filet que le select de login. Rôle VIDE = exclu
+  // (désactivation volontaire). C'est ce filet, pas la liste, qui garantit qu'on ne perd jamais un membre.
+  html += rendreGroupe('Autres', source.filter(m => (m.role || '').trim() && roles.indexOf(m.role) === -1));
   if(gest) {
     html += `<div style="font-size:10.5px;color:var(--text3);line-height:1.6;margin-top:11px;padding-top:10px;border-top:1px solid var(--border)">
       <strong style="color:var(--text2)">Pastille</strong> — ce que voit la personne. <strong style="color:var(--green)">Complet</strong> : toute la production · <strong style="color:var(--blue)">Externe</strong> : seulement ses cartes.<br>
