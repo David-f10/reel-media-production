@@ -474,9 +474,13 @@
           enCours.map(function (p) {
             var etapes = LBL.map(function (l, i) { var c = i < p.etape ? 'et fait' : (i === p.etape ? 'et ici' : 'et'); return '<div class="' + c + '"><div class="et-b"></div><div class="et-l">' + l + '</div></div>'; }).join('');
             var pill = p.pastille && p.pastille.texte ? '<span class="pill">' + esc(p.pastille.texte) + '</span>' : '';
+            // Point d'entrée montage SEULEMENT si aMontage (une version client existe ET pas déjà dans À
+            // relire) → un seul bouton par film, et « Revoir » n'apparaît jamais sur un film jamais vu.
+            var entree = p.aMontage ? '<button type="button" class="lnk" data-code="' + escAttr(p.code) + '">Revoir le montage</button>' : '';
             return '<div class="lrow"><div class="lrow-m"><div class="lrow-t">' + esc(p.titre) + '</div>' +
               '<div class="lrow-s"><span class="code">' + esc(p.code) + '</span><span>' + esc(p.realisePar) + '</span></div>' +
-              '<div class="etapes">' + etapes + '</div></div>' + pill + '</div>';
+              '<div class="etapes">' + etapes + '</div></div>' +
+              '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px">' + pill + entree + '</div></div>';
           }).join('') + '</div>';
       }
       // 4. Livrés (si présent) — plus récents d'abord ; au-delà de 4, le reste se replie (spec §6.1).

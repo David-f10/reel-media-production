@@ -168,7 +168,10 @@ exports.handler = async (event) => {
       // « à relire » = une courante envoyée, non validée, sans retours envoyés (il n'a rien fait).
       const estARelire = !!courante && !valideeClient && !retoursEnvoyes;
       // « balle au client » (pour l'étape Validation) = courante envoyée et pas encore validée.
-      const enAttenteClient = !!courante && !valideeClient;
+      // Balle au client (→ étape Validation) UNIQUEMENT si la courante est envoyée, pas validée, ET sans
+      // retours envoyés. Tour clos (retours envoyés) → l'étape retombe sur le statut interne (Montage) :
+      // « vous avez parlé, on retravaille », pas « on vous attend » (correctif du mensonge observé sur B33D).
+      const enAttenteClient = !!courante && !valideeClient && !retoursEnvoyes;
 
       if (livre) {
         const dd = dstart(pr, 'Date de diffusion');
@@ -176,7 +179,12 @@ exports.handler = async (event) => {
         livres.push({ code, titre, sousFormat: sel(pr, 'Sous-format'), duree: rt(pr, 'Durée'), realisePar: realisePar(pr), dateDiffusion: dd });
       } else {
         const etape = etapeClient(pr, enAttenteClient);
-        enCours.push({ code, titre, realisePar: realisePar(pr), etape, pastille: pastille(pr, auj) });
+        // aMontage : y a-t-il un montage à (re)voir depuis la ligne En cours ? Une version client existe
+        // ET le projet n'est PAS déjà dans À relire (sinon deux boutons pour le même film, et « Revoir »
+        // mentirait pour une version jamais vue). Par construction, UN seul point d'entrée par film :
+        // à relire → lien dans À relire ; tour clos/validé → lien dans En cours ; tournage → aucun lien.
+        // (Validé mais pas livré : estARelire faux → aMontage vrai → il peut revenir sur le film validé.)
+        enCours.push({ code, titre, realisePar: realisePar(pr), etape, pastille: pastille(pr, auj), aMontage: !!courante && !estARelire });
       }
       if (estARelire) aRelire.push({ code, titre, numero: vsClient.length, dateDeposee: dstart(courante.properties, 'Date envoi client') });
     });
