@@ -138,6 +138,9 @@
     .ret-tc{font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:1px 7px;border-radius:4px}
     .ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
     .ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
+    .ret-reform{margin-top:2px;padding-left:11px;border-left:2px solid var(--line2);display:flex;flex-direction:column;gap:3px}
+    .ret-reform-by{font-family:var(--mono);font-size:10px;color:var(--txt3)}
+    .ret-reform-x{font-size:13px;color:var(--txt2);line-height:1.5}
     .forme{border-top:1px solid var(--line);background:var(--bg3);padding:14px 15px;display:flex;flex-direction:column;gap:10px}
     .forme-t{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt3)}
     .forme-r{display:flex;gap:8px}
@@ -568,9 +571,14 @@
 
       var rets = data.retours || [];
       var retoursHtml = rets.length ? rets.map(function (r) {
+        // Reformulation de l'équipe (comment la demande a été comprise) : sous le retour, motif identique à
+        // review (« ↳ Reformulé par … »). Affiché seulement si l'équipe a reformulé. Tout échappé.
+        var reform = r.reformulation ? ('<div class="ret-reform"><span class="ret-reform-by">↳ Reformulé par ' +
+          esc(r.reformulePar || "l'équipe") + (r.timecodeReformule ? ' · ' + esc(r.timecodeReformule) : '') + '</span>' +
+          '<span class="ret-reform-x">' + esc(r.reformulation) + '</span></div>') : '';
         return '<div class="ret"><div class="ret-h"><span class="ret-tc">' + esc(r.timecode || '—') + '</span>' +
           (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + '</div>' +
-          '<div class="ret-x">' + esc(r.texte) + '</div></div>';
+          '<div class="ret-x">' + esc(r.texte) + '</div>' + reform + '</div>';
       }).join('') : '<div class="ret"><div class="ret-x" style="color:var(--txt3)">Aucun retour sur cette version.</div></div>';
 
       // Formulaire + actions SEULEMENT sur la courante OUVERTE ; sinon bandeau de version close (pas de formulaire grisé).

@@ -157,6 +157,10 @@ exports.handler = async (event) => {
 
     // Retours CLIENT de la version affichée → champs d'AFFICHAGE seulement (jamais le Version interne,
     // ni la Série, ni le Sujet ID : aucun numéro/champ interne ne descend au client, spec §8).
+    // Reformulation / Reformulé par / Timecode reformulé : comment l'ÉQUIPE a compris la demande du client.
+    // review.html les montrait déjà au client (motif « ↳ Reformulé par … ») ; l'espace les avait perdus, un
+    // client ne voyait plus comment sa demande était comprise ni ne pouvait rattraper un malentendu. On les
+    // redescend — texte client-facing, pas un numéro/champ interne.
     const retoursAffiches = vAffichee ? retours
       .filter(r => _sel(r.properties, 'Version') === viAffichee)
       .map(r => ({
@@ -165,7 +169,10 @@ exports.handler = async (event) => {
         texte: _title(r.properties, 'Description'),
         statut: _sel(r.properties, 'Statut') || 'Ouvert',
         brouillon: _cb(r.properties, 'Brouillon'),
-        auteur: _rt(r.properties, 'Auteur')
+        auteur: _rt(r.properties, 'Auteur'),
+        reformulation: _rt(r.properties, 'Reformulation'),
+        reformulePar: _rt(r.properties, 'Reformulé par'),
+        timecodeReformule: _rt(r.properties, 'Timecode reformulé')
       })) : [];
 
     return {
