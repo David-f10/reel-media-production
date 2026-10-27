@@ -164,6 +164,61 @@
     .lien-reessai{background:transparent;border:0;color:var(--amber);text-decoration:underline;cursor:pointer;font:inherit}
     @media (max-width:620px){ .rv{grid-template-columns:minmax(0,1fr)} .scene-v,.mt-iframe{height:min(420px,62vh)} }
 
+    /* ── « Mon espace » — les cinq blocs (B2). Classes reprises de VISION_ESPACE_CLIENT, tokens identiques. ── */
+    .maj{font-family:var(--mono);font-size:11px;color:var(--txt3)}
+    h2{font-size:11.5px;font-family:var(--mono);letter-spacing:.15em;text-transform:uppercase;color:var(--txt3);font-weight:400;margin:36px 0 14px;display:flex;flex-wrap:wrap;align-items:baseline;gap:9px}
+    h2 .n{color:var(--txt3);font-size:11px;font-variant-numeric:tabular-nums}
+    h2:first-of-type{margin-top:0}
+    .code{flex:none;font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.06em;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:3px 8px;border-radius:4px}
+    .lnk{font-size:12.5px;color:var(--txt2);text-decoration:none;border:1px solid var(--line2);background:var(--bg3);padding:6px 11px;border-radius:6px;display:inline-block;white-space:nowrap;cursor:pointer;transition:color .12s,border-color .12s}
+    .lnk:hover{color:var(--txt);border-color:var(--txt3)}
+    .attente{display:flex;flex-direction:column;gap:11px}
+    .att{background:var(--bg2);border:1px solid var(--rouge-bord);border-left:3px solid var(--rouge);border-radius:9px;padding:17px 19px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+    .att-m{min-width:0;flex:1 1 260px;display:flex;flex-direction:column;gap:7px}
+    .att-t{font-size:16px;font-weight:500;letter-spacing:-.005em}
+    .att-l{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12.5px;color:var(--txt2)}
+    .att-l .mono{font-family:var(--mono);font-size:11.5px;color:var(--txt3)}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+    .stat{background:var(--bg2);padding:16px 17px 14px}
+    .stat-n{font-family:var(--mono);font-size:25px;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums;display:block;line-height:1.1}
+    .stat-n.petit{font-size:17px;padding-block:5px 3px}
+    .stat-l{font-size:11.5px;color:var(--txt2);margin-top:6px;display:block}
+    .live{display:flex;flex-direction:column;gap:9px}
+    .lrow{background:var(--bg2);border:1px solid var(--line);border-left:2px solid var(--amber);border-radius:8px;padding:15px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+    .lrow-m{min-width:0;flex:1 1 240px;display:flex;flex-direction:column;gap:5px}
+    .lrow-t{font-size:15.5px;font-weight:500}
+    .lrow-s{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12.5px;color:var(--txt2)}
+    .pill{flex:none;font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:4px;white-space:nowrap;background:var(--amber-voile);color:var(--amber);border:1px solid var(--amber-bord)}
+    .etapes{display:flex;gap:4px;margin-top:9px;max-width:330px}
+    .et{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+    .et-b{height:3px;border-radius:2px;background:var(--line2)}
+    .et-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .et.fait .et-b{background:var(--txt3)} .et.fait .et-l{color:var(--txt2)}
+    .et.ici .et-b{background:var(--amber)} .et.ici .et-l{color:var(--amber)}
+    .tw{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+    .t{width:100%;border-collapse:collapse;font-size:14.5px}
+    .t th{font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--txt3);font-weight:400;text-align:left;padding:11px 15px;background:var(--bg3);border-bottom:1px solid var(--line)}
+    .t td{padding:12px 15px;border-bottom:1px solid var(--line);vertical-align:middle;background:var(--bg2)}
+    .t tr:last-child td{border-bottom:none}
+    .t tr:hover td{background:var(--bg3)}
+    .c-code{width:1%;white-space:nowrap}
+    .c-t{min-width:0} .c-t b{font-weight:500;display:block} .c-t span{font-size:12px;color:var(--txt3)}
+    .c-who{font-size:13px;color:var(--txt2);white-space:nowrap;width:1%}
+    .c-d{font-family:var(--mono);font-size:12px;color:var(--txt2);white-space:nowrap;font-variant-numeric:tabular-nums;width:1%}
+    .c-a{width:1%;white-space:nowrap}
+    .replier{margin-top:13px;font-size:12.5px;color:var(--txt3);display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+    .ref{background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:15px 17px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+    .av{width:40px;height:40px;flex:none;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:500;background:var(--rouge-voile);color:var(--rouge);border:1px solid var(--rouge-bord)}
+    .ref-b{min-width:0;flex:1 1 200px}
+    .ref-n{font-size:15px;font-weight:500}
+    .ref-m{font-size:12.5px;color:var(--txt2);margin-top:2px}
+    .premier{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:30px 32px;max-width:640px}
+    .premier h3{font-size:19px;font-weight:500;letter-spacing:-.015em;margin:0 0 10px}
+    .premier > p{color:var(--txt2);font-size:14px;margin:0 0 18px;max-width:52ch}
+    .pts{display:flex;flex-direction:column;gap:11px;margin:0 0 22px;padding:0;list-style:none}
+    .pts li{display:flex;gap:11px;align-items:baseline;font-size:14px;color:var(--txt2)}
+    .pts .p{flex:none;font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);width:21px;height:21px;border-radius:50%;display:grid;place-items:center}
+
     /* ⚠️ !important OBLIGATOIRE : #vue-login porte display:flex (sélecteur d'id) → sans !important, .hidden
        (classe) perd et la bascule entre vues est morte. Vérifié. vue-montage n'a AUCUNE règle display par
        sélecteur d'id, pour que .hidden gagne sans lutte. */
@@ -272,7 +327,7 @@
   <script>
   (function () {
     var LOGIN = '/.netlify/functions/login-client';
-    var PROJETS = '/.netlify/functions/projets-client';
+    var ESPACE = '/.netlify/functions/espace-client'; // accueil B2 (remplace l'appel projets-client du front)
     var MONTAGE = '/.netlify/functions/montage-client';
     var DRIVEVIEW = '/.netlify/functions/drive-view-client';
     var VALIDER = '/.netlify/functions/valider-client';
@@ -343,43 +398,110 @@
       $('bonjour').textContent = nom ? ('Bonjour ' + nom) : '';
       $('titre-projets').textContent = marque ? ('Vos projets · ' + marque) : 'Vos projets';
       montrer('vue-accueil');
-      chargerProjets();
+      chargerEspace();
     }
 
-    function chargerProjets() {
-      var zone = $('zone-projets');
-      zone.innerHTML = '<p class="sub">Chargement…</p>';
-      fetch(PROJETS, {
-        method: 'POST',
-        headers: { 'x-rmc-token': lire(K_TOKEN) }
-      }).then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; });
-      }).then(function (res) {
-        rendre(etatDepuisReponse(res.status, res.body), res.body);
-      }).catch(function () {
-        rendre('INDISPO', null); // réseau tombé → INDISPO (réessayable), JAMAIS « aucun projet »
-      });
+    // ═══ MON ESPACE (B2) — les cinq blocs + premier accès, depuis espace-client (UN appel). ══════════════
+    // Réserve 2 : !ok → « indisponible » distinct + Réessayer (jamais des blocs vides). ok → si TOUT est
+    // vide (le quotidien : 87/89 projets Brand décochés, pas de rattrapage rétroactif) → PREMIER ACCÈS ;
+    // sinon les blocs présents. Le premier accès est gardé sur ok===true → un 503 ne peut JAMAIS l'afficher.
+    // Boutons « Voir le montage → » / « Revoir » : data-code → délégation #zone-projets (plus bas) →
+    // ouvrirMontage. Toute valeur serveur en attribut passe par escAttr (esc() n'échappe pas les guillemets).
+    var MOIS_FR = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    var MOIS_LG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    function dateFrLongue(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? (parseInt(m[3], 10) + ' ' + MOIS_LG[parseInt(m[2], 10) - 1]) : ''; }
+    function dateFrCourte(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? (parseInt(m[3], 10) + ' ' + MOIS_FR[parseInt(m[2], 10) - 1] + ' ' + m[1]) : ''; }
+    function initiales(nom) { return String(nom || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join(''); }
+    function refHtml(interlo) {
+      if (!interlo || !interlo.nom) return '';
+      return '<div class="ref"><div class="av">' + esc(initiales(interlo.nom)) + '</div>' +
+        '<div class="ref-b"><div class="ref-n">' + esc(interlo.nom) + '</div><div class="ref-m">Votre référente chez Réel Média</div></div></div>';
     }
 
-    function rendre(etat, body) {
+    function chargerEspace() {
+      $('zone-projets').innerHTML = '<p class="sub">Chargement…</p>';
+      fetch(ESPACE, { method: 'POST', headers: { 'x-rmc-token': lire(K_TOKEN) } })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) { renderEspace(res.status, res.body); })
+        .catch(function () { espaceIndispo(); }); // réseau tombé → INDISPO, jamais un faux vide
+    }
+    function espaceIndispo() {
+      $('zone-projets').innerHTML = '<div class="etat-indispo">Service temporairement indisponible.<div><button type="button" id="btn-reessayer">Réessayer</button></div></div>';
+      $('btn-reessayer').addEventListener('click', chargerEspace);
+    }
+
+    function renderEspace(status, d) {
+      if (status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+      if (status !== 200 || !d || !d.ok) { espaceIndispo(); return; } // 503/échec → distinct, jamais des blocs vides
+
+      var aRelire = d.aRelire || [], enCours = d.enCours || [], livres = d.livres || [], col = d.collaboration || {};
       var zone = $('zone-projets');
-      if (etat === 'EXPIRE') { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
-      if (etat === 'LISTE') {
-        var items = body.projets.map(function (p) {
-          return '<li><span class="code">' + esc(p.code) + '</span><span>' + esc(p.titre) + '</span>' +
-            '<button type="button" class="voir-montage" data-code="' + escAttr(p.code) + '">Voir le montage →</button></li>';
-        }).join('');
-        zone.innerHTML = '<ul class="projets">' + items + '</ul>';
+
+      // PREMIER ACCÈS : ok ET rien à montrer (le cas normal au démarrage). Gardé sur ok===true → jamais sur panne.
+      if (!aRelire.length && !enCours.length && !livres.length) {
+        var nomP = lire(K_NOM);
+        zone.innerHTML = '<div class="premier"><h3>Bienvenue dans votre espace' + (nomP ? (', ' + esc(nomP)) : '') + '.</h3>' +
+          '<p>Vos films apparaîtront ici au fur et à mesure. Rien à installer, rien à télécharger — tout se passe sur cette page.</p>' +
+          '<ul class="pts">' +
+            '<li><span class="p">1</span><span>Quand un montage est prêt, il s\'affiche en haut, prêt à être regardé.</span></li>' +
+            '<li><span class="p">2</span><span>Vous laissez vos retours sur l\'image, au moment précis qui vous gêne.</span></li>' +
+            '<li><span class="p">3</span><span>Une fois validé, le film rejoint votre archive, consultable ici.</span></li>' +
+          '</ul>' + refHtml(d.interlocutrice) + '</div>';
         return;
       }
-      if (etat === 'VIDE') { // calme et affirmatif, pas de bouton, pas d'alarme
-        zone.innerHTML = '<div class="etat-vide">Aucun projet disponible pour le moment.</div>';
-        return;
+
+      var h = '';
+      // 1. À relire — bloc d'action, affiché seulement s'il y a quelque chose à relire.
+      if (aRelire.length) {
+        h += '<h2>À relire <span class="n">' + aRelire.length + '</span></h2><div class="attente">' +
+          aRelire.map(function (p) {
+            return '<div class="att"><div class="att-m"><div class="att-t">' + esc(p.titre) + '</div>' +
+              '<div class="att-l"><span class="code">' + esc(p.code) + '</span><span>Version ' + (p.numero || '') + '</span>' +
+              '<span class="mono">déposée le ' + esc(dateFrLongue(p.dateDeposee)) + '</span></div></div>' +
+              '<button type="button" class="voir-montage" data-code="' + escAttr(p.code) + '">Voir le montage →</button></div>';
+          }).join('') + '</div>';
       }
-      // INDISPO : alerte distincte + réessayer (jamais une liste vide ici)
-      zone.innerHTML = '<div class="etat-indispo">Service temporairement indisponible.' +
-        '<div><button type="button" id="btn-reessayer">Réessayer</button></div></div>';
-      $('btn-reessayer').addEventListener('click', chargerProjets);
+      // 2. Votre collaboration — toujours (hors premier accès).
+      h += '<h2>Votre collaboration</h2><div class="stats">' +
+        '<div class="stat"><span class="stat-n">' + (col.livres || 0) + '</span><span class="stat-l">films livrés</span></div>' +
+        '<div class="stat"><span class="stat-n">' + (col.enCours || 0) + '</span><span class="stat-l">en cours</span></div>' +
+        (col.depuis ? ('<div class="stat"><span class="stat-n petit">' + esc(col.depuis) + '</span><span class="stat-l">depuis</span></div>') : '') +
+        '</div>';
+      // 3. En cours (si présent). Barre à 4 étapes ; l'étape en-cours plafonne à Validation (2).
+      if (enCours.length) {
+        var LBL = ['Tournage', 'Montage', 'Validation', 'Diffusion'];
+        h += '<h2>En cours <span class="n">' + enCours.length + '</span></h2><div class="live">' +
+          enCours.map(function (p) {
+            var etapes = LBL.map(function (l, i) { var c = i < p.etape ? 'et fait' : (i === p.etape ? 'et ici' : 'et'); return '<div class="' + c + '"><div class="et-b"></div><div class="et-l">' + l + '</div></div>'; }).join('');
+            var pill = p.pastille && p.pastille.texte ? '<span class="pill">' + esc(p.pastille.texte) + '</span>' : '';
+            return '<div class="lrow"><div class="lrow-m"><div class="lrow-t">' + esc(p.titre) + '</div>' +
+              '<div class="lrow-s"><span class="code">' + esc(p.code) + '</span><span>' + esc(p.realisePar) + '</span></div>' +
+              '<div class="etapes">' + etapes + '</div></div>' + pill + '</div>';
+          }).join('') + '</div>';
+      }
+      // 4. Livrés (si présent) — plus récents d'abord ; au-delà de 4, le reste se replie (spec §6.1).
+      if (livres.length) {
+        var SEUIL = 4;
+        var ligne = function (p) {
+          return '<tr><td class="c-code"><span class="code">' + esc(p.code) + '</span></td>' +
+            '<td class="c-t"><b>' + esc(p.titre) + '</b>' + ((p.sousFormat || p.duree) ? ('<span>' + esc([p.sousFormat, p.duree].filter(Boolean).join(' · ')) + '</span>') : '') + '</td>' +
+            '<td class="c-who">' + esc(p.realisePar) + '</td><td class="c-d">' + esc(dateFrCourte(p.dateDiffusion)) + '</td>' +
+            '<td class="c-a"><a class="lnk" href="#" data-code="' + escAttr(p.code) + '">Revoir</a></td></tr>';
+        };
+        var visibles = livres.slice(0, SEUIL), caches = livres.slice(SEUIL);
+        h += '<h2>Livrés <span class="n">' + livres.length + '</span></h2><div class="tw"><table class="t">' +
+          '<thead><tr><th>Code</th><th>Film</th><th>Réalisé par</th><th>Diffusion</th><th></th></tr></thead>' +
+          '<tbody>' + visibles.map(ligne).join('') + '</tbody>' +
+          (caches.length ? ('<tbody id="livres-caches" class="hidden">' + caches.map(ligne).join('') + '</tbody>') : '') +
+          '</table></div>' +
+          (caches.length ? ('<div class="replier" id="livres-replier"><span>' + caches.length + ' film' + (caches.length > 1 ? 's' : '') + ' plus anciens</span><a class="lnk" href="#" id="livres-toutafficher">Tout afficher</a></div>') : '');
+      }
+      // 5. Votre interlocutrice — masquée si null (jamais de ligne générique).
+      if (d.interlocutrice && d.interlocutrice.nom) h += '<h2>Votre interlocutrice</h2>' + refHtml(d.interlocutrice);
+
+      zone.innerHTML = h;
+      var tout = $('livres-toutafficher');
+      if (tout) tout.addEventListener('click', function (e) { e.preventDefault(); var c = $('livres-caches'); if (c) c.classList.remove('hidden'); var rp = $('livres-replier'); if (rp) rp.style.display = 'none'; });
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -580,9 +702,11 @@
     function mIndispo() { mBattementsStop(); M.fileId = ''; $('mt-vers').innerHTML = ''; $('mt-meta').textContent = ''; $('mt-corps').innerHTML = '<div class="etat-indispo">Service temporairement indisponible.<div><button type="button" id="mt-reessayer">Réessayer</button></div></div>'; $('mt-reessayer').addEventListener('click', function () { mCharger(M.rangAff || undefined); }); }
 
     // Entrées & sortie (délégation : le bouton « Voir le montage → » est rendu par rendre LISTE).
+    // Délégation : tout élément porteur d'un data-code dans l'accueil (« Voir le montage → » de À relire,
+    // « Revoir » des Livrés) ouvre la vue montage. On clé sur data-code, pas sur une classe de style.
     $('zone-projets').addEventListener('click', function (e) {
-      var t = e.target; while (t && t !== this && !(t.className && String(t.className).indexOf('voir-montage') !== -1)) t = t.parentNode;
-      if (t && t !== this && t.getAttribute) { var c = t.getAttribute('data-code'); if (c) ouvrirMontage(c); }
+      var t = e.target; while (t && t !== this && !(t.getAttribute && t.getAttribute('data-code'))) t = t.parentNode;
+      if (t && t !== this && t.getAttribute && t.getAttribute('data-code')) { e.preventDefault(); ouvrirMontage(t.getAttribute('data-code')); }
     });
     $('mt-retour').addEventListener('click', function (e) { e.preventDefault(); mQuitter(); });
     // ═══ FIN VUE MONTAGE ═══════════════════════════════════════════════════════════════════════════════
