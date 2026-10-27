@@ -15,8 +15,14 @@
 //  • Réalisé par = Journaliste, repli « Réel Média ».
 //  • Interlocutrice = Contact Brand du projet le PLUS RÉCENT du client ; vide → bloc masqué (null).
 //  • Collaboration ET tables (à relire / en cours / livrés) = projets EXPOSÉS (Visible espace client) —
-//    ce que le client peut ouvrir ; comptes et tables restent cohérents. L'interlocutrice, elle, se lit
-//    sur le projet le plus récent de la marque (exposé ou non) pour exister même à zéro projet visible.
+//    ce que le client peut ouvrir ; comptes et tables restent cohérents.
+//
+// EXCEPTION CONSCIENTE — l'interlocutrice se lit HORS du périmètre exposé : sur le projet le plus récent
+// de la marque, exposé OU NON. C'est délibéré, et ce n'est PAS une fuite : on n'en sort qu'un PRÉNOM
+// (le Contact Brand), jamais un code ni un titre de projet non exposé. La raison : sans ça, un client à
+// zéro projet visible (le cas NORMAL — 87/89 décochés) n'aurait aucune référente, et le premier accès
+// — l'écran précis où il se fait son opinion — serait anonyme. Toutes les autres lectures restent bornées
+// à l'exposé. Si un jour on sort autre chose que le prénom de ce projet, cette exception doit être revue.
 
 const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
@@ -195,7 +201,7 @@ exports.handler = async (event) => {
         interlocutrice,                                 // { nom } | null
         collaboration: { livres: livres.length, enCours: enCours.length, depuis: plusAncienneDiffusion ? moisFr(plusAncienneDiffusion) : null },
         aRelire,                                        // [{ code, titre, numero, dateDeposee }]
-        enCours,                                        // [{ code, titre, realisePar, etape 0..3, pastille|null }]
+        enCours,                                        // [{ code, titre, realisePar, etape 0..2, pastille|null }]
         livres                                          // [{ code, titre, sousFormat, duree, realisePar, dateDiffusion }]
       })
     };
