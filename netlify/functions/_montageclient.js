@@ -141,16 +141,23 @@ async function autoriserMontage(event, params, deadline) {
   };
 }
 
-// (4) VIDÉO — seule la version COURANTE est regardable (décision de David : les versions passées ne se
-// lisent pas). L'appelant (drive-view-client) passe le résultat d'autoriserMontage + le fileId demandé.
-// Fail-closed : pas de courante, pas de fileId, ou fileId ≠ courante → false.
+// (4) VIDÉO — TOUTE version ENVOYÉE à ce client est regardable. La condition 4 d'origine (« seule la
+// courante s'ouvre ») est TOMBÉE : depuis le téléchargement par rang (A∪B), interdire le visionnage d'une
+// version passée n'empêchait plus rien — le client peut déjà la télécharger et la lire sur son bureau — et
+// n'ajoutait que de la friction (une interdiction qui n'interdit rien apprend que l'app est arbitraire). Le
+// souci d'origine (rouvrir une décision close en revoyant un vieux montage) est traité ailleurs : sur une
+// version close le formulaire disparaît et un bandeau rappelle ce qui a été fait.
+// Fail-closed INCHANGÉ : pas de versions, pas de fileId, ou fileId absent de l'ensemble des versions
+// ENVOYÉES → false. Une version jamais envoyée à ce client reste non regardable.
 function fichierVideoAutorise(res, fileId) {
   const fid = extractFileId(fileId);
-  return !!(res && res.ok && res.courante && res.courante.fileId && fid && fid === res.courante.fileId);
+  if (!(res && res.ok && fid && Array.isArray(res.versions))) return false;
+  return res.versions.some(v => v.fileId && v.fileId === fid);
 }
 
-// NOTE tranche 4 (téléchargement) : la condition (3) — fileId ∈ A∪B du sujet, versions passées INCLUSES
-// — s'ajoutera ici (un fichierTelechargementAutorise + la dérivation A∪B), sans toucher ce qui précède.
-// Elle est volontairement absente tant que seul le visionnage existe.
+// Téléchargement (tranche 4) : il n'est PAS passé par ici. Il a pris la forme { sujetCode, rang } dans
+// drive-download-client.js, qui re-dérive l'union A∪B du sujet (fileIdsDuSujet) et refuse tout fileId hors
+// liste. Il n'y a donc jamais eu de « fichierTelechargementAutorise » : la garde du téléchargement vit dans
+// drive-download-client, celle du visionnage ici.
 
 module.exports = { autoriserMontage, fichierVideoAutorise, extractFileId };
