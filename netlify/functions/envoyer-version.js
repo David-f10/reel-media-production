@@ -16,6 +16,7 @@
 const { verifyUser } = require('./_auth');
 
 const DB_VERSIONS = '3793eebb-2aeb-4d49-84ae-06d79cfb2704';
+const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const norm = (s) => String(s || '').replace(/-/g, '').toLowerCase();
 
 function notionFetch(pathApi, method, token, bodyObj) {
@@ -52,30 +53,61 @@ exports.handler = async (event) => {
   const versionId = String(body.versionId || '').trim();
   if (!versionId) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'versionId manquant' }) };
 
-  // ── Relire la page : la borner à DB_VERSIONS ET lire la date existante (la garde d'idempotence) ──
-  let page;
+  // ── Relire la VERSION : la borner à DB_VERSIONS ; lire la date existante ET le « Sujet ID » ──
+  let version;
   try {
     const r = await notionFetch('/pages/' + versionId, 'GET', token);
     if (r.status === 404) return { statusCode: 404, headers, body: JSON.stringify({ ok: false, error: 'Version introuvable' }) };
-    if (!r.ok) throw new Error('GET ' + r.status);
-    page = await r.json();
-  } catch (e) { console.error('envoyer-version indispo (lecture) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+    if (!r.ok) throw new Error('GET version ' + r.status);
+    version = await r.json();
+  } catch (e) { console.error('envoyer-version indispo (lecture version) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
-  const parent = page && page.parent && page.parent.database_id;
-  if (!parent || norm(parent) !== norm(DB_VERSIONS)) {
+  if (!version.parent || norm(version.parent.database_id) !== norm(DB_VERSIONS)) {
     return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Page hors 📹 Versions' }) };
   }
 
-  // ── IDEMPOTENCE : date déjà posée → on NE réécrit JAMAIS. Le numéro client est figé pour toujours. ──
-  const existante = page.properties && page.properties['Date envoi client'] && page.properties['Date envoi client'].date && page.properties['Date envoi client'].date.start;
+  // ── Résoudre le SUJET depuis « Sujet ID » (champ TEXTE, pas une relation : 192/863 lignes ne pointent
+  //    vers aucun sujet — « test », « archived », vide…). Donnée cassée → 422, DISTINCT du 503 : l'équipe
+  //    doit lire « donnée à corriger dans Notion », pas « panne, retente » (le retry ne répare pas « test »).
+  //    GARDE POSÉE AVANT la visibilité ET la date : si on ne peut pas résoudre le sujet, on n'écrit RIEN —
+  //    ni case ni date. On distingue la donnée cassée (id absent/malformé/introuvable → 422) de la panne
+  //    (5xx/réseau → 503). ──
+  const DATA_CASSEE = { statusCode: 422, headers, body: JSON.stringify({ ok: false, error: 'Cette version n\'est reliée à aucun projet (Sujet ID invalide) — à corriger dans Notion, ce n\'est pas une panne de service.' }) };
+  const sujetRef = ((version.properties && version.properties['Sujet ID'] && version.properties['Sujet ID'].rich_text) || []).map(function (t) { return t.plain_text || ''; }).join('').trim();
+  if (!/^[0-9a-f]{32}$/.test(norm(sujetRef))) return DATA_CASSEE; // absent / malformé → aucun GET inutile
+
+  let sujet;
+  try {
+    const r = await notionFetch('/pages/' + sujetRef, 'GET', token);
+    if (r.status === 404 || r.status === 400) return DATA_CASSEE; // bien formé mais introuvable / rejeté → donnée cassée
+    if (!r.ok) throw new Error('GET sujet ' + r.status);          // 5xx / autre → panne
+    sujet = await r.json();
+  } catch (e) { console.error('envoyer-version indispo (lecture sujet) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+
+  if (!sujet.parent || norm(sujet.parent.database_id) !== norm(DB_PROD)) return DATA_CASSEE; // résout mais pas un projet
+
+  // ── Étape 1 : ASSURER la visibilité sur le SUJET — c'est la PORTE de l'espace (le portier filtre
+  //    « Visible espace client »). Idempotent : déjà coché → pas de réécriture. Échec → 503, et on NE pose
+  //    PAS la date : sans visibilité, le client est verrouillé dehors (« date sans case » est l'état interdit). ──
+  const dejaVisible = !!(sujet.properties && sujet.properties['Visible espace client'] && sujet.properties['Visible espace client'].checkbox);
+  if (!dejaVisible) {
+    try {
+      const r = await notionFetch('/pages/' + sujetRef, 'PATCH', token, { properties: { 'Visible espace client': { checkbox: true } } });
+      if (!r.ok) throw new Error('PATCH visible ' + r.status);
+    } catch (e) { console.error('envoyer-version indispo (visibilité) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+  }
+
+  // ── Étape 2 : la DATE sur la VERSION. Idempotent : déjà posée → dejaEnvoye (la visibilité vient d'être
+  //    assurée ci-dessus — y compris pour un projet daté mais pas encore visible : auto-réparation). Le
+  //    numéro client est figé pour toujours. ──
+  const existante = version.properties && version.properties['Date envoi client'] && version.properties['Date envoi client'].date && version.properties['Date envoi client'].date.start;
   if (existante) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, dejaEnvoye: true, date: existante }) };
 
-  // Date au JOUR (confirmé : pas de datetime ; le portier départage deux envois d'un même jour par id de page).
-  const aujourdHui = new Date().toISOString().slice(0, 10);
+  const aujourdHui = new Date().toISOString().slice(0, 10); // date au jour (le portier départage un même jour par id de page)
   try {
     const r = await notionFetch('/pages/' + versionId, 'PATCH', token, { properties: { 'Date envoi client': { date: { start: aujourdHui } } } });
-    if (!r.ok) throw new Error('PATCH ' + r.status);
-  } catch (e) { console.error('envoyer-version indispo (écriture) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+    if (!r.ok) throw new Error('PATCH date ' + r.status);
+  } catch (e) { console.error('envoyer-version indispo (date) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
   return { statusCode: 200, headers, body: JSON.stringify({ ok: true, date: aujourdHui }) };
 };
