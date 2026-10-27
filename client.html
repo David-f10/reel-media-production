@@ -139,6 +139,11 @@
     .ret-tc{font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:1px 7px;border-radius:4px}
     .ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
     .ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
+    .ret-brouillon{font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber);opacity:.85;padding:1px 7px;border-radius:4px}
+    .ret-foot{display:flex;justify-content:flex-end;margin-top:2px}
+    .ret-suppr{background:none;border:0;color:var(--txt3);font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0}
+    .ret-suppr:hover{color:var(--rouge)}
+    .ret-suppr:disabled{opacity:.5;cursor:default;text-decoration:none}
     .ret-reform{margin-top:2px;padding-left:11px;border-left:2px solid var(--line2);display:flex;flex-direction:column;gap:3px}
     .ret-reform-by{font-family:var(--mono);font-size:10px;color:var(--txt3)}
     .ret-reform-x{font-size:13px;color:var(--txt2);line-height:1.5}
@@ -578,9 +583,14 @@
         var reform = r.reformulation ? ('<div class="ret-reform"><span class="ret-reform-by">↳ Reformulé par ' +
           esc(r.reformulePar || "l'équipe") + (r.timecodeReformule ? ' · ' + esc(r.timecodeReformule) : '') + '</span>' +
           '<span class="ret-reform-x">' + esc(r.reformulation) + '</span></div>') : '';
+        // Brouillon = pas encore envoyé. Badge pour tous ; bouton Supprimer SEULEMENT sur MON brouillon de la
+        // version COURANTE (r.mien + estCourante). Le serveur re-vérifie toutes les gardes de toute façon.
+        var badge = r.brouillon ? '<span class="ret-brouillon">brouillon · non envoyé</span>' : '';
+        var suppr = (r.brouillon && r.mien && estCourante && r.id)
+          ? '<div class="ret-foot"><button class="ret-suppr" type="button" data-id="' + escAttr(r.id) + '">Supprimer</button></div>' : '';
         return '<div class="ret"><div class="ret-h"><span class="ret-tc">' + esc(r.timecode || '—') + '</span>' +
-          (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + '</div>' +
-          '<div class="ret-x">' + esc(r.texte) + '</div>' + reform + '</div>';
+          (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + badge + '</div>' +
+          '<div class="ret-x">' + esc(r.texte) + '</div>' + reform + suppr + '</div>';
       }).join('') : '<div class="ret"><div class="ret-x" style="color:var(--txt3)">Aucun retour sur cette version.</div></div>';
 
       // Formulaire + actions SEULEMENT sur la courante OUVERTE ; sinon bandeau de version close (pas de formulaire grisé).
@@ -605,6 +615,11 @@
       // Bouton télécharger : présent pour TOUTE version affichée (courante ou passée), donc câblé hors du
       // bloc formulaire. Le rang téléchargé est celui de la version affichée.
       $('mt-tel').addEventListener('click', function () { mTelecharger(aff); });
+
+      // Suppression de MON brouillon (courante). Délégation sur chaque bouton rendu ci-dessus.
+      [].slice.call($('mt-corps').querySelectorAll('.ret-suppr')).forEach(function (b) {
+        b.addEventListener('click', function () { mSupprimer(b.getAttribute('data-id'), b); });
+      });
 
       if (formulaire) {
         $('mt-ajout').addEventListener('click', mAjouter);
@@ -681,6 +696,21 @@
       var scene = $('mt-scene'); if (!scene) return;
       scene.innerHTML = '<div class="scene-v"><p class="sub" style="color:var(--amber)">Vidéo indisponible pour l\'instant. <button type="button" class="lien-reessai" id="mt-video-reessai">Réessayer</button></p></div>';
       $('mt-video-reessai').addEventListener('click', function () { mOuvrirVideo(M.fileId); });
+    }
+
+    // ── Suppression de MON brouillon non envoyé. Le serveur re-vérifie toutes les gardes (appartenance au
+    //    contact, Source Client, même sujet, version courante, Brouillon:true) et ARCHIVE (ne détruit pas).
+    //    Succès → on recharge la version affichée (le brouillon disparaît). 409 = déjà envoyé → notice, jamais
+    //    supprimé. 401 → session expirée. ──
+    function mSupprimer(retourId, btn) {
+      if (!retourId) return;
+      if (btn) { btn.disabled = true; btn.textContent = 'Suppression…'; }
+      mPost(MONTAGE, { action: 'supprimer-brouillon', sujetCode: M.code, retourId: retourId }).then(function (res) {
+        if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 200 && res.body && res.body.ok) { mCharger(M.rangAff); return; }
+        if (res.status === 409) { M.notice = 'Ce retour a déjà été envoyé : il n\'a pas été supprimé.'; mCharger(M.rangAff); return; }
+        M.notice = 'Suppression impossible pour l\'instant. Réessayez.'; mCharger(M.rangAff);
+      }).catch(function () { M.notice = 'Suppression impossible pour l\'instant. Réessayez.'; mCharger(M.rangAff); });
     }
 
     // ── Téléchargement d'une version par son RANG. Le serveur résout le fichier et renvoie un downloadUrl
