@@ -188,6 +188,7 @@
     .lrow-m{min-width:0;flex:1 1 240px;display:flex;flex-direction:column;gap:5px}
     .lrow-t{font-size:15.5px;font-weight:500}
     .lrow-s{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12.5px;color:var(--txt2)}
+    .lrow-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px} /* colonne droite d'une ligne En cours : pastille + « Revoir le montage » */
     .pill{flex:none;font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:4px;white-space:nowrap;background:var(--amber-voile);color:var(--amber);border:1px solid var(--amber-bord)}
     .etapes{display:flex;gap:4px;margin-top:9px;max-width:330px}
     .et{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
@@ -480,7 +481,7 @@
             return '<div class="lrow"><div class="lrow-m"><div class="lrow-t">' + esc(p.titre) + '</div>' +
               '<div class="lrow-s"><span class="code">' + esc(p.code) + '</span><span>' + esc(p.realisePar) + '</span></div>' +
               '<div class="etapes">' + etapes + '</div></div>' +
-              '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px">' + pill + entree + '</div></div>';
+              '<div class="lrow-r">' + pill + entree + '</div></div>';
           }).join('') + '</div>';
       }
       // 4. Livrés (si présent) — plus récents d'abord ; au-delà de 4, le reste se replie (spec §6.1).
