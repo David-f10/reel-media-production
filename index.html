@@ -3200,7 +3200,9 @@ async function envoyerAuClient(versionId, sujetId, version, el) {
   if(el.dataset.confirm !== '1') {
     el.dataset.confirm = '1';
     el.dataset.base = el.textContent;
-    el.textContent = 'Confirmer l\'envoi ?';
+    // L'effet est ANNONCÉ avant le clic : l'envoi rend le projet visible dans l'espace client (il coche
+    // « Visible espace client » sur le sujet, côté serveur). Le membre ne découvre pas l'effet après coup.
+    el.textContent = 'Confirmer — rend le projet visible au client';
     el.style.background = 'var(--amber-dim)'; el.style.borderColor = 'var(--amber)'; el.style.color = 'var(--amber)';
     el._revert = setTimeout(() => { el.dataset.confirm = ''; el.textContent = el.dataset.base || '📤 Envoyer au client'; el.style.background = ''; el.style.borderColor = ''; el.style.color = ''; }, 4000);
     return;
@@ -3212,9 +3214,13 @@ async function envoyerAuClient(versionId, sujetId, version, el) {
     const res = await fetch('/.netlify/functions/envoyer-version', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ versionId }) });
     const d = await res.json().catch(() => ({}));
     if(res.ok && d.ok) { toast('Envoyé au client','ok'); await loadVersions(sujetId); return; } // re-render → badge + message
-    throw new Error(d.error || ('HTTP ' + res.status));
+    // Échec serveur : la date n'est PAS posée → jamais l'état « envoyé ». On REMONTE le message du serveur
+    // (un 422 « Sujet ID invalide — à corriger dans Notion » n'est PAS un « réessayez » : le retry ne
+    // répare pas une donnée cassée). Le message générique ne sert que pour une panne réseau sans corps.
+    restaurer();
+    toast(d.error || 'Échec de l\'envoi — réessayez', 'err');
   } catch(e) {
-    restaurer(); // la date n'est PAS posée → surtout pas l'état « envoyé »
+    restaurer(); // panne réseau (fetch a levé) → message générique réessayable
     toast('Échec de l\'envoi — réessayez', 'err');
   }
 }
