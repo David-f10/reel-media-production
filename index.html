@@ -3153,17 +3153,21 @@ async function loadVersions(sujetId) {
               class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
         </div>
-        ${isBrand && !annulee && url && isLastEnvoi && peutEnvoyerClient ? (dateEnvoiClient
+        ${isBrand && !annulee && url && isLastEnvoi ? (dateEnvoiClient
+          // ENVOYÉE : le BADGE « ✅ Envoyé au client le DATE » est un ÉTAT → visible par TOUS les rôles
+          // (un monteur doit savoir qu'une version est partie avant d'y retoucher). L'encart « message à
+          // copier » est l'OUTIL de celui qui envoie → Brand/Chef seuls (peutEnvoyerClient).
           ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
-              <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:6px">✅ Envoyé au client le ${dateEnvoiClient.split('-').reverse().join('/')}</div>
-              <div style="font-size:10px;color:var(--text3);margin-bottom:5px">Message à copier dans votre mail (le code n'y figure jamais) :</div>
+              <div style="font-size:11px;color:var(--green);font-weight:600${peutEnvoyerClient ? ';margin-bottom:6px' : ''}">✅ Envoyé au client le ${dateEnvoiClient.split('-').reverse().join('/')}</div>`
+            + (peutEnvoyerClient ? `<div style="font-size:10px;color:var(--text3);margin-bottom:5px">Message à copier dans votre mail (le code n'y figure jamais) :</div>
               <textarea readonly id="msg-envoi-${v.id}" onclick="this.select()" style="width:100%;min-height:150px;resize:vertical;font-size:11px;font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:8px;box-sizing:border-box">${escapeHtml(msgEnvoiClient)}</textarea>
-              <button onclick="copierMessageEnvoi(this,'msg-envoi-${v.id}')" class="nav-btn" style="margin-top:5px;font-size:11px">Copier le message</button>
-            </div>`
-          : `<div style="margin-top:8px">
+              <button onclick="copierMessageEnvoi(this,'msg-envoi-${v.id}')" class="nav-btn" style="margin-top:5px;font-size:11px">Copier le message</button>` : '')
+            + `</div>`
+          // PAS ENCORE ENVOYÉE : le bouton d'action (deux-temps) → Brand/Chef seuls ; les autres → rien.
+          : (peutEnvoyerClient ? `<div style="margin-top:8px">
               <button onclick="envoyerAuClient('${v.id}','${sujetId}','${escJs(version)}',this)"
                 class="nav-btn" style="width:100%;font-size:11px;white-space:nowrap">📤 Envoyer au client</button>
-            </div>`) : ''}
+            </div>` : '')) : ''}
         ${isBrand && !annulee && validee && validationBrand ? `<div style="margin-top:8px">
           <button onclick="annulerVersion('${v.id}','${sujetId}','${version}')"
             class="nav-btn" style="width:100%;font-size:11px;background:var(--red);border-color:var(--red);color:#fff">
