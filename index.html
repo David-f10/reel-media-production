@@ -3062,6 +3062,20 @@ async function loadVersions(sujetId) {
       const validationBrand = pr['Validation Brand']?.checkbox || false;
       const versionStatut = pr.Statut?.select?.name || 'Active';
       const annulee = versionStatut === 'Annulée';
+      // « Envoyer au client » (tranche 2) : visible pour Brand, dernière version, avec un lien vidéo.
+      const dateEnvoiClient = pr['Date envoi client']?.date?.start || '';
+      const vNumEnvoi = parseInt(version.replace('V',''));
+      const isLastEnvoi = vNumEnvoi === maxVersionNum;
+      // Message prêt à copier que l'équipe colle dans SON mail. Le code n'y figure JAMAIS — seulement le
+      // rappel mail+code. Lien = origine courante + /client.html (un seul hôte, cf. liste CORS lane client).
+      const titreFilm = sujetCourant?.titre || '';
+      const msgEnvoiClient = 'Objet : Votre montage « ' + titreFilm + ' » est prêt\n\n'
+        + 'Bonjour,\n\n'
+        + 'Votre montage est prêt : « ' + titreFilm + ' ».\n\n'
+        + 'Vous pouvez le visionner, nous laisser vos retours ou le valider directement dans votre espace client :\n'
+        + location.origin + '/client.html\n\n'
+        + 'Connexion avec votre adresse e-mail et votre code personnel.\n\n'
+        + 'Bon visionnage,\nL\'équipe Réel Média';
 
       const date = new Date(v.created_time).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
       const type = url.includes('drive.google.com') ? 'drive' : url.includes('vimeo') ? 'vimeo' : url.includes('frame.io') ? 'frameio' : (url.includes('youtube.com')||url.includes('youtu.be')) ? 'youtube' : null;
@@ -3133,6 +3147,17 @@ async function loadVersions(sujetId) {
               class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
         </div>
+        ${isBrand && !annulee && url && isLastEnvoi ? (dateEnvoiClient
+          ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+              <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:6px">✅ Envoyé au client le ${dateEnvoiClient.split('-').reverse().join('/')}</div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:5px">Message à copier dans votre mail (le code n'y figure jamais) :</div>
+              <textarea readonly id="msg-envoi-${v.id}" onclick="this.select()" style="width:100%;min-height:150px;resize:vertical;font-size:11px;font-family:var(--mono);background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:8px;box-sizing:border-box">${escapeHtml(msgEnvoiClient)}</textarea>
+              <button onclick="copierMessageEnvoi(this,'msg-envoi-${v.id}')" class="nav-btn" style="margin-top:5px;font-size:11px">Copier le message</button>
+            </div>`
+          : `<div style="margin-top:8px">
+              <button onclick="envoyerAuClient('${v.id}','${sujetId}','${escJs(version)}',this)"
+                class="nav-btn" style="width:100%;font-size:11px;white-space:nowrap">📤 Envoyer au client</button>
+            </div>`) : ''}
         ${isBrand && !annulee && validee && validationBrand ? `<div style="margin-top:8px">
           <button onclick="annulerVersion('${v.id}','${sujetId}','${version}')"
             class="nav-btn" style="width:100%;font-size:11px;background:var(--red);border-color:var(--red);color:#fff">
@@ -3165,6 +3190,46 @@ async function loadVersions(sujetId) {
 }
 
 let _creerVersionEnCours = false;
+// « Envoyer au client » — bouton DEUX TEMPS (le bouton lui-même, pas de confirm() navigateur) : 1er clic
+// arme « Confirmer l'envoi ? » (auto-désarmé après 4 s), 2e clic écrit. L'écriture passe par la fonction
+// dédiée envoyer-version (idempotente côté serveur : une date déjà posée n'est jamais réécrite). ÉCHEC →
+// le bouton REVIENT à « Envoyer au client » + toast d'erreur : jamais basculé en « envoyé » (jamais un
+// faux succès — sinon l'équipe croit avoir envoyé et le client ne voit rien). Au succès, loadVersions
+// re-rend : la date est lue, le bouton cède la place au badge « Envoyé le … » + le message à copier.
+async function envoyerAuClient(versionId, sujetId, version, el) {
+  if(el.dataset.confirm !== '1') {
+    el.dataset.confirm = '1';
+    el.dataset.base = el.textContent;
+    el.textContent = 'Confirmer l\'envoi ?';
+    el.style.background = 'var(--amber-dim)'; el.style.borderColor = 'var(--amber)'; el.style.color = 'var(--amber)';
+    el._revert = setTimeout(() => { el.dataset.confirm = ''; el.textContent = el.dataset.base || '📤 Envoyer au client'; el.style.background = ''; el.style.borderColor = ''; el.style.color = ''; }, 4000);
+    return;
+  }
+  clearTimeout(el._revert);
+  el.disabled = true; el.dataset.confirm = ''; el.textContent = 'Envoi…';
+  const restaurer = () => { el.disabled = false; el.style.background = ''; el.style.borderColor = ''; el.style.color = ''; el.textContent = '📤 Envoyer au client'; };
+  try {
+    const res = await fetch('/.netlify/functions/envoyer-version', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ versionId }) });
+    const d = await res.json().catch(() => ({}));
+    if(res.ok && d.ok) { toast('Envoyé au client','ok'); await loadVersions(sujetId); return; } // re-render → badge + message
+    throw new Error(d.error || ('HTTP ' + res.status));
+  } catch(e) {
+    restaurer(); // la date n'est PAS posée → surtout pas l'état « envoyé »
+    toast('Échec de l\'envoi — réessayez', 'err');
+  }
+}
+// Copie du message. navigator.clipboard échoue en contexte non sécurisé / certains navigateurs → on ne
+// prétend JAMAIS avoir copié si writeText n'a pas résolu. Le textarea reste sélectionnable à la main dans
+// tous les cas ; sur échec, on le focus+sélectionne et on le DIT (jamais un faux « Copié »).
+function copierMessageEnvoi(btn, taId) {
+  const ta = document.getElementById(taId);
+  if(!ta) return;
+  const base = btn.dataset.base || btn.textContent; btn.dataset.base = base;
+  const ok = () => { btn.textContent = '✅ Copié'; btn.style.color = ''; setTimeout(() => { btn.textContent = base; }, 2000); };
+  const echec = () => { ta.focus(); ta.select(); btn.textContent = 'Copie impossible — sélectionnez puis Ctrl+C'; btn.style.color = 'var(--amber)'; };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(ok, echec);
+  else echec();
+}
 async function ajouterVersion(sujetId) {
   if(_creerVersionEnCours) { toast('Création en cours...','err'); return; }
   const countEl=document.getElementById('retours-count-'+sujetId);
