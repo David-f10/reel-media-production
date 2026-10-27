@@ -60,6 +60,8 @@ const _dateSet = (pr, k) => !!(pr && pr[k] && pr[k].date && pr[k].date.start);
 // qui est un select V1-V9. On LIT donc ici en rich_text ; l'ÉCRITURE vers DB_RETOURS.Version (plus bas)
 // reste un select. (Confondre les deux renvoyait '' → retour estampillé d'une version vide, non comparable.)
 const _versionInterne = (v) => (((v && v.brut && v.brut.properties && v.brut.properties.Version) || {}).rich_text || []).map(function (t) { return t.plain_text || ''; }).join('');
+// Comparaison d'ids Notion tolérante aux tirets et à la casse (id de page de contact, id de base, etc.).
+const _eqId = (a, b) => String(a || '').replace(/-/g, '').toLowerCase() === String(b || '').replace(/-/g, '').toLowerCase();
 
 async function notionFetch(pathApi, method, token, bodyObj) {
   const r = await fetch('https://api.notion.com/v1' + pathApi, {
@@ -172,7 +174,13 @@ exports.handler = async (event) => {
         auteur: _rt(r.properties, 'Auteur'),
         reformulation: _rt(r.properties, 'Reformulation'),
         reformulePar: _rt(r.properties, 'Reformulé par'),
-        timecodeReformule: _rt(r.properties, 'Timecode reformulé')
+        timecodeReformule: _rt(r.properties, 'Timecode reformulé'),
+        // id de page + « est-ce le MIEN ? » : le client ne peut supprimer QUE son propre brouillon. L'id ne
+        // donne rien par lui-même (la suppression re-vérifie toutes les gardes serveur) ; c'est le même id
+        // que ajouter-retour renvoie déjà au client. « mien » = Contact client == ce contact (un même projet
+        // de marque peut avoir plusieurs contacts, chacun ne voit supprimer QUE ses brouillons).
+        id: r.id,
+        mien: _eqId(_rt(r.properties, 'Contact client'), az.contact.id)
       })) : [];
 
     return {
@@ -231,6 +239,60 @@ exports.handler = async (event) => {
     catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, retourId: created.id }) };
+  }
+
+  // ── SUPPRESSION D'UN BROUILLON (réversible dans l'esprit : on ARCHIVE, on n'efface pas la base) ──────
+  // review.html avait supprimerMonBrouillon ; l'espace ne l'avait pas. Un client doit pouvoir retirer SON
+  // brouillon non envoyé. GARDES CÔTÉ SERVEUR, toutes obligatoires, le portier ayant déjà validé identité +
+  // périmètre + sujet. On ne fait JAMAIS confiance à la page : on relit le retour et on vérifie que
+  //   (1) c'est bien une page de 📋 Retours (bornage à la base) ;
+  //   (2) Source == 'Client' (jamais un retour interne d'équipe) ;
+  //   (3) Contact client == CE contact (pas le brouillon d'un autre contact de la marque) ;
+  //   (4) il porte sur CE sujet ET sur la version COURANTE (un brouillon ne vit que sur la courante) ;
+  //   (5) Brouillon == true. Un retour DÉJÀ ENVOYÉ ne se supprime JAMAIS — c'est la trace de ce que le
+  //       client a demandé. Ce cas renvoie 409, distinct du refus d'accès.
+  if (action === 'supprimer-brouillon') {
+    const retourId = String(body.retourId || '').trim();
+    if (!/^[0-9a-f]{32}$/.test(retourId.replace(/-/g, '').toLowerCase())) {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'retourId manquant ou invalide' }) };
+    }
+
+    // Relecture du retour (bornée à son id). 404 = introuvable (donnée), distinct d'une panne (503).
+    let retour;
+    try {
+      const r = await fetch('https://api.notion.com/v1/pages/' + retourId, {
+        method: 'GET', headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28' }
+      });
+      if (r.status === 404) return { statusCode: 404, headers, body: JSON.stringify({ ok: false, error: 'Brouillon introuvable' }) };
+      if (!r.ok) throw new Error('GET retour ' + r.status);
+      retour = await r.json();
+    } catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+
+    const rp = retour.properties || {};
+    // (1) bornage à 📋 Retours — jamais archiver une page d'une autre base par id forgé
+    if (!retour.parent || !_eqId(retour.parent.database_id, DB_RETOURS)) {
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Accès refusé' }) };
+    }
+    // (2) Source client + (3) appartenance au contact + (4) même sujet. Tout échec → 403 indistinct (on ne
+    // révèle pas lequel) : du point de vue du client, « ce n'est pas un brouillon à toi sur ce sujet ».
+    const courante = az.versions.length ? az.versions[az.versions.length - 1] : null;
+    const viCourante = courante ? _versionInterne(courante) : '';
+    if (_sel(rp, 'Source') !== 'Client'
+      || !_eqId(_rt(rp, 'Contact client'), az.contact.id)
+      || !_eqId(_rt(rp, 'Sujet ID'), az.sujet.pageId)
+      || !viCourante || _sel(rp, 'Version') !== viCourante) {
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Accès refusé' }) };
+    }
+    // (5) ENCORE un brouillon ? Déjà envoyé → 409, jamais supprimé (c'est la trace de sa demande).
+    if (!_cb(rp, 'Brouillon')) {
+      return { statusCode: 409, headers, body: JSON.stringify({ ok: false, error: 'Ce retour a déjà été envoyé et ne peut plus être supprimé' }) };
+    }
+
+    // Archivage (réversible dans Notion) — pas d'effacement dur.
+    try { await notionFetch('/pages/' + retourId, 'PATCH', token, { archived: true }); }
+    catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   }
 
   return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Action inconnue' }) };
