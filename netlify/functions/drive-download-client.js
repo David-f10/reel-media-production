@@ -12,12 +12,30 @@
 // montrée → on garde l'union A∪B complète (comme drive-download-review, « versions Annulées incluses »),
 // sans appliquer la condition 4.
 //
+// ── CONTRAT { sujetCode, rang } — PAS { fileId } (choix tranché, et pourquoi c'est le moment de le faire) ──
+// La lane review prend un fileId parce que review n'avait pas de session : la page était son seul état.
+// L'espace a une session ET une numérotation par RANG déjà en service (montage-client descend
+// versions:[{rang}], affichee:{rang}, les pastilles portent data-rang). Le navigateur a donc déjà le rang ;
+// il n'a besoin de rien de plus. On lui demande donc le RANG, et le serveur résout le fileId lui-même :
+//   • un fileId Drive est un IDENTIFIANT DE CAPACITÉ. Le grant est éphémère + révoqué (balayeur en
+//     rattrapage), mais un id qui n'a JAMAIS quitté le serveur ne peut pas être rejoué si une révocation
+//     rate un jour. Prendre un fileId forcerait à descendre les ids de TOUTES les versions envoyées dans la
+//     page — on ne le fait pas.
+//   • { sujetCode, rang } est cohérent avec le modèle de CET écran (session + rang), pas avec celui de review.
+// On CHANGE ici le contrat d'une fonction DÉJÀ SUR main — et c'est sans rupture PARCE QU'ELLE N'A AUCUN
+// APPELANT à ce jour (endpoint dormant ; le bouton est câblé dans la même PR). Le corriger maintenant coûte
+// zéro ; le corriger dans six mois, bouton déployé partout, coûterait une migration. C'est le moment le moins
+// cher, entre deux options sûres. (Note à qui lit l'historique : ce n'est pas un breaking change.)
+//
+// Le RANG est résolu CÔTÉ SERVEUR en RÉUTILISANT l'ordre du portier (_montageclient._versionsClient : tri
+// par Date envoi client, départage par id de page) — az.versions[rang-1]. PAS une deuxième implémentation du
+// tri, exactement comme fileIdsDuSujet est réutilisé pour l'A∪B.
+//
 // Pas de QUOTA ici (lot C, plus tard) : aucune raison de sécurité de bloquer la livraison sans — chaque
 // téléchargement est éphémère + révoqué immédiatement + borné à l'A∪B de la marque du client. Le quota est
-// un garde-fou de coût/abus, pas une frontière. (Et aucun appelant front encore : le « Télécharger » des
-// Livrés n'est pas câblé — endpoint dormant et entièrement gardé jusque-là.)
+// un garde-fou de coût/abus, pas une frontière.
 
-const { openEphemeralDownload, extractFileId } = require('./_drive');
+const { openEphemeralDownload } = require('./_drive');
 const { fileIdsDuSujet } = require('./drive-download-review'); // MÊME re-dérivation A∪B que la lane review
 const { autoriserMontage } = require('./_montageclient');
 
@@ -46,9 +64,9 @@ exports.handler = async (event) => {
   catch { return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'JSON invalide' }) }; }
 
   const sujetCode = String(body.sujetCode || '').trim();
-  const fileId = extractFileId(body.fileId || '');
-  if (!sujetCode || !fileId) {
-    return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants (sujetCode, fileId)' }) };
+  const rang = parseInt(body.rang, 10);
+  if (!sujetCode || !Number.isInteger(rang) || rang < 1) {
+    return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Paramètres manquants (sujetCode, rang)' }) };
   }
 
   // ── Identité + périmètre : portier client (jeton de session + contact actif + sujet ∈ périmètre marque).
@@ -59,8 +77,21 @@ exports.handler = async (event) => {
     return { statusCode: az.statut, headers, body: JSON.stringify({ ok: false, error: msg }) };
   }
 
-  // ── Contrôle de cohérence Notion : le fileId doit appartenir au sujet (A ∪ B, TOUTES les versions). On NE
-  // fait jamais confiance au fileId de la page ; on re-dérive et on refuse hors liste. (Pas de condition 4.) ──
+  // ── Résolution du RANG → fileId, en RÉUTILISANT l'ordre du portier (az.versions, trié par Date envoi
+  // client, départagé par id de page). Rang hors bornes → 404 (version qui n'existe pas pour ce client,
+  // pas une panne). Version envoyée mais sans lien exploitable → 404 ciblé (on ne confond pas avec le refus
+  // de cohérence A∪B ci-dessous). On ne descend JAMAIS de fileId dans la page : le serveur le résout seul. ──
+  if (rang > az.versions.length) {
+    return { statusCode: 404, headers, body: JSON.stringify({ ok: false, step: 'rang', error: 'Version inconnue' }) };
+  }
+  const fileId = az.versions[rang - 1].fileId;
+  if (!fileId) {
+    return { statusCode: 404, headers, body: JSON.stringify({ ok: false, step: 'rang', error: 'Fichier indisponible pour cette version' }) };
+  }
+
+  // ── Contrôle de cohérence Notion : le fileId résolu doit appartenir au sujet (A ∪ B, TOUTES les versions).
+  // Garde conservée À L'IDENTIQUE : on re-dérive et on refuse hors liste, même quand le fileId vient du
+  // portier et non de la page. (Pas de condition 4.) ──
   let ids;
   try { ids = await fileIdsDuSujet(sujetCode); }
   catch (e) {
