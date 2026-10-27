@@ -234,8 +234,31 @@ exports.handler = async (event) => {
     };
     if (categorie) props['Catégorie'] = { select: { name: categorie } };
 
+    // Création DIRECTE (pas via notionFetch) pour pouvoir LIRE le corps d'erreur. FILET « version hors
+    // select » : le champ Version de 📋 Retours est un select FERMÉ. Un projet dont la version interne
+    // dépasse le plafond du select ferait rejeter la création par Notion → sans ce filet, un 503 OPAQUE
+    // pour le client. On NE CODE AUCUN PLAFOND ici : on réagit au REJET RÉEL de Notion (le select reste la
+    // source de vérité, pas de dérive à maintenir). Si c'est un validation_error portant sur « Version »,
+    // on renvoie un 422 DISTINCT (message clair + log serveur nommant la version) ; tout autre échec → 503.
     let created;
-    try { created = await notionFetch('/pages', 'POST', token, { parent: { database_id: DB_RETOURS }, properties: props }); }
+    try {
+      const r = await fetch('https://api.notion.com/v1/pages', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: { database_id: DB_RETOURS }, properties: props })
+      });
+      if (!r.ok) {
+        if (r.status === 400) {
+          const err = await r.json().catch(() => ({}));
+          if (err && err.code === 'validation_error' && /version/i.test(String(err.message || ''))) {
+            console.error('montage-client : retour refusé — version « ' + versionInterne + ' » hors du select Version de 📋 Retours (sujet ' + az.sujet.pageId + ') → étendre le select');
+            return { statusCode: 422, headers, body: JSON.stringify({ ok: false, error: 'Cette version ne peut pas encore recevoir de retour en ligne. Préviens l\'équipe, elle débloque ça tout de suite.' }) };
+          }
+        }
+        throw new Error('POST retour ' + r.status);
+      }
+      created = await r.json();
+    }
     catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, retourId: created.id }) };
