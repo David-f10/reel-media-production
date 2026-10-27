@@ -3000,6 +3000,10 @@ async function loadVersions(sujetId) {
   if(!el) return;
   const sujetCourant = sujets.find(x=>x.id===sujetId);
   const isBrand = sujetCourant?.format === 'Brand';
+  // « Envoyer au client » est une action client-facing → réservée aux Brand et aux Chefs (même garde que
+  // les 4 « Réservé aux contacts Brand ou aux chefs » de l'app). L'affordance ne se REND PAS pour les
+  // autres rôles — absente, pas grisée. La vraie frontière est serveur (envoyer-version.js).
+  const peutEnvoyerClient = !!(currentUser && (currentUser.role === 'Brand' || currentUser.role === 'Chef'));
   el.innerHTML = '<div style="font-size:11px;color:var(--text3)">Chargement...</div>';
   try {
     // Charger les versions ET les retours en parallèle
@@ -3149,7 +3153,7 @@ async function loadVersions(sujetId) {
               class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
         </div>
-        ${isBrand && !annulee && url && isLastEnvoi ? (dateEnvoiClient
+        ${isBrand && !annulee && url && isLastEnvoi && peutEnvoyerClient ? (dateEnvoiClient
           ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
               <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:6px">✅ Envoyé au client le ${dateEnvoiClient.split('-').reverse().join('/')}</div>
               <div style="font-size:10px;color:var(--text3);margin-bottom:5px">Message à copier dans votre mail (le code n'y figure jamais) :</div>

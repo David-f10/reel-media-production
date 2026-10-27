@@ -48,7 +48,17 @@ exports.handler = async (event) => {
   const rcode = (event.headers && (event.headers['x-rm-code'] || event.headers['X-Rm-Code'])) || '';
   const auth = await verifyUser({ id: rid, code: rcode });
   if (!auth.ok) return { statusCode: 401, headers, body: JSON.stringify({ ok: false, error: 'Authentification requise' }) };
+  // DEUX gardes, les deux requises (on ne remplace pas l'une par l'autre) :
+  //  • Externe → 403 D'ABORD : un contributeur cloisonné n'envoie jamais, même si son rôle disait Brand.
   if (auth.user.acces === 'Externe') return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Réservé à l\'équipe' }) };
+  //  • Action CLIENT-FACING réservée aux Brand et aux Chefs (même règle que les 4 gardes de l'app).
+  //    ⚠️ _auth.js lit un rôle ABSENT comme 'Journaliste' (défaut FAIL-CLOSED, à NE PAS « corriger ») →
+  //    un membre sans rôle explicite Brand/Chef est donc refusé ici, ce qui est VOULU : pas d'envoi client
+  //    sans rôle qui l'autorise. Les 6 rôles réels : Chef·Journaliste·Monteur·Pigiste·Brand·Compta ; seuls
+  //    Brand et Chef passent.
+  if (auth.user.role !== 'Brand' && auth.user.role !== 'Chef') {
+    return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Réservé aux contacts Brand ou aux chefs' }) };
+  }
 
   const versionId = String(body.versionId || '').trim();
   if (!versionId) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'versionId manquant' }) };
