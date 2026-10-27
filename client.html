@@ -125,6 +125,7 @@
     .vch[aria-selected="true"] .pt{color:var(--vert)}
     .vch:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
     .rv{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:16px;align-items:start}
+    .col-v{display:flex;flex-direction:column;gap:10px;min-width:0}
     .scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
     .scene-v{aspect-ratio:9/16;height:410px;max-width:100%;background:linear-gradient(170deg,#1b1b24,#0b0b12);display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
     .scene-grise{filter:grayscale(1);opacity:.55}
@@ -334,6 +335,7 @@
     var ESPACE = '/.netlify/functions/espace-client'; // accueil B2 (remplace l'appel projets-client du front)
     var MONTAGE = '/.netlify/functions/montage-client';
     var DRIVEVIEW = '/.netlify/functions/drive-view-client';
+    var DOWNLOAD = '/.netlify/functions/drive-download-client';
     var VALIDER = '/.netlify/functions/valider-client';
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
@@ -590,9 +592,19 @@
         ? '<div class="scene" id="mt-scene"><div class="scene-v"><p class="sub" style="color:var(--txt3)">Chargement de la vidéo…</p></div></div>'
         : '<div class="scene"><div class="scene-v scene-grise"><p class="sub" style="color:var(--txt3)">La vidéo des versions précédentes n\'est plus disponible. Vos retours restent consultables.</p></div></div>';
 
-      $('mt-corps').innerHTML = '<div class="rv">' + scene +
+      // Téléchargement : sur CHAQUE version envoyée (pas seulement la courante — différence assumée côté
+      // serveur). Une version passée n'est plus visionnable ici mais reste téléchargeable. Le serveur
+      // résout le fichier à partir du RANG ; aucun fileId de version ne descend dans la page.
+      var telHtml = '<button class="bouton gris2" type="button" id="mt-tel">⬇ Télécharger cette version</button>' +
+        '<div class="msg" id="mt-tel-msg" role="status" aria-live="polite"></div>';
+
+      $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + telHtml + '</div>' +
         '<div class="panneau"><div class="pan-t"><span>Mes retours</span><span class="pan-n">' + rets.length + '</span></div>' +
         '<div class="retours">' + retoursHtml + '</div>' + bas + '</div></div>';
+
+      // Bouton télécharger : présent pour TOUTE version affichée (courante ou passée), donc câblé hors du
+      // bloc formulaire. Le rang téléchargé est celui de la version affichée.
+      $('mt-tel').addEventListener('click', function () { mTelecharger(aff); });
 
       if (formulaire) {
         $('mt-ajout').addEventListener('click', mAjouter);
@@ -669,6 +681,31 @@
       var scene = $('mt-scene'); if (!scene) return;
       scene.innerHTML = '<div class="scene-v"><p class="sub" style="color:var(--amber)">Vidéo indisponible pour l\'instant. <button type="button" class="lien-reessai" id="mt-video-reessai">Réessayer</button></p></div>';
       $('mt-video-reessai').addEventListener('click', function () { mOuvrirVideo(M.fileId); });
+    }
+
+    // ── Téléchargement d'une version par son RANG. Le serveur résout le fichier et renvoie un downloadUrl
+    //    éphémère (révoqué aussitôt) ; aucun fileId ne descend dans la page. Fenêtre nommée ouverte AU CLIC
+    //    (geste utilisateur → pas bloquée par l'anti-popup), remplie après le POST ; réutilisée aux clics
+    //    suivants. 401 → session expirée. Échec → message, et on ferme la fenêtre d'attente. ──
+    function mTelecharger(rang) {
+      var btn = $('mt-tel'), msg = $('mt-tel-msg');
+      var win = window.open('', 'rmc-download');
+      if (btn) { btn.disabled = true; }
+      if (msg) { msg.textContent = 'Préparation…'; msg.style.color = ''; }
+      mPost(DOWNLOAD, { sujetCode: M.code, rang: rang }).then(function (res) {
+        if (res.status === 401) { if (win && !win.closed) win.close(); mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 200 && res.body && res.body.ok && res.body.downloadUrl) {
+          if (win && !win.closed) win.location = res.body.downloadUrl;
+          else { var a = document.createElement('a'); a.href = res.body.downloadUrl; a.target = '_blank'; document.body.appendChild(a); a.click(); a.remove(); }
+          if (msg) { msg.textContent = 'Téléchargement lancé.'; }
+        } else {
+          if (win && !win.closed) win.close();
+          if (msg) { msg.textContent = 'Téléchargement indisponible pour l\'instant. Réessayez.'; msg.style.color = 'var(--amber)'; }
+        }
+      }).catch(function () {
+        if (win && !win.closed) win.close();
+        if (msg) { msg.textContent = 'Téléchargement indisponible pour l\'instant. Réessayez.'; msg.style.color = 'var(--amber)'; }
+      }).then(function () { if (btn) btn.disabled = false; });
     }
 
     // ── Battements : 60 s tant que la vue est ouverte (PAS conditionné à lecture/pause → une pause < idle
