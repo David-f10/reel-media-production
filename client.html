@@ -859,13 +859,21 @@
     //    de partage des Google Docs (lien sortant gardé vs permission dédiée) n'est pas tranchée. Quand elle
     //    le sera, c'est ICI qu'on rend le lien/bouton (p.lienSeq est déjà descendu par espace-client). ──
     function seqLienHtml(p) { return ''; }
-    // Valider le séquencier → POST { action:'valider' }. Succès → on recharge (le projet quitte « À valider »).
+    // Valider le séquencier → POST { action:'valider' }. Succès → on NE recharge PAS : le projet quitte
+    // « À valider » et n'entre pas dans « En cours » (gardé par Visible, non posé en phase séquencier) ; un
+    // rechargement ferait « s'évaporer » la carte, voire tomber sur l'écran de bienvenue. On remplace donc
+    // le contenu de la carte par une confirmation qui reste à l'écran.
     function mValiderSequencier(code, el) {
       if (!code) return;
       if (el) { el.disabled = true; el.textContent = 'Validation…'; }
       mPost(SEQ, { action: 'valider', sujetCode: code }).then(function (res) {
         if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
-        if (res.status === 200 && res.body && res.body.ok) { chargerEspace(); return; }
+        if (res.status === 200 && res.body && res.body.ok) {
+          var carte = el; while (carte && carte !== document.body && !(carte.className && /\batt\b/.test(carte.className))) carte = carte.parentNode;
+          if (carte) carte.innerHTML = '<div class="att-m"><div class="att-t">Séquencier validé</div>' +
+            '<div class="att-l" style="color:var(--txt2)">Le tournage peut démarrer. Vous retrouverez le film ici dès la première version.</div></div>';
+          return;
+        }
         if (el) { el.disabled = false; el.textContent = 'Réessayer la validation'; }
       }).catch(function () { if (el) { el.disabled = false; el.textContent = 'Réessayer la validation'; } });
     }

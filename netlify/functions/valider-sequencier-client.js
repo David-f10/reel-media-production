@@ -24,16 +24,11 @@
 
 const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
-const { CODE_BRAND_RE } = require('./_perimetreclient');
+const { CODE_BRAND_RE, PRE_TOURNAGE } = require('./_perimetreclient'); // PRE_TOURNAGE : source unique partagée
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_NOTIFS = '4398775b-c11f-4d73-99c4-9fc31c33ce8b';
 const MAX_TEXTE = 2000;
-// Statuts AVANT le tournage : la validation client ne fait avancer vers « En tournage » QUE depuis l'un
-// d'eux. Depuis un statut déjà plus avancé (cas anormal), on pose la validation sans TOUCHER au statut —
-// un client ne doit jamais faire RÉGRESSER un projet. (L'app équipe passe En tournage sans cette garde ;
-// côté client, défensif.)
-const PRE_TOURNAGE = ['Brief / Idée', 'Séquencier en cours', 'Séquencier validé'];
 
 const _sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
 const _cb = (pr, k) => !!(pr && pr[k] && pr[k].checkbox);
@@ -144,13 +139,19 @@ exports.handler = async (event) => {
   }
 
   // ── VALIDER ──
-  // Idempotent : déjà validé → succès sans réécrire ni re-notifier (anti double-fire / rechargement).
+  // Idempotent : déjà validé → succès sans réécrire ni re-notifier (anti double-fire / rechargement). Passe
+  // AVANT la garde de statut : un projet validé est déjà En tournage (hors pré-tournage), c'est normal.
   if (_cb(pr, 'Validation Client')) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, dejaValide: true }) };
 
-  // Écriture : Validation Client:true ; + Statut 'En tournage' SEULEMENT depuis un statut pré-tournage
-  // (jamais de régression). Un seul PATCH.
-  const props = { 'Validation Client': { checkbox: true } };
-  if (PRE_TOURNAGE.indexOf(_sel(pr, 'Statut')) !== -1) props['Statut'] = { select: { name: 'En tournage' } };
+  // Garde de statut : on ne valide PAS le séquencier d'un film déjà en production (Montage, etc.). Hors
+  // pré-tournage → 409 FRANC, jamais un succès silencieux. (L'affichage « À valider » applique la même
+  // borne via la même source PRE_TOURNAGE ; ceci est le filet serveur.)
+  if (PRE_TOURNAGE.indexOf(_sel(pr, 'Statut')) === -1) {
+    return { statusCode: 409, headers, body: JSON.stringify({ ok: false, error: 'Ce séquencier ne peut plus être validé : le film est déjà en production.' }) };
+  }
+
+  // Écriture atomique : Validation Client:true + Statut 'En tournage' (pré-tournage confirmé → pas de régression).
+  const props = { 'Validation Client': { checkbox: true }, 'Statut': { select: { name: 'En tournage' } } };
   try { await notionFetch('/pages/' + sujet.id, 'PATCH', token, { properties: props }); }
   catch (e) { console.error('valider-sequencier indispo (écriture) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 

@@ -26,7 +26,7 @@
 
 const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
-const { CODE_BRAND_RE } = require('./_perimetreclient');
+const { CODE_BRAND_RE, PRE_TOURNAGE } = require('./_perimetreclient');
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_VERSIONS = '3793eebb-2aeb-4d49-84ae-06d79cfb2704';
@@ -233,7 +233,7 @@ exports.handler = async (event) => {
     const aValider = brutAValider
       // Re-filtre de SORTIE (défense en profondeur, comme le re-check Visible des exposés) : préfixe + ≥1
       // lettre, ET on re-vérifie les deux checkbox côté serveur même si le filtre Notion les a déjà posées.
-      .filter(p => reCode.test(rt(p.properties, 'Code')) && sel(p.properties, 'Format') === 'Brand' && cb(p.properties, 'Validation Brand') && !cb(p.properties, 'Validation Client'))
+      .filter(p => reCode.test(rt(p.properties, 'Code')) && sel(p.properties, 'Format') === 'Brand' && cb(p.properties, 'Validation Brand') && !cb(p.properties, 'Validation Client') && PRE_TOURNAGE.indexOf(sel(p.properties, 'Statut')) !== -1)
       .map(p => ({ code: rt(p.properties, 'Code'), titre: ti(p.properties, 'Titre'), lienSeq: (p.properties['Lien sequencier'] && p.properties['Lien sequencier'].url) || '' }));
 
     return {

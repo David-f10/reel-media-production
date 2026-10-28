@@ -89,4 +89,9 @@ async function projetsDeMarque(codeBrand, token, deadline) {
   return { ok: true, projets };
 }
 
-module.exports = { projetsDeMarque, CODE_BRAND_RE };
+// Statuts AVANT le tournage. SOURCE UNIQUE partagée par l'affichage (espace-client : ne proposer « à
+// valider » QUE des séquenciers pré-tournage) ET l'écriture (valider-sequencier-client : refuser la
+// validation d'un film déjà en production). Un seul endroit, jamais deux copies à tenir synchrones.
+const PRE_TOURNAGE = ['Brief / Idée', 'Séquencier en cours', 'Séquencier validé'];
+
+module.exports = { projetsDeMarque, CODE_BRAND_RE, PRE_TOURNAGE };
