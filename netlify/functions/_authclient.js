@@ -50,7 +50,10 @@ async function _getContacts(token, dbId, force) {
   return _cache;
 }
 
-const _rt = (pr, nom) => { const rt = pr && pr[nom] && pr[nom].rich_text; return (rt && rt[0] && rt[0].plain_text) || ''; };
+// HYGIÈNE, PAS UN CORRECTIF DE BUG : on JOINT tous les runs rich_text, comme espace-client/montage-client,
+// au lieu de ne lire que le premier. Rien de cassé aujourd'hui (B09 passe avec son mail auto-lié, prouvé) —
+// c'est une mise en cohérence pour qu'une valeur un jour scindée en plusieurs runs ne soit pas tronquée.
+const _rt = (pr, nom) => ((pr && pr[nom] && pr[nom].rich_text) || []).map(t => t.plain_text || '').join('');
 const _mail = (pr) => (pr && pr['Mail'] && typeof pr['Mail'].email === 'string' && pr['Mail'].email) || _rt(pr, 'Mail'); // Mail email OU text
 const _nom = (pr) => { const t = pr && pr['Nom'] && pr['Nom'].title; return (t && t[0] && t[0].plain_text) || ''; };
 // Actif OPTIONNEL : propriété absente → actif ; présente et décochée → inactif (fail-closed sur un compte désactivé).
@@ -113,7 +116,7 @@ async function verifyClient({ mail, code }) {
     return { ok: false, raison: 'indispo' };
   }
   const m = norm(mail);
-  const c = String(code == null ? '' : code);
+  const c = String(code == null ? '' : code).trim(); // trim serveur : le navigateur n'est pas la seule porte (un espace collé ne doit pas refuser un code juste)
   if (!m || !c) return { ok: false, raison: 'auth' };
   try {
     const trouver = (liste) => liste.find(p => norm(_mail(p.properties)) === m && norm(_mail(p.properties)) !== '');
@@ -125,7 +128,14 @@ async function verifyClient({ mail, code }) {
       contacts = await _getContacts(token, dbId, true);
       page = trouver(contacts);
     }
-    if (!bon(page)) return { ok: false, raison: 'auth' }; // mail inconnu / code faux / inactif → MÊME réponse
+    if (!bon(page)) {
+      // DIAGNOSTIC (logs serveur uniquement) : BOOLÉENS DE PRÉSENCE, jamais une valeur, jamais un fragment
+      // de mail ni de code. La réponse HTTP reste le 401 générique anti-énumération ; ceci lève seulement
+      // l'ambiguïté « mail non apparié » vs « code faux » vs « inactif » dans les logs, qu'on ne pouvait pas
+      // distinguer (c'est ce trou qui a coûté une heure de fausse piste).
+      console.log('verifyClient échec auth : mailApparié=' + (!!page) + ', codeApparié=' + (!!(page && _rt(page.properties, 'Code acces') === c)) + ', actif=' + (!!(page && _actif(page.properties))));
+      return { ok: false, raison: 'auth' }; // mail inconnu / code faux / inactif → MÊME réponse HTTP
+    }
     // `marque` = nom d'affichage DÉNORMALISÉ sur le contact (comme Code Brand), posé par l'admin en tranche 3
     // depuis la marque choisie, jamais tapé. Absent → '' (l'écran affiche « Vos projets » sans marque). Lu
     // sur la ligne déjà chargée → zéro requête supplémentaire, y compris sur le chemin chaud projets-client.

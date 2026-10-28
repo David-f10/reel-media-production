@@ -29,7 +29,10 @@ const WAIT_CAP_MS = 4000;          // plafond d'UNE attente (Retry-After inclus)
 const DEFAULT_BUDGET_MS = 6000;    // budget de temps global par défaut (< timeout Netlify 10 s)
 const CODE_BRAND_RE = /^B\d{2,}$/; // forme d'un code marque : B + au moins 2 chiffres
 
-const rt = (p) => (p && p.rich_text && p.rich_text[0] && p.rich_text[0].plain_text) || '';
+// HYGIÈNE, PAS UN CORRECTIF DE BUG : on JOINT tous les runs rich_text (comme espace-client/montage-client),
+// au lieu de ne lire que le premier. Rien de cassé aujourd'hui ; mise en cohérence, d'autant que ce module
+// décide de ce qu'un client a le droit de voir — une valeur scindée en runs ne doit pas y être tronquée.
+const rt = (p) => ((p && p.rich_text) || []).map(t => t.plain_text || '').join('');
 const ti = (p) => (p && p.title && p.title[0] && p.title[0].plain_text) || '';
 
 // Tous les projets EXPOSÉS de la marque `codeBrand`. Voir le contrat de sortie en tête.
