@@ -3153,6 +3153,7 @@ async function loadVersions(sujetId) {
               class="nav-btn" style="font-size:11px;white-space:nowrap">⬜ Valider cette version</button>`;
           })()}
         </div>
+        ${isBrand && !annulee && validationBrand && !dateEnvoiClient ? `<div style="margin-top:8px;font-size:11px;color:var(--amber);font-weight:600">⚠️ Validé côté Brand, pas encore envoyé au client</div>` : ''}
         ${isBrand && !annulee && url && isLastEnvoi ? (dateEnvoiClient
           // ENVOYÉE : le BADGE « ✅ Envoyé au client le DATE » est un ÉTAT → visible par TOUS les rôles
           // (un monteur doit savoir qu'une version est partie avant d'y retoucher). L'encart « message à
