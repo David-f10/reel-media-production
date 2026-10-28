@@ -689,7 +689,12 @@
         '<div class="msg" id="mt-fin-msg" role="status" aria-live="polite"></div></div>';
     }
     function mBandeauEtat(etat) {
-      if (etat === 'validee') return 'Vous avez validé cette version. Le film part en diffusion.';
+      // « Cette version est validée », pas « Vous avez validé » : la validation peut venir du client (clic
+      // dans l'espace) OU de l'équipe (validation obtenue par mail, enregistrée à la main — cas de 22 projets
+      // rattrapés). On n'attribue pas au client un geste qu'il n'a pas forcément fait ; la donnée ne distingue
+      // pas les deux, et ce qui compte pour lui c'est l'état du film. (La ligne « retours envoyés » reste en
+      // « Vous avez » : un retour envoyé l'est forcément par lui.)
+      if (etat === 'validee') return 'Cette version est validée. Le film part en diffusion.';
       if (etat === 'retours-envoyes') return 'Vous avez envoyé vos retours sur cette version. Une nouvelle version suivra.';
       return 'Cette version est close.';
     }
