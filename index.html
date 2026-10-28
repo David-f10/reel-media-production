@@ -8553,8 +8553,13 @@ function appFilter(t, v, el) {
     const e = curFilter.etat;
     curFilter.etat = (e && e.t === t && e.v === v) ? null : { t, v };
   }
-  document.querySelectorAll('.sb-filter').forEach(i => i.classList.remove('active'));
-  if(el && curFilter.etat) el.classList.add('active'); // actif seulement si l'axe état est posé (pas relâché)
+  // N'affecter l'état visuel des boutons statut/diffusion QUE sur un changement de l'axe ÉTAT. Un clic de
+  // FORMAT (t==='f', el null depuis sbCatClick) ne doit PAS éteindre le bouton de statut encore posé —
+  // sinon l'interface ment (le filtre état reste actif mais paraît relâché). appFilterTout nettoie tout.
+  if(t !== 'f') {
+    document.querySelectorAll('.sb-filter').forEach(i => i.classList.remove('active'));
+    if(el && curFilter.etat) el.classList.add('active'); // actif seulement si l'axe état est posé (pas relâché)
+  }
   majToutAfficher();
   if(currentPage === 'production') {
     const cw = document.getElementById('cards-wrap');
