@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Espace client · Réel Média</title>
+  <!-- Icône d'onglet : mêmes deux lignes que review.html. PAS de manifest ni theme-color (index.html) : un
+       client n'installe rien, son espace ne doit pas se présenter comme la PWA de l'équipe. -->
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
   <!-- Lot G — HABILLAGE (PR 3). Balisage + CSS seulement : AUCUNE ligne de JavaScript touchée, tous les
        id/classes lus ou émis par le script préservés. Maquette MAQUETTE_ESPACE_CLIENT.html reproduite
        (carte bordée, accent ROUGE #E63946, logo SVG verbatim de review.html). Polices DM Sans/DM Mono
@@ -373,7 +377,7 @@
     $('form-login').addEventListener('submit', function (e) {
       e.preventDefault();
       var mail = $('in-mail').value.trim();
-      var code = $('in-code').value;
+      var code = $('in-code').value.trim(); // trim comme le mail : un espace collé au copier-coller ne doit pas refuser un code juste
       var msg = $('msg-login');
       msg.className = 'msg'; msg.textContent = '';
       $('btn-login').disabled = true;
@@ -514,7 +518,11 @@
             var pill = p.pastille && p.pastille.texte ? '<span class="pill">' + esc(p.pastille.texte) + '</span>' : '';
             // Point d'entrée montage SEULEMENT si aMontage (une version client existe ET pas déjà dans À
             // relire) → un seul bouton par film, et « Revoir » n'apparaît jamais sur un film jamais vu.
-            var entree = p.aMontage ? '<button type="button" class="lnk" data-code="' + escAttr(p.code) + '">Revoir le montage</button>' : '';
+            // Sinon (montage pas encore envoyé) : ligne secondaire discrète expliquant l'absence de bouton —
+            // on NE donne pas accès à un montage non finalisé (règle du portier), mais le client sait pourquoi.
+            var entree = p.aMontage
+              ? '<button type="button" class="lnk" data-code="' + escAttr(p.code) + '">Revoir le montage</button>'
+              : '<span style="font-size:12.5px;color:var(--txt3);text-align:right;max-width:230px">Votre montage est en cours — vous le recevrez dès qu\'il sera prêt.</span>';
             return '<div class="lrow"><div class="lrow-m"><div class="lrow-t">' + esc(p.titre) + '</div>' +
               '<div class="lrow-s"><span class="code">' + esc(p.code) + '</span><span>' + esc(p.realisePar) + '</span></div>' +
               '<div class="etapes">' + etapes + '</div></div>' +
