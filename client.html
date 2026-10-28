@@ -196,6 +196,7 @@
     .sq-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;flex:1 1 220px;justify-content:flex-end}
     .sq-doc{flex:1 1 100%;margin-top:4px}
     .sq-doc-frame{width:100%;height:280px;border:1px solid var(--line);border-radius:8px;background:#fff;display:block}
+    #sq-doc-ov .sq-doc-frame{height:68vh;border:0;border-radius:0} /* overlay historique : grande hauteur, largeur bornée par le panneau (720px) */
     .sq-corr-txt{width:100%;min-height:70px;resize:vertical;background:var(--bg3);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);font-size:14px;padding:10px 12px}
     .sq-corr-bas{display:flex;gap:10px;align-items:center;margin-top:8px}
     .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -527,10 +528,12 @@
             var entree = p.aMontage
               ? '<button type="button" class="lnk" data-code="' + escAttr(p.code) + '">Revoir le montage</button>'
               : (p.etape >= 1 ? '<span class="lrow-attente">Votre montage est en cours — vous le recevrez dès qu\'il sera prêt.</span>' : '');
+            // Historique du séquencier : lien seulement si le projet porte un Lien sequencier. Ouvre un overlay.
+            var seqLink = p.lienSeq ? '<a class="lnk" href="#" data-seqdoc-code="' + escAttr(p.code) + '">Voir le séquencier</a>' : '';
             return '<div class="lrow"><div class="lrow-m"><div class="lrow-t">' + esc(p.titre) + '</div>' +
               '<div class="lrow-s"><span class="code">' + esc(p.code) + '</span><span>' + esc(p.realisePar) + '</span></div>' +
               '<div class="etapes">' + etapes + '</div></div>' +
-              '<div class="lrow-r">' + pill + entree + '</div></div>';
+              '<div class="lrow-r">' + pill + entree + seqLink + '</div></div>';
           }).join('') + '</div>';
       }
       // 4. Livrés (si présent) — plus récents d'abord ; au-delà de 4, le reste se replie (spec §6.1).
@@ -545,6 +548,7 @@
             // télécharger → la délégation montage ne le capte pas.
             '<td class="c-a"><a class="lnk" href="#" data-code="' + escAttr(p.code) + '">Revoir</a>' +
             (p.rang ? ' · <a class="lnk" href="#" data-dl-code="' + escAttr(p.code) + '" data-dl-rang="' + p.rang + '">Télécharger</a>' : '') +
+            (p.lienSeq ? ' · <a class="lnk" href="#" data-seqdoc-code="' + escAttr(p.code) + '">Séquencier</a>' : '') +
             '</td></tr>';
         };
         var visibles = livres.slice(0, SEUIL), caches = livres.slice(SEUIL);
@@ -861,8 +865,10 @@
       // Remonter jusqu'à un élément porteur d'une action : ouvrir le montage (data-code), télécharger
       // (data-dl-code), valider le séquencier (data-seq-code) ou demander des corrections (data-corr-code).
       // Le télécharger doit rester SYNCHRONE au clic (window.open non bloqué).
-      var t = e.target; while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-code') || t.getAttribute('data-dl-code') || t.getAttribute('data-seq-code') || t.getAttribute('data-corr-code')))) t = t.parentNode;
+      var t = e.target; while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-code') || t.getAttribute('data-dl-code') || t.getAttribute('data-seq-code') || t.getAttribute('data-corr-code') || t.getAttribute('data-seqdoc-code')))) t = t.parentNode;
       if (!t || t === this || !t.getAttribute) return;
+      var sd = t.getAttribute('data-seqdoc-code');
+      if (sd) { e.preventDefault(); ouvrirSequencier(sd); return; }
       var seq = t.getAttribute('data-seq-code');
       if (seq) { e.preventDefault(); mValiderSequencier(seq, t); return; }
       var corr = t.getAttribute('data-corr-code');
@@ -879,11 +885,12 @@
     // Charge le Doc (sequencier-doc) et le rend dans un IFRAME SANDBOX srcdoc SANS allow-scripts (le HTML
     // renvoyé est déjà échappé côté serveur ; le sandbox est la 2e barrière). Dégradation propre si
     // indisponible. srcdoc posé par PROPRIÉTÉ DOM (jamais un attribut construit par concaténation).
-    function mChargerSequencier(code) {
-      var box = $('sq-doc-' + code);
+    function mChargerSequencier(code, boxId) {
+      boxId = boxId || ('sq-doc-' + code); // défaut : conteneur inline « À valider » ; l'overlay passe le sien
+      var box = $(boxId);
       if (!box) return;
       mPost(SEQ_DOC, { sujetCode: code }).then(function (res) {
-        if (!(box = $('sq-doc-' + code))) return; // la vue a pu changer
+        if (!(box = $(boxId))) return; // la vue a pu changer
         if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
         if (res.status === 200 && res.body && res.body.ok && !res.body.indisponible && typeof res.body.html === 'string') {
           box.innerHTML = '';
@@ -900,7 +907,29 @@
           // validation et « Demander des corrections » restent actives au-dessus.
           box.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>';
         }
-      }).catch(function () { var b = $('sq-doc-' + code); if (b) b.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>'; });
+      }).catch(function () { var b = $(boxId); if (b) b.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>'; });
+    }
+    // Historique (En cours / Livrés) : OVERLAY, pas inline — un séquencier fait plusieurs centaines de mots,
+    // il lui faut une LARGEUR DE LECTURE bornée ; et déplier un document dans une cellule du tableau Livrés
+    // donnerait une colonne étroite. Panneau centré, largeur bornée, fermeture ✕ / Échap / fond. Le contenu
+    // est chargé par mChargerSequencier (même iframe sandbox, même dégradation).
+    function ouvrirSequencier(code) {
+      var exist = $('seqdoc-overlay'); if (exist) exist.remove();
+      var ov = document.createElement('div');
+      ov.id = 'seqdoc-overlay';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;overflow:auto';
+      var onEsc, close = function () { ov.remove(); if (onEsc) document.removeEventListener('keydown', onEsc); };
+      onEsc = function (e) { if (e.key === 'Escape') close(); };
+      ov.innerHTML = '<div style="background:var(--bg2);border:1px solid var(--line2);border-radius:12px;width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)">' +
+        '<span style="font-size:14px;font-weight:600">Séquencier · ' + esc(code) + '</span>' +
+        '<button type="button" id="seqdoc-x" class="lnk" aria-label="Fermer">✕ Fermer</button></div>' +
+        '<div id="sq-doc-ov" style="padding:4px 2px;overflow:auto"><p class="sub" style="color:var(--txt3);padding:16px">Chargement du séquencier…</p></div></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', function (e) { if (e.target === ov) close(); }); // clic sur le fond
+      $('seqdoc-x').addEventListener('click', close);
+      document.addEventListener('keydown', onEsc);
+      mChargerSequencier(code, 'sq-doc-ov');
     }
     // Valider le séquencier → POST { action:'valider' }. Succès → on NE recharge PAS : le projet quitte
     // « À valider » et n'entre pas dans « En cours » (gardé par Visible, non posé en phase séquencier) ; un

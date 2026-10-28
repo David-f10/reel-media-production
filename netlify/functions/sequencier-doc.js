@@ -23,7 +23,8 @@
 // « Demander des corrections » restent actives. Jamais un bloc cassé.
 //
 // PORTIER : identique à valider-sequencier-client (duplication assumée, lane client) — session + contact
-// actif (porte l'activation marque) + projet Brand de SA marque + « Validation Brand » posée.
+// actif (porte l'activation marque) + projet Brand de SA marque + ( « Validation Brand » OU « Visible
+// espace client » ) : à valider (pré-montage) OU consultation historique (livré / en cours).
 
 const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
@@ -175,7 +176,12 @@ exports.handler = async (event) => {
   if (!sujet) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Accès refusé' }) };
   const pr = sujet.properties || {};
   if (_sel(pr, 'Format') !== 'Brand' || !reCode.test(_rt(pr, 'Code'))) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Accès refusé' }) };
-  if (!_cb(pr, 'Validation Brand')) return { statusCode: 409, headers, body: JSON.stringify({ ok: false, error: 'Le séquencier n\'est pas encore prêt pour validation.' }) };
+  // Le séquencier est consultable si le projet est dans le monde du client pour l'une des deux raisons :
+  //  • « Validation Brand » posée → étape « À valider » (pré-montage, pas encore Visible) ;
+  //  • « Visible espace client » → historique (livré / en cours, montage déjà envoyé).
+  // Ni l'un ni l'autre → le projet n'est pas exposé au client → 409. (B08Y : Validation Client ✓,
+  // Validation Brand ✗, mais Visible → passe par la 2e branche, ce que l'ancien gardien refusait.)
+  if (!_cb(pr, 'Validation Brand') && !_cb(pr, 'Visible espace client')) return { statusCode: 409, headers, body: JSON.stringify({ ok: false, error: 'Ce séquencier n\'est pas accessible.' }) };
 
   // ── Résolution de l'id de Doc. Absent / illisible → DÉGRADATION (pas une erreur). ──
   const id = docId(_url(pr, 'Lien sequencier'));
