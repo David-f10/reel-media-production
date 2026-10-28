@@ -802,7 +802,7 @@
       f = document.createElement('iframe');
       f.src = src; // propriété DOM, pas d'attribut HTML
       f.className = 'mt-iframe';
-      f.setAttribute('allow', 'autoplay');
+      f.setAttribute('allow', 'autoplay; fullscreen'); // parité avec review.html ; autoplay déjà accordé, le jeton fullscreen active l'API plein écran DANS l'iframe
       f.setAttribute('allowfullscreen', '');
       scene.appendChild(f);
     }
