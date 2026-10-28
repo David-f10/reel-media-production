@@ -56,6 +56,54 @@ const _nom = (pr) => { const t = pr && pr['Nom'] && pr['Nom'].title; return (t &
 // Actif OPTIONNEL : propriété absente → actif ; présente et décochée → inactif (fail-closed sur un compte désactivé).
 const _actif = (pr) => { const a = pr && pr['Actif']; return a ? !!a.checkbox : true; };
 
+// ── ACTIVATION DE L'ESPACE PAR MARQUE ───────────────────────────────────────────────────────────────────
+// Drapeau PORTE : tant que la marque n'est pas activée, personne de cette marque n'entre (ferme d'un coup le
+// trou des comptes de test aux identifiants devinables). Il vit sur 🏷️ Clients Brand (la MARQUE), case
+// « Espace client activé ». Id EN DUR — PAS d'env var (une var de plus à oublier de scoper aux Functions,
+// l'oubli exact qui a causé le 503 muet). VÉRIFIÉ : c'est 67abbb5f… « 🏷️ Clients Brand » (qui porte le
+// `Code` marque), PAS 228c6efb… « 🏢 Clients Brand ». Cache 60 s comme les contacts.
+const DB_CLIENTS_BRAND = '67abbb5f-f6a6-4937-89e3-6c852c515a8e';
+let _cbCache = null, _cbTs = 0;
+const _codeOf = (pr) => _rt(pr, 'Code') || ((pr && pr['Code'] && pr['Code'].title && pr['Code'].title[0] && pr['Code'].title[0].plain_text) || '');
+
+async function _getClientsBrand(token) {
+  const now = Date.now();
+  if (_cbCache && (now - _cbTs) < CACHE_TTL) return _cbCache;
+  const all = [];
+  let cursor = null, pages = 0;
+  do {
+    const body = { page_size: 100 }; if (cursor) body.start_cursor = cursor;
+    const r = await fetch('https://api.notion.com/v1/databases/' + DB_CLIENTS_BRAND + '/query', {
+      method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('clients brand query ' + r.status);
+    const d = await r.json(); all.push(...(d.results || []));
+    cursor = d.has_more ? d.next_cursor : null; pages++;
+  } while (cursor && pages < 20);
+  _cbCache = all; _cbTs = now;
+  return _cbCache;
+}
+
+// marqueOuverte(codeBrand) → { ok:true, ouverte } | { ok:false, raison:'indispo' }.
+// Fail-closed sur la DONNÉE (marque introuvable / case absente ou décochée → ouverte:false). Une PANNE
+// (config/Notion) → 'indispo' et ne doit JAMAIS être traduite en « fermé » (Réserve 2 : ne pas dire au
+// client « pas ouvert » quand c'est le service qui est tombé).
+async function marqueOuverte(codeBrand, token) {
+  const tok = token || process.env.NOTION_TOKEN;
+  if (!tok) { console.error('marqueOuverte indispo : NOTION_TOKEN manquant'); return { ok: false, raison: 'indispo' }; }
+  const code = String(codeBrand == null ? '' : codeBrand).trim();
+  if (!code) return { ok: true, ouverte: false }; // pas de marque sur le contact → fermé (donnée), pas une panne
+  try {
+    const rows = await _getClientsBrand(tok);
+    const row = rows.find(p => _codeOf(p.properties).trim() === code);
+    const ouverte = !!(row && row.properties && row.properties['Espace client activé'] && row.properties['Espace client activé'].checkbox === true);
+    return { ok: true, ouverte };
+  } catch (e) {
+    console.error('marqueOuverte indispo : ' + (e && e.message || ''));
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
 async function verifyClient({ mail, code }) {
   const token = process.env.NOTION_TOKEN;
   const dbId = process.env.DB_CONTACTS_CLIENT;
@@ -113,13 +161,21 @@ async function contactActif(id) {
       page = trouver(contacts);
     }
     if (!vivant(page)) return { ok: false, raison: 'auth' }; // disparu / désactivé → re-login
+    // GARDE D'ACTIVATION (recheck live) : l'espace de la MARQUE doit être OUVERT. Fermé → 'auth' : l'appelant
+    // renvoie 401, le client retombe au login, qui affiche le message « pas encore ouvert » (le message vit à
+    // UN seul endroit). Panne du lookup → 'indispo' (jamais « fermé » sur une panne). Évince en ~60 s un jeton
+    // émis avant une désactivation.
+    const codeBrand = _rt(page.properties, 'Code Brand');
+    const act = await marqueOuverte(codeBrand, token);
+    if (!act.ok) return { ok: false, raison: 'indispo' };
+    if (!act.ouverte) return { ok: false, raison: 'auth' };
     // `nom` ajouté (tranche 2) : estampillage SERVEUR de l'Auteur d'un retour depuis la fiche lue EN LIVE
     // (montage-client ne fait jamais confiance au navigateur pour l'auteur). Additif — projets-client l'ignore.
-    return { ok: true, nom: _nom(page.properties), codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque') };
+    return { ok: true, nom: _nom(page.properties), codeBrand, marque: _rt(page.properties, 'Marque') };
   } catch (e) {
     console.error('contactActif indispo : ' + (e && e.message || ''));
     return { ok: false, raison: 'indispo' };
   }
 }
 
-module.exports = { verifyClient, contactActif };
+module.exports = { verifyClient, contactActif, marqueOuverte };

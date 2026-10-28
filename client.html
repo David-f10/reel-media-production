@@ -386,6 +386,9 @@
         }
         if (res.status === 429) { msg.className = 'msg wait'; msg.textContent = 'Trop de tentatives, réessayez dans ' + (res.retry || 'un instant') + (res.retry ? ' s.' : '.'); return; }
         if (res.status === 503) { msg.className = 'msg wait'; msg.textContent = 'Service temporairement indisponible, réessayez.'; return; }
+        // 403 = identifiants bons mais espace pas encore ouvert → message DISTINCT du 401 générique (on
+        // n'affiche pas « incorrect » à un client dont les identifiants sont valides). Message fourni serveur.
+        if (res.status === 403 && res.body && res.body.error) { msg.className = 'msg wait'; msg.textContent = res.body.error; return; }
         msg.className = 'msg err'; msg.textContent = 'Mail ou code incorrect.'; // 401 ou autre : générique
       }).catch(function () {
         $('btn-login').disabled = false;

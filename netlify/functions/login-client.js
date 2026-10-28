@@ -4,7 +4,7 @@
 // (anti-énumération). Panne → 503 « temporairement indisponible », jamais un refus. Ne renvoie aucune
 // donnée de périmètre. Protégé par _throttle (IP ferme / mail progressif). CORS restreint à l'origine du site.
 
-const { verifyClient } = require('./_authclient');
+const { verifyClient, marqueOuverte } = require('./_authclient');
 const { verifierThrottle, enregistrerEchec, enregistrerSucces } = require('./_throttle');
 const { signer } = require('./_clienttoken');
 
@@ -49,6 +49,16 @@ exports.handler = async (event) => {
 
   const v = await verifyClient({ mail, code: body.code });
   if (v.ok) {
+    // GARDE D'ACTIVATION (la porte) : identifiants bons, mais l'espace de la marque doit être OUVERT. Fermé
+    // → 403 avec un message DISTINCT du 401 bad-creds (le client a de bons identifiants, on ne lui dit pas
+    // « incorrect »). Panne du lookup → 503 (jamais « fermé » sur une panne, Réserve 2). Les identifiants
+    // étaient valides → on efface le compteur de throttle (enregistrerSucces) même si on refuse l'entrée.
+    const act = await marqueOuverte(v.contact.codeBrand);
+    if (!act.ok) return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
+    if (!act.ouverte) {
+      await enregistrerSucces(ip, mail);
+      return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Votre espace n\'est pas encore ouvert. Votre interlocuteur chez Réel Média vous préviendra dès qu\'il le sera.' }) };
+    }
     // F1 : on émet un JETON DE SESSION signé (identité seule). Secret absent → fail-closed 503 + log booléen,
     // jamais de repli sur l'ancien mécanisme. Le code n'est PAS renvoyé : il ne doit plus subsister côté client.
     const jeton = signer(v.contact.id);
