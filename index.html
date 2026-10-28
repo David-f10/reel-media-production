@@ -226,6 +226,7 @@
       <button class="sb-filter" onclick="appFilter('d','pad',this)"><span class="sb-dot" style="background:var(--green)"></span>PAD <span class="sb-badge" id="cnt-pad">0</span></button>
       <button class="sb-filter" onclick="appFilter('d','stock',this)"><span class="sb-dot" style="background:var(--amber)"></span>Stock <span class="sb-badge" id="cnt-stock">0</span></button>
       <button class="sb-filter" onclick="appFilter('d','diffusee',this)"><span class="sb-dot" style="background:var(--green)"></span>Diffusée (30 j)</button>
+      <button id="sb-tout" style="display:none;background:none;border:0;color:var(--text3);font-size:12px;cursor:pointer;text-decoration:underline;padding:6px 10px;text-align:left" onclick="appFilterTout()">↺ Tout afficher</button>
     </div>
     <!-- Compteur résultats recherche -->
     <div id="search-count" style="display:none;padding:4px 24px;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0"></div>
@@ -566,7 +567,7 @@ const DB_TACHES='0241d8dc-00a1-461c-9efa-00eb7e5fac70';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
-let sujets=[],sujetsArchives=[],idees=[],taches=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={t:null,v:null};
+let sujets=[],sujetsArchives=[],idees=[],taches=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={format:null,etat:null};
 let mapClientsParCode = new Map(); // code client → nom, reconstruite à chaque (re)chargement de `clients`
 let currentUser=null; // {id, nom, role}
 // `_accesConfigure` : affordance d'INTERFACE du portail « Gérer l'équipe », PAS une frontière de sécurité
@@ -922,7 +923,6 @@ function clearDate(id, field, btnEl){
 function setFiltersVisible(visible){
   document.getElementById('sb-filters')?.classList.toggle('is-visible', visible);
 }
-function flt(t,v,el){curFilter={t,v};document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));el.classList.add('active');renderCards();}
 
 // Ouvre le modal APRÈS avoir rechargé les compteurs depuis Notion
 async function openNouveau(){
@@ -8465,7 +8465,7 @@ function appRenderProduction() {
 function appSetVue(vue) {
   currentVue = vue;
   vueActive = vue; // sync avec l'ancien système
-  curFilter = curFilter || {t:null, v:null};
+  curFilter = curFilter || {format:null, etat:null};
   majCompteursBarre(); // compteurs PAD + Stock à jour à chaque rendu Production (chargement, tick, filtre, popup, dé-PAD)
   majSuspensionFiltres(); // grise la barre quand un filtre est suspendu par une recherche active
 
@@ -8491,16 +8491,24 @@ function appSetVue(vue) {
 
 // ── Filtres sidebar ──
 // Prédicat de filtrage UNIQUE (barre + toutes les vues Production). Une seule source de vérité :
-// statut ('s'), format ('f'), ou diffusion ('d' : Stock / Diffusée, restreints au PAD).
+// DEUX AXES INDÉPENDANTS, combinés en ET :
+//   • format  : curFilter.format (string | null) — la catégorie, indépendante.
+//   • état    : curFilter.etat ({ t:'s'|'d', v } | null) — statut OU diffusion, mutuellement exclusifs
+//               entre eux ('d' impose déjà PAD, contredirait un filtre de statut). UN seul créneau.
+// Un film passe s'il satisfait CHAQUE axe posé. (Avant : un seul axe {t,v} que chaque clic écrasait → la
+// catégorie était perdue dès qu'on cliquait un statut — bug AXA RUGBY.)
 function matchFiltre(s) {
-  if(!curFilter || !curFilter.v) return true;
-  if(curFilter.t === 's') return s.statut === curFilter.v;
-  if(curFilter.t === 'f') return s.format === curFilter.v;
-  if(curFilter.t === 'd') {
-    if(s.statut !== 'PAD') return false;
-    if(curFilter.v === 'diffusee') return !!s.diffusion;          // la date prime : datée = Diffusée
-    if(curFilter.v === 'stock')    return s.enStock && !s.diffusion;
-    if(curFilter.v === 'pad')      return !s.diffusion && !s.enStock; // validée, décision non prise
+  const cf = curFilter || {};
+  if(cf.format && s.format !== cf.format) return false; // axe format
+  const e = cf.etat;                                    // axe état
+  if(e && e.v) {
+    if(e.t === 's') { if(s.statut !== e.v) return false; }
+    else if(e.t === 'd') {
+      if(s.statut !== 'PAD') return false;
+      if(e.v === 'diffusee') { if(!s.diffusion) return false; }          // la date prime : datée = Diffusée
+      else if(e.v === 'stock') { if(!(s.enStock && !s.diffusion)) return false; }
+      else if(e.v === 'pad')   { if(!(!s.diffusion && !s.enStock)) return false; } // validée, décision non prise
+    }
   }
   return true;
 }
@@ -8513,7 +8521,7 @@ function filtreCourant(s) { return searchQuery ? true : matchFiltre(s); }
 // active (searchQuery ET un filtre posé). pointer-events:none → « verrouillé » le temps de la recherche,
 // réactivé dès qu'elle est effacée. Aucune mutation de curFilter : le filtre revient tel quel.
 function majSuspensionFiltres() {
-  const suspendu = !!(searchQuery && curFilter && curFilter.v);
+  const suspendu = !!(searchQuery && curFilter && (curFilter.format || curFilter.etat));
   ['sb-filters','sb-cats'].forEach(id => {
     const el = document.getElementById(id);
     if(!el) return;
@@ -8525,15 +8533,29 @@ function majSuspensionFiltres() {
 // Compteurs des boutons PAD et Stock (cartes PAD en attente d'une action). Calculés et
 // rafraîchis ENSEMBLE via appSetVue — mêmes prédicats que les branches 'pad'/'stock' de matchFiltre.
 function majCompteursBarre() {
+  // Les compteurs PAD/Stock respectent l'axe FORMAT actif (sinon ils comptaient sur tout sujets[], en
+  // décalage avec la vue filtrée). Ils gardent leur propre prédicat (pas matchFiltre) car ils comptent une
+  // sous-population PAD précise, pas le filtre d'état courant.
+  const fmtOk = s => !(curFilter && curFilter.format) || s.format === curFilter.format;
   const elP = document.getElementById('cnt-pad');
-  if(elP) elP.textContent = sujets.filter(s => s.statut === 'PAD' && !s.diffusion && !s.enStock).length;
+  if(elP) elP.textContent = sujets.filter(s => fmtOk(s) && s.statut === 'PAD' && !s.diffusion && !s.enStock).length;
   const elS = document.getElementById('cnt-stock');
-  if(elS) elS.textContent = sujets.filter(s => s.statut === 'PAD' && s.enStock && !s.diffusion).length;
+  if(elS) elS.textContent = sujets.filter(s => fmtOk(s) && s.statut === 'PAD' && s.enStock && !s.diffusion).length;
 }
+// appFilter route vers le BON axe et ne touche pas l'autre (avant : il écrasait curFilter entier). Re-clic
+// sur un filtre déjà actif → relâche CET axe. el = le bouton statut/diffusion cliqué (sbCatClick passe null
+// pour un format) ; les boutons .sb-filter sont statiques (non re-rendus), on gère leur état actif ici.
 function appFilter(t, v, el) {
+  if(!curFilter) curFilter = {format:null, etat:null};
+  if(t === 'f') {
+    curFilter.format = (curFilter.format === v) ? null : v;
+  } else { // 's' (statut) ou 'd' (diffusion) → axe ÉTAT, un seul créneau
+    const e = curFilter.etat;
+    curFilter.etat = (e && e.t === t && e.v === v) ? null : { t, v };
+  }
   document.querySelectorAll('.sb-filter').forEach(i => i.classList.remove('active'));
-  if(el) el.classList.add('active');
-  curFilter = {t, v};
+  if(el && curFilter.etat) el.classList.add('active'); // actif seulement si l'axe état est posé (pas relâché)
+  majToutAfficher();
   if(currentPage === 'production') {
     const cw = document.getElementById('cards-wrap');
     if(!cw) {
@@ -8541,7 +8563,20 @@ function appFilter(t, v, el) {
     }
     appSetVue(currentVue);
   }
-  renderSidebarCats(); // synchronise l'état actif des catégories sidebar
+  renderSidebarCats(); // état actif des catégories (axe format)
+}
+// « Tout afficher » : visible seulement quand les DEUX axes sont posés (la sortie quand un seul axe est posé
+// = re-cliquer ce filtre). Relâche tout.
+function majToutAfficher() {
+  const b = document.getElementById('sb-tout');
+  if(b) b.style.display = (curFilter && curFilter.format && curFilter.etat) ? '' : 'none';
+}
+function appFilterTout() {
+  curFilter = {format:null, etat:null};
+  document.querySelectorAll('.sb-filter').forEach(i => i.classList.remove('active'));
+  majToutAfficher();
+  if(currentPage === 'production') appSetVue(currentVue);
+  renderSidebarCats();
 }
 
 // ── Catégories sidebar (formats réellement présents, compteurs depuis `sujets`) ──
@@ -8554,7 +8589,7 @@ function renderSidebarCats() {
   const ordre = Object.keys(FMT_COLORS).filter(f => counts[f])
     .concat(Object.keys(counts).filter(f => !FMT_COLORS[f]));
   el.innerHTML = ordre.map(f => `
-    <button class="sb-cat${curFilter&&curFilter.t==='f'&&curFilter.v===f?' active':''}" onclick="sbCatClick('${f}')">
+    <button class="sb-cat${curFilter&&curFilter.format===f?' active':''}" onclick="sbCatClick('${f}')">
       <span class="sb-dot" style="background:${FMT_COLORS[f]||'#888'}"></span>
       <span style="flex:1;text-align:left">${f}</span>
       <span class="sb-badge">${counts[f]}</span>
@@ -8758,9 +8793,6 @@ function appRenderDashboard() {
   // Charger l'activité APRÈS que le HTML est dans main-content
   loadActiviteDashboard();
 }
-
-// ── Override flt pour compatibilité ──
-function flt(t, v, el) { appFilter(t, v, el); }
 
 // ── Override renderCards pour utiliser curFilter ──
 const _rc = renderCards;
