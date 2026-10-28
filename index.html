@@ -3070,6 +3070,10 @@ async function loadVersions(sujetId) {
       const annulee = versionStatut === 'Annulée';
       // « Envoyer au client » (tranche 2) : visible pour Brand, dernière version, avec un lien vidéo.
       const dateEnvoiClient = pr['Date envoi client']?.date?.start || '';
+      // Date validation client : marque PERSISTANTE du geste du client, distincte de « Validée » (interne)
+      // et « Validation Brand ». Jusqu'ici écrite par valider-client mais JAMAIS affichée. Date en clair.
+      const dateValidationClient = pr['Date validation client']?.date?.start || '';
+      const dvcTxt = dateValidationClient ? (() => { const p = dateValidationClient.split('-'); return parseInt(p[2], 10) + ' ' + (MOIS_LABELS[parseInt(p[1], 10) - 1] || '').toLowerCase(); })() : '';
       const vNumEnvoi = parseInt(version.replace('V',''));
       const isLastEnvoi = vNumEnvoi === maxVersionNum;
       // Message prêt à copier que l'équipe colle dans SON mail. Le code n'y figure JAMAIS — seulement le
@@ -3097,6 +3101,7 @@ async function loadVersions(sujetId) {
 
           </div>
         </div>
+        ${dateValidationClient ? `<div style="font-size:11px;color:var(--purple);font-weight:600;margin-bottom:8px">👤 Validé par le client le ${dvcTxt}</div>` : ''}
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
           <input type="url" value="${url}" data-saved="${url}" placeholder="Lien vidéo..." style="flex:1;font-size:12px"
             onblur="updateVersionUrl('${v.id}','${sujetId}',this.value,'${version}',this)"
