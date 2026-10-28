@@ -133,7 +133,7 @@ async function verifyClient({ mail, code }) {
       // de mail ni de code. La réponse HTTP reste le 401 générique anti-énumération ; ceci lève seulement
       // l'ambiguïté « mail non apparié » vs « code faux » vs « inactif » dans les logs, qu'on ne pouvait pas
       // distinguer (c'est ce trou qui a coûté une heure de fausse piste).
-      console.log('verifyClient échec auth : mailApparié=' + (!!page) + ', codeApparié=' + (!!(page && _rt(page.properties, 'Code acces') === c)) + ', actif=' + (!!(page && _actif(page.properties))));
+      console.error('verifyClient échec auth : mailApparié=' + (!!page) + ', codeApparié=' + (!!(page && _rt(page.properties, 'Code acces') === c)) + ', actif=' + (!!(page && _actif(page.properties))));
       return { ok: false, raison: 'auth' }; // mail inconnu / code faux / inactif → MÊME réponse HTTP
     }
     // `marque` = nom d'affichage DÉNORMALISÉ sur le contact (comme Code Brand), posé par l'admin en tranche 3

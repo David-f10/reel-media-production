@@ -194,6 +194,8 @@
     /* « À valider » (séquencier) : action, pas alerte → on retire l'accent rouge de .att */
     .att.sq{border-color:var(--line2);border-left-color:var(--line2)}
     .sq-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;flex:1 1 220px;justify-content:flex-end}
+    .sq-doc{flex:1 1 100%;margin-top:4px}
+    .sq-doc-frame{width:100%;height:280px;border:1px solid var(--line);border-radius:8px;background:#fff;display:block}
     .sq-corr-txt{width:100%;min-height:70px;resize:vertical;background:var(--bg3);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);font-size:14px;padding:10px 12px}
     .sq-corr-bas{display:flex;gap:10px;align-items:center;margin-top:8px}
     .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -207,6 +209,7 @@
     .lrow-t{font-size:15.5px;font-weight:500}
     .lrow-s{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12.5px;color:var(--txt2)}
     .lrow-r{display:flex;flex-direction:column;align-items:flex-end;gap:7px} /* colonne droite d'une ligne En cours : pastille + « Revoir le montage » */
+    .lrow-attente{font-size:12.5px;color:var(--txt3);text-align:right;max-width:230px} /* « Votre montage est en cours » : ligne secondaire, pas une alerte */
     .pill{flex:none;font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:4px;white-space:nowrap;background:var(--amber-voile);color:var(--amber);border:1px solid var(--amber-bord)}
     .etapes{display:flex;gap:4px;margin-top:9px;max-width:330px}
     .et{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
@@ -518,11 +521,12 @@
             var pill = p.pastille && p.pastille.texte ? '<span class="pill">' + esc(p.pastille.texte) + '</span>' : '';
             // Point d'entrée montage SEULEMENT si aMontage (une version client existe ET pas déjà dans À
             // relire) → un seul bouton par film, et « Revoir » n'apparaît jamais sur un film jamais vu.
-            // Sinon (montage pas encore envoyé) : ligne secondaire discrète expliquant l'absence de bouton —
-            // on NE donne pas accès à un montage non finalisé (règle du portier), mais le client sait pourquoi.
+            // Sinon ET à partir de l'étape Montage (etape>=1) : ligne discrète expliquant l'absence de bouton.
+            // À l'étape Tournage (etape 0) : RIEN — « montage en cours » serait faux sur un film pas encore
+            // tourné. (Phrase juste pour l'étape Tournage : à trancher avec David, pas inventée ici.)
             var entree = p.aMontage
               ? '<button type="button" class="lnk" data-code="' + escAttr(p.code) + '">Revoir le montage</button>'
-              : '<span style="font-size:12.5px;color:var(--txt3);text-align:right;max-width:230px">Votre montage est en cours — vous le recevrez dès qu\'il sera prêt.</span>';
+              : (p.etape >= 1 ? '<span class="lrow-attente">Votre montage est en cours — vous le recevrez dès qu\'il sera prêt.</span>' : '');
             return '<div class="lrow"><div class="lrow-m"><div class="lrow-t">' + esc(p.titre) + '</div>' +
               '<div class="lrow-s"><span class="code">' + esc(p.code) + '</span><span>' + esc(p.realisePar) + '</span></div>' +
               '<div class="etapes">' + etapes + '</div></div>' +
@@ -557,6 +561,9 @@
       zone.innerHTML = h;
       var tout = $('livres-toutafficher');
       if (tout) tout.addEventListener('click', function (e) { e.preventDefault(); var c = $('livres-caches'); if (c) c.classList.remove('hidden'); var rp = $('livres-replier'); if (rp) rp.style.display = 'none'; });
+      // Séquencier : 2e passe APRÈS le shell (comme la vidéo du montage) — on charge le Doc de chaque carte
+      // « À valider » dans son conteneur. Asynchrone, dégradation propre, n'empêche jamais la validation.
+      aValider.forEach(function (p) { mChargerSequencier(p.code); });
     }
 
     // ── Téléchargement depuis le tableau Livrés : récupérer un film fini SANS passer par la vue montage,
@@ -849,6 +856,7 @@
     // Délégation : tout élément porteur d'un data-code dans l'accueil (« Voir le montage → » de À relire,
     // « Revoir » des Livrés) ouvre la vue montage. On clé sur data-code, pas sur une classe de style.
     var SEQ = '/.netlify/functions/valider-sequencier-client';
+    var SEQ_DOC = '/.netlify/functions/sequencier-doc';
     $('zone-projets').addEventListener('click', function (e) {
       // Remonter jusqu'à un élément porteur d'une action : ouvrir le montage (data-code), télécharger
       // (data-dl-code), valider le séquencier (data-seq-code) ou demander des corrections (data-corr-code).
@@ -866,7 +874,31 @@
     // ── Séquencier : point d'accroche pour l'ouverture du document. INERTE pour l'instant — la convention
     //    de partage des Google Docs (lien sortant gardé vs permission dédiée) n'est pas tranchée. Quand elle
     //    le sera, c'est ICI qu'on rend le lien/bouton (p.lienSeq est déjà descendu par espace-client). ──
-    function seqLienHtml(p) { return ''; }
+    // Conteneur du séquencier dans la carte « À valider », rempli en 2e passe par mChargerSequencier.
+    function seqLienHtml(p) { return '<div class="sq-doc" id="sq-doc-' + escAttr(p.code) + '"><p class="sub" style="color:var(--txt3)">Chargement du séquencier…</p></div>'; }
+    // Charge le Doc (sequencier-doc) et le rend dans un IFRAME SANDBOX srcdoc SANS allow-scripts (le HTML
+    // renvoyé est déjà échappé côté serveur ; le sandbox est la 2e barrière). Dégradation propre si
+    // indisponible. srcdoc posé par PROPRIÉTÉ DOM (jamais un attribut construit par concaténation).
+    function mChargerSequencier(code) {
+      var box = $('sq-doc-' + code);
+      if (!box) return;
+      mPost(SEQ_DOC, { sujetCode: code }).then(function (res) {
+        if (!(box = $('sq-doc-' + code))) return; // la vue a pu changer
+        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 200 && res.body && res.body.ok && !res.body.indisponible && typeof res.body.html === 'string') {
+          box.innerHTML = '';
+          var f = document.createElement('iframe');
+          f.className = 'sq-doc-frame';
+          f.setAttribute('sandbox', ''); // ni script, ni same-origin, ni formulaire
+          f.srcdoc = '<!doctype html><meta charset="utf-8"><style>body{font:14px/1.5 system-ui,sans-serif;color:#1a1a1a;margin:12px}h3,h4{font-size:15px;margin:12px 0 4px}p{margin:0 0 8px}</style>' + res.body.html;
+          box.appendChild(f);
+        } else {
+          // indisponible (SA sans accès / pas de lien) OU échec → message, JAMAIS un bloc cassé. La
+          // validation et « Demander des corrections » restent actives au-dessus.
+          box.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>';
+        }
+      }).catch(function () { var b = $('sq-doc-' + code); if (b) b.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>'; });
+    }
     // Valider le séquencier → POST { action:'valider' }. Succès → on NE recharge PAS : le projet quitte
     // « À valider » et n'entre pas dans « En cours » (gardé par Visible, non posé en phase séquencier) ; un
     // rechargement ferait « s'évaporer » la carte, voire tomber sur l'écran de bienvenue. On remplace donc
