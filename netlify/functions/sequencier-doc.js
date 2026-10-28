@@ -84,8 +84,17 @@ function rendreRun(tr, ctx) {
 function contenuParagraphe(par, ctx) {
   let h = '';
   for (const pe of (par.elements || [])) {
+    if (pe.textRun) { h += rendreRun(pe.textRun, ctx); continue; }
     if (pe.inlineObjectElement) { h += '[image du séquencier] '; continue; }
-    if (pe.textRun) h += rendreRun(pe.textRun, ctx);
+    // person (@ d'une personne) et richLink (lien intelligent vers un autre Doc) : on rend leur TEXTE
+    // (nom / titre), échappé, en texte simple — jamais l'URI, aucune balise, aucun lien sortant. Préserve
+    // le sens sans élargir la liste blanche.
+    if (pe.person) { h += esc((pe.person.personProperties && pe.person.personProperties.name) || ''); continue; }
+    if (pe.richLink) { h += esc((pe.richLink.richLinkProperties && pe.richLink.richLinkProperties.title) || ''); continue; }
+    // Tout autre élément de paragraphe (footnoteReference, equation, autoText, pageBreak, horizontalRule…)
+    // n'est pas rendu → COMPTÉ comme les structurels, pour que la mention « certaines parties ne s'affichent
+    // pas ici » se déclenche. Plus de troncature silencieuse AU NIVEAU DU PARAGRAPHE non plus.
+    ctx.structurelsIgnores++;
   }
   return h.replace(/\s+$/, '');
 }
