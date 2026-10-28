@@ -62,31 +62,67 @@ async function notionFetch(pathApi, method, token, bodyObj) {
   return r.json();
 }
 
-// Parcours SÉLECTIF de la structure Docs → HTML sûr (texte échappé, images en placeholder). N'émet que des
-// runs SANS id de suggestion. Renvoie { html, suggestionsIgnorees }.
-function rendreDoc(doc) {
-  const out = [];
-  let suggestionsIgnorees = 0;
-  const contenu = (doc && doc.body && doc.body.content) || [];
-  for (const el of contenu) {
-    const par = el.paragraph;
-    if (!par) continue; // on ignore tables/sectionBreak/etc. — texte du séquencier seulement
-    let txt = '';
-    for (const pe of (par.elements || [])) {
-      if (pe.inlineObjectElement) { txt += '[image du séquencier] '; continue; }
-      const tr = pe.textRun;
-      if (!tr) continue;
-      // GARDE RUNTIME : jamais un run suggéré (insertion OU suppression), quoi que rende le mode preview.
-      if ((tr.suggestedInsertionIds && tr.suggestedInsertionIds.length) || (tr.suggestedDeletionIds && tr.suggestedDeletionIds.length)) { suggestionsIgnorees++; continue; }
-      txt += (tr.content || '');
-    }
-    txt = txt.replace(/\s+$/, '');
-    if (!txt) continue;
-    const style = (par.paragraphStyle && par.paragraphStyle.namedStyleType) || '';
-    const tag = /^HEADING_[1-3]$/.test(style) ? 'h3' : (/^HEADING_/.test(style) ? 'h4' : 'p');
-    out.push('<' + tag + '>' + esc(txt) + '</' + tag + '>');
+// Parcours SÉLECTIF de la structure Docs → HTML sûr. LISTE BLANCHE de balises STATIQUES uniquement :
+// p, h3, h4, strong, em, ul, li, table, tr, td — aucune balise porteuse de style arbitraire. Tout texte est
+// ÉCHAPPÉ par run avant mise en forme. N'émet JAMAIS un run suggéré (garde runtime, cf. en-tête). Les
+// éléments structurels NON rendus (TOC, tableau trop imbriqué, autres) sont COMPTÉS → le client est prévenu
+// qu'une partie n'est pas affichée (jamais une troncature silencieuse). Renvoie
+// { html, suggestionsIgnorees, structurelsIgnores }.
+const MAX_TABLE_PROF = 1; // tableau + 1 niveau d'imbrication ; au-delà → compté comme ignoré
+
+// Un run → texte échappé, enveloppé selon gras/italique (liste blanche). '' si run suggéré (ignoré).
+function rendreRun(tr, ctx) {
+  if ((tr.suggestedInsertionIds && tr.suggestedInsertionIds.length) || (tr.suggestedDeletionIds && tr.suggestedDeletionIds.length)) { ctx.suggestionsIgnorees++; return ''; }
+  let t = esc(tr.content || '');
+  if (!t) return '';
+  const st = tr.textStyle || {};
+  if (st.italic) t = '<em>' + t + '</em>';
+  if (st.bold) t = '<strong>' + t + '</strong>';
+  return t;
+}
+// Contenu INTÉRIEUR d'un paragraphe (runs + images), HTML déjà échappé. L'appelant choisit la balise bloc.
+function contenuParagraphe(par, ctx) {
+  let h = '';
+  for (const pe of (par.elements || [])) {
+    if (pe.inlineObjectElement) { h += '[image du séquencier] '; continue; }
+    if (pe.textRun) h += rendreRun(pe.textRun, ctx);
   }
-  return { html: out.join('\n'), suggestionsIgnorees };
+  return h.replace(/\s+$/, '');
+}
+// Rend une liste d'éléments structurels. profondeur = niveau d'imbrication de tableau courant.
+function rendreContenu(contenu, profondeur, ctx) {
+  const out = [];
+  let li = []; // tampon de puces consécutives → un seul <ul>
+  const flush = () => { if (li.length) { out.push('<ul>' + li.join('') + '</ul>'); li = []; } };
+  for (const el of (contenu || [])) {
+    if (el.paragraph) {
+      const par = el.paragraph;
+      const h = contenuParagraphe(par, ctx);
+      if (!h) continue; // paragraphe vide (ou tout suggéré) → rien
+      if (par.bullet) { li.push('<li>' + h + '</li>'); continue; } // puce
+      flush();
+      const style = (par.paragraphStyle && par.paragraphStyle.namedStyleType) || '';
+      const tag = /^HEADING_[1-3]$/.test(style) ? 'h3' : (/^HEADING_/.test(style) ? 'h4' : 'p');
+      out.push('<' + tag + '>' + h + '</' + tag + '>');
+    } else if (el.table) {
+      flush();
+      if (profondeur >= MAX_TABLE_PROF) { ctx.structurelsIgnores++; continue; } // trop imbriqué → compté
+      const rows = (el.table.tableRows || []).map(row =>
+        '<tr>' + (row.tableCells || []).map(cell => '<td>' + rendreContenu(cell.content, profondeur + 1, ctx) + '</td>').join('') + '</tr>'
+      ).join('');
+      out.push('<table>' + rows + '</table>');
+    } else if (el.tableOfContents) {
+      flush(); ctx.structurelsIgnores++; // un sommaire ne s'affiche pas ici → signalé
+    }
+    // sectionBreak & co : rien d'affichable, on n'incrémente PAS (ce n'est pas du contenu tronqué).
+  }
+  flush();
+  return out.join('\n');
+}
+function rendreDoc(doc) {
+  const ctx = { suggestionsIgnorees: 0, structurelsIgnores: 0 };
+  const html = rendreContenu((doc && doc.body && doc.body.content) || [], 0, ctx);
+  return { html, suggestionsIgnorees: ctx.suggestionsIgnorees, structurelsIgnores: ctx.structurelsIgnores };
 }
 
 exports.handler = async (event) => {
@@ -145,9 +181,11 @@ exports.handler = async (event) => {
     doc = await r.json();
   } catch (e) { console.error('sequencier-doc indispo (docs.get) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
-  const { html, suggestionsIgnorees } = rendreDoc(doc);
+  const { html, suggestionsIgnorees, structurelsIgnores } = rendreDoc(doc);
   if (suggestionsIgnorees) console.error('sequencier-doc : ' + suggestionsIgnorees + ' run(s) suggéré(s) ignoré(s) pour ' + sujetCode + ' (garde runtime — le mode preview aurait dû les retirer)');
-  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, titre: _ti(pr, 'Titre'), html }) };
+  if (structurelsIgnores) console.error('sequencier-doc : ' + structurelsIgnores + ' élément(s) structurel(s) non affiché(s) pour ' + sujetCode + ' (sommaire / tableau trop imbriqué / autre) → client prévenu');
+  // tronque = une partie du Doc n'a pas pu être rendue → le client doit le savoir (jamais de troncature muette).
+  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, titre: _ti(pr, 'Titre'), html, tronque: structurelsIgnores > 0 }) };
 };
 
 module.exports._test = { rendreDoc, docId };
