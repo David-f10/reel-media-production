@@ -151,6 +151,25 @@
     .mt-frise{position:relative;height:20px;margin:8px 0 2px;border-radius:5px;background:var(--bg4);border:1px solid var(--line)}
     .mt-fr-m{position:absolute;top:2px;bottom:2px;width:3px;margin-left:-1px;padding:0;border:0;border-radius:2px;background:var(--rouge);cursor:pointer;transition:transform .08s}
     .mt-fr-m:hover,.mt-fr-m:focus-visible{transform:scaleX(2);outline:none}
+    /* Capture : bouton « Marquer ce moment » sous le lecteur (visible pendant la lecture). */
+    .mt-cap{width:100%;margin-top:8px;background:var(--rouge-voile);color:var(--rouge);border:1px solid var(--rouge-bord);font-family:var(--sans);font-size:13.5px;padding:9px 12px;border-radius:7px;cursor:pointer;transition:background .12s}
+    .mt-cap:hover{background:var(--rouge);color:#fff}
+    /* Moments marqués, non encore commentés : pastilles cliquables (chargent le moment dans le formulaire). */
+    .mt-pins{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .mt-pins-t{width:100%;font-size:11px;color:var(--txt3);margin-bottom:2px}
+    .mt-pin{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:3px 4px 3px 9px;border-radius:5px;cursor:pointer}
+    .mt-pin:hover,.mt-pin:focus-visible{background:var(--rouge);color:#fff;outline:none}
+    .mt-pin-x{border:0;background:transparent;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0 3px;opacity:.7}
+    .mt-pin-x:hover{opacity:1}
+    /* Champ « Moment du film » : libellé + ligne timecode avec − / + autour, + aide. */
+    .mt-tc-lab{display:block;font-size:12px;color:var(--txt2);margin:2px 0 4px}
+    .mt-tc-wrap{display:inline-flex;align-items:stretch;gap:0}
+    .mt-nudge{width:30px;border:1px solid var(--line2);background:var(--bg4);color:var(--txt);font-size:16px;line-height:1;cursor:pointer}
+    .mt-nudge:first-child{border-radius:6px 0 0 6px;border-right:0}
+    .mt-nudge:last-child{border-radius:0 6px 6px 0;border-left:0}
+    .mt-nudge:hover{background:var(--line2)}
+    .mt-tc-wrap #mt-tc{border-radius:0;text-align:center;width:72px}
+    .mt-tc-aide{font-size:11px;color:var(--txt3);margin:4px 0 8px}
     .ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
     .ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
     .ret-brouillon{font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber);opacity:.85;padding:1px 7px;border-radius:4px}
@@ -614,7 +633,11 @@
     var ETIQ = { 'a-relire': 'à relire', 'retours-envoyes': 'retours envoyés', 'validee': 'validée' };
 
     // État de la vue en cours. fileId = SEULEMENT celui de la courante (jamais une version passée).
-    var M = { code: '', rangAff: 0, nbVersions: 0, fileId: '', hb: null, notice: '', dureeMs: null };
+    var M = { code: '', rangAff: 0, nbVersions: 0, fileId: '', hb: null, notice: '', dureeMs: null,
+      // chrono = AMORCE de position (jamais exacte : on ne lit pas l'iframe). base = dernière position qu'on a
+      // imposée (0 au montage), depuis = instant où base a été posée. estimation = base + temps écoulé.
+      chrono: { base: 0, depuis: 0 }, reseekTimer: null, capeActif: '' };
+    var K_MOMENTS = 'rmc-moments'; // clé localStorage par sujet : moments marqués, non encore commentés (brouillon LOCAL)
 
     // Timecode « m:ss » (ou « h:mm:ss ») → secondes. Chiffres purs seulement ; sinon null (ex. « — », vide).
     function mTcEnSecondes(tc) {
@@ -689,7 +712,10 @@
 
       // Formulaire + actions SEULEMENT sur la courante OUVERTE ; sinon bandeau de version close (pas de formulaire grisé).
       var formulaire = (estCourante && vAff.etat === 'a-relire');
-      var bas = formulaire ? (mFormeHtml() + mFinHtml()) : ('<div class="close gris"><b>' + esc(mBandeauEtat(vAff.etat)) + '</b></div>');
+      // Capture : « Marquer ce moment » sous le lecteur, et conteneur des pastilles au-dessus du formulaire.
+      // SEULEMENT sur la courante à relire (on ne commente que la version en cours).
+      var capBtn = formulaire ? '<button type="button" class="mt-cap" id="mt-cap">⦿ Marquer ce moment</button>' : '';
+      var bas = formulaire ? ('<div id="mt-pins-wrap"></div>' + mFormeHtml() + mFinHtml()) : ('<div class="close gris"><b>' + esc(mBandeauEtat(vAff.etat)) + '</b></div>');
 
       // Vidéo : TOUTE version affichée a un lecteur (tranche 4 : la condition 4 est tombée, les versions
       // passées se regardent aussi). Le lecteur s'ouvre par RANG (drive-view-client résout le fileId).
@@ -702,7 +728,7 @@
       var telHtml = '<button class="bouton gris2" type="button" id="mt-tel">⬇ Télécharger cette version</button>' +
         '<div class="msg" id="mt-tel-msg" role="status" aria-live="polite"></div>';
 
-      $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + frise + telHtml + '</div>' +
+      $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + frise + capBtn + telHtml + '</div>' +
         '<div class="panneau"><div class="pan-t"><span>Mes retours</span><span class="pan-n">' + rets.length + '</span></div>' +
         '<div class="retours">' + retoursHtml + '</div>' + bas + '</div></div>';
 
@@ -716,14 +742,18 @@
       });
 
       if (formulaire) {
+        M.capeActif = ''; // rendu frais → aucune pastille « en cours de commentaire »
         $('mt-ajout').addEventListener('click', mAjouter);
         $('mt-valider').addEventListener('click', function () { mTerminal('valider'); });
         $('mt-envoyer').addEventListener('click', function () { mTerminal('envoyer-retours'); });
         // Timecode : formatage identique à review.html/index.html (0035 → 0:35), + ESPACE qui convertit
         // et saute à la description (l'espace est avalée). Le cap serveur (MAX_TC) reste inchangé.
         var tcEl = $('mt-tc');
-        tcEl.addEventListener('blur', function () { mFormatTc(tcEl); });
-        tcEl.addEventListener('keydown', function (e) { if (e.key === ' ') { e.preventDefault(); mFormatTc(tcEl); var d = $('mt-txt'); if (d) d.focus(); } });
+        // Saisie directe (le filet pour les gros écarts : le client recopie le compteur Drive). Au blur /
+        // à l'ESPACE : on formate ET on re-seek (l'image rattrape la valeur tapée), en débouncé.
+        tcEl.addEventListener('blur', function () { mFormatTc(tcEl); var s = mTcEnSecondes(tcEl.value); if (s != null) mReseek(s); });
+        tcEl.addEventListener('keydown', function (e) { if (e.key === ' ') { e.preventDefault(); mFormatTc(tcEl); var s = mTcEnSecondes(tcEl.value); if (s != null) mReseek(s); var d = $('mt-txt'); if (d) d.focus(); } });
+        mCablerCapture(); // bouton capture, pastilles (brouillon local), − / +
       }
       [].slice.call($('mt-vers').querySelectorAll('.vch')).forEach(function (b) {
         b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; M.dureeMs = null; mCharger(rg); } });
@@ -746,8 +776,13 @@
     function mFormeHtml() {
       var opts = CATS.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('');
       return '<div class="forme"><div class="forme-t">Laisser un retour</div>' +
-        '<div class="forme-r"><input type="text" id="mt-tc" placeholder="00:00" aria-label="Timecode">' +
+        '<label class="mt-tc-lab" for="mt-tc">Moment du film</label>' +
+        '<div class="forme-r"><span class="mt-tc-wrap">' +
+          '<button type="button" class="mt-nudge" id="mt-moins" aria-label="Reculer d\'une seconde">−</button>' +
+          '<input type="text" id="mt-tc" placeholder="0:00" aria-label="Moment du film">' +
+          '<button type="button" class="mt-nudge" id="mt-plus" aria-label="Avancer d\'une seconde">+</button></span>' +
         '<select id="mt-cat" aria-label="Catégorie"><option value="">— Catégorie —</option>' + opts + '</select></div>' +
+        '<div class="mt-tc-aide">Placé automatiquement. Ajustez si besoin — l\'image suit.</div>' +
         '<textarea id="mt-txt" placeholder="Décrivez votre retour…" aria-label="Votre retour"></textarea>' +
         '<button class="bouton" type="button" id="mt-ajout">Ajouter à mes retours</button>' +
         '<div class="msg" id="mt-forme-msg" role="status" aria-live="polite"></div></div>';
@@ -781,6 +816,7 @@
         if (res.status === 200 && res.body && res.body.ok && res.body.fileId) {
           M.fileId = res.body.fileId;
           M.dureeMs = (typeof res.body.dureeMs === 'number' && res.body.dureeMs > 0) ? res.body.dureeMs : null;
+          M.chrono = { base: 0, depuis: Date.now() }; // amorce : on ignore quand le client appuie sur play → biais assumé, jamais présenté comme exact
           mMonterIframe(res.body.fileId);
           mBattementsDemarrer();
           mPeindreFrise(); // active le saut sur les timecodes dans le film + peint la frise (si durée connue)
@@ -811,6 +847,7 @@
     function mSauter(sec) {
       if (!M.fileId || sec == null || sec < 0) return;
       if (M.dureeMs && (sec * 1000 >= M.dureeMs)) return; // après la fin → on n'y va pas
+      M.chrono = { base: sec, depuis: Date.now() }; // sauter = imposer une position → le chrono repart de là
       mMonterIframe(M.fileId, sec);
     }
     // Active le saut sur les timecodes des retours et peint la frise. Appelé APRÈS l'open (durée + fileId connus).
@@ -842,6 +879,91 @@
       [].slice.call(fr.querySelectorAll('.mt-fr-m')).forEach(function (b) {
         b.addEventListener('click', function () { mSauter(parseInt(b.getAttribute('data-sec'), 10)); });
       });
+    }
+
+    // ════════════════ CAPTURE DU MOMENT (tranche 3) ════════════════
+    // On ne lit JAMAIS l'iframe (cross-origin). On estime la position (chrono = amorce), on la CONFIRME à
+    // l'œil en re-seekant l'iframe sur ?t=N (elle montre l'image de N). Marquer est instantané (ne recharge
+    // rien) ; l'ajustement re-seek est DÉBOUNCÉ (le nombre change tout de suite, l'image rattrape une fois).
+    // Un moment sans texte n'est JAMAIS un retour : ajouter-retour exige un texte (garde client + serveur), et
+    // les moments non commentés restent un brouillon LOCAL (localStorage), jamais envoyé à l'équipe.
+
+    function mSecVersTc(sec) { sec = Math.max(0, Math.round(sec)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' + s : s); }
+    // Estimation de la position courante = base imposée + temps écoulé. AMORCE, jamais exacte (pause/scrub Drive
+    // invisibles ; on ignore même quand le client a appuyé sur play). Bornée en haut si la durée est connue.
+    function mEstimation() {
+      var s = M.chrono.base + (M.chrono.depuis ? (Date.now() - M.chrono.depuis) / 1000 : 0);
+      if (s < 0) s = 0;
+      if (M.dureeMs && s > M.dureeMs / 1000) s = M.dureeMs / 1000;
+      return Math.round(s);
+    }
+    // Re-seek DÉBOUNCÉ : on attend ~500 ms d'inactivité après le dernier geste, puis UN seul rechargement vers
+    // la valeur courante (+1+1+1 rapide → un rechargement). Marche à froid comme à chaud. Pose aussi le chrono.
+    function mReseek(sec) {
+      if (M.reseekTimer) clearTimeout(M.reseekTimer);
+      M.reseekTimer = setTimeout(function () {
+        M.reseekTimer = null;
+        M.chrono = { base: sec, depuis: Date.now() };
+        if (M.fileId) mMonterIframe(M.fileId, sec);
+      }, 500);
+    }
+    // − / + : le NOMBRE change instantanément dans le champ ; l'IMAGE est re-seekée en débouncé.
+    function mNudge(delta) {
+      var el = $('mt-tc'); if (!el) return;
+      var sec = mTcEnSecondes(el.value); if (sec == null) sec = mEstimation();
+      sec = sec + delta; if (sec < 0) sec = 0;
+      if (M.dureeMs && sec > Math.floor(M.dureeMs / 1000)) sec = Math.floor(M.dureeMs / 1000);
+      el.value = mSecVersTc(sec);
+      mReseek(sec);
+    }
+    // Moments marqués (brouillon LOCAL) : lecture/écriture localStorage, tolérant (navigation privée → pas de
+    // persistance, sans casser). Clé par sujet.
+    function mMomentsLire(code) { try { var r = JSON.parse(localStorage.getItem(K_MOMENTS + ':' + code) || '[]'); return Array.isArray(r) ? r : []; } catch (e) { return []; } }
+    function mMomentsEcrire(code, arr) { try { localStorage.setItem(K_MOMENTS + ':' + code, JSON.stringify(arr || [])); } catch (e) { /* stockage indispo → pas de persistance, sans casser */ } }
+    // Capture instantanée pendant la lecture : on empile l'estimation, on NE recharge PAS l'iframe (pas
+    // d'interruption). Le client commente plus tard en cliquant la pastille.
+    function mMarquer() {
+      var arr = mMomentsLire(M.code);
+      arr.push({ id: 'p' + Date.now() + '-' + Math.floor(Math.random() * 1000), sec: mEstimation() });
+      mMomentsEcrire(M.code, arr);
+      mRafraichirPins();
+      var b = $('mt-cap'); if (b) { b.textContent = '✓ Moment marqué'; setTimeout(function () { var c = $('mt-cap'); if (c) c.textContent = '⦿ Marquer ce moment'; }, 900); }
+    }
+    function mRafraichirPins() {
+      var w = $('mt-pins-wrap'); if (!w) return;
+      var arr = mMomentsLire(M.code);
+      if (!arr.length) { w.innerHTML = ''; return; }
+      w.innerHTML = '<div class="mt-pins"><span class="mt-pins-t">Moments marqués — cliquez pour commenter</span>' +
+        arr.map(function (p) {
+          return '<button type="button" class="mt-pin" data-pin="' + escAttr(p.id) + '" data-sec="' + p.sec + '">' + esc(mSecVersTc(p.sec)) +
+            '<span class="mt-pin-x" data-pinx="' + escAttr(p.id) + '" role="button" aria-label="Retirer ce moment">✕</span></button>';
+        }).join('') + '</div>';
+    }
+    // Charger une pastille dans le formulaire : pose le timecode, re-seek (confirme à l'œil), focus la description.
+    function mChargerPastille(id, sec) {
+      M.capeActif = id;
+      var el = $('mt-tc'); if (el) el.value = mSecVersTc(sec);
+      mReseek(sec);
+      var tx = $('mt-txt'); if (tx) tx.focus();
+    }
+    function mRetirerPastille(id) {
+      mMomentsEcrire(M.code, mMomentsLire(M.code).filter(function (p) { return p.id !== id; }));
+      if (M.capeActif === id) M.capeActif = '';
+      mRafraichirPins();
+    }
+    // Câblage capture/pastilles/nudge — appelé depuis le bloc `formulaire` de mRendre (DOM frais à chaque rendu).
+    function mCablerCapture() {
+      var cap = $('mt-cap'); if (cap) cap.addEventListener('click', mMarquer);
+      var moins = $('mt-moins'); if (moins) moins.addEventListener('click', function () { mNudge(-1); });
+      var plus = $('mt-plus'); if (plus) plus.addEventListener('click', function () { mNudge(1); });
+      var wrap = $('mt-pins-wrap');
+      if (wrap) wrap.addEventListener('click', function (e) {
+        var t = e.target;
+        var x = t.getAttribute && t.getAttribute('data-pinx'); if (x) { e.stopPropagation(); mRetirerPastille(x); return; }
+        while (t && t !== wrap && !(t.getAttribute && t.getAttribute('data-pin'))) t = t.parentNode;
+        if (t && t.getAttribute && t.getAttribute('data-pin')) mChargerPastille(t.getAttribute('data-pin'), parseInt(t.getAttribute('data-sec'), 10));
+      });
+      mRafraichirPins();
     }
     function mSceneIndispo() {
       var scene = $('mt-scene'); if (!scene) return;
@@ -908,7 +1030,10 @@
       if (!txt) { msg.className = 'msg err'; msg.textContent = 'Décrivez votre retour.'; return; }
       $('mt-ajout').disabled = true;
       mPost(MONTAGE, { action: 'ajouter-retour', sujetCode: M.code, texte: txt, timecode: tc, categorie: cat }).then(function (res) {
-        if (res.status === 200 && res.body && res.body.ok) { mCharger(M.rangAff); return; } // panneau rechargé → le retour apparaît
+        if (res.status === 200 && res.body && res.body.ok) {
+          if (M.capeActif) mRetirerPastille(M.capeActif); // le moment commenté devient un brouillon SERVEUR → il quitte la liste locale
+          mCharger(M.rangAff); return; // panneau rechargé → le retour (brouillon serveur) apparaît
+        }
         if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
         var m = $('mt-forme-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; }
         var b = $('mt-ajout'); if (b) b.disabled = false;
