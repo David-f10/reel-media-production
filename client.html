@@ -159,6 +159,7 @@
     .mt-pins-t{width:100%;font-size:11px;color:var(--txt3);margin-bottom:2px}
     .mt-pin{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:3px 4px 3px 9px;border-radius:5px;cursor:pointer}
     .mt-pin:hover,.mt-pin:focus-visible{background:var(--rouge);color:#fff;outline:none}
+    .mt-pin-actif{background:var(--rouge);color:#fff} /* moment chargé dans le champ = ce qui partira */
     .mt-pin-x{border:0;background:transparent;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0 3px;opacity:.7}
     .mt-pin-x:hover{opacity:1}
     /* Champ « Moment du film » : libellé + ligne timecode avec − / + autour, + aide. */
@@ -923,9 +924,15 @@
     // Capture instantanée pendant la lecture : on empile l'estimation, on NE recharge PAS l'iframe (pas
     // d'interruption). Le client commente plus tard en cliquant la pastille.
     function mMarquer() {
-      var arr = mMomentsLire(M.code);
-      arr.push({ id: 'p' + Date.now() + '-' + Math.floor(Math.random() * 1000), sec: mEstimation() });
-      mMomentsEcrire(M.code, arr);
+      var sec = mEstimation();
+      var id = 'p' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+      var arr = mMomentsLire(M.code); arr.push({ id: id, sec: sec }); mMomentsEcrire(M.code, arr);
+      // AUTO-CHARGE le moment le plus récent dans le champ : jamais 0:00 par défaut (un retour ne doit pas
+      // partir sur une valeur fausse que le client n'a pas vue). SANS re-seek (capture pendant la lecture → on
+      // n'interrompt pas) ni focus (on ne vole pas l'attention au film). Le clic EXPLICIT sur une pastille, lui,
+      // re-seek et met en pause (cf. mChargerPastille).
+      M.capeActif = id;
+      var el = $('mt-tc'); if (el) el.value = mSecVersTc(sec);
       mRafraichirPins();
       var b = $('mt-cap'); if (b) { b.textContent = '✓ Moment marqué'; setTimeout(function () { var c = $('mt-cap'); if (c) c.textContent = '⦿ Marquer ce moment'; }, 900); }
     }
@@ -935,7 +942,8 @@
       if (!arr.length) { w.innerHTML = ''; return; }
       w.innerHTML = '<div class="mt-pins"><span class="mt-pins-t">Moments marqués — cliquez pour commenter</span>' +
         arr.map(function (p) {
-          return '<button type="button" class="mt-pin" data-pin="' + escAttr(p.id) + '" data-sec="' + p.sec + '">' + esc(mSecVersTc(p.sec)) +
+          // mt-pin-actif = le moment actuellement chargé dans le champ (ce qui PARTIRA) → le client voit lequel.
+          return '<button type="button" class="mt-pin' + (p.id === M.capeActif ? ' mt-pin-actif' : '') + '" data-pin="' + escAttr(p.id) + '" data-sec="' + p.sec + '">' + esc(mSecVersTc(p.sec)) +
             '<span class="mt-pin-x" data-pinx="' + escAttr(p.id) + '" role="button" aria-label="Retirer ce moment">✕</span></button>';
         }).join('') + '</div>';
     }
@@ -943,7 +951,8 @@
     function mChargerPastille(id, sec) {
       M.capeActif = id;
       var el = $('mt-tc'); if (el) el.value = mSecVersTc(sec);
-      mReseek(sec);
+      mRafraichirPins();   // met à jour la surbrillance « pastille active » (le client voit laquelle partira)
+      mReseek(sec);        // re-seek → l'iframe recharge et arrive EN PAUSE (réponse (3)) ; aucun appel open
       var tx = $('mt-txt'); if (tx) tx.focus();
     }
     function mRetirerPastille(id) {
@@ -964,6 +973,13 @@
         if (t && t.getAttribute && t.getAttribute('data-pin')) mChargerPastille(t.getAttribute('data-pin'), parseInt(t.getAttribute('data-sec'), 10));
       });
       mRafraichirPins();
+      // Au (re)rendu (ex. après un rechargement de page, ou après avoir commenté un moment) : si des moments
+      // restent en attente et qu'aucun n'est chargé, on charge le PLUS RÉCENT dans le champ → jamais 0:00 par
+      // défaut tant qu'il y a des pastilles. Sans re-seek (pas de pause auto au rendu) ni focus.
+      if (!M.capeActif) {
+        var attente = mMomentsLire(M.code);
+        if (attente.length) { var p = attente[attente.length - 1]; M.capeActif = p.id; var ch = $('mt-tc'); if (ch) ch.value = mSecVersTc(p.sec); mRafraichirPins(); }
+      }
     }
     function mSceneIndispo() {
       var scene = $('mt-scene'); if (!scene) return;
