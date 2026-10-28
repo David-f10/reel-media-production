@@ -165,8 +165,15 @@ exports.handler = async (event) => {
       const valideeClient = courante ? !!dstart(courante.properties, 'Date validation client') : false;
       // Le client a-t-il ENVOYÉ des retours en ligne sur la courante ? (tour clos)
       const retoursEnvoyes = courante ? (retoursParSujet[p.id] || []).some(r => sel(r.properties, 'Source') === 'Client' && cb(r.properties, 'Déposé en ligne') && !cb(r.properties, 'Brouillon') && sel(r.properties, 'Version') === vInterne) : false;
-      // « à relire » = une courante envoyée, non validée, sans retours envoyés (il n'a rien fait).
-      const estARelire = !!courante && !valideeClient && !retoursEnvoyes;
+      // « à relire » = une courante envoyée, non validée, sans retours envoyés (il n'a rien fait) ET PAS
+      // LIVRÉE. Le « && !livre » ferme un trou indépendant du hook de validation PAD (#176) : le statut peut
+      // passer à PAD DIRECTEMENT dans Notion (l'équipe le fait couramment), sans déclencher le hook qui pose
+      // « Date validation client ». Un tel projet serait alors livré ET non-validé → il apparaîtrait à la fois
+      // dans Livrés et dans « À relire » (le client voit son film livré, et juste au-dessus une invitation à
+      // le commenter). En excluant les livrés d'« À relire », l'espace est cohérent quelle que soit la façon
+      // dont le statut a changé (app, Notion, rattrapage). Le hook reste utile — il pose la date, donc la vue
+      // montage affiche « validée » au lieu de rester muette — mais la justesse de l'espace n'en dépend plus.
+      const estARelire = !!courante && !valideeClient && !retoursEnvoyes && !livre;
       // Balle au client (→ étape Validation) UNIQUEMENT si la courante est envoyée, pas validée, ET sans
       // retours envoyés. Tour clos (retours envoyés) → l'étape retombe sur le statut interne (Montage) :
       // « vous avez parlé, on retravaille », pas « on vous attend » (correctif du mensonge observé sur B33D).
