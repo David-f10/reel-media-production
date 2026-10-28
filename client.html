@@ -490,8 +490,11 @@
       if (aRelire.length) {
         h += '<h2>À relire <span class="n">' + aRelire.length + '</span></h2><div class="attente">' +
           aRelire.map(function (p) {
+            // « tour N sur X » = numéro de tour (rang recalculé sur les versions envoyées) + séries accordées.
+            // AFFICHAGE SEULEMENT : repère pour que le client arbitre ses demandes, jamais un blocage.
+            var tour = p.numero ? ('<span>tour ' + p.numero + ' sur ' + (p.seriesAccordees || 5) + '</span>') : '';
             return '<div class="att"><div class="att-m"><div class="att-t">' + esc(p.titre) + '</div>' +
-              '<div class="att-l"><span class="code">' + esc(p.code) + '</span><span>Version ' + (p.numero || '') + '</span>' +
+              '<div class="att-l"><span class="code">' + esc(p.code) + '</span>' + tour +
               '<span class="mono">déposée le ' + esc(dateFrLongue(p.dateDeposee)) + '</span></div></div>' +
               '<button type="button" class="voir-montage" data-code="' + escAttr(p.code) + '">Voir le montage →</button></div>';
           }).join('') + '</div>';

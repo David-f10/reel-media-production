@@ -50,6 +50,13 @@ const ti = (pr, k) => ((pr && pr[k] && pr[k].title) || []).map(t => t.plain_text
 const sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
 const cb = (pr, k) => !!(pr && pr[k] && pr[k].checkbox);
 const dstart = (pr, k) => (pr && pr[k] && pr[k].date && pr[k].date.start) || '';
+// « Séries accordées » = nombre d'allers-retours contractuels. Valeur ÉCRITE si présente, sinon défaut 5
+// (ceinture pour les projets créés demain ; la valeur écrite prime toujours — un projet négocié à 3 affiche 3).
+// ⚠️ AFFICHAGE SEULEMENT, JAMAIS une garde : on montre « tour N sur X » pour que le client arbitre lui-même
+// ses demandes — on ne FERME JAMAIS « Envoyer mes retours » au Nᵉ tour. Fermer le bouton transformerait une
+// conversation commerciale en refus technique ; le dépassement se gère avec le client, pas contre lui. Ne
+// « complète » PAS ce helper avec un blocage.
+const seriesAccordees = (pr) => { const n = pr && pr['Séries accordées'] && pr['Séries accordées'].number; return (typeof n === 'number' && n > 0) ? n : 5; };
 
 async function query(dbId, body, token) {
   const r = await fetch('https://api.notion.com/v1/databases/' + dbId + '/query', {
@@ -196,7 +203,7 @@ exports.handler = async (event) => {
         // (Validé mais pas livré : estARelire faux → aMontage vrai → il peut revenir sur le film validé.)
         enCours.push({ code, titre, realisePar: realisePar(pr), etape, pastille: pastille(pr, auj), aMontage: !!courante && !estARelire });
       }
-      if (estARelire) aRelire.push({ code, titre, numero: vsClient.length, dateDeposee: dstart(courante.properties, 'Date envoi client') });
+      if (estARelire) aRelire.push({ code, titre, numero: vsClient.length, seriesAccordees: seriesAccordees(pr), dateDeposee: dstart(courante.properties, 'Date envoi client') });
     });
 
     livres.sort((a, b) => (a.dateDiffusion < b.dateDiffusion ? 1 : a.dateDiffusion > b.dateDiffusion ? -1 : 0)); // plus récent d'abord
