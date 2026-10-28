@@ -1,0 +1,17 @@
+{
+  "name": "rmp-transcoder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Worker jetable-en-apparence : master Drive -> proxy leger H.264 dans un bucket + URL signee. Inerte tant que rien ne l'appelle (tranche 1).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "7.14.0",
+    "googleapis": "144.0.0"
+  }
+}
