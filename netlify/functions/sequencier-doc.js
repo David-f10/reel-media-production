@@ -87,13 +87,16 @@ function contenuParagraphe(par, ctx) {
     if (pe.textRun) { h += rendreRun(pe.textRun, ctx); continue; }
     if (pe.inlineObjectElement) { h += '[image du séquencier] '; continue; }
     // person (@ d'une personne) et richLink (lien intelligent vers un autre Doc) : on rend leur TEXTE
-    // (nom / titre), échappé, en texte simple — jamais l'URI, aucune balise, aucun lien sortant. Préserve
-    // le sens sans élargir la liste blanche.
-    if (pe.person) { h += esc((pe.person.personProperties && pe.person.personProperties.name) || ''); continue; }
-    if (pe.richLink) { h += esc((pe.richLink.richLinkProperties && pe.richLink.richLinkProperties.title) || ''); continue; }
-    // Tout autre élément de paragraphe (footnoteReference, equation, autoText, pageBreak, horizontalRule…)
-    // n'est pas rendu → COMPTÉ comme les structurels, pour que la mention « certaines parties ne s'affichent
-    // pas ici » se déclenche. Plus de troncature silencieuse AU NIVEAU DU PARAGRAPHE non plus.
+    // (nom / titre), échappé, en texte simple — jamais l'URI, aucune balise, aucun lien sortant. `name`/
+    // `title` sont FACULTATIFS chez Google (mention non résolue) : texte rendu VIDE → on compte (sinon la
+    // mention disparaîtrait en silence), sinon on rend.
+    if (pe.person) { const n = esc((pe.person.personProperties && pe.person.personProperties.name) || ''); if (n) h += n; else ctx.structurelsIgnores++; continue; }
+    if (pe.richLink) { const t = esc((pe.richLink.richLinkProperties && pe.richLink.richLinkProperties.title) || ''); if (t) h += t; else ctx.structurelsIgnores++; continue; }
+    // Purement PRÉSENTATIONNELS : aucun contenu perdu → ignorés SANS compter (une mention qui crie au loup
+    // finit ignorée — même raisonnement que sectionBreak au niveau structurel).
+    if (pe.pageBreak || pe.horizontalRule || pe.columnBreak) continue;
+    // Le reste (equation, footnoteReference, autoText, inconnu) PORTE du contenu → non rendu, donc COMPTÉ
+    // → la mention « certaines parties ne s'affichent pas ici » se déclenche.
     ctx.structurelsIgnores++;
   }
   return h.replace(/\s+$/, '');
