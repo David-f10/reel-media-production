@@ -179,12 +179,16 @@ async function openViewingPermission(fileId) {
     if (isViewAlive(existing, now)) {
       existing.lastSeen = now;
       await store.setJSON(fileId, existing);
-      return { permissionId: existing.permissionId, reused: true, expiresAt: existing.expiresAt };
+      // dureeMs : lue une fois (au premier open) et mise en cache dans l'entrée ; les entrées créées avant
+      // l'ajout de ce champ renvoient null → le client traite une durée inconnue comme « pas de frise ».
+      return { permissionId: existing.permissionId, reused: true, expiresAt: existing.expiresAt, dureeMs: existing.dureeMs || null };
     }
 
     // ── Pré-contrôle : accès + droit de partage (même règle que le download) ──
+    // On récupère aussi videoMediaMetadata(durationMillis) dans ce MÊME files.get : aucune requête Drive de
+    // plus, et la durée sert au client à refuser un timecode hors film et à mettre la frise à l'échelle.
     const file = await gapi(sa.token, 'GET',
-      `/files/${fileId}?fields=id,name,size,mimeType,capabilities(canShare)&supportsAllDrives=true`, 'metadata');
+      `/files/${fileId}?fields=id,name,size,mimeType,capabilities(canShare),videoMediaMetadata(durationMillis)&supportsAllDrives=true`, 'metadata');
     if (file.capabilities && file.capabilities.canShare === false) {
       const err = new Error('Fichier non partageable par le compte de service — partager le dossier des vidéos avec ' +
         sa.saEmail + ' en tant qu’Éditeur.');
@@ -198,13 +202,17 @@ async function openViewingPermission(fileId) {
       `/files/${fileId}/permissions?supportsAllDrives=true`, 'permission-create',
       { type: 'anyone', role: 'reader' });
 
+    const dureeMs = (file.videoMediaMetadata && file.videoMediaMetadata.durationMillis)
+      ? parseInt(file.videoMediaMetadata.durationMillis, 10) : null;
+
     const entry = {
       fileId, permissionId: perm.id, openedAt: now, lastSeen: now,
-      expiresAt: now + VIEW_MAX_SESSION_MS, type: 'view'
+      expiresAt: now + VIEW_MAX_SESSION_MS, type: 'view',
+      dureeMs: (Number.isFinite(dureeMs) && dureeMs > 0) ? dureeMs : null
     };
     await store.setJSON(fileId, entry);
 
-    return { permissionId: perm.id, reused: false, expiresAt: entry.expiresAt };
+    return { permissionId: perm.id, reused: false, expiresAt: entry.expiresAt, dureeMs: entry.dureeMs };
   } catch (e) {
     if (!e.saEmail) e.saEmail = sa.saEmail;
     throw e;

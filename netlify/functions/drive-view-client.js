@@ -138,8 +138,9 @@ exports.handler = async (event) => {
     const result = await openViewingPermission(fileId);
     return {
       statusCode: 200, headers,
-      // RENVOIE le fileId résolu : l'iframe le monte, puis heartbeat/close le reportent.
-      body: JSON.stringify({ ok: true, alive: true, reused: result.reused, expiresAt: result.expiresAt, fileId: fileId })
+      // RENVOIE le fileId résolu : l'iframe le monte, puis heartbeat/close le reportent. dureeMs (null si
+      // inconnue) sert au client à refuser un timecode hors film et à donner son échelle à la frise.
+      body: JSON.stringify({ ok: true, alive: true, reused: result.reused, expiresAt: result.expiresAt, fileId: fileId, dureeMs: result.dureeMs || null })
     };
   } catch (e) {
     if (e.step === 'auth-sa' || e.step === 'registre') {

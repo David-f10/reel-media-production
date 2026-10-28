@@ -141,6 +141,16 @@
     .ret{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
     .ret-h{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
     .ret-tc{font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:1px 7px;border-radius:4px}
+    /* Timecode cliquable (saut dans le lecteur). Rendu cliquable seulement une fois la durée connue et le tc dans le film. */
+    .ret-tc-seek{cursor:pointer}
+    .ret-tc-seek::before{content:'▶';font-size:8px;margin-right:4px;vertical-align:baseline}
+    .ret-tc-seek:hover,.ret-tc-seek:focus-visible{background:var(--rouge);color:#fff;outline:none}
+    /* Timecode hors film (après la fin) : désactivé visuellement, jamais cliquable. */
+    .ret-tc-hs{opacity:.45;text-decoration:line-through}
+    /* Frise : barre à l'échelle de la durée ; un repère par retour situé à sa position (tc/durée). */
+    .mt-frise{position:relative;height:20px;margin:8px 0 2px;border-radius:5px;background:var(--bg4);border:1px solid var(--line)}
+    .mt-fr-m{position:absolute;top:2px;bottom:2px;width:3px;margin-left:-1px;padding:0;border:0;border-radius:2px;background:var(--rouge);cursor:pointer;transition:transform .08s}
+    .mt-fr-m:hover,.mt-fr-m:focus-visible{transform:scaleX(2);outline:none}
     .ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
     .ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
     .ret-brouillon{font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber);opacity:.85;padding:1px 7px;border-radius:4px}
@@ -604,13 +614,22 @@
     var ETIQ = { 'a-relire': 'à relire', 'retours-envoyes': 'retours envoyés', 'validee': 'validée' };
 
     // État de la vue en cours. fileId = SEULEMENT celui de la courante (jamais une version passée).
-    var M = { code: '', rangAff: 0, nbVersions: 0, fileId: '', hb: null, notice: '' };
+    var M = { code: '', rangAff: 0, nbVersions: 0, fileId: '', hb: null, notice: '', dureeMs: null };
+
+    // Timecode « m:ss » (ou « h:mm:ss ») → secondes. Chiffres purs seulement ; sinon null (ex. « — », vide).
+    function mTcEnSecondes(tc) {
+      var parts = String(tc || '').trim().split(':');
+      if (!parts.length || parts.some(function (p) { return !/^\d+$/.test(p); })) return null;
+      var s = 0;
+      for (var i = 0; i < parts.length; i++) s = s * 60 + parseInt(parts[i], 10);
+      return s;
+    }
 
     function mFmtDate(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? (parseInt(m[3], 10) + ' ' + MOIS[parseInt(m[2], 10) - 1]) : ''; }
     function mBattementsStop() { if (M.hb) { clearInterval(M.hb); M.hb = null; } }
-    function mQuitter() { mBattementsStop(); M.fileId = ''; montrer('vue-accueil'); }
+    function mQuitter() { mBattementsStop(); M.fileId = ''; M.dureeMs = null; montrer('vue-accueil'); }
 
-    function ouvrirMontage(code) { mBattementsStop(); M.code = code; M.rangAff = 0; M.nbVersions = 0; M.fileId = ''; M.notice = ''; montrer('vue-montage'); mCharger(); }
+    function ouvrirMontage(code) { mBattementsStop(); M.code = code; M.rangAff = 0; M.nbVersions = 0; M.fileId = ''; M.dureeMs = null; M.notice = ''; montrer('vue-montage'); mCharger(); }
 
     function mPost(url, corps) {
       return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify(corps) })
@@ -659,7 +678,11 @@
         var badge = r.brouillon ? '<span class="ret-brouillon">brouillon · non envoyé</span>' : '';
         var suppr = (r.brouillon && r.mien && estCourante && r.id)
           ? '<div class="ret-foot"><button class="ret-suppr" type="button" data-id="' + escAttr(r.id) + '">Supprimer</button></div>' : '';
-        return '<div class="ret"><div class="ret-h"><span class="ret-tc">' + esc(r.timecode || '—') + '</span>' +
+        // data-sec : secondes du timecode (ou absent si non parsable). Le saut/la frise sont activés plus tard
+        // par mPeindreFrise, une fois la durée connue (c'est elle qui tranche « possible » vs « hors film »).
+        var secTc = mTcEnSecondes(r.timecode);
+        var tcAttr = (secTc != null) ? (' data-sec="' + secTc + '"') : '';
+        return '<div class="ret"><div class="ret-h"><span class="ret-tc"' + tcAttr + '>' + esc(r.timecode || '—') + '</span>' +
           (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + badge + '</div>' +
           '<div class="ret-x">' + esc(r.texte) + '</div>' + reform + suppr + '</div>';
       }).join('') : '<div class="ret"><div class="ret-x" style="color:var(--txt3)">Aucun retour sur cette version.</div></div>';
@@ -671,13 +694,15 @@
       // Vidéo : TOUTE version affichée a un lecteur (tranche 4 : la condition 4 est tombée, les versions
       // passées se regardent aussi). Le lecteur s'ouvre par RANG (drive-view-client résout le fileId).
       var scene = '<div class="scene" id="mt-scene"><div class="scene-v"><p class="sub" style="color:var(--txt3)">Chargement de la vidéo…</p></div></div>';
+      // Frise des retours : masquée jusqu'à ce que la durée arrive (mPeindreFrise l'allume et y place les repères).
+      var frise = '<div class="mt-frise" id="mt-frise" title="Vos retours sur la frise — cliquez un repère pour y aller" style="display:none"></div>';
 
       // Téléchargement : sur CHAQUE version envoyée. Le serveur résout le fichier à partir du RANG ; aucun
       // fileId de version ne descend dans la page.
       var telHtml = '<button class="bouton gris2" type="button" id="mt-tel">⬇ Télécharger cette version</button>' +
         '<div class="msg" id="mt-tel-msg" role="status" aria-live="polite"></div>';
 
-      $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + telHtml + '</div>' +
+      $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + frise + telHtml + '</div>' +
         '<div class="panneau"><div class="pan-t"><span>Mes retours</span><span class="pan-n">' + rets.length + '</span></div>' +
         '<div class="retours">' + retoursHtml + '</div>' + bas + '</div></div>';
 
@@ -701,7 +726,7 @@
         tcEl.addEventListener('keydown', function (e) { if (e.key === ' ') { e.preventDefault(); mFormatTc(tcEl); var d = $('mt-txt'); if (d) d.focus(); } });
       }
       [].slice.call($('mt-vers').querySelectorAll('.vch')).forEach(function (b) {
-        b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; mCharger(rg); } });
+        b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; M.dureeMs = null; mCharger(rg); } });
       });
 
       // 2e appel, APRÈS le rendu du shell : ouvre la permission Drive pour la version AFFICHÉE (courante OU
@@ -750,22 +775,73 @@
     function mOuvrirVideo(rang) {
       // open par RANG : le serveur résout et RENVOIE le fileId (on ne l'a plus d'avance). On le garde pour
       // les battements et le close. L'iframe est montée par propriété DOM (jamais innerHTML, spec §8).
+      M.dureeMs = null; // la réponse open fait foi ; on repart propre pour ne pas garder une durée d'une autre version
       mPost(DRIVEVIEW, { action: 'open', sujetCode: M.code, rang: rang }).then(function (res) {
         if (!$('mt-scene')) return; // l'utilisateur a changé de version entre-temps
-        if (res.status === 200 && res.body && res.body.ok && res.body.fileId) { M.fileId = res.body.fileId; mMonterIframe(res.body.fileId); mBattementsDemarrer(); }
+        if (res.status === 200 && res.body && res.body.ok && res.body.fileId) {
+          M.fileId = res.body.fileId;
+          M.dureeMs = (typeof res.body.dureeMs === 'number' && res.body.dureeMs > 0) ? res.body.dureeMs : null;
+          mMonterIframe(res.body.fileId);
+          mBattementsDemarrer();
+          mPeindreFrise(); // active le saut sur les timecodes dans le film + peint la frise (si durée connue)
+        }
         else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
         else mSceneIndispo();
       }).catch(function () { if ($('mt-scene')) mSceneIndispo(); });
     }
-    function mMonterIframe(fileId) {
+    // Monte le lecteur, OU le fait sauter à tSec (secondes). Drive honore ?t= au chargement ; pour re-sauter il
+    // faut recharger l'iframe — mais on REMPLOIE l'iframe existante (on pose juste .src) au lieu de la détruire
+    // (innerHTML=''), ce qui évite l'écran noir de démontage. Aucun appel open ici : le fileId est déjà ouvert.
+    function mMonterIframe(fileId, tSec) {
       var scene = $('mt-scene'); if (!scene) return;
+      var src = 'https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview' +
+        ((tSec && tSec > 0) ? ('?t=' + Math.floor(tSec)) : '');
+      var f = scene.querySelector('iframe.mt-iframe');
+      if (f) { f.src = src; return; } // rechargement EN PLACE (pas de démontage → pas d'écran noir)
       scene.innerHTML = '';
-      var f = document.createElement('iframe');
-      f.src = 'https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview'; // propriété DOM, pas d'attribut HTML
+      f = document.createElement('iframe');
+      f.src = src; // propriété DOM, pas d'attribut HTML
       f.className = 'mt-iframe';
       f.setAttribute('allow', 'autoplay');
       f.setAttribute('allowfullscreen', '');
       scene.appendChild(f);
+    }
+    // Saut au timecode : REMPLOIE le fileId déjà ouvert (jamais de nouvel open → pas de permission de plus, pas
+    // de 503). Refuse un timecode hors film quand la durée est connue (sinon on laisse passer, Drive borne seul).
+    function mSauter(sec) {
+      if (!M.fileId || sec == null || sec < 0) return;
+      if (M.dureeMs && (sec * 1000 >= M.dureeMs)) return; // après la fin → on n'y va pas
+      mMonterIframe(M.fileId, sec);
+    }
+    // Active le saut sur les timecodes des retours et peint la frise. Appelé APRÈS l'open (durée + fileId connus).
+    // Un tc hors film (≥ durée) est barré et jamais cliquable. La frise n'apparaît que si la durée est connue :
+    // c'est elle qui donne l'échelle (position = tc/durée).
+    function mPeindreFrise() {
+      var dureeSec = M.dureeMs ? (M.dureeMs / 1000) : null;
+      var marqueurs = [];
+      [].slice.call(document.querySelectorAll('#mt-corps .ret-tc[data-sec]')).forEach(function (el) {
+        var sec = parseInt(el.getAttribute('data-sec'), 10);
+        if (!isFinite(sec)) return;
+        if (dureeSec != null && sec >= dureeSec) { el.classList.add('ret-tc-hs'); el.title = 'Après la fin du film'; return; }
+        el.classList.add('ret-tc-seek');
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        (function (s) {
+          el.addEventListener('click', function () { mSauter(s); });
+          el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mSauter(s); } });
+        })(sec);
+        if (dureeSec != null) marqueurs.push({ sec: sec, tc: el.textContent });
+      });
+      var fr = $('mt-frise'); if (!fr) return;
+      if (dureeSec == null || !marqueurs.length) { fr.style.display = 'none'; fr.innerHTML = ''; return; }
+      fr.style.display = '';
+      fr.innerHTML = marqueurs.map(function (m) {
+        var pct = Math.max(0, Math.min(100, (m.sec / dureeSec) * 100));
+        return '<button type="button" class="mt-fr-m" style="left:' + pct.toFixed(2) + '%" data-sec="' + m.sec + '" aria-label="Aller à ' + escAttr(m.tc) + '"></button>';
+      }).join('');
+      [].slice.call(fr.querySelectorAll('.mt-fr-m')).forEach(function (b) {
+        b.addEventListener('click', function () { mSauter(parseInt(b.getAttribute('data-sec'), 10)); });
+      });
     }
     function mSceneIndispo() {
       var scene = $('mt-scene'); if (!scene) return;
@@ -853,8 +929,8 @@
       }).catch(function () { var m = $('mt-fin-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; } if (bV) bV.disabled = false; if (bE) bE.disabled = false; });
     }
 
-    function mVide() { mBattementsStop(); M.fileId = ''; $('mt-vers').innerHTML = ''; $('mt-meta').textContent = ''; $('mt-corps').innerHTML = '<div class="etat-vide">Aucune version à relire pour l\'instant. Vous serez prévenu·e dès qu\'un montage est prêt.</div>'; }
-    function mIndispo() { mBattementsStop(); M.fileId = ''; $('mt-vers').innerHTML = ''; $('mt-meta').textContent = ''; $('mt-corps').innerHTML = '<div class="etat-indispo">Service temporairement indisponible.<div><button type="button" id="mt-reessayer">Réessayer</button></div></div>'; $('mt-reessayer').addEventListener('click', function () { mCharger(M.rangAff || undefined); }); }
+    function mVide() { mBattementsStop(); M.fileId = ''; M.dureeMs = null; $('mt-vers').innerHTML = ''; $('mt-meta').textContent = ''; $('mt-corps').innerHTML = '<div class="etat-vide">Aucune version à relire pour l\'instant. Vous serez prévenu·e dès qu\'un montage est prêt.</div>'; }
+    function mIndispo() { mBattementsStop(); M.fileId = ''; M.dureeMs = null; $('mt-vers').innerHTML = ''; $('mt-meta').textContent = ''; $('mt-corps').innerHTML = '<div class="etat-indispo">Service temporairement indisponible.<div><button type="button" id="mt-reessayer">Réessayer</button></div></div>'; $('mt-reessayer').addEventListener('click', function () { mCharger(M.rangAff || undefined); }); }
 
     // Entrées & sortie (délégation : le bouton « Voir le montage → » est rendu par rendre LISTE).
     // Délégation : tout élément porteur d'un data-code dans l'accueil (« Voir le montage → » de À relire,
