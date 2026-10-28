@@ -187,6 +187,11 @@
     .att-t{font-size:16px;font-weight:500;letter-spacing:-.005em}
     .att-l{display:flex;flex-wrap:wrap;gap:9px;align-items:center;font-size:12.5px;color:var(--txt2)}
     .att-l .mono{font-family:var(--mono);font-size:11.5px;color:var(--txt3)}
+    /* « À valider » (séquencier) : action, pas alerte → on retire l'accent rouge de .att */
+    .att.sq{border-color:var(--line2);border-left-color:var(--line2)}
+    .sq-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;flex:1 1 220px;justify-content:flex-end}
+    .sq-corr-txt{width:100%;min-height:70px;resize:vertical;background:var(--bg3);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);font-size:14px;padding:10px 12px}
+    .sq-corr-bas{display:flex;gap:10px;align-items:center;margin-top:8px}
     .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden}
     .stat{background:var(--bg2);padding:16px 17px 14px}
     .stat-n{font-family:var(--mono);font-size:25px;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums;display:block;line-height:1.1}
@@ -448,11 +453,12 @@
       if (status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
       if (status !== 200 || !d || !d.ok) { espaceIndispo(); return; } // 503/échec → distinct, jamais des blocs vides
 
-      var aRelire = d.aRelire || [], enCours = d.enCours || [], livres = d.livres || [], col = d.collaboration || {};
+      var aValider = d.aValider || [], aRelire = d.aRelire || [], enCours = d.enCours || [], livres = d.livres || [], col = d.collaboration || {};
       var zone = $('zone-projets');
 
-      // PREMIER ACCÈS : ok ET rien à montrer (le cas normal au démarrage). Gardé sur ok===true → jamais sur panne.
-      if (!aRelire.length && !enCours.length && !livres.length) {
+      // PREMIER ACCÈS : ok ET rien à montrer (le cas normal au démarrage). aValider inclus : un projet en
+      // phase séquencier (rien d'autre encore) ne doit pas être caché derrière l'écran de bienvenue.
+      if (!aValider.length && !aRelire.length && !enCours.length && !livres.length) {
         var nomP = lire(K_NOM);
         zone.innerHTML = '<div class="premier"><h3>Bienvenue dans votre espace' + (nomP ? (', ' + esc(nomP)) : '') + '.</h3>' +
           '<p>Vos films apparaîtront ici au fur et à mesure. Rien à installer, rien à télécharger — tout se passe sur cette page.</p>' +
@@ -465,6 +471,21 @@
       }
 
       var h = '';
+      // 0. À VALIDER (séquencier) — tout en haut : le client valide le séquencier (ou demande des corrections)
+      //    avant que le tournage démarre. seqLienHtml = point d'accroche pour l'ouverture du document ;
+      //    laissé inerte tant que la convention de partage des Google Docs n'est pas tranchée (à brancher ici).
+      if (aValider.length) {
+        h += '<h2>À valider <span class="n">' + aValider.length + '</span></h2><div class="attente">' +
+          aValider.map(function (p) {
+            return '<div class="att sq"><div class="att-m"><div class="att-t">' + esc(p.titre) + '</div>' +
+              '<div class="att-l"><span class="code">' + esc(p.code) + '</span><span>Séquencier à valider</span></div>' +
+              seqLienHtml(p) + '</div>' +
+              '<div class="sq-actions">' +
+              '<button type="button" class="bouton vert sq-ok" data-seq-code="' + escAttr(p.code) + '">Valider le séquencier</button>' +
+              '<button type="button" class="lnk sq-corr" data-corr-code="' + escAttr(p.code) + '">Demander des corrections</button>' +
+              '</div></div>';
+          }).join('') + '</div>';
+      }
       // 1. À relire — bloc d'action, affiché seulement s'il y a quelque chose à relire.
       if (aRelire.length) {
         h += '<h2>À relire <span class="n">' + aRelire.length + '</span></h2><div class="attente">' +
@@ -816,15 +837,59 @@
     // Entrées & sortie (délégation : le bouton « Voir le montage → » est rendu par rendre LISTE).
     // Délégation : tout élément porteur d'un data-code dans l'accueil (« Voir le montage → » de À relire,
     // « Revoir » des Livrés) ouvre la vue montage. On clé sur data-code, pas sur une classe de style.
+    var SEQ = '/.netlify/functions/valider-sequencier-client';
     $('zone-projets').addEventListener('click', function (e) {
-      // Remonter jusqu'à un élément porteur d'une action : ouvrir le montage (data-code) OU télécharger
-      // (data-dl-code). Le télécharger doit rester SYNCHRONE au clic (window.open non bloqué).
-      var t = e.target; while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-code') || t.getAttribute('data-dl-code')))) t = t.parentNode;
+      // Remonter jusqu'à un élément porteur d'une action : ouvrir le montage (data-code), télécharger
+      // (data-dl-code), valider le séquencier (data-seq-code) ou demander des corrections (data-corr-code).
+      // Le télécharger doit rester SYNCHRONE au clic (window.open non bloqué).
+      var t = e.target; while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-code') || t.getAttribute('data-dl-code') || t.getAttribute('data-seq-code') || t.getAttribute('data-corr-code')))) t = t.parentNode;
       if (!t || t === this || !t.getAttribute) return;
+      var seq = t.getAttribute('data-seq-code');
+      if (seq) { e.preventDefault(); mValiderSequencier(seq, t); return; }
+      var corr = t.getAttribute('data-corr-code');
+      if (corr) { e.preventDefault(); mDemanderCorrections(corr, t); return; }
       var dl = t.getAttribute('data-dl-code');
       if (dl) { e.preventDefault(); telechargerLivre(dl, parseInt(t.getAttribute('data-dl-rang'), 10), t); return; }
       if (t.getAttribute('data-code')) { e.preventDefault(); ouvrirMontage(t.getAttribute('data-code')); }
     });
+    // ── Séquencier : point d'accroche pour l'ouverture du document. INERTE pour l'instant — la convention
+    //    de partage des Google Docs (lien sortant gardé vs permission dédiée) n'est pas tranchée. Quand elle
+    //    le sera, c'est ICI qu'on rend le lien/bouton (p.lienSeq est déjà descendu par espace-client). ──
+    function seqLienHtml(p) { return ''; }
+    // Valider le séquencier → POST { action:'valider' }. Succès → on recharge (le projet quitte « À valider »).
+    function mValiderSequencier(code, el) {
+      if (!code) return;
+      if (el) { el.disabled = true; el.textContent = 'Validation…'; }
+      mPost(SEQ, { action: 'valider', sujetCode: code }).then(function (res) {
+        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 200 && res.body && res.body.ok) { chargerEspace(); return; }
+        if (el) { el.disabled = false; el.textContent = 'Réessayer la validation'; }
+      }).catch(function () { if (el) { el.disabled = false; el.textContent = 'Réessayer la validation'; } });
+    }
+    // Demander des corrections → petit formulaire inline (texte) puis POST { action:'corrections' }. AUCUN
+    // changement d'état côté serveur : c'est un message à l'équipe, le projet reste « À valider ».
+    function mDemanderCorrections(code, el) {
+      if (!code) return;
+      var row = el; while (row && row !== document.body && !(row.className && /sq-actions/.test(row.className))) row = row.parentNode;
+      if (!row) return;
+      row.innerHTML = '<textarea class="sq-corr-txt" placeholder="Qu\'aimeriez-vous changer dans le séquencier ?" aria-label="Corrections souhaitées"></textarea>' +
+        '<div class="sq-corr-bas"><button type="button" class="bouton sq-corr-send">Envoyer la demande</button>' +
+        '<button type="button" class="lnk sq-corr-cancel">Annuler</button></div>' +
+        '<div class="msg" role="status" aria-live="polite"></div>';
+      var txt = row.querySelector('.sq-corr-txt'), send = row.querySelector('.sq-corr-send'), cancel = row.querySelector('.sq-corr-cancel'), msg = row.querySelector('.msg');
+      if (txt) txt.focus();
+      cancel.addEventListener('click', function () { chargerEspace(); }); // recharge → remet les boutons
+      send.addEventListener('click', function () {
+        var v = (txt.value || '').trim();
+        if (!v) { msg.className = 'msg err'; msg.textContent = 'Décrivez les corrections souhaitées.'; return; }
+        send.disabled = true; send.textContent = 'Envoi…';
+        mPost(SEQ, { action: 'corrections', sujetCode: code, texte: v }).then(function (res) {
+          if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+          if (res.status === 200 && res.body && res.body.ok) { msg.className = 'msg'; msg.textContent = 'Demande envoyée à l\'équipe.'; setTimeout(chargerEspace, 1200); return; }
+          send.disabled = false; send.textContent = 'Envoyer la demande'; msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.';
+        }).catch(function () { send.disabled = false; send.textContent = 'Envoyer la demande'; msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.'; });
+      });
+    }
     $('mt-retour').addEventListener('click', function (e) { e.preventDefault(); mQuitter(); });
     // ═══ FIN VUE MONTAGE ═══════════════════════════════════════════════════════════════════════════════
 
