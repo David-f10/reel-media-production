@@ -211,6 +211,24 @@ exports.handler = async (event) => {
     const recent = recents.find(p => reCode.test(rt(p.properties, 'Code')));
     if (recent) { const nom = sel(recent.properties, 'Contact Brand'); if (nom) interlocutrice = { nom }; }
 
+    // ── À VALIDER (séquencier) — requête SÉPARÉE, volontairement NON gardée par « Visible espace client ».
+    //    Le séquencier se valide AVANT tout montage : ces projets ne sont pas encore Visible (Visible = envoi
+    //    d'un montage). Le signal « prêt pour le client » du séquencier est « Validation Brand » posée ET
+    //    « Validation Client » pas encore. On expose seulement code/titre/lien séquencier — aucune version.
+    //    Filtres STABLES (préfixe Code + Brand + 2 checkbox), jamais de select dynamique. Échec → le catch
+    //    rend 503 (Réserve 2), jamais un bloc vide. (valider-sequencier-client re-vérifie tout côté serveur.) ──
+    const brutAValider = await queryTout(DB_PROD, { and: [
+      { property: 'Code', rich_text: { starts_with: codeBrand } },
+      { property: 'Format', select: { equals: 'Brand' } },
+      { property: 'Validation Brand', checkbox: { equals: true } },
+      { property: 'Validation Client', checkbox: { equals: false } }
+    ] }, token);
+    const aValider = brutAValider
+      // Re-filtre de SORTIE (défense en profondeur, comme le re-check Visible des exposés) : préfixe + ≥1
+      // lettre, ET on re-vérifie les deux checkbox côté serveur même si le filtre Notion les a déjà posées.
+      .filter(p => reCode.test(rt(p.properties, 'Code')) && sel(p.properties, 'Format') === 'Brand' && cb(p.properties, 'Validation Brand') && !cb(p.properties, 'Validation Client'))
+      .map(p => ({ code: rt(p.properties, 'Code'), titre: ti(p.properties, 'Titre'), lienSeq: (p.properties['Lien sequencier'] && p.properties['Lien sequencier'].url) || '' }));
+
     return {
       statusCode: 200, headers,
       body: JSON.stringify({
@@ -218,6 +236,7 @@ exports.handler = async (event) => {
         marque: liv.marque || '',
         interlocutrice,                                 // { nom } | null
         collaboration: { livres: livres.length, enCours: enCours.length, depuis: plusAncienneDiffusion ? moisFr(plusAncienneDiffusion) : null },
+        aValider,                                       // [{ code, titre, lienSeq }] — séquencier à valider (Validation Brand posée, Client non)
         aRelire,                                        // [{ code, titre, numero, dateDeposee }]
         enCours,                                        // [{ code, titre, realisePar, etape 0..2, pastille|null }]
         livres                                          // [{ code, titre, sousFormat, duree, realisePar, dateDiffusion }]
