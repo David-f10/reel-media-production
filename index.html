@@ -2417,7 +2417,8 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
   } catch(e) { console.warn('Erreur reload compteur '+formatDecli+':', e); }
   const c = compteurs[formatDecli];
   if(!c) { toast('Compteur '+formatDecli+' introuvable','err'); _creerDecliEnCours=false; return; }
-  const codeVal = `${c.prefixe}${c.dernierNumero+1}`;
+  const num = prochainNumero(formatDecli);
+  const codeVal = `${c.prefixe}${num}`;
   const titreDecli = `${parent.titre} · Décli ${String(numDecli).padStart(2,'0')}`;
   try {
     const newPage = await api('/pages','POST',{
@@ -2437,9 +2438,9 @@ async function creerDeclinaison(parentId, formatDecli='Desk'){
       }
     });
     await marquerCreePar(newPage.id); // lot 0 : auteur = celui qui crée (non-bloquant)
-    // Incrémenter compteur Desk
-    await api('/pages/'+c.id,'PATCH',{properties:{'Dernier numéro':{number:c.dernierNumero+1}}});
-    c.dernierNumero++;
+    // Compteur = filet : on l'aligne sur le numéro réellement attribué (max réel + plancher).
+    await api('/pages/'+c.id,'PATCH',{properties:{'Dernier numéro':{number:num}}});
+    c.dernierNumero=num;
     // Ajouter à la liste locale
     const newSujet = parsePage(await api('/pages/'+newPage.id,'GET').catch(()=>({id:newPage.id,properties:{
       Titre:{title:[{text:{content:titreDecli}}]},
@@ -5924,7 +5925,7 @@ function selFmt(fmt,el){
   }else{
     brandPanel.style.display='none';
     const c=compteurs[fmt];
-    if(c){document.getElementById('code-prev-val').textContent=c.prochainCode;prev.style.display='block';}
+    if(c){document.getElementById('code-prev-val').textContent=`${c.prefixe}${prochainNumero(fmt)}`;prev.style.display='block';}
     else prev.style.display='none';
   }
 }
@@ -6033,6 +6034,28 @@ function prochainNumeroBrand(listeClients){
   });
   const plancher=compteurs['Brand']?.dernierNumero||0;
   return Math.max(maxClients, plancher)+1;
+}
+
+// Prochain numéro d'un format = max(plancher compteur, plus grand code RÉEL en mémoire) + 1. Le compteur
+// devient un FILET, plus la seule source de vérité : un code attribué HORS de l'app (bouton Notion, saisie
+// manuelle) ou un compteur en retard ne peut plus produire de doublon — le prochain code voit le réel et
+// passe au-dessus. Gratuit : scan des sujets DÉJÀ en mémoire (appLoadData charge tous les actifs), aucune
+// requête. Brand garde sa logique par CLIENT (prochainNumeroBrand). Limite assumée : les sujets ARCHIVÉS ne
+// sont pas en mémoire → couverts par le plancher compteur ; les dérives réelles sont des créations récentes,
+// donc actives et vues ici.
+function maxCodeReel(format){
+  let mx=0;
+  for(const s of sujets){
+    if(s.format!==format) continue;
+    const n=parseInt((String(s.code||'').match(/\d+/)||[])[0],10);
+    if(!isNaN(n) && n>mx) mx=n;
+  }
+  return mx;
+}
+function prochainNumero(format){
+  if(format==='Brand') return prochainNumeroBrand(clients);
+  const plancher=compteurs[format]?.dernierNumero||0;
+  return Math.max(plancher, maxCodeReel(format))+1;
 }
 
 function updateBrandCode(){
@@ -6219,7 +6242,8 @@ async function createSujet(){
   }else{
     const c=compteurs[activeFmt];
     if(!c){toast('Compteur introuvable pour ce format','err');return;}
-    codeVal=`${c.prefixe}${c.dernierNumero+1}`;
+    const num=prochainNumero(activeFmt);
+    codeVal=`${c.prefixe}${num}`;
     const platAuto = activeFmt==='YouTube' ? 'YouTube' : 'Instagram';
     const props={'Titre':{title:[{text:{content:titre}}]},'Format':{select:{name:activeFmt}},'Chef responsable':{select:{name:chef}},'Journaliste':{select:{name:journ}},'Statut':{select:{name:'Brief / Idée'}},'Code':{rich_text:[{text:{content:codeVal}}]},'Plateforme':{select:{name:platAuto}}};
     if(brief)props['Notes chef']={rich_text:[{text:{content:brief}}]};
@@ -6233,8 +6257,8 @@ async function createSujet(){
     const newPage=await api('/pages','POST',{parent:{database_id:DB_PROD},properties:props});
     const pageId=newPage.id;
     await marquerCreePar(pageId); // lot 0 (non-bloquant)
-    const nv=c.dernierNumero+1;
-    await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:nv}}});
+    await api(`/pages/${c.id}`,'PATCH',{properties:{'Dernier numéro':{number:num}}});
+    c.dernierNumero=num; // tenir le local à jour (défaut secondaire : évite une collision entre deux rechargements)
     // Sauvegarder les liens de référence si Desk
     if(activeFmt==='Desk' && modalRefs.length > 0) {
       await Promise.all(modalRefs.map(url =>
@@ -7286,7 +7310,8 @@ async function demarrerIdee(id) {
   // Créer le sujet dans Production
   const c = compteurs[idee.format];
   if(!c) { toast('Compteur introuvable pour ce format','err'); return; }
-  const codeVal = `${c.prefixe}${c.dernierNumero+1}`;
+  const num = prochainNumero(idee.format);
+  const codeVal = `${c.prefixe}${num}`;
   const platAuto = idee.format==='YouTube' ? 'YouTube' : 'Instagram';
   try {
     const newPage = await api('/pages','POST',{
@@ -7302,9 +7327,9 @@ async function demarrerIdee(id) {
       }
     });
     await marquerCreePar(newPage.id); // lot 0 : auteur = celui qui DÉMARRE l'idée (le proposeur reste en Journaliste). Non-bloquant.
-    // Incrémenter compteur
-    await api('/pages/'+c.id,'PATCH',{properties:{'Dernier numéro':{number:c.dernierNumero+1}}});
-    c.dernierNumero++;
+    // Compteur = filet : aligné sur le numéro réellement attribué (max réel + plancher).
+    await api('/pages/'+c.id,'PATCH',{properties:{'Dernier numéro':{number:num}}});
+    c.dernierNumero=num;
     // Marquer idée comme démarrée
     await api('/pages/'+id,'PATCH',{properties:{Statut:{select:{name:'🚀 Démarrée'}}}});
     idee.statut = '🚀 Démarrée';
