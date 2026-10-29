@@ -130,10 +130,21 @@
     .vch:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
     .rv{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:16px;align-items:start}
     .col-v{display:flex;flex-direction:column;gap:10px;min-width:0}
-    .scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-    .scene-v{aspect-ratio:9/16;height:410px;max-width:100%;background:linear-gradient(170deg,#1b1b24,#0b0b12);display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
+    .scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px}
+    .scene-ph{display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;min-height:240px}
     .scene-grise{filter:grayscale(1);opacity:.55}
-    .mt-iframe{width:100%;aspect-ratio:9/16;height:410px;max-width:100%;border:0;display:block;background:#000}
+    /* Lecteur natif : se dimensionne à son contenu (16:9 remplit la largeur ; 9:16 se centre sur le noir,
+       object-fit:contain letterboxe). Pas de détection de ratio côté serveur — la vidéo porte le sien. */
+    .mt-video{width:100%;max-height:72vh;background:#000;display:block;object-fit:contain}
+    /* Repli (relais indisponible) : iframe Drive (bureau) OU message + téléchargement (iOS). */
+    .mt-iframe{width:100%;aspect-ratio:16/9;max-height:72vh;border:0;display:block;background:#000}
+    .repli{width:100%;display:flex;flex-direction:column;gap:12px;padding:0}
+    .repli.repli-ios{padding:28px 22px;text-align:center;gap:10px}
+    .repli-t{margin:0;font-size:15px;font-weight:500;color:var(--txt)}
+    .repli-x{margin:0;font-size:13px;color:var(--txt2);line-height:1.5}
+    .repli-bas{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;padding:12px 14px}
+    .repli:not(.repli-ios) .repli-bas{justify-content:space-between;background:var(--bg3);border-top:1px solid var(--line)}
+    .repli-note{font-size:12px;color:var(--txt3)}
     .panneau{background:var(--bg2);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
     .pan-t{padding:12px 15px;background:var(--bg3);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:500}
     .pan-n{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:2px 7px;border-radius:9px}
@@ -147,10 +158,13 @@
     .ret-tc-seek:hover,.ret-tc-seek:focus-visible{background:var(--rouge);color:#fff;outline:none}
     /* Timecode hors film (après la fin) : désactivé visuellement, jamais cliquable. */
     .ret-tc-hs{opacity:.45;text-decoration:line-through}
-    /* Frise : barre à l'échelle de la durée ; un repère par retour situé à sa position (tc/durée). */
-    .mt-frise{position:relative;height:22px;margin:8px 0 2px;border-radius:5px;background:var(--bg4);border:1px solid var(--line);cursor:pointer}
-    .mt-fr-m{position:absolute;top:2px;bottom:2px;width:3px;margin-left:-1px;padding:0;border:0;border-radius:2px;background:var(--rouge);cursor:pointer;transition:transform .08s}
-    .mt-fr-m:hover,.mt-fr-m:focus-visible{transform:scaleX(2);outline:none}
+    /* Bande de repères (NON navigable, étape 2) : la navigation se fait par les contrôles natifs du <video>.
+       Un repère par retour à sa position (tc/durée) ; un trait blanc = position courante (timeupdate). */
+    .mt-frise{position:relative;height:26px;margin:2px 0;border-radius:6px;background:var(--bg2);border:1px solid var(--line)}
+    .mt-frise::before{content:'';position:absolute;left:8px;right:8px;top:50%;height:3px;transform:translateY(-50%);background:var(--bg4);border-radius:2px}
+    .mt-fr-m{position:absolute;top:50%;width:10px;height:10px;margin-left:-5px;transform:translateY(-50%);border-radius:50%;background:var(--rouge);border:2px solid var(--bg2)}
+    .mt-fr-m.eq{background:var(--txt2)}
+    .mt-fr-head{position:absolute;top:3px;bottom:3px;width:2px;margin-left:-1px;background:#fff;border-radius:1px;transition:left .1s linear}
     /* Capture : bouton « Marquer ce moment » sous le lecteur (visible pendant la lecture). */
     /* Transport SOUS la vidéo : action PRIMAIRE « Noter » (rouge plein, dominante) + « Pause » secondaire (muet).
        Le bouton dominant capte l'instinct de pause du client → nos contrôles sont le chemin évident (critère 4). */
@@ -179,6 +193,19 @@
     .mt-nudge:hover{background:var(--line2)}
     .mt-tc-wrap #mt-tc{border-radius:0;text-align:center;width:72px}
     .mt-tc-aide{font-size:11px;color:var(--txt3);margin:4px 0 8px}
+    /* Bloc d'écriture (étape 2) : puce timecode (éditable) collée à gauche du champ ; sous le champ, la phrase
+       de cadrage à gauche et les actions (catégorie / Annuler / Ajouter) à droite. */
+    .mt-tc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    .mt-wr{display:flex;align-items:flex-start;gap:10px}
+    #mt-tc.mt-tc-chip{flex:0 0 auto;width:62px;font-family:var(--mono);font-size:13px;text-align:center;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);border-radius:7px;padding:10px 8px}
+    #mt-tc.mt-tc-chip:focus{outline:none;border-color:var(--rouge);background:var(--rouge-voile)}
+    .mt-wr textarea{flex:1 1 auto;min-width:0;min-height:60px}
+    .mt-wr-bas{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+    .mt-phrase{margin:0;flex:1 1 220px;font-size:12px;color:var(--txt3);line-height:1.5}
+    .mt-wr-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .mt-wr-act select{background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);font-size:13px;padding:9px 10px}
+    .mt-wr-act select:focus{outline:none;border-color:var(--rouge)}
+    .mt-wr-act .bouton{padding:9px 16px}
     .ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
     .ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
     .ret-brouillon{font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber);opacity:.85;padding:1px 7px;border-radius:4px}
@@ -213,7 +240,7 @@
     .voir-montage{flex:none;margin-left:auto;background:transparent;color:var(--rouge);border:1px solid var(--rouge-bord);font-family:var(--sans);font-size:12.5px;padding:6px 11px;border-radius:6px;cursor:pointer;transition:background .12s}
     .voir-montage:hover{background:var(--rouge-voile)}
     .lien-reessai{background:transparent;border:0;color:var(--amber);text-decoration:underline;cursor:pointer;font:inherit}
-    @media (max-width:620px){ .rv{grid-template-columns:minmax(0,1fr)} .scene-v,.mt-iframe{height:min(420px,62vh)} }
+    @media (max-width:620px){ .rv{grid-template-columns:minmax(0,1fr)} .mt-video,.mt-iframe{max-height:62vh} }
 
     /* ── « Mon espace » — les cinq blocs (B2). Classes reprises de VISION_ESPACE_CLIENT, tokens identiques. ── */
     .maj{font-family:var(--mono);font-size:11px;color:var(--txt3)}
@@ -390,7 +417,9 @@
     var LOGIN = '/.netlify/functions/login-client';
     var ESPACE = '/.netlify/functions/espace-client'; // accueil B2 (remplace l'appel projets-client du front)
     var MONTAGE = '/.netlify/functions/montage-client';
-    var DRIVEVIEW = '/.netlify/functions/drive-view-client';
+    var DRIVEVIEW = '/.netlify/functions/drive-view-client';       // repli iframe (bureau) uniquement, étape 2
+    var STREAMOPEN = '/.netlify/functions/drive-stream-open';      // mint du cookie de flux (lecteur natif)
+    var STREAM = '/.netlify/functions/drive-stream';               // relais Range (le <video> pointe ici ; aucun id dans l'URL)
     var DOWNLOAD = '/.netlify/functions/drive-download-client';
     var VALIDER = '/.netlify/functions/valider-client';
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
@@ -648,7 +677,10 @@
       // base = position connue du lecteur ; depuis = instant où la lecture a repris depuis base (0 = en pause,
       // on ne compte pas) ; ancre = a-t-on au moins un repère sûr (1er play détecté OU une position qu'on a
       // imposée). ancre=false → capture « à placer ».
-      chrono: { base: 0, depuis: 0, ancre: false }, reseekTimer: null, capeActif: '' };
+      chrono: { base: 0, depuis: 0, ancre: false }, reseekTimer: null, capeActif: '',
+      // Lecteur natif (étape 2) : flux = un <video> relais est monté ; fluxReessai = garde anti-boucle sur erreur
+      // (une ré-ouverture transparente si le cookie a expiré, puis repli). dureeMs vient de video.duration.
+      flux: false, fluxReessai: 0 };
     var K_MOMENTS = 'rmc-moments'; // clé localStorage par sujet : moments marqués, non encore commentés (brouillon LOCAL)
 
     // Timecode « m:ss » (ou « h:mm:ss ») → secondes. Chiffres purs seulement ; sinon null (ex. « — », vide).
@@ -716,7 +748,10 @@
         // data-sec : secondes du timecode (ou absent si non parsable). Le saut/la frise sont activés plus tard
         // par mPeindreFrise, une fois la durée connue (c'est elle qui tranche « possible » vs « hors film »).
         var secTc = mTcEnSecondes(r.timecode);
+        // data-sec : saut au clic (activé par mPeindreFrise). data-mien : 1 = retour de CE contact (repère rouge
+        // sur la bande), 0 = un autre contact de la même marque (repère gris).
         var tcAttr = (secTc != null) ? (' data-sec="' + secTc + '"') : '';
+        tcAttr += ' data-mien="' + (r.mien ? '1' : '0') + '"';
         return '<div class="ret"><div class="ret-h"><span class="ret-tc"' + tcAttr + '>' + esc(r.timecode || '—') + '</span>' +
           (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + badge + '</div>' +
           '<div class="ret-x">' + esc(r.texte) + '</div>' + reform + suppr + '</div>';
@@ -724,36 +759,29 @@
 
       // Formulaire + actions SEULEMENT sur la courante OUVERTE ; sinon bandeau de version close (pas de formulaire grisé).
       var formulaire = (estCourante && vAff.etat === 'a-relire');
-      // Capture : « Marquer ce moment » sous le lecteur, et conteneur des pastilles au-dessus du formulaire.
-      // SEULEMENT sur la courante à relire (on ne commente que la version en cours).
-      // Transport : « Noter ce moment » (primaire = NOTRE pause, capte l'instinct) + « Pause » (stopper sans noter,
-      // couvre réfléchir/relire). + une aide d'une ligne. Rendu seulement sur la courante à relire.
-      var transport = formulaire ? (
-        '<div class="mt-transport">' +
-          '<button type="button" class="mt-cap" id="mt-cap">⏸ Noter ce moment</button>' +
-          '<button type="button" class="mt-pause" id="mt-pause" title="Mettre en pause sans noter">⏸ Pause</button>' +
-        '</div>' +
-        '<div class="mt-hint">Un moment à signaler ? <strong>Noter ce moment</strong> met en pause ici. Pour vous déplacer, cliquez la barre au-dessus.</div>'
-      ) : '';
-      var bas = formulaire ? ('<div id="mt-pins-wrap"></div>' + mFormeHtml() + mFinHtml()) : ('<div class="close gris"><b>' + esc(mBandeauEtat(vAff.etat)) + '</b></div>');
 
-      // Vidéo : TOUTE version affichée a un lecteur (tranche 4 : la condition 4 est tombée, les versions
-      // passées se regardent aussi). Le lecteur s'ouvre par RANG (drive-view-client résout le fileId).
-      var scene = '<div class="scene" id="mt-scene"><div class="scene-v"><p class="sub" style="color:var(--txt3)">Chargement de la vidéo…</p></div></div>';
-      // Frise des retours : masquée jusqu'à ce que la durée arrive (mPeindreFrise l'allume et y place les repères).
-      var frise = '<div class="mt-frise" id="mt-frise" title="Vos retours sur la frise — cliquez un repère pour y aller" style="display:none"></div>';
+      // Lecteur natif (étape 2) : scène noire qui accueille le <video> relais (rempli par mOuvrirVideo, 2e appel),
+      // adaptative au format par CSS (object-fit:contain). Le placeholder tient la hauteur pendant le chargement.
+      var scene = '<div class="scene" id="mt-scene"><div class="scene-ph"><p class="sub" style="color:var(--txt3)">Chargement de la vidéo…</p></div></div>';
+      // Bande de repères NON navigable : masquée jusqu'à la durée (loadedmetadata → mPeindreFrise l'allume).
+      var frise = '<div class="mt-frise" id="mt-frise" aria-hidden="true" style="display:none"></div>';
+      // Sous le lecteur : bloc d'écriture (courante à relire) + actions terminales ; sinon bandeau de version close.
+      var bloc = formulaire ? (mFormeHtml() + mFinHtml()) : ('<div class="close gris"><b>' + esc(mBandeauEtat(vAff.etat)) + '</b></div>');
 
-      // Téléchargement : sur CHAQUE version envoyée. Le serveur résout le fichier à partir du RANG ; aucun
-      // fileId de version ne descend dans la page.
+      // Téléchargement : sur CHAQUE version affichée (pied de la colonne retours). Le serveur résout le fichier
+      // à partir du RANG ; aucun fileId de version ne descend dans la page.
       var telHtml = '<button class="bouton gris2" type="button" id="mt-tel">⬇ Télécharger cette version</button>' +
         '<div class="msg" id="mt-tel-msg" role="status" aria-live="polite"></div>';
 
-      $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + frise + transport + '<div class="mt-telzone">' + telHtml + '</div></div>' +
+      // Disposition (maquettes B/C) : colonne principale = lecteur → bande → écriture → actions ;
+      // colonne droite = liste des retours pleine hauteur + téléchargement en pied.
+      $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + frise + bloc + '</div>' +
         '<div class="panneau"><div class="pan-t"><span>Mes retours</span><span class="pan-n">' + rets.length + '</span></div>' +
-        '<div class="retours">' + retoursHtml + '</div>' + bas + '</div></div>';
+        '<div class="retours">' + retoursHtml + '</div>' +
+        '<div class="mt-telzone">' + telHtml + '</div></div></div>';
 
-      // Bouton télécharger : présent pour TOUTE version affichée (courante ou passée), donc câblé hors du
-      // bloc formulaire. Le rang téléchargé est celui de la version affichée.
+      // Bouton télécharger : présent pour TOUTE version affichée (courante ou passée). Le rang téléchargé est
+      // celui de la version affichée.
       $('mt-tel').addEventListener('click', function () { mTelecharger(aff); });
 
       // Suppression de MON brouillon (courante). Délégation sur chaque bouton rendu ci-dessus.
@@ -762,25 +790,27 @@
       });
 
       if (formulaire) {
-        M.capeActif = ''; // rendu frais → aucune pastille « en cours de commentaire »
         $('mt-ajout').addEventListener('click', mAjouter);
+        $('mt-annuler').addEventListener('click', mAnnulerRetour);
         $('mt-valider').addEventListener('click', function () { mTerminal('valider'); });
         $('mt-envoyer').addEventListener('click', function () { mTerminal('envoyer-retours'); });
-        // Timecode : formatage identique à review.html/index.html (0035 → 0:35), + ESPACE qui convertit
-        // et saute à la description (l'espace est avalée). Le cap serveur (MAX_TC) reste inchangé.
+        // Timecode éditable : formatage identique à review.html/index.html (0035 → 0:35) au blur ; ESPACE formate
+        // et saute à la description. Avec le lecteur natif, l'ajustement se fait aussi en relisant video.currentTime.
         var tcEl = $('mt-tc');
-        // Saisie directe (le filet pour les gros écarts : le client recopie le compteur Drive). Au blur /
-        // à l'ESPACE : on formate ET on re-seek (l'image rattrape la valeur tapée), en débouncé.
-        tcEl.addEventListener('blur', function () { mFormatTc(tcEl); var s = mTcEnSecondes(tcEl.value); if (s != null) mReseek(s); });
-        tcEl.addEventListener('keydown', function (e) { if (e.key === ' ') { e.preventDefault(); mFormatTc(tcEl); var s = mTcEnSecondes(tcEl.value); if (s != null) mReseek(s); var d = $('mt-txt'); if (d) d.focus(); } });
-        mCablerCapture(); // bouton capture, pastilles (brouillon local), − / +
+        tcEl.addEventListener('blur', function () { mFormatTc(tcEl); });
+        tcEl.addEventListener('keydown', function (e) { if (e.key === ' ') { e.preventDefault(); mFormatTc(tcEl); var d = $('mt-txt'); if (d) d.focus(); } });
+        // Capture (étape 2) : au focus du champ de description, le lecteur se met en pause et — SI le champ est
+        // encore vide — le timecode se remplit avec l'image à l'écran (video.currentTime). Jamais d'écrasement
+        // d'un timecode une fois la rédaction commencée (le champ reste éditable). Zéro bouton intermédiaire.
+        var txEl = $('mt-txt');
+        if (txEl) txEl.addEventListener('focus', mCapterSurFocus);
       }
       [].slice.call($('mt-vers').querySelectorAll('.vch')).forEach(function (b) {
-        b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; M.dureeMs = null; mCharger(rg); } });
+        b.addEventListener('click', function () { var rg = parseInt(b.getAttribute('data-rang'), 10); if (rg !== M.rangAff) { mBattementsStop(); M.fileId = ''; M.flux = false; M.dureeMs = null; mCharger(rg); } });
       });
 
-      // 2e appel, APRÈS le rendu du shell : ouvre la permission Drive pour la version AFFICHÉE (courante OU
-      // passée — toute version envoyée se regarde) par son RANG, puis monte l'iframe (remplissage localisé).
+      // 2e appel, APRÈS le rendu du shell : ouvre le flux relais pour la version AFFICHÉE (courante OU passée —
+      // toute version envoyée se regarde) par son RANG, puis monte le <video> natif.
       mOuvrirVideo(aff);
     }
 
@@ -795,16 +825,22 @@
     }
     function mFormeHtml() {
       var opts = CATS.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('');
+      // Puce timecode (éditable) collée à gauche du champ ; sous le champ : la phrase de cadrage validée +
+      // actions (catégorie, Annuler, Ajouter). Le timecode se remplit au focus du champ (mCapterSurFocus).
       return '<div class="forme"><div class="forme-t">Laisser un retour</div>' +
-        '<label class="mt-tc-lab" for="mt-tc">Moment du film</label>' +
-        '<div class="forme-r"><span class="mt-tc-wrap">' +
-          '<button type="button" class="mt-nudge" id="mt-moins" aria-label="Reculer d\'une seconde">−</button>' +
-          '<input type="text" id="mt-tc" placeholder="0:00" aria-label="Moment du film">' +
-          '<button type="button" class="mt-nudge" id="mt-plus" aria-label="Avancer d\'une seconde">+</button></span>' +
-        '<select id="mt-cat" aria-label="Catégorie"><option value="">— Catégorie —</option>' + opts + '</select></div>' +
-        '<div class="mt-tc-aide">Placé automatiquement. Ajustez si besoin — l\'image suit.</div>' +
-        '<textarea id="mt-txt" placeholder="Décrivez votre retour…" aria-label="Votre retour"></textarea>' +
-        '<button class="bouton" type="button" id="mt-ajout">Ajouter à mes retours</button>' +
+        '<div class="mt-wr">' +
+          '<label for="mt-tc" class="mt-tc-sr">Moment du film</label>' +
+          '<input type="text" id="mt-tc" class="mt-tc-chip" placeholder="0:00" aria-label="Moment du film" inputmode="numeric">' +
+          '<textarea id="mt-txt" placeholder="Votre remarque sur cette image…" aria-label="Votre retour"></textarea>' +
+        '</div>' +
+        '<div class="mt-wr-bas">' +
+          '<p class="mt-phrase">La vidéo s\'arrête quand vous commencez à écrire — le moment enregistré est l\'image à l\'écran.</p>' +
+          '<div class="mt-wr-act">' +
+            '<select id="mt-cat" aria-label="Catégorie"><option value="">— Catégorie —</option>' + opts + '</select>' +
+            '<button class="bouton gris2" type="button" id="mt-annuler">Annuler</button>' +
+            '<button class="bouton" type="button" id="mt-ajout">Ajouter</button>' +
+          '</div>' +
+        '</div>' +
         '<div class="msg" id="mt-forme-msg" role="status" aria-live="polite"></div></div>';
     }
     function mFinHtml() {
@@ -825,56 +861,152 @@
       return 'Cette version est close.';
     }
 
-    // ── Vidéo : ouvre la permission (drive-view-client), puis iframe par PROPRIÉTÉ DOM (jamais innerHTML :
-    //    esc() n'échappe pas les guillemets d'attribut — ne pas « simplifier » en innerHTML, spec §8). ──
+    // ════════════════ LECTEUR NATIF (étape 2) ════════════════
+    // Le relais Range (drive-stream) sert la vidéo par tranches à un <video> natif. Le mint (drive-stream-open)
+    // pose un cookie HttpOnly signé qui porte le fichier : l'URL du <video> n'a AUCUN id (spec §8). Le master
+    // reste privé (aucune permission Drive ouverte). La durée vient de video.duration (plus de dureeMs serveur).
     function mOuvrirVideo(rang) {
-      // open par RANG : le serveur résout et RENVOIE le fileId (on ne l'a plus d'avance). On le garde pour
-      // les battements et le close. L'iframe est montée par propriété DOM (jamais innerHTML, spec §8).
-      M.dureeMs = null; // la réponse open fait foi ; on repart propre pour ne pas garder une durée d'une autre version
-      mPost(DRIVEVIEW, { action: 'open', sujetCode: M.code, rang: rang }).then(function (res) {
+      var scene = $('mt-scene'); if (!scene) return;
+      // On repart propre : le relais ne garde pas de permission → pas de battements (on les coupe au cas où un
+      // repli bureau en avait démarré). M.fileId reste vide sur le chemin relais (aucun id ne descend).
+      mBattementsStop(); M.fileId = ''; M.flux = false; M.dureeMs = null;
+      mPost(STREAMOPEN, { sujetCode: M.code, rang: rang }).then(function (res) {
         if (!$('mt-scene')) return; // l'utilisateur a changé de version entre-temps
+        if (res.status === 200 && res.body && res.body.ok) { mMonterVideo(rang); }
+        else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
+        else { mReplier(rang); } // mint indisponible (503 config, 403, 509 plafond…) → repli
+      }).catch(function () { if ($('mt-scene')) mReplier(rang); });
+    }
+    // Monte le <video> natif. ?v=rang&n=<nonce> casse le cache entre versions / ré-ouvertures ; le cookie (posé
+    // par l'open) porte le fichier. object-fit:contain adapte 16:9 / 9:16 sans détection de ratio côté serveur.
+    function mMonterVideo(rang) {
+      var scene = $('mt-scene'); if (!scene) return;
+      scene.classList.remove('scene-repli');
+      scene.innerHTML = '';
+      var v = document.createElement('video');
+      v.className = 'mt-video';
+      v.id = 'mt-video';
+      v.setAttribute('controls', '');
+      v.setAttribute('playsinline', '');          // iOS : lecture EN LIGNE (pas de plein écran forcé)
+      v.setAttribute('webkit-playsinline', '');
+      v.setAttribute('preload', 'auto');
+      v.src = STREAM + '?v=' + encodeURIComponent(rang) + '&n=' + Date.now(); // propriété DOM, aucun id dans l'URL
+      v.addEventListener('loadedmetadata', function () {
+        if (v !== $('mt-video')) return; // élément périmé (changement de version) → on ignore
+        M.fluxReessai = 0; // flux sain → on réarme la garde anti-boucle
+        if (isFinite(v.duration) && v.duration > 0) { M.dureeMs = v.duration * 1000; mPeindreFrise(); }
+      });
+      v.addEventListener('timeupdate', mMajPlayhead);
+      v.addEventListener('error', function () { if (v !== $('mt-video')) return; mVideoErreur(rang); }); // ignore l'erreur d'un <video> déjà remplacé
+      scene.appendChild(v);
+      M.flux = true;
+    }
+    // Erreur du <video> : 1re fois → une ré-ouverture transparente (le cookie a pu expirer, TTL 2 h) ; au-delà
+    // → repli. (Garde anti-boucle ; réarmée sur loadedmetadata.)
+    function mVideoErreur(rang) {
+      if (!M.flux) return;                // erreur après démontage → on ignore
+      if (!M.fluxReessai) { M.fluxReessai = 1; mOuvrirVideo(rang); return; }
+      M.fluxReessai = 0; mReplier(rang);
+    }
+    // Capture (Problème 2) : au focus du champ de description, PAUSE du lecteur ; SI le champ est vide, on
+    // remplit le timecode avec l'image à l'écran (video.currentTime). Champ non vide → pause seule, jamais
+    // d'écrasement du timecode en cours de rédaction. Le champ reste éditable.
+    function mCapterSurFocus() {
+      var v = $('mt-video'); if (v) { try { v.pause(); } catch (e) {} }
+      var tx = $('mt-txt'), tc = $('mt-tc');
+      if (v && tx && tc && !tx.value.trim() && isFinite(v.currentTime)) tc.value = mSecVersTc(v.currentTime);
+    }
+    // Annuler : vide le brouillon en cours (texte, timecode, catégorie) → le prochain focir recapture une frame
+    // fraîche (reset du cas Problème 2). Ne touche pas aux retours déjà ajoutés.
+    function mAnnulerRetour() {
+      var tx = $('mt-txt'); if (tx) tx.value = '';
+      var tc = $('mt-tc'); if (tc) tc.value = '';
+      var cat = $('mt-cat'); if (cat) cat.value = '';
+      var msg = $('mt-forme-msg'); if (msg) { msg.className = 'msg'; msg.textContent = ''; }
+    }
+    // Trait de position sur la bande (non navigable) : avance avec la lecture (timeupdate).
+    function mMajPlayhead() {
+      var v = $('mt-video'), head = $('mt-fr-head');
+      if (!v || !head || !M.dureeMs) return;
+      var pct = Math.max(0, Math.min(100, (v.currentTime / (M.dureeMs / 1000)) * 100));
+      head.style.left = pct.toFixed(2) + '%';
+    }
+    // Saut au timecode (clic sur le timecode d'un retour) : en natif, c'est un vrai seek + lecture. La BANDE,
+    // elle, ne navigue pas (décision David) — la navigation libre se fait par les contrôles natifs du <video>.
+    function mSauter(sec) {
+      var v = $('mt-video'); if (!v || sec == null || sec < 0) return;
+      if (M.dureeMs && (sec * 1000 >= M.dureeMs)) return; // après la fin → on n'y va pas
+      try { v.currentTime = sec; var p = v.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+    }
+    // Repli (Problème 1) — le relais indisponible (mint en échec, 509 plafond, erreur <video> répétée).
+    // Bureau : iframe Drive /preview (lecture inline, via le portier existant drive-view-client) + téléchargement.
+    // iOS : l'iframe Drive ne lit RIEN en ligne → message franc + téléchargement (seul chemin qui marche).
+    // Dans les deux cas l'espace client reste utilisable ; « Réessayer » retente le flux fluide.
+    function mReplier(rang) {
+      var scene = $('mt-scene'); if (!scene) return;
+      M.flux = false; M.dureeMs = null;
+      var fr = $('mt-frise'); if (fr) { fr.style.display = 'none'; fr.innerHTML = ''; }
+      scene.classList.add('scene-repli');
+      if (mEstIOS()) {
+        scene.innerHTML = '<div class="repli repli-ios">' +
+            '<p class="repli-t">Lecture en ligne indisponible pour l\'instant</p>' +
+            '<p class="repli-x">Sur cet appareil, téléchargez la vidéo pour la regarder.</p>' +
+            '<div class="repli-bas">' +
+              '<button type="button" class="bouton" id="mt-repli-tel">⬇ Télécharger cette version</button>' +
+              '<button type="button" class="lien-reessai" id="mt-repli-reessai">Réessayer la lecture</button>' +
+            '</div></div>';
+        mReplierCabler(rang);
+        return;
+      }
+      // Bureau : on demande un fileId au portier existant (drive-view-client) pour l'iframe de secours, et on
+      // garde la permission vivante par battements (mécanique existante, inchangée).
+      scene.innerHTML = '<div class="scene-ph"><p class="sub" style="color:var(--txt3)">Préparation de la lecture de secours…</p></div>';
+      mPost(DRIVEVIEW, { action: 'open', sujetCode: M.code, rang: rang }).then(function (res) {
+        var sc = $('mt-scene'); if (!sc) return;
         if (res.status === 200 && res.body && res.body.ok && res.body.fileId) {
           M.fileId = res.body.fileId;
-          M.dureeMs = (typeof res.body.dureeMs === 'number' && res.body.dureeMs > 0) ? res.body.dureeMs : null;
-          M.chrono = { base: 0, depuis: 0, ancre: false }; // au montage : au début (0), en pause, pas encore ancré. Le 1er play (window.blur) pose l'ancre + démarre le compteur.
-          mMonterIframe(res.body.fileId);
-          mBattementsDemarrer();
-          mPeindreFrise(); // active le saut sur les timecodes dans le film + peint la frise (si durée connue)
-        }
-        else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
-        else mSceneIndispo();
-      }).catch(function () { if ($('mt-scene')) mSceneIndispo(); });
+          mBattementsDemarrer(); // garde la permission iframe en vie (comme avant le relais)
+          sc.innerHTML = '<div class="repli">' +
+              '<div id="mt-repli-frame"></div>' +
+              '<div class="repli-bas"><span class="repli-note">Lecture de secours — <button type="button" class="lien-reessai" id="mt-repli-reessai">réessayer la lecture fluide</button></span>' +
+              '<button type="button" class="bouton gris2" id="mt-repli-tel">⬇ Télécharger</button></div></div>';
+          var f = document.createElement('iframe');
+          f.className = 'mt-iframe';
+          f.src = 'https://drive.google.com/file/d/' + encodeURIComponent(res.body.fileId) + '/preview';
+          f.setAttribute('allow', 'autoplay; fullscreen');
+          f.setAttribute('allowfullscreen', '');
+          $('mt-repli-frame').appendChild(f);
+          mReplierCabler(rang);
+        } else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
+        else { mReplierTelSeul(rang); } // même le repli iframe échoue → téléchargement seul
+      }).catch(function () { if ($('mt-scene')) mReplierTelSeul(rang); });
     }
-    // Monte le lecteur, OU le fait sauter à tSec (secondes). Drive honore ?t= au chargement ; pour re-sauter il
-    // faut recharger l'iframe — mais on REMPLOIE l'iframe existante (on pose juste .src) au lieu de la détruire
-    // (innerHTML=''), ce qui évite l'écran noir de démontage. Aucun appel open ici : le fileId est déjà ouvert.
-    function mMonterIframe(fileId, tSec) {
+    // Dernier recours : ni flux ni iframe → téléchargement seul (marche partout).
+    function mReplierTelSeul(rang) {
       var scene = $('mt-scene'); if (!scene) return;
-      var src = 'https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview' +
-        ((tSec && tSec > 0) ? ('?t=' + Math.floor(tSec)) : '');
-      var f = scene.querySelector('iframe.mt-iframe');
-      if (f) { f.src = src; return; } // rechargement EN PLACE (pas de démontage → pas d'écran noir)
-      scene.innerHTML = '';
-      f = document.createElement('iframe');
-      f.src = src; // propriété DOM, pas d'attribut HTML
-      f.className = 'mt-iframe';
-      f.setAttribute('allow', 'autoplay; fullscreen'); // parité avec review.html ; autoplay déjà accordé, le jeton fullscreen active l'API plein écran DANS l'iframe
-      f.setAttribute('allowfullscreen', '');
-      scene.appendChild(f);
+      scene.classList.add('scene-repli');
+      scene.innerHTML = '<div class="repli repli-ios">' +
+          '<p class="repli-t">Lecture en ligne indisponible pour l\'instant</p>' +
+          '<p class="repli-x">Téléchargez la vidéo pour la regarder.</p>' +
+          '<div class="repli-bas">' +
+            '<button type="button" class="bouton" id="mt-repli-tel">⬇ Télécharger cette version</button>' +
+            '<button type="button" class="lien-reessai" id="mt-repli-reessai">Réessayer la lecture</button>' +
+          '</div></div>';
+      mReplierCabler(rang);
     }
-    // Saut au timecode : REMPLOIE le fileId déjà ouvert (jamais de nouvel open → pas de permission de plus, pas
-    // de 503). Refuse un timecode hors film quand la durée est connue (sinon on laisse passer, Drive borne seul).
-    function mSauter(sec) {
-      if (!M.fileId || sec == null || sec < 0) return;
-      if (M.dureeMs && (sec * 1000 >= M.dureeMs)) return; // après la fin → on n'y va pas
-      // Imposer une position = la CONNAÎTRE (ancre:true). Le reload arrive EN PAUSE → depuis:0 (on ne compte pas
-      // tant que le client n'a pas relancé la lecture, ce que window.blur détectera et re-démarrera depuis base).
-      M.chrono = { base: sec, depuis: 0, ancre: true };
-      mMonterIframe(M.fileId, sec);
+    function mReplierCabler(rang) {
+      var t = $('mt-repli-tel'); if (t) t.addEventListener('click', function () { mTelecharger(rang); });
+      var r = $('mt-repli-reessai'); if (r) r.addEventListener('click', function () { M.fluxReessai = 0; mOuvrirVideo(rang); });
     }
-    // Active le saut sur les timecodes des retours et peint la frise. Appelé APRÈS l'open (durée + fileId connus).
-    // Un tc hors film (≥ durée) est barré et jamais cliquable. La frise n'apparaît que si la durée est connue :
-    // c'est elle qui donne l'échelle (position = tc/durée).
+    // Détection iOS (iPhone/iPod/iPad, iPadOS se présentant en MacIntel tactile). [S] comportement <video>/iframe
+    // non vérifiable hors appareil réel : en cas de doute on considère NON-iOS (repli iframe, dégradation douce).
+    function mEstIOS() {
+      var ua = navigator.userAgent || '';
+      return /iP(hone|od|ad)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+    // Bande de repères (NON navigable) + activation du saut sur les timecodes des retours. Appelée à
+    // loadedmetadata (durée connue). Un tc hors film (≥ durée) est barré et jamais cliquable. Couleur du repère :
+    // rouge = retour de CE contact (data-mien=1), gris = un autre contact de la même marque.
     function mPeindreFrise() {
       var dureeSec = M.dureeMs ? (M.dureeMs / 1000) : null;
       var marqueurs = [];
@@ -882,35 +1014,25 @@
         var sec = parseInt(el.getAttribute('data-sec'), 10);
         if (!isFinite(sec)) return;
         if (dureeSec != null && sec >= dureeSec) { el.classList.add('ret-tc-hs'); el.title = 'Après la fin du film'; return; }
-        el.classList.add('ret-tc-seek');
-        el.setAttribute('role', 'button');
-        el.setAttribute('tabindex', '0');
-        (function (s) {
-          el.addEventListener('click', function () { mSauter(s); });
-          el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mSauter(s); } });
-        })(sec);
-        if (dureeSec != null) marqueurs.push({ sec: sec, tc: el.textContent });
+        if (!el.classList.contains('ret-tc-seek')) {
+          el.classList.add('ret-tc-seek');
+          el.setAttribute('role', 'button');
+          el.setAttribute('tabindex', '0');
+          (function (s) {
+            el.addEventListener('click', function () { mSauter(s); });
+            el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mSauter(s); } });
+          })(sec);
+        }
+        if (dureeSec != null) marqueurs.push({ sec: sec, mien: el.getAttribute('data-mien') === '1' });
       });
       var fr = $('mt-frise'); if (!fr) return;
-      // La frise est la BARRE DE NAVIGATION : elle s'affiche dès que la durée est connue, MÊME sans repère
-      // (une version neuve n'a pas encore de retour). Les repères se surajoutent s'il y en a.
-      if (dureeSec == null) { fr.style.display = 'none'; fr.innerHTML = ''; fr.onclick = null; return; }
+      if (dureeSec == null) { fr.style.display = 'none'; fr.innerHTML = ''; return; }
       fr.style.display = '';
+      // Repères (points) + trait de position. Aucun handler de clic : la bande ne navigue pas.
       fr.innerHTML = marqueurs.map(function (m) {
         var pct = Math.max(0, Math.min(100, (m.sec / dureeSec) * 100));
-        return '<button type="button" class="mt-fr-m" style="left:' + pct.toFixed(2) + '%" data-sec="' + m.sec + '" aria-label="Aller à ' + escAttr(m.tc) + '"></button>';
-      }).join('');
-      // La frise EST la barre de navigation : un clic sur un repère → ce retour ; un clic ailleurs → position
-      // PROPORTIONNELLE (grossière : seul compte qu'elle soit CONNUE, pas qu'elle vise juste — le client reprend
-      // la lecture et note quand il voit quelque chose). mSauter recharge en pause + ré-ancre.
-      fr.onclick = function (e) {
-        var t = e.target;
-        if (t && t.classList && t.classList.contains('mt-fr-m')) { mSauter(parseInt(t.getAttribute('data-sec'), 10)); return; }
-        if (!M.dureeMs) return;
-        var r = fr.getBoundingClientRect(); var w = r.width || 1;
-        var x = Math.max(0, Math.min(w, e.clientX - r.left));
-        mSauter(Math.round((x / w) * (M.dureeMs / 1000)));
-      };
+        return '<span class="mt-fr-m' + (m.mien ? '' : ' eq') + '" style="left:' + pct.toFixed(2) + '%"></span>';
+      }).join('') + '<span class="mt-fr-head" id="mt-fr-head" style="left:0%"></span>';
     }
 
     // ════════════════ CAPTURE DU MOMENT (tranche 3) ════════════════
