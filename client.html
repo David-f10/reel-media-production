@@ -817,7 +817,7 @@
         if (res.status === 200 && res.body && res.body.ok && res.body.fileId) {
           M.fileId = res.body.fileId;
           M.dureeMs = (typeof res.body.dureeMs === 'number' && res.body.dureeMs > 0) ? res.body.dureeMs : null;
-          M.chrono = { base: 0, depuis: Date.now() }; // amorce : on ignore quand le client appuie sur play → biais assumé, jamais présenté comme exact
+          M.chrono = { base: 0, depuis: 0 }; // DORMANT : on ne compte rien tant que le client n'a pas touché le lecteur (≈ play). t0 est ancré par le listener window.blur ci-dessous.
           mMonterIframe(res.body.fileId);
           mBattementsDemarrer();
           mPeindreFrise(); // active le saut sur les timecodes dans le film + peint la frise (si durée connue)
@@ -924,15 +924,16 @@
     // Capture instantanée pendant la lecture : on empile l'estimation, on NE recharge PAS l'iframe (pas
     // d'interruption). Le client commente plus tard en cliquant la pastille.
     function mMarquer() {
-      var sec = mEstimation();
+      // Chrono dormant (geste dans le lecteur pas encore détecté → iOS, ou pas encore lancé) → sec null =
+      // « à placer » : pas de fausse valeur, jamais 0:00. Sinon, estimation réelle.
+      var sec = M.chrono.depuis ? mEstimation() : null;
       var id = 'p' + Date.now() + '-' + Math.floor(Math.random() * 1000);
       var arr = mMomentsLire(M.code); arr.push({ id: id, sec: sec }); mMomentsEcrire(M.code, arr);
       // AUTO-CHARGE le moment le plus récent dans le champ : jamais 0:00 par défaut (un retour ne doit pas
       // partir sur une valeur fausse que le client n'a pas vue). SANS re-seek (capture pendant la lecture → on
-      // n'interrompt pas) ni focus (on ne vole pas l'attention au film). Le clic EXPLICIT sur une pastille, lui,
-      // re-seek et met en pause (cf. mChargerPastille).
+      // n'interrompt pas) ni focus. Le clic EXPLICIT sur une pastille, lui, re-seek et met en pause.
       M.capeActif = id;
-      var el = $('mt-tc'); if (el) el.value = mSecVersTc(sec);
+      var el = $('mt-tc'); if (el) el.value = (sec == null ? '' : mSecVersTc(sec));
       mRafraichirPins();
       var b = $('mt-cap'); if (b) { b.textContent = '✓ Moment marqué'; setTimeout(function () { var c = $('mt-cap'); if (c) c.textContent = '⦿ Marquer ce moment'; }, 900); }
     }
@@ -943,16 +944,19 @@
       w.innerHTML = '<div class="mt-pins"><span class="mt-pins-t">Moments marqués — cliquez pour commenter</span>' +
         arr.map(function (p) {
           // mt-pin-actif = le moment actuellement chargé dans le champ (ce qui PARTIRA) → le client voit lequel.
-          return '<button type="button" class="mt-pin' + (p.id === M.capeActif ? ' mt-pin-actif' : '') + '" data-pin="' + escAttr(p.id) + '" data-sec="' + p.sec + '">' + esc(mSecVersTc(p.sec)) +
+          // sec null = « à placer » (chrono dormant à la capture) : libellé explicite, data-sec vide (pas de saut).
+          var lab = (p.sec == null) ? 'à placer' : mSecVersTc(p.sec);
+          var ds = (p.sec == null) ? '' : p.sec;
+          return '<button type="button" class="mt-pin' + (p.id === M.capeActif ? ' mt-pin-actif' : '') + '" data-pin="' + escAttr(p.id) + '" data-sec="' + ds + '">' + esc(lab) +
             '<span class="mt-pin-x" data-pinx="' + escAttr(p.id) + '" role="button" aria-label="Retirer ce moment">✕</span></button>';
         }).join('') + '</div>';
     }
     // Charger une pastille dans le formulaire : pose le timecode, re-seek (confirme à l'œil), focus la description.
     function mChargerPastille(id, sec) {
       M.capeActif = id;
-      var el = $('mt-tc'); if (el) el.value = mSecVersTc(sec);
-      mRafraichirPins();   // met à jour la surbrillance « pastille active » (le client voit laquelle partira)
-      mReseek(sec);        // re-seek → l'iframe recharge et arrive EN PAUSE (réponse (3)) ; aucun appel open
+      var el = $('mt-tc'); if (el) el.value = (sec == null ? '' : mSecVersTc(sec));
+      mRafraichirPins();            // met à jour la surbrillance « pastille active » (le client voit laquelle partira)
+      if (sec != null) mReseek(sec); // re-seek → l'iframe recharge et arrive EN PAUSE (réponse (3)) ; pas de saut vers un « à placer »
       var tx = $('mt-txt'); if (tx) tx.focus();
     }
     function mRetirerPastille(id) {
@@ -970,7 +974,7 @@
         var t = e.target;
         var x = t.getAttribute && t.getAttribute('data-pinx'); if (x) { e.stopPropagation(); mRetirerPastille(x); return; }
         while (t && t !== wrap && !(t.getAttribute && t.getAttribute('data-pin'))) t = t.parentNode;
-        if (t && t.getAttribute && t.getAttribute('data-pin')) mChargerPastille(t.getAttribute('data-pin'), parseInt(t.getAttribute('data-sec'), 10));
+        if (t && t.getAttribute && t.getAttribute('data-pin')) { var ds = t.getAttribute('data-sec'); mChargerPastille(t.getAttribute('data-pin'), ds === '' ? null : parseInt(ds, 10)); }
       });
       mRafraichirPins();
       // Au (re)rendu (ex. après un rechargement de page, ou après avoir commenté un moment) : si des moments
@@ -978,7 +982,7 @@
       // défaut tant qu'il y a des pastilles. Sans re-seek (pas de pause auto au rendu) ni focus.
       if (!M.capeActif) {
         var attente = mMomentsLire(M.code);
-        if (attente.length) { var p = attente[attente.length - 1]; M.capeActif = p.id; var ch = $('mt-tc'); if (ch) ch.value = mSecVersTc(p.sec); mRafraichirPins(); }
+        if (attente.length) { var p = attente[attente.length - 1]; M.capeActif = p.id; var ch = $('mt-tc'); if (ch) ch.value = (p.sec == null ? '' : mSecVersTc(p.sec)); mRafraichirPins(); }
       }
     }
     function mSceneIndispo() {
@@ -1038,6 +1042,21 @@
       }).catch(function () {});
     }
     document.addEventListener('visibilitychange', function () { if (!document.hidden && M.fileId && !$('vue-montage').classList.contains('hidden')) mBattre(); });
+
+    // ── Ancrage de t0 au PREMIER geste dans le lecteur (≈ play). Un clic dans une iframe cross-origin fait
+    //    perdre le focus à la fenêtre parent et document.activeElement devient l'iframe. On démarre le chrono
+    //    LÀ, une seule fois par vidéo. On n'en fait PAS un détecteur play/pause continu : après le 1er clic le
+    //    focus reste dans l'iframe (pas de nouveau blur), et on ne saurait pas distinguer play d'un clic volume.
+    //    [S] fiabilité non vérifiable hors navigateur réel, surtout iOS Safari : si le signal ne tire jamais, le
+    //    chrono reste dormant → capture « à placer » (cf. mMarquer), jamais une fausse valeur.
+    window.addEventListener('blur', function () {
+      setTimeout(function () { // l'activeElement se met à jour juste après le blur
+        if (M.chrono.depuis) return;                                   // déjà ancré pour cette vidéo
+        if ($('vue-montage').classList.contains('hidden')) return;     // hors vue montage → on ignore
+        var sc = $('mt-scene'); var f = sc && sc.querySelector('iframe.mt-iframe');
+        if (f && document.activeElement === f) M.chrono = { base: 0, depuis: Date.now() };
+      }, 0);
+    });
 
     // ── Ajout d'un retour (réversible) : recharge le panneau au succès. ──
     function mAjouter() {
