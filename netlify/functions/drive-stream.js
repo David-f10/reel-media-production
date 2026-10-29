@@ -15,9 +15,15 @@ const { getStreamBudgetStore } = require('./_blobs');
 const API = 'https://www.googleapis.com/drive/v3/files/';
 const CAP = 4 * 1024 * 1024;            // 4 Mo/tranche → base64 ~5,3 Mo < plafond réponse Netlify (~6 Mo)
 const BUDGET_STEP = 64 * 1024 * 1024;   // on compte une fois par palier de 64 Mo (coarse → n'affecte pas la fluidité)
-const BUDGET_JOUR = 6 * 1024 * 1024 * 1024; // plafond quotidien par contact (~6 Go) : borne un lien qui circule / un lecteur en boucle
+const BUDGET_JOUR = 6 * 1024 * 1024 * 1024; // plafond quotidien PAR CONTACT (~6 Go) : borne un abus individuel
+// Plafond MENSUEL GLOBAL du site, calé SOUS le quota réel de l'offre Netlify (David le règle ; 0 = désactivé).
+// C'est lui qui protège la facture : un seul contact ne pouvait pas épuiser le site avec le seul plafond par
+// contact. Atteint → 509, le lecteur bascule sur l'iframe Drive (repli), donc l'espace client reste lisible.
+const SITE_CAP = (parseFloat(process.env.SITE_MONTHLY_CAP_GB || '0') > 0)
+  ? Math.floor(parseFloat(process.env.SITE_MONTHLY_CAP_GB) * 1024 * 1024 * 1024) : 0;
 
 function jour() { return new Date().toISOString().slice(0, 10).replace(/-/g, ''); }
+function mois() { return new Date().toISOString().slice(0, 7).replace('-', ''); }
 
 exports.handler = async (event) => {
   const base = { 'Cache-Control': 'private, no-store' };
@@ -32,15 +38,33 @@ exports.handler = async (event) => {
 
   const { start, end } = construireRange(event.headers && (event.headers.range || event.headers.Range), CAP);
 
-  // Garde-fou COARSE de consommation : une lecture/écriture Blobs par palier de 64 Mo, pas par tranche.
+  // Garde-fou COARSE : une passe Blobs par palier de 64 Mo, pas par tranche (préserve la fluidité). Deux
+  // compteurs : SITE (mensuel, global → protège la facture) et CONTACT (quotidien → borne un abus individuel).
+  // FAIL-OPEN si Blobs indispo (mieux vaut une lecture qui marche qu'un plafond garanti ; cf. README).
   if (doitCompter(start, CAP, BUDGET_STEP)) {
     try {
       const store = getStreamBudgetStore();
-      const key = 'cid:' + payload.cid + ':' + jour();
-      const cur = (await store.get(key, { type: 'json' }).catch(() => null)) || { octets: 0 };
-      if (cur.octets >= BUDGET_JOUR) return { statusCode: 429, headers: base, body: '' };
-      await store.setJSON(key, { octets: cur.octets + BUDGET_STEP }).catch(() => {});
-    } catch (e) { /* Blobs indispo → fail-open : on ne bloque pas une lecture légitime pour une panne de compteur */ }
+      const kSite = 'site:' + mois(), kCid = 'cid:' + payload.cid + ':' + jour();
+      const site = (await store.get(kSite, { type: 'json' }).catch(() => null)) || { octets: 0 };
+      const cid = (await store.get(kCid, { type: 'json' }).catch(() => null)) || { octets: 0 };
+      // Plafond SITE atteint → 509 : le lecteur basculera sur l'iframe Drive (repli), l'espace reste lisible.
+      if (SITE_CAP > 0 && site.octets >= SITE_CAP) { console.error('drive-stream : plafond SITE atteint (' + mois() + ')'); return { statusCode: 509, headers: base, body: '' }; }
+      // Plafond par contact → 429.
+      if (cid.octets >= BUDGET_JOUR) return { statusCode: 429, headers: base, body: '' };
+      // Alerte GRADUÉE (observabilité, une fois par palier franchi dans le mois). La notification proactive à
+      // David passe par l'alerte d'usage native du dashboard Netlify (cf. README) — pas de service en plus.
+      if (SITE_CAP > 0) {
+        const pct = (site.octets + BUDGET_STEP) / SITE_CAP;
+        if (pct >= 0.70) {
+          const fk = 'site-alert:' + mois();
+          const fl = (await store.get(fk, { type: 'json' }).catch(() => null)) || { niveau: 0 };
+          const niveau = pct >= 0.90 ? 90 : 70;
+          if (fl.niveau < niveau) { console.error('drive-stream ALERTE bande passante : ~' + Math.round(pct * 100) + '% du plafond site (' + mois() + ')'); await store.setJSON(fk, { niveau: niveau }).catch(() => {}); }
+        }
+      }
+      await store.setJSON(kSite, { octets: site.octets + BUDGET_STEP }).catch(() => {});
+      await store.setJSON(kCid, { octets: cid.octets + BUDGET_STEP }).catch(() => {});
+    } catch (e) { /* Blobs indispo → fail-open */ }
   }
 
   let sa; try { sa = await getSA(); } catch (e) { return { statusCode: 500, headers: base, body: '' }; }
