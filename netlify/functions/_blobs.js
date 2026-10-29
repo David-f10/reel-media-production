@@ -50,4 +50,17 @@ function getThrottleStore() {
   return getStore({ name: 'login-throttle', siteID, token });
 }
 
-module.exports = { getPushStore, getAuthTokenStore, getDriveOpenPermsStore, getThrottleStore };
+// Garde-fou de consommation du relais vidéo (drive-stream). Clé = 'cid:<contact>:<yyyymmdd>' ; valeur =
+// { octets }. Incrémenté de façon COARSE (une fois par palier de ~64 Mo, pas par tranche) pour ne pas peser
+// sur la fluidité ; au-delà du plafond quotidien, le relais renvoie 429. Lève si Blobs non configuré → le
+// relais fail-open sur le garde-fou (ne bloque pas la lecture pour une panne de compteur).
+function getStreamBudgetStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (!siteID || !token) {
+    throw new Error('Netlify Blobs non configuré : NETLIFY_SITE_ID et NETLIFY_BLOBS_TOKEN requis');
+  }
+  return getStore({ name: 'stream-budget', siteID, token });
+}
+
+module.exports = { getPushStore, getAuthTokenStore, getDriveOpenPermsStore, getThrottleStore, getStreamBudgetStore };
