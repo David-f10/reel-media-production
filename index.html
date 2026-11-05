@@ -1266,7 +1266,7 @@ function openDetail(id, forcePadOpen=false){
           <div style="font-size:10px;color:var(--text3)">Miniature ${s.format==='YouTube'?'16x9':'9x16'} dans le dossier Drive</div>
         </div>
       </label>
-      ${s.sansMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=false;upd('${id}','Sans musique','cb',false).then(()=>refreshUI('${id}',true))" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Modifier</button></div>` : s.releveMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${s.statut!=='PAD'?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div>`:''}<button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:4px">📄 Exporter le relevé</button></div>` : `<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div>`}
+      ${s.sansMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=false;upd('${id}','Sans musique','cb',false).then(()=>refreshUI('${id}',true))" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Modifier</button></div>` : s.releveMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${s.statut!=='PAD'?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div>`:''}<div style="display:flex;gap:6px;margin-top:4px">${s.statut!=='PAD'?`<button onclick="prpChoisir('${id}')" class="nav-btn" style="flex:1;font-size:12px">🎬 Re-analyser un .prproj</button>`:''}<button onclick="exporterReleve('${id}')" class="nav-btn" style="flex:1;font-size:12px">📄 Exporter le relevé</button></div></div>` : `<div style="display:flex;flex-direction:column;gap:8px">${s.statut!=='PAD'?`<button onclick="prpChoisir('${id}')" class="nav-btn" style="font-size:12px;padding:10px;border-color:var(--green);color:var(--green)">🎬 Relever depuis le projet Premiere (.prproj)</button>`:''}<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div></div>`}
     </div>
     ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD',this)" class="nav-btn primary"
       style="width:100%;background:${padPret?'var(--green)':'var(--bg4)'};border-color:${padPret?'var(--green)':'var(--border)'};color:${padPret?'#fff':'var(--text3)'};cursor:${padPret?'pointer':'not-allowed'}"
@@ -2241,12 +2241,15 @@ async function loadMusiques(sujetId) {
       const titre = pr.Titre?.title?.[0]?.plain_text || '';
       const artiste = pr.Artiste?.rich_text?.[0]?.plain_text || '';
       const duree = pr.Durée?.rich_text?.[0]?.plain_text || '';
-      return `<div style="display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--border)">
+      const reference = pr['Référence']?.rich_text?.[0]?.plain_text || '';
+      return `<div style="padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:6px">
         <span style="font-size:11px;color:var(--text3);font-family:var(--mono);flex-shrink:0">${i+1}.</span>
         <span style="flex:1;font-size:12px;color:var(--text);font-weight:500">${titre}</span>
         <span style="font-size:11px;color:var(--text2);flex-shrink:0">${artiste}</span>
         <span style="font-size:11px;color:var(--text3);font-family:var(--mono);flex-shrink:0;min-width:35px;text-align:right">${duree}</span>
         <button onclick="supprimerMusique('${m.id}','${sujetId}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1;flex-shrink:0">×</button>
+        </div>${reference?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);padding-left:18px">réf. ${escapeHtml(reference)}</div>`:''}
       </div>`;
     }).join('');
   } catch(e) {
@@ -2330,7 +2333,8 @@ async function exporterReleve(sujetId) {
         const titre = pr.Titre?.title?.[0]?.plain_text || '—';
         const artiste = pr.Artiste?.rich_text?.[0]?.plain_text || '—';
         const duree = pr.Durée?.rich_text?.[0]?.plain_text || '—';
-        contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — ' + formatDuree(duree) + ' s' + NL;
+        const reference = pr['Référence']?.rich_text?.[0]?.plain_text || '—';  // rétrocompatible : ancien relevé → « — »
+        contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — réf. ' + reference + ' — ' + formatDuree(duree) + ' s' + NL;
       });
     }
     contenu += NL + ligne + NL;
@@ -2346,6 +2350,313 @@ async function exporterReleve(sujetId) {
     URL.revokeObjectURL(url);
     toast('📄 Relevé exporté','ok');
   } catch(e) { toast('Erreur export : '+e.message,'err'); }
+}
+
+// ─── RELEVÉ DEPUIS UN PROJET PREMIERE (.prproj) ───
+// Tout se fait DANS LE NAVIGATEUR : le .prproj (XML gzippé) est décompressé et lu localement, il ne part sur
+// aucun serveur (seule l'écriture des lignes validées passe par le proxy Notion existant). Parseur repris de la
+// démo prouvée de David, vérifié au centième sur deux projets réels (B08Y, Marais de Taligny). Le relevé est
+// nommé depuis la FICHE (code + titre Havana), jamais depuis le nom du .prproj.
+const PRP_TICK = 254016000000;                        // ticks Premiere par seconde (confirmé sur 2 projets)
+const PRP_AUDIO = /\.(mp3|wav|m4a|aif|aiff)$/i;
+let prpState = null;                                  // { sujetId, res, fileName } pendant le choix de séquence
+
+function prpMmss(s){ const m=Math.floor(s/60), r=s-m*60; return m+':'+(r<10?'0':'')+r.toFixed(2); }
+
+// Nom de fichier banque → { titre, reference, auteurs, sur }. Règle : banque, puis groupes de chiffres, puis
+// MOTS EN MAJUSCULES = titre, puis le reste = auteurs (affichés BRUTS, jamais découpés — fait 8 de David).
+function prpDecouper(nom){
+  const base = nom.replace(PRP_AUDIO,'');
+  const t = base.split('_').filter(Boolean);
+  const out = { titre: base.replace(/_/g,' '), reference:'', auteurs:'', sur:false };
+  if (t.length < 5) return out;
+  const chiffres = []; let i = 0;
+  while (i < t.length && !/^\d{3,6}$/.test(t[i])) i++;
+  const banque = t.slice(0, i).join(' ');
+  while (i < t.length && /^\d{3,6}$/.test(t[i])) { chiffres.push(t[i]); i++; }
+  if (chiffres.length < 2 || !banque) return out;
+  const mots = [];
+  while (i < t.length && t[i] === t[i].toUpperCase()) { mots.push(t[i]); i++; }
+  if (!mots.length) return out;
+  const noms = t.slice(i);
+  out.reference = banque + ' ' + chiffres.join('-');
+  out.titre = mots.join(' ').replace(/\b(\w)(\w*)/g, (m,a,b) => a + b.toLowerCase());
+  out.auteurs = noms.join(' ');
+  out.sur = noms.length > 2;                           // >2 mots → on ne sait pas séparer, on le signale
+  return out;
+}
+
+async function prpDecompresser(buf){
+  const u8 = new Uint8Array(buf);
+  if (u8[0] === 0x1f && u8[1] === 0x8b){
+    const flux = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return await new Response(flux).text();
+  }
+  return new TextDecoder('utf-8').decode(buf);          // certains projets sont enregistrés en clair
+}
+
+// Analyse le XML → séquences, chacune avec ses morceaux (média résolu, passages, durée), + audio importé non posé.
+function prpAnalyser(xml){
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('XML illisible');
+  const index = new Map();
+  const tous = doc.getElementsByTagName('*');
+  for (let i = 0; i < tous.length; i++){
+    const e = tous[i]; const a = e.getAttribute('ObjectID'), b = e.getAttribute('ObjectUID');
+    if (a) index.set(a, e); if (b) index.set(b, e);
+  }
+  const refsDe = new WeakMap();
+  function refs(el){
+    let r = refsDe.get(el); if (r) return r; r = [];
+    const d = el.getElementsByTagName('*');
+    for (let i = 0; i < d.length; i++){
+      const v = d[i].getAttribute('ObjectRef') || d[i].getAttribute('ObjectURef');
+      if (v){ const n = index.get(v); if (n) r.push(n); }
+    }
+    refsDe.set(el, r); return r;
+  }
+  function nomMedia(el){
+    const ns = el.getElementsByTagName('Name');
+    for (let i = 0; i < ns.length; i++){ const t = (ns[i].textContent||'').trim(); if (PRP_AUDIO.test(t)) return t; }
+    return null;
+  }
+  const cacheRes = new WeakMap();
+  function resoudre(dep){                                // clip → média : BFS sur ObjectRef/ObjectURef, plafond 4000
+    if (cacheRes.has(dep)) return cacheRes.get(dep);
+    const vus = new Set(); const file = [dep]; let n = 0, res = null;
+    while (file.length && n < 4000){
+      const cur = file.shift(); n++;
+      if (!cur || vus.has(cur)) continue; vus.add(cur);
+      const m = nomMedia(cur); if (m){ res = m; break; }
+      for (const nx of refs(cur)) if (!vus.has(nx)) file.push(nx);
+    }
+    cacheRes.set(dep, res); return res;
+  }
+  function bornes(clip){
+    const ti = clip.getElementsByTagName('TrackItem')[0];
+    if (!ti) return null;
+    let deb = 0, fin = null;                             // PIÈGE : <Start> est OMIS quand il vaut 0 → début = 0
+    for (const e of ti.children){
+      if (e.tagName === 'Start') deb = Number(e.textContent) / PRP_TICK;
+      if (e.tagName === 'End')   fin = Number(e.textContent) / PRP_TICK;
+    }
+    return fin === null ? null : [deb, fin];
+  }
+  function joignables(dep){                              // clips non imbriqués : on suit les refs depuis la Sequence
+    const vus = new Set(); const pile = [dep]; const out = [];
+    while (pile.length && vus.size < 90000){
+      const cur = pile.pop();
+      if (!cur || vus.has(cur)) continue; vus.add(cur); out.push(cur);
+      for (const nx of refs(cur)) if (!vus.has(nx)) pile.push(nx);
+    }
+    return out;
+  }
+  const seqs = [];
+  const brutes = doc.getElementsByTagName('Sequence');
+  for (let i = 0; i < brutes.length; i++){
+    const s = brutes[i];
+    if (!s.getAttribute('ObjectID') && !s.getAttribute('ObjectUID')) continue;
+    const nn = s.getElementsByTagName('Name')[0];
+    const nom = nn ? (nn.textContent||'').trim() : 'sans nom';
+    const parMedia = new Map(); let fin = 0; let sync = 0;   // sync = clip audio sans média nommé (son direct)
+    for (const o of joignables(s)){
+      if (o.tagName !== 'AudioClipTrackItem') continue;
+      const b = bornes(o); if (!b) continue;
+      if (b[1] > fin) fin = b[1];
+      const m = resoudre(o);
+      if (m){ if (!parMedia.has(m)) parMedia.set(m, []); parMedia.get(m).push(b); }
+      else sync++;
+    }
+    if (!parMedia.size && !sync) continue;                  // séquence sans AUCUN son posé → ignorée
+    const musiques = [];
+    for (const [media, segs] of parMedia){
+      segs.sort((a,b) => a[0]-b[0]);
+      const total = segs.reduce((t,[a,b]) => t + (b-a), 0);
+      const d = prpDecouper(media);
+      musiques.push({ media, titre:d.titre, reference:d.reference, auteurs:d.auteurs, sur:d.sur, passages:segs, total });
+    }
+    musiques.sort((a,b)=> (b.reference?1:0)-(a.reference?1:0) || b.total-a.total);
+    seqs.push({ nom, fin, musiques, sync });                // TOUTES les séquences sonores (le monteur choisit)
+  }
+  const cites = new Set();
+  const noms = doc.getElementsByTagName('Name');
+  for (let i = 0; i < noms.length; i++){
+    const t = (noms[i].textContent||'').trim();
+    if (PRP_AUDIO.test(t) && !/^monitor\.show\.audio/i.test(t)) cites.add(t);
+  }
+  const posees = new Set(); seqs.forEach(s => s.musiques.forEach(m => posees.add(m.media)));
+  const inutilisees = [...cites].filter(c => !posees.has(c)).map(prpDecouper);
+  return { seqs, inutilisees };
+}
+
+// Déclenche le choix d'un .prproj puis l'analyse (sans upload : lecture locale).
+function prpChoisir(sujetId){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.prproj';
+  inp.addEventListener('change', () => { if (inp.files && inp.files[0]) prpTraiter(sujetId, inp.files[0]); });
+  inp.click();
+}
+async function prpTraiter(sujetId, file){
+  toast('Lecture de '+file.name+'…','');
+  try {
+    const xml = await prpDecompresser(await file.arrayBuffer());
+    const res = prpAnalyser(xml);
+    prpState = { sujetId, res, fileName: file.name };
+    prpOverlay();
+  } catch(e){ toast('Lecture impossible : '+e.message,'err'); }
+}
+
+// Overlay de choix de séquence. Le seul geste humain : désigner la séquence LIVRÉE (fait 3 de David : un projet
+// peut avoir plusieurs séquences, une seule livrée). Déclarable = morceau AVEC référence de banque ; les autres
+// sons (voix, bruitage, sans référence) sont montrés à part, cochables au cas où.
+function prpOverlay(){
+  const { sujetId, res, fileName } = prpState;
+  const s = sujets.find(x => x.id === sujetId) || {};
+  const ex = document.getElementById('prp-overlay'); if (ex) ex.remove();
+  const ov = document.createElement('div');
+  ov.id = 'prp-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10002;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto';
+
+  // séquence retenue par défaut = celle qui porte le plus de morceaux déclarables (avec référence)
+  const declN = sq => sq.musiques.filter(m => m.reference).length;
+  let def = -1, best = 0;
+  res.seqs.forEach((sq,i) => { const d = declN(sq); if (d > best){ best = d; def = i; } });
+
+  let h = '<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);max-width:680px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.5)">';
+  h += '<div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px">'
+     + '<div><div style="font-size:15px;font-weight:600;color:var(--text)">Relevé depuis Premiere</div>'
+     + '<div style="font-size:12px;color:var(--text2);margin-top:3px">Fiche : <b style="color:var(--text)">'+escapeHtml(s.code||'—')+' — '+escapeHtml(s.titre||'')+'</b></div>'
+     + '<div style="font-size:11px;color:var(--text3);margin-top:2px">Fichier analysé : '+escapeHtml(fileName)+' <span style="opacity:.7">· son nom n\'est pas utilisé pour le relevé</span></div></div>'
+     + '<button onclick="document.getElementById(\'prp-overlay\').remove()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;line-height:1;padding:0">×</button></div>';
+
+  if (!res.seqs.length){
+    h += '<div style="padding:20px;font-size:13px;color:var(--text2);line-height:1.6">Aucun son posé dans ce projet.'
+       + '<div style="margin-top:14px"><button onclick="prpSansMusique()" class="nav-btn" style="font-size:12px">🔇 Marquer « Sans musique »</button></div></div>';
+  } else {
+    const aucuneMus = def < 0;   // aucune séquence ne porte de musique de banque
+    h += '<div style="padding:12px 20px 4px;font-size:11px;color:var(--text3)">Choisissez la séquence livrée'
+       + (aucuneMus ? ' <span style="color:var(--text2)">— aucune ne porte de musique de banque</span>' : '') + ' :</div>';
+    h += '<div style="padding:4px 20px 8px;display:flex;flex-direction:column;gap:10px">';
+    res.seqs.forEach((sq,i) => {
+      const decl = sq.musiques.filter(m => m.reference);
+      const autres = sq.musiques.filter(m => !m.reference);
+      const sel = (i === def);
+      h += '<label style="display:block;border:1px solid '+(sel?'var(--green)':'var(--border)')+';border-radius:10px;padding:12px 14px;cursor:pointer;background:'+(sel?'var(--green-dim)':'var(--bg3)')+'" data-seqcard="'+i+'">'
+         + '<div style="display:flex;align-items:center;gap:9px">'
+         + '<input type="radio" name="prp-seq" value="'+i+'" '+(sel?'checked':'')+' onchange="prpMajCartes()" style="accent-color:var(--green);width:15px;height:15px">'
+         + '<span style="font-weight:600;font-size:13px;color:var(--text)">'+escapeHtml(sq.nom)+'</span>'
+         + '<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">'+prpMmss(sq.fin)+(sq.sync?' · '+sq.sync+' son synchrone'+(sq.sync>1?'s':''):'')+'</span>'
+         + '<span style="margin-left:auto;font-size:11px;color:'+(decl.length?'var(--green)':'var(--text3)')+'">'+(decl.length? decl.length+' musique'+(decl.length>1?'s':'') : 'aucune musique')+'</span></div>';
+      if (decl.length){
+        h += '<div style="margin:10px 0 0;padding-left:24px;display:flex;flex-direction:column;gap:8px">';
+        decl.forEach(m => {
+          h += '<div>'
+             + '<div style="display:flex;gap:8px;align-items:baseline"><span style="font-weight:600;font-size:13px;color:var(--text)">'+escapeHtml(m.titre)+'</span>'
+             + '<span style="font-family:var(--mono);font-size:13px;color:var(--red)">'+prpMmss(m.total)+'</span>'
+             + '<span style="font-size:11px;color:var(--text3)">'+m.passages.length+' passage'+(m.passages.length>1?'s':'')+'</span></div>'
+             + '<div style="font-family:var(--mono);font-size:11px;color:var(--text3)">réf. '+escapeHtml(m.reference)+'</div>'
+             + (m.auteurs ? '<div style="font-size:12px;color:var(--text2)">'+escapeHtml(m.auteurs)+(m.sur?' <span style="color:var(--red)">· séparer les auteurs à la main</span>':'')+'</div>' : '')
+             + '<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px">'+m.passages.map(([a,b])=>prpMmss(a)+'→'+prpMmss(b)).join('  ')+'</div>'
+             + '</div>';
+        });
+        h += '</div>';
+      }
+      if (autres.length){
+        h += '<div style="margin:10px 0 0;padding-left:24px"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Autres sons (sans référence — voix, bruitage)</div>';
+        autres.forEach((m,j) => {
+          h += '<label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);padding:2px 0">'
+             + '<input type="checkbox" data-autre="'+i+'-'+j+'" style="accent-color:var(--green);width:13px;height:13px">'
+             + '<span>'+escapeHtml(m.titre)+'</span><span style="font-family:var(--mono);font-size:11px;color:var(--text3)">'+prpMmss(m.total)+'</span></label>';
+        });
+        h += '</div>';
+      }
+      h += '</label>';
+    });
+    h += '</div>';
+    if (res.inutilisees.length){
+      h += '<div style="padding:4px 20px 0;font-size:11px;color:var(--text3)">Importées dans le projet, jamais posées (à ne pas déclarer) : '
+         + res.inutilisees.map(m=>escapeHtml(m.titre)).join(', ')+'</div>';
+    }
+    h += '<div style="padding:16px 20px 20px;display:flex;gap:8px;justify-content:flex-end">'
+       + '<button onclick="document.getElementById(\'prp-overlay\').remove()" class="nav-btn" style="font-size:12px">Annuler</button>'
+       + '<button onclick="prpValider()" class="nav-btn primary" style="font-size:12px;background:var(--green);border-color:var(--green)">Valider le relevé</button></div>';
+  }
+  h += '</div>';
+  ov.innerHTML = h;
+  document.body.appendChild(ov);
+  fermerSurClicFond(ov, () => ov.remove());
+}
+function prpMajCartes(){
+  const ov = document.getElementById('prp-overlay'); if (!ov) return;
+  ov.querySelectorAll('[data-seqcard]').forEach(card => {
+    const r = card.querySelector('input[name="prp-seq"]');
+    const on = r && r.checked;
+    card.style.borderColor = on ? 'var(--green)' : 'var(--border)';
+    card.style.background = on ? 'var(--green-dim)' : 'var(--bg3)';
+  });
+}
+// Construit les lignes à écrire pour la séquence choisie (déclarables + autres sons cochés).
+function prpLignesChoisies(){
+  const ov = document.getElementById('prp-overlay');
+  const sel = ov && ov.querySelector('input[name="prp-seq"]:checked');
+  if (!sel) return null;
+  const seq = prpState.res.seqs[+sel.value];
+  const lignes = seq.musiques.filter(m => m.reference).slice();
+  const autres = seq.musiques.filter(m => !m.reference);
+  autres.forEach((m,j) => { const c = ov.querySelector('[data-autre="'+sel.value+'-'+j+'"]'); if (c && c.checked) lignes.push(m); });
+  return { seqNom: seq.nom, lignes };
+}
+async function prpValider(){
+  const choix = prpLignesChoisies();
+  if (!choix){ toast('Choisissez la séquence livrée','err'); return; }
+  if (!choix.lignes.length){
+    const s2 = sujets.find(x => x.id === prpState.sujetId) || {};
+    showConfirmModal({ title:'Séquence « '+choix.seqNom+' » sans musique de banque',
+      message:'Aucune musique déclarable dans cette séquence. Marquer « Sans musique » pour '+(s2.code||'ce sujet')+' ?',
+      confirmText:'Marquer Sans musique', onConfirm:()=>prpSansMusique() });
+    return;
+  }
+  const { sujetId } = prpState;
+  const s = sujets.find(x => x.id === sujetId) || {};
+  const apercu = choix.lignes.map((m,i) => (i+1)+'. '+m.titre+' — '+prpMmss(m.total)+(m.reference?' — réf. '+m.reference:'')).join('\n');
+  showConfirmModal({
+    title: 'Écrire '+choix.lignes.length+' ligne'+(choix.lignes.length>1?'s':'')+' pour '+(s.code||'ce sujet')+' ?',
+    message: 'Séquence « '+choix.seqNom+' ».\n\n'+apercu+'\n\nLe relevé existant de ce sujet sera remplacé.',
+    confirmText: 'Écrire le relevé',
+    onConfirm: () => prpEcrire(sujetId, choix.lignes)
+  });
+}
+// Écrit dans DB_MUSIQUES : remplace l'existant (archive) puis crée les lignes, et coche « Relevé musique ».
+async function prpEcrire(sujetId, lignes){
+  try {
+    const anciennes = await api('/databases/'+DB_MUSIQUES+'/query','POST',{ filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
+    for (const a of (anciennes.results||[])) await api('/pages/'+a.id,'PATCH',{archived:true});
+    for (const m of lignes){
+      await api('/pages','POST',{ parent:{database_id:DB_MUSIQUES}, properties:{
+        'Titre':{title:[{text:{content:m.titre||'Sans titre'}}]},
+        'Artiste':{rich_text:m.auteurs?[{text:{content:m.auteurs}}]:[]},
+        'Durée':{rich_text:[{text:{content:prpMmss(m.total)}}]},
+        'Référence':{rich_text:m.reference?[{text:{content:m.reference}}]:[]},
+        'Sujet ID':{rich_text:[{text:{content:sujetId}}]}
+      }});
+    }
+    const sx = sujets.find(x => x.id === sujetId); if (sx){ sx.releveMusique = true; sx.sansMusique = false; }
+    await upd(sujetId,'Relevé musique','cb',true);
+    if (sx && sx.sansMusique === false) await upd(sujetId,'Sans musique','cb',false).catch(()=>{});
+    const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
+    toast('Relevé écrit : '+lignes.length+' ligne'+(lignes.length>1?'s':''),'ok');
+    openDetail(sujetId, true);
+  } catch(e){ toast('Écriture impossible : '+e.message,'err'); }
+}
+// Depuis l'overlay quand le projet n'a aucune musique : coche « Sans musique ».
+async function prpSansMusique(){
+  const { sujetId } = prpState || {};
+  if (!sujetId) return;
+  const sx = sujets.find(x => x.id === sujetId); if (sx) sx.sansMusique = true;
+  try { await upd(sujetId,'Sans musique','cb',true); } catch(e){ toast('Erreur : '+e.message,'err'); return; }
+  const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
+  toast('Marqué « Sans musique »','ok');
+  openDetail(sujetId, true);
 }
 
 // ─── DÉCLINAISONS ───
