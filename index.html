@@ -2551,8 +2551,8 @@ async function prpTraiter(sujetId, file){
     // Relevé précédent lu UNE fois, à l'ouverture → le diff se recalcule en mémoire, sans requête par clic.
     let ancien = [];
     try {
-      const rows = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
-      ancien = (rows||[]).map(r => ({ titre: r.properties.Titre?.title?.[0]?.plain_text || '', duree: r.properties['Durée']?.rich_text?.[0]?.plain_text || '' }));
+      const rows = (await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} })).results || [];  // apiQueryAll renvoie { results }
+      ancien = rows.map(r => ({ titre: r.properties.Titre?.title?.[0]?.plain_text || '', duree: r.properties['Durée']?.rich_text?.[0]?.plain_text || '' }));
     } catch(e){ /* diff indicatif : son absence ne bloque pas le dépôt */ }
     prpState = { sujetId, res, fileName: file.name, ancien };
     prpOverlay();
@@ -2764,7 +2764,7 @@ async function prpEcrire(sujetId, lignes){
       }});
       if (r && r.id) newIds.push(r.id);
     }
-    const toutes = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
+    const toutes = (await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} })).results || [];  // apiQueryAll renvoie { results }
     for (const a of toutes){ if (newIds.indexOf(a.id) === -1) await api('/pages/'+a.id,'PATCH',{archived:true}); }  // (2) archiver anciennes + orphelines
     await upd(sujetId,'Relevé musique','cb',true);    // (3) armer EN DERNIER → à cet instant la liste est exacte
     await upd(sujetId,'Sans musique','cb',false);
@@ -2773,6 +2773,8 @@ async function prpEcrire(sujetId, lignes){
     toast('Relevé écrit : '+lignes.length+' ligne'+(lignes.length>1?'s':''),'ok');
     openDetail(sujetId, true);
   } catch(e){
+    console.error('[prpEcrire] échec — rollback des lignes créées', e);   // cause diagnosticable en console (jamais à l'écran)
+    for (const id of newIds){ try { await api('/pages/'+id,'PATCH',{archived:true}); } catch(_){} }  // rollback best-effort : un échec ne laisse aucune ligne derrière lui
     toast('Écriture interrompue — relevé NON validé, réessayez le dépôt.','err');  // case restée false → jamais « fait + doublé »
     openDetail(sujetId, true);
   }
@@ -2784,12 +2786,12 @@ async function prpSansMusique(){
   if (!sujetId) return;
   const sx = sujets.find(x => x.id === sujetId);
   try {
-    const toutes = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
+    const toutes = (await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} })).results || [];  // apiQueryAll renvoie { results }
     for (const a of toutes) await api('/pages/'+a.id,'PATCH',{archived:true});
     await upd(sujetId,'Sans musique','cb',true);
     await upd(sujetId,'Relevé musique','cb',false);
     if (sx){ sx.sansMusique = true; sx.releveMusique = false; }
-  } catch(e){ toast('Erreur : '+e.message,'err'); openDetail(sujetId,true); return; }
+  } catch(e){ console.error('[prpSansMusique] échec', e); toast('Opération interrompue, réessayez.','err'); openDetail(sujetId,true); return; }
   const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
   toast('Marqué « Sans musique »','ok');
   openDetail(sujetId, true);
