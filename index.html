@@ -558,6 +558,9 @@ const DB_CORRECTIONS = '9a3c2b06-69d4-4f04-a2bb-7a25b84209e1';
 const DB_REFS='4ae84e174ee9473888eaa15112fcc6ee';
 const DB_VERSIONS='3793eebb-2aeb-4d49-84ae-06d79cfb2704';
 const DB_MUSIQUES='d9d3579257bc49059e6cd683a8b02fef';
+// Seuil du verrou relevé Brand (en dur, Europe/Paris CET = +01:00). Toute version CRÉÉE après ce seuil, sur un
+// sujet Brand, exige son relevé avant qu'on puisse déposer la suivante. Les versions antérieures sont antidatées.
+const SEUIL_RELEVE_MS = Date.parse('2026-11-06T10:45:00+01:00');
 const FORMATS_INTERNES = ['Interne'];
 const DB_COMMENTS='45fda8a6-dfbc-42c1-a26f-de09c289037b';
 const DB_COMP='f9b8d090-6c9e-4513-a67c-db2d82941a29';
@@ -1266,7 +1269,7 @@ function openDetail(id, forcePadOpen=false){
           <div style="font-size:10px;color:var(--text3)">Miniature ${s.format==='YouTube'?'16x9':'9x16'} dans le dossier Drive</div>
         </div>
       </label>
-      ${s.sansMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=false;upd('${id}','Sans musique','cb',false).then(()=>refreshUI('${id}',true))" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Modifier</button></div>` : s.releveMusique ? `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${s.statut!=='PAD'?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div>`:''}<div style="display:flex;gap:6px;margin-top:4px">${s.statut!=='PAD'?`<button onclick="prpChoisir('${id}')" class="nav-btn" style="flex:1;font-size:12px">🎬 Re-analyser un .prproj</button>`:''}<button onclick="exporterReleve('${id}')" class="nav-btn" style="flex:1;font-size:12px">📄 Exporter le relevé</button></div></div>` : `<div style="display:flex;flex-direction:column;gap:8px">${s.statut!=='PAD'?`<button onclick="prpChoisir('${id}')" class="nav-btn" style="font-size:12px;padding:10px;border-color:var(--green);color:var(--green)">🎬 Relever depuis le projet Premiere (.prproj)</button>`:''}<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div></div>`}
+      <div id="mus-card-${id}">${musiqueBloc(s)}</div>
     </div>
     ${s.statut!=='PAD'?`<button onclick="updStatut('${id}','PAD',this)" class="nav-btn primary"
       style="width:100%;background:${padPret?'var(--green)':'var(--bg4)'};border-color:${padPret?'var(--green)':'var(--border)'};color:${padPret?'#fff':'var(--text3)'};cursor:${padPret?'pointer':'not-allowed'}"
@@ -2221,6 +2224,44 @@ async function ouvrirEditionBrouillon(retourId, sujetId, version) {
 }
 
 // ─── MUSIQUES ───
+// Rendu de la carte musique. Le chemin MANUEL (« Avec/Sans musique », saisie à la main, « Modifier ») n'est
+// offert que si `manuelOK` : hors Brand (zéro changement pour les autres formats), OU Brand dont la version
+// COURANTE est antérieure au seuil (rattrapage à la main des anciens). Sur un Brand post-seuil, c'est le .prproj
+// ou rien ; la saisie et le dépôt .prproj restent disponibles même en statut PAD (reprise post-livraison, cas b).
+// `s._postSeuil` est posé par loadVersions quand la date de la dernière version est connue ; par défaut (avant),
+// on suppose post-seuil (strict) pour ne pas exposer le chemin manuel à tort.
+function musiqueBloc(s){
+  const id = s.id;
+  const isBrand = s.format === 'Brand';
+  // Trois états pour un Brand : NON RÉSOLU (undefined, loadVersions n'a pas tranché) → neutre ; false → pré-seuil ;
+  // true → post-seuil. Non résolu = ni chemin manuel ni blocage « requis », seulement le .prproj (fail-open : un
+  // échec de loadVersions ne fait perdre ni le rattrapage, ni ne pose un faux « requis »).
+  const resolu = !isBrand || s._postSeuil === true || s._postSeuil === false;
+  const postSeuil = isBrand && s._postSeuil === true;
+  const isChef = currentUser?.role === 'Chef';
+  const manuelOK = !isBrand || (resolu && !postSeuil);        // non-Brand : toujours ; Brand : seulement pré-seuil CONFIRMÉ
+  const prpBtn = `<button onclick="prpChoisir('${id}')" class="nav-btn" style="font-size:12px;padding:10px;border-color:var(--green);color:var(--green)">🎬 Relever depuis le projet Premiere (.prproj)</button>`;
+  if (s.sansMusique){
+    return `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span>${manuelOK?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=false;upd('${id}','Sans musique','cb',false).then(()=>refreshUI('${id}',true))" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Modifier</button>`:''}</div>`;
+  }
+  if (s.releveMusique){
+    return `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${manuelOK?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div>`:''}<div style="display:flex;gap:6px;margin-top:4px"><button onclick="prpChoisir('${id}')" class="nav-btn" style="flex:1;font-size:12px">🎬 Re-analyser un .prproj</button><button onclick="exporterReleve('${id}')" class="nav-btn" style="flex:1;font-size:12px">📄 Exporter le relevé</button></div></div>`;
+  }
+  // relevé non fait
+  let h = `<div style="display:flex;flex-direction:column;gap:8px">${prpBtn}`;
+  if (manuelOK){
+    h += `<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div>`;
+  } else if (isBrand && !resolu){
+    // État neutre : on ne sait pas encore si la version courante est pré- ou post-seuil. Ni manuel, ni « requis ».
+    h += `<div style="font-size:11px;color:var(--text3);line-height:1.4">${s._versErr ? '⚠️ Versions non lues — réessayez. Le dépôt du projet Premiere reste possible.' : 'Versions en cours de chargement…'}</div>`;
+  } else {
+    // Brand post-seuil confirmé, relevé manquant → requis + sortie chef.
+    h += `<div style="font-size:11px;color:var(--amber);line-height:1.4">⚠️ Relevé requis pour cette version — déposez le projet Premiere (le dépôt de la version suivante est bloqué tant qu'il manque).</div>`;
+    if (isChef) h += `<button onclick="prpDebloquerChef('${id}')" class="nav-btn" style="font-size:11px;color:var(--text3);border-style:dashed">🔑 Débloquer sans projet (chef)</button>`;
+  }
+  h += `</div>`;
+  return h;
+}
 async function loadMusiques(sujetId) {
   const el = document.getElementById('musiques-list-'+sujetId);
   const countEl = document.getElementById('musiques-count-'+sujetId);
@@ -2337,6 +2378,12 @@ async function exporterReleve(sujetId) {
         contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — réf. ' + reference + ' — ' + formatDuree(duree) + ' s' + NL;
       });
     }
+    // Mention de pied si un chef a débloqué sans projet (trace lue dans « Notes chef ») — un drapeau rouge
+    // volontaire pour le destinataire de la déclaration, jamais une ligne de musique.
+    // Un sujet peut avoir été débloqué plusieurs fois (une ligne appondue à chaque fois) : on prend le DERNIER.
+    const debs = [...(s.notes || '').matchAll(/\[Relevé débloqué sans projet par (.+?) le (.+?)\]/g)];
+    const mDeb = debs.length ? debs[debs.length - 1] : null;
+    if (mDeb) contenu += NL + '⚠️ Relevé débloqué sans projet par ' + mDeb[1] + ' le ' + mDeb[2] + ' — à vérifier.' + NL;
     contenu += NL + ligne + NL;
     // Télécharger le fichier
     const blob = new Blob([contenu], {type:'text/plain;charset=utf-8'});
@@ -2662,44 +2709,111 @@ async function prpValider(){
   const { sujetId } = prpState;
   const s = sujets.find(x => x.id === sujetId) || {};
   const apercu = choix.lignes.map((m,i) => (i+1)+'. '+m.titre+' — '+prpMmss(m.total)+(m.reference?' — réf. '+m.reference:'')).join('\n');
+  // Comparaison au relevé précédent (critère 5) : signaler un CHANGEMENT de musique AVANT d'écraser.
+  let diff = '';
+  try {
+    const anc = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
+    if (anc && anc.length){
+      const cleOld = r => (r.properties.Titre?.title?.[0]?.plain_text||'')+'|'+(r.properties['Durée']?.rich_text?.[0]?.plain_text||'');
+      const cleNew = m => (m.titre||'')+'|'+prpMmss(m.total);
+      const setOld = new Set(anc.map(cleOld)), setNew = new Set(choix.lignes.map(cleNew));
+      const ajout = choix.lignes.filter(m=>!setOld.has(cleNew(m))).map(m=>'+ '+m.titre+' '+prpMmss(m.total));
+      const retire = anc.filter(r=>!setNew.has(cleOld(r))).map(r=>'− '+(r.properties.Titre?.title?.[0]?.plain_text||'')+' '+(r.properties['Durée']?.rich_text?.[0]?.plain_text||''));
+      diff = (ajout.length||retire.length) ? '\n\n⚠️ La musique CHANGE depuis le relevé précédent :\n'+ajout.concat(retire).join('\n') : '\n\n(identique au relevé précédent)';
+    }
+  } catch(e){ /* la comparaison est indicative ; son échec ne bloque pas l'écriture */ }
   showConfirmModal({
     title: 'Écrire '+choix.lignes.length+' ligne'+(choix.lignes.length>1?'s':'')+' pour '+(s.code||'ce sujet')+' ?',
-    message: 'Séquence « '+choix.seqNom+' ».\n\n'+apercu+'\n\nLe relevé existant de ce sujet sera remplacé.',
+    message: 'Séquence « '+choix.seqNom+' ».\n\n'+apercu+diff+'\n\nLe relevé existant de ce sujet sera remplacé.',
     confirmText: 'Écrire le relevé',
     onConfirm: () => prpEcrire(sujetId, choix.lignes)
   });
 }
-// Écrit dans DB_MUSIQUES : remplace l'existant (archive) puis crée les lignes, et coche « Relevé musique ».
+// Écrit dans DB_MUSIQUES, de façon à ce que « case armée ⟹ liste exacte » ne soit JAMAIS faux.
+// Ordre : (0) désarmer la case → l'export est caché pendant toute l'écriture ; (1) créer les nouvelles lignes ;
+// (2) archiver TOUT ce qui porte ce Sujet ID SAUF les nouvelles (anciennes + orphelines d'un essai précédent) ;
+// (3) ARMER la case en DERNIER. Un échec avant (3) laisse la case false (« à faire »), jamais « fait + doublé » ;
+// le re-dépôt (idempotent) archive tout et réécrit.
 async function prpEcrire(sujetId, lignes){
+  const sx = sujets.find(x => x.id === sujetId);
+  if (sx && (sx.releveMusique || sx.sansMusique)){   // (0) désarmer : bouton d'export caché → rien de doublé ne sort
+    sx.releveMusique = false; sx.sansMusique = false;
+    try { await upd(sujetId,'Relevé musique','cb',false); await upd(sujetId,'Sans musique','cb',false); } catch(e){}
+  }
+  const newIds = [];
   try {
-    const anciennes = await api('/databases/'+DB_MUSIQUES+'/query','POST',{ filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
-    for (const a of (anciennes.results||[])) await api('/pages/'+a.id,'PATCH',{archived:true});
-    for (const m of lignes){
-      await api('/pages','POST',{ parent:{database_id:DB_MUSIQUES}, properties:{
+    for (const m of lignes){                         // (1) créer, en gardant les ids
+      const r = await api('/pages','POST',{ parent:{database_id:DB_MUSIQUES}, properties:{
         'Titre':{title:[{text:{content:m.titre||'Sans titre'}}]},
         'Artiste':{rich_text:m.auteurs?[{text:{content:m.auteurs}}]:[]},
         'Durée':{rich_text:[{text:{content:prpMmss(m.total)}}]},
         'Référence':{rich_text:m.reference?[{text:{content:m.reference}}]:[]},
         'Sujet ID':{rich_text:[{text:{content:sujetId}}]}
       }});
+      if (r && r.id) newIds.push(r.id);
     }
-    const sx = sujets.find(x => x.id === sujetId); if (sx){ sx.releveMusique = true; sx.sansMusique = false; }
-    await upd(sujetId,'Relevé musique','cb',true);
-    if (sx && sx.sansMusique === false) await upd(sujetId,'Sans musique','cb',false).catch(()=>{});
+    const toutes = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
+    for (const a of toutes){ if (newIds.indexOf(a.id) === -1) await api('/pages/'+a.id,'PATCH',{archived:true}); }  // (2) archiver anciennes + orphelines
+    await upd(sujetId,'Relevé musique','cb',true);    // (3) armer EN DERNIER → à cet instant la liste est exacte
+    await upd(sujetId,'Sans musique','cb',false);
+    if (sx){ sx.releveMusique = true; sx.sansMusique = false; }
     const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
     toast('Relevé écrit : '+lignes.length+' ligne'+(lignes.length>1?'s':''),'ok');
     openDetail(sujetId, true);
-  } catch(e){ toast('Écriture impossible : '+e.message,'err'); }
+  } catch(e){
+    toast('Écriture interrompue — relevé NON validé, réessayez le dépôt.','err');  // case restée false → jamais « fait + doublé »
+    openDetail(sujetId, true);
+  }
 }
-// Depuis l'overlay quand le projet n'a aucune musique : coche « Sans musique ».
+// « Sans musique » depuis l'overlay (projet sans musique) : on archive d'abord TOUTE ligne existante (une « sans
+// musique » doit être réellement vide), PUIS on arme la case en dernier.
 async function prpSansMusique(){
   const { sujetId } = prpState || {};
   if (!sujetId) return;
-  const sx = sujets.find(x => x.id === sujetId); if (sx) sx.sansMusique = true;
-  try { await upd(sujetId,'Sans musique','cb',true); } catch(e){ toast('Erreur : '+e.message,'err'); return; }
+  const sx = sujets.find(x => x.id === sujetId);
+  try {
+    const toutes = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
+    for (const a of toutes) await api('/pages/'+a.id,'PATCH',{archived:true});
+    await upd(sujetId,'Sans musique','cb',true);
+    await upd(sujetId,'Relevé musique','cb',false);
+    if (sx){ sx.sansMusique = true; sx.releveMusique = false; }
+  } catch(e){ toast('Erreur : '+e.message,'err'); openDetail(sujetId,true); return; }
   const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
   toast('Marqué « Sans musique »','ok');
   openDetail(sujetId, true);
+}
+// Sortie de secours réservée au CHEF : débloque un sujet Brand post-seuil dont le .prproj est perdu. Trace
+// (nom du chef + date) appondue dans « Notes chef », JAMAIS une ligne de musique (le document part au client/banque).
+// Trace d'abord, armement ensuite : si l'armement échoue, le verrou reste fermé mais la trace existe — jamais l'inverse.
+async function prpDebloquerChef(sujetId){
+  const s = sujets.find(x => x.id === sujetId); if (!s) return;
+  if (currentUser?.role !== 'Chef'){ toast('Réservé aux chefs','err'); return; }
+  showConfirmModal({
+    title: 'Débloquer sans projet — '+(s.code||'ce sujet'),
+    message: 'Ceci CONTOURNE la preuve : aucun relevé n\'est fait pour cette version, le vrai relevé reste à déposer. Une trace (ton nom + la date) sera inscrite dans « Notes chef » et apparaîtra en pied de l\'export. Débloquer ?',
+    confirmText: 'Débloquer (chef)', confirmStyle: 'danger',
+    onConfirm: async () => {
+      const chef = (currentUser && currentUser.nom) || 'chef';
+      const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+      const trace = '[Relevé débloqué sans projet par '+chef+' le '+date+']';
+      try {
+        // RELIRE la note fraîche en base juste avant d'écrire : on appond à CETTE valeur (pas à s.notes, qui peut
+        // dater du chargement). Notion n'a pas d'« append » → relire-puis-réécrire. Si la relecture échoue, on
+        // ANNULE (ne jamais réécrire une note périmée qui écraserait l'édition d'un autre). Fenêtre résiduelle
+        // lecture→écriture (quelques centaines de ms), irréductible sans transaction.
+        let base;
+        try {
+          const page = await api('/pages/'+sujetId);   // GET par défaut
+          base = (page?.properties?.['Notes chef']?.rich_text || []).map(t => t.plain_text || '').join('');
+        } catch(e){ toast('Impossible de relire la note — déblocage annulé, réessayez','err'); return; }
+        const notes = (base ? base + '\n' : '') + trace;
+        await upd(sujetId,'Notes chef','rt',notes); s.notes = notes;      // 1. trace (sur la base fraîche)
+        await upd(sujetId,'Relevé musique','cb',true); s.releveMusique = true;  // 2. ouvre le verrou (une seule version : le prochain dépôt remet à zéro)
+        toast('Débloqué — tracé dans Notes chef','ok');
+        openDetail(sujetId, true);
+      } catch(e){ toast('Déblocage impossible : '+e.message,'err'); }
+    }
+  });
 }
 
 // ─── DÉCLINAISONS ───
@@ -3373,6 +3487,18 @@ async function loadVersions(sujetId) {
       })
     ]);
     const versions = versionsData.results;
+    // ── Verrou relevé Brand ── La version COURANTE (la plus récente) est-elle postérieure au seuil ? Si oui et que
+    // le relevé n'est pas fait, on bloque le dépôt d'une nouvelle version (monteur/journaliste ; le chef passe).
+    // On re-rend la carte musique maintenant que la date est connue : le chemin manuel ne s'offre que sur une
+    // version PRÉ-seuil (rattrapage). Les versions pré-seuil sont antidatées → jamais de blocage rétroactif.
+    const _latestMs = versions.length ? Date.parse(versions[versions.length-1].created_time) : 0;
+    const _postSeuil = versions.length > 0 && _latestMs >= SEUIL_RELEVE_MS;
+    if (isBrand && sujetCourant){
+      sujetCourant._postSeuil = _postSeuil; sujetCourant._versErr = false;
+      const _mc = document.getElementById('mus-card-'+sujetId);
+      if (_mc){ _mc.innerHTML = musiqueBloc(sujetCourant); if (sujetCourant.releveMusique) loadMusiques(sujetId); }
+    }
+    const _verrouAjout = isBrand && currentUser?.role !== 'Chef' && versions.length > 0 && _postSeuil && !(sujetCourant.releveMusique || sujetCourant.sansMusique);
     // Compter les retours ouverts par version
     const retoursOuvertsByVersion = {};
     retoursData.results.forEach(r => {
@@ -3550,13 +3676,22 @@ async function loadVersions(sujetId) {
     el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <div style="display:flex;gap:5px;flex-wrap:wrap;flex:1">${onglets}</div>
         <div style="width:1px;height:22px;background:var(--border);flex-shrink:0"></div>
-        <button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px;flex-shrink:0">+ Ajouter une version</button>
+        ${_verrouAjout
+          ? `<button class="nav-btn" disabled title="Relevé musique requis sur la version en cours avant d'en déposer une nouvelle" style="font-size:11px;white-space:nowrap;padding:4px 10px;flex-shrink:0;opacity:.5;cursor:not-allowed">🔒 Relevé requis</button>`
+          : `<button id="btn-add-version-${sujetId}" onclick="ajouterVersion('${sujetId}')" class="nav-btn" style="font-size:11px;white-space:nowrap;padding:4px 10px;flex-shrink:0">+ Ajouter une version</button>`}
       </div>
       ${renderBloc(versions[selIdx], selIdx)}`;
   } catch(e) {
     console.error('[loadVersions] '+sujetId+' status='+(e&&e.status)+' :', e);
     const el2 = document.getElementById('versions-list-'+sujetId);
     if(el2) el2.innerHTML = '<div style="font-size:11px;color:var(--red)">Erreur chargement versions</div>';
+    // Versions non lues → _postSeuil reste indéterminé. On marque l'erreur et on re-rend la carte en état NEUTRE
+    // (message « versions non lues », pas « chargement » ; le .prproj reste possible, aucun faux « requis »).
+    if (sujetCourant && sujetCourant.format === 'Brand'){
+      sujetCourant._versErr = true;
+      const mcErr = document.getElementById('mus-card-'+sujetId);
+      if (mcErr) mcErr.innerHTML = musiqueBloc(sujetCourant);
+    }
   }
 }
 
@@ -3624,6 +3759,15 @@ async function ajouterVersion(sujetId) {
     const vres = await api('/databases/'+DB_VERSIONS+'/query','POST',{filter:{property:'Sujet ID',rich_text:{equals:sujetId}}});
     const nums = (vres.results||[]).map(v=>parseInt(v.properties.Version?.rich_text?.[0]?.plain_text?.replace('V','')||'0')).filter(n=>!isNaN(n));
     const versionNum = `V${(nums.length ? Math.max(...nums) : 0)+1}`;
+    // ── Verrou relevé Brand ── La version COURANTE post-seuil doit avoir son relevé avant qu'on en dépose une
+    // autre. Monteur/journaliste bloqués ; le chef passe. Pré-seuil (antidaté) → autorisé. `finally` libère le verrou.
+    if (s.format === 'Brand' && currentUser?.role !== 'Chef' && (vres.results||[]).length){
+      const latestMs = Math.max.apply(null, vres.results.map(v=>Date.parse(v.created_time)||0));
+      if (latestMs >= SEUIL_RELEVE_MS && !(s.releveMusique || s.sansMusique)){
+        toast('🔒 Relevé musique requis sur la version en cours avant d\'en déposer une nouvelle','err');
+        return;
+      }
+    }
     const created = await api('/pages','POST',{
       parent:{database_id:DB_VERSIONS},
       properties:{
@@ -3636,6 +3780,12 @@ async function ajouterVersion(sujetId) {
     // Le monteur = CELUI QUI CRÉE la version (le déposant), jamais le journaliste par défaut.
     // Écrit via la fonction UNIQUE (DB_VERSIONS = vérité + miroir carte Monteur V{n}), jamais en direct.
     if(created?.id) await ecrireMonteurVersion(created.id, sujetId, versionNum, currentUser?.nom || '');
+    // Nouvelle version Brand (créée maintenant → post-seuil) : le relevé est « à refaire » pour elle, on remet les
+    // deux cases à zéro. Vaut aussi en statut PAD (cas b : reprise post-livraison, là où la musique change après coup).
+    if (s.format === 'Brand'){
+      s.releveMusique = false; s.sansMusique = false;
+      try { await upd(sujetId,'Relevé musique','cb',false); await upd(sujetId,'Sans musique','cb',false); } catch(e){}
+    }
     // Transition statut
     if(s.statut !== 'Montage' && s.statut !== 'Retours' && s.statut !== 'Validation chef' && s.statut !== 'PAD') {
       await upd(sujetId, 'Statut', 'sel', 'Montage');
