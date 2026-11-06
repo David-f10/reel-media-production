@@ -2548,7 +2548,13 @@ async function prpTraiter(sujetId, file){
   try {
     const xml = await prpDecompresser(await file.arrayBuffer());
     const res = prpAnalyser(xml);
-    prpState = { sujetId, res, fileName: file.name };
+    // Relevé précédent lu UNE fois, à l'ouverture → le diff se recalcule en mémoire, sans requête par clic.
+    let ancien = [];
+    try {
+      const rows = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
+      ancien = (rows||[]).map(r => ({ titre: r.properties.Titre?.title?.[0]?.plain_text || '', duree: r.properties['Durée']?.rich_text?.[0]?.plain_text || '' }));
+    } catch(e){ /* diff indicatif : son absence ne bloque pas le dépôt */ }
+    prpState = { sujetId, res, fileName: file.name, ancien };
     prpOverlay();
   } catch(e){ toast('Lecture impossible : '+e.message,'err'); }
 }
@@ -2579,44 +2585,19 @@ function prpOverlay(){
   else if (avec.length > 1){ let bestV = 0; avec.forEach(i => { const v = prpVersion(res.seqs[i].nom); if (v > bestV){ bestV = v; sugg = i; } }); }
   prpState.sugg = sugg;
 
-  // Carte compacte (en-tête cliquable) + détail replié — le détail ne s'ouvre que pour la séquence sélectionnée.
+  // Carte compacte : en-tête seul (radio + nom + durée + badge). Le détail de la séquence SÉLECTIONNÉE s'affiche
+  // dans le panneau unique dessous (#prp-selection), pas dans la carte.
   function carte(i){
     const sq = res.seqs[i];
     const decl = sq.musiques.filter(m => m.reference);
-    const autres = sq.musiques.filter(m => !m.reference);
-    let c = '<div data-seqcard="'+i+'" style="border:1px solid var(--border);border-radius:10px;background:var(--bg3);overflow:hidden">';
-    c += '<label style="display:flex;align-items:center;gap:9px;padding:11px 13px;cursor:pointer">'
+    return '<div data-seqcard="'+i+'" style="border:1px solid var(--border);border-radius:10px;background:var(--bg3)">'
+       + '<label style="display:flex;align-items:center;gap:9px;padding:11px 13px;cursor:pointer">'
        + '<input type="radio" name="prp-seq" value="'+i+'" onchange="prpMajCartes()" style="accent-color:var(--green);width:15px;height:15px;flex-shrink:0">'
        + '<span style="font-weight:600;font-size:13px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(sq.nom)+'</span>'
        + '<span style="font-family:var(--mono);font-size:11px;color:var(--text3);flex-shrink:0">'+prpMmss(sq.fin)+'</span>'
        + (i === sugg ? '<span style="font-size:10px;color:var(--green);border:1px solid var(--green);border-radius:4px;padding:1px 6px;flex-shrink:0">dernière version ?</span>' : '')
        + '<span style="margin-left:auto;font-size:11px;flex-shrink:0;color:'+(decl.length?'var(--green)':'var(--text3)')+'">'+(decl.length? decl.length+' musique'+(decl.length>1?'s':'') : 'aucune musique')+'</span>'
-       + '</label>';
-    c += '<div id="prp-det-'+i+'" style="display:none;padding:2px 13px 12px 36px;border-top:1px solid var(--border)">';
-    decl.forEach(m => {
-      c += '<div style="margin-top:10px">'
-         + '<div style="display:flex;gap:8px;align-items:baseline"><span style="font-weight:600;font-size:13px;color:var(--text)">'+escapeHtml(m.titre)+'</span>'
-         + '<span style="font-family:var(--mono);font-size:13px;color:var(--red)">'+prpMmss(m.total)+'</span>'
-         + '<span style="font-size:11px;color:var(--text3)">'+m.passages.length+' passage'+(m.passages.length>1?'s':'')+'</span></div>'
-         + '<div style="font-family:var(--mono);font-size:11px;color:var(--text3)">réf. '+escapeHtml(m.reference)+'</div>'
-         + (m.auteurs ? '<div style="font-size:12px;color:var(--text2)">'+escapeHtml(m.auteurs)+(m.sur?' <span style="color:var(--red)">· séparer les auteurs à la main</span>':'')+'</div>' : '')
-         + '<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px">'+m.passages.map(([a,b])=>prpMmss(a)+'→'+prpMmss(b)).join('  ')+'</div>'
-         + '</div>';
-    });
-    if (autres.length){
-      c += '<div style="margin-top:10px"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Autres sons (sans référence — voix, bruitage)</div>';
-      autres.forEach((m,j) => {
-        c += '<label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);padding:2px 0">'
-           + '<input type="checkbox" data-autre="'+i+'-'+j+'" style="accent-color:var(--green);width:13px;height:13px">'
-           + '<span>'+escapeHtml(m.titre)+'</span><span style="font-family:var(--mono);font-size:11px;color:var(--text3)">'+prpMmss(m.total)+'</span></label>';
-      });
-      c += '</div>';
-    }
-    if (!decl.length){
-      c += '<div style="font-size:12px;color:var(--text3);margin-top:10px">Aucune musique de banque'+(sq.sync?' · '+sq.sync+' son synchrone'+(sq.sync>1?'s':''):'')+'. Choisir cette séquence la marquera « Sans musique ».</div>';
-    }
-    c += '</div></div>';
-    return c;
+       + '</label></div>';
   }
 
   let h = '<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);max-width:680px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.5)">';
@@ -2645,9 +2626,11 @@ function prpOverlay(){
       h += '<div style="padding:4px 20px 0;font-size:11px;color:var(--text3)">Importées dans le projet, jamais posées (à ne pas déclarer) : '
          + res.inutilisees.map(m=>escapeHtml(m.titre)).join(', ')+'</div>';
     }
+    // Panneau unique : morceaux de la séquence choisie + avertissement de changement (rempli par prpMajCartes).
+    h += '<div id="prp-selection" style="padding:6px 20px 2px"></div>';
     h += '<div style="padding:16px 20px 20px;display:flex;gap:8px;justify-content:flex-end">'
        + '<button onclick="document.getElementById(\'prp-overlay\').remove()" class="nav-btn" style="font-size:12px">Annuler</button>'
-       + '<button id="prp-valider" onclick="prpValider()" class="nav-btn primary" style="font-size:12px;background:var(--green);border-color:var(--green);opacity:.5;cursor:not-allowed" disabled>Valider le relevé</button></div>';
+       + '<button id="prp-valider" onclick="prpValider()" class="nav-btn primary" style="font-size:12px;background:var(--green);border-color:var(--green);opacity:.5;cursor:not-allowed" disabled>Écrire le relevé</button></div>';
   }
   h += '</div>';
   ov.innerHTML = h;
@@ -2655,28 +2638,90 @@ function prpOverlay(){
   fermerSurClicFond(ov, () => ov.remove());
   prpMajCartes();   // état initial : aperçu de la suggérée (non cochée), Valider inactif
 }
-// Met à jour les cartes : la sélectionnée est verte et dépliée, les autres repliées. Avant toute sélection, on
-// déplie l'APERÇU de la suggérée (sans la cocher). Valider reste inactif tant qu'aucune séquence n'est choisie.
+// Détail de la séquence i dans le panneau unique : morceaux déclarables + autres sons (cochables) + zone diff.
+function prpRendreSelection(i, apercu){
+  const sq = prpState.res.seqs[i];
+  const decl = sq.musiques.filter(m => m.reference);
+  const autres = sq.musiques.filter(m => !m.reference);
+  let c = '<div style="border-top:1px solid var(--border);padding-top:10px">';
+  c += '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">'+(apercu?'Aperçu — cliquez la séquence pour la choisir':'Séquence choisie : <b style="color:var(--text)">'+escapeHtml(sq.nom)+'</b>')+'</div>';
+  decl.forEach(m => {
+    c += '<div style="margin-top:8px">'
+       + '<div style="display:flex;gap:8px;align-items:baseline"><span style="font-weight:600;font-size:13px;color:var(--text)">'+escapeHtml(m.titre)+'</span>'
+       + '<span style="font-family:var(--mono);font-size:13px;color:var(--red)">'+prpMmss(m.total)+'</span>'
+       + '<span style="font-size:11px;color:var(--text3)">'+m.passages.length+' passage'+(m.passages.length>1?'s':'')+'</span></div>'
+       + '<div style="font-family:var(--mono);font-size:11px;color:var(--text3)">réf. '+escapeHtml(m.reference)+'</div>'
+       + (m.auteurs ? '<div style="font-size:12px;color:var(--text2)">'+escapeHtml(m.auteurs)+(m.sur?' <span style="color:var(--red)">· séparer les auteurs à la main</span>':'')+'</div>' : '')
+       + '<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px">'+m.passages.map(([a,b])=>prpMmss(a)+'→'+prpMmss(b)).join('  ')+'</div>'
+       + '</div>';
+  });
+  if (autres.length){
+    c += '<div style="margin-top:10px"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Autres sons (sans référence — voix, bruitage)</div>';
+    autres.forEach((m,j) => {
+      c += '<label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);padding:2px 0">'
+         + '<input type="checkbox" data-autre="'+i+'-'+j+'" onchange="prpMajEcriture()" style="accent-color:var(--green);width:13px;height:13px">'
+         + '<span>'+escapeHtml(m.titre)+'</span><span style="font-family:var(--mono);font-size:11px;color:var(--text3)">'+prpMmss(m.total)+'</span></label>';
+    });
+    c += '</div>';
+  }
+  if (!decl.length){
+    c += '<div style="font-size:12px;color:var(--text3);margin-top:8px">Aucune musique de banque'+(sq.sync?' · '+sq.sync+' son synchrone'+(sq.sync>1?'s':''):'')+'. « Écrire le relevé » marquera « Sans musique ».</div>';
+  }
+  c += '<div id="prp-diff" style="margin-top:10px"></div></div>';
+  return c;
+}
+// Lignes à écrire pour la séquence i : déclarables + autres sons COCHÉS.
+function prpLignesDe(i){
+  const sq = prpState.res.seqs[i];
+  const lignes = sq.musiques.filter(m => m.reference).slice();
+  const autres = sq.musiques.filter(m => !m.reference);
+  const ov = document.getElementById('prp-overlay');
+  autres.forEach((m,j) => { const c = ov && ov.querySelector('[data-autre="'+i+'-'+j+'"]'); if (c && c.checked) lignes.push(m); });
+  return lignes;
+}
+// Avertissement de changement par rapport au relevé précédent — lu UNE fois à l'ouverture (prpState.ancien),
+// recalculé EN MÉMOIRE, sans requête Notion.
+function prpDiffHtml(lignes){
+  const anc = prpState.ancien || [];
+  if (!anc.length) return '';
+  const cleOld = r => (r.titre||'')+'|'+(r.duree||'');
+  const cleNew = m => (m.titre||'')+'|'+prpMmss(m.total);
+  const setOld = new Set(anc.map(cleOld)), setNew = new Set(lignes.map(cleNew));
+  const ajout = lignes.filter(m=>!setOld.has(cleNew(m))).map(m=>'+ '+m.titre+' '+prpMmss(m.total));
+  const retire = anc.filter(r=>!setNew.has(cleOld(r))).map(r=>'− '+r.titre+' '+r.duree);
+  if (!ajout.length && !retire.length) return '<span style="font-size:12px;color:var(--text3)">(identique au relevé précédent)</span>';
+  return '<div style="font-size:12px;color:var(--amber)">⚠️ La musique CHANGE depuis le relevé précédent :</div>'
+       + '<div style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:pre-line">'+escapeHtml(ajout.concat(retire).join('\n'))+'</div>';
+}
+// Sélection : carte verte + panneau de la séquence choisie (ou aperçu de la suggérée avant tout choix).
 function prpMajCartes(){
   const ov = document.getElementById('prp-overlay'); if (!ov) return;
   const checked = ov.querySelector('input[name="prp-seq"]:checked');
   ov.querySelectorAll('[data-seqcard]').forEach(card => {
-    const i = card.getAttribute('data-seqcard');
-    const r = card.querySelector('input[name="prp-seq"]');
-    const on = r && r.checked;
+    const on = card.querySelector('input[name="prp-seq"]')?.checked;
     card.style.borderColor = on ? 'var(--green)' : 'var(--border)';
     card.style.background = on ? 'var(--green-dim)' : 'var(--bg3)';
-    const det = document.getElementById('prp-det-'+i);
-    if (det) det.style.display = on ? 'block' : 'none';
   });
-  if (!checked && prpState && prpState.sugg >= 0){
-    const det = document.getElementById('prp-det-'+prpState.sugg);
-    if (det) det.style.display = 'block';
-    const card = ov.querySelector('[data-seqcard="'+prpState.sugg+'"]');
-    if (card) card.style.borderColor = 'var(--green)';
-  }
+  const effIdx = checked ? +checked.value : (prpState.sugg >= 0 ? prpState.sugg : -1);
+  if (!checked && effIdx >= 0){ const card = ov.querySelector('[data-seqcard="'+effIdx+'"]'); if (card) card.style.borderColor = 'var(--green)'; }
+  const panel = document.getElementById('prp-selection');
+  if (panel) panel.innerHTML = (effIdx >= 0) ? prpRendreSelection(effIdx, !checked) : '';
+  prpMajEcriture();
+}
+// Recalcule le diff (en mémoire) + le libellé/état du bouton. Appelée au changement de séquence ET au coche/décoche
+// d'un « autre son ». Zéro requête Notion.
+function prpMajEcriture(){
+  const ov = document.getElementById('prp-overlay'); if (!ov) return;
+  const checked = ov.querySelector('input[name="prp-seq"]:checked');
+  const effIdx = checked ? +checked.value : (prpState.sugg >= 0 ? prpState.sugg : -1);
+  const lignes = effIdx >= 0 ? prpLignesDe(effIdx) : [];
+  const diffEl = document.getElementById('prp-diff');
+  if (diffEl) diffEl.innerHTML = effIdx >= 0 ? prpDiffHtml(lignes) : '';
   const vb = document.getElementById('prp-valider');
-  if (vb){ vb.disabled = !checked; vb.style.opacity = checked ? '1' : '.5'; vb.style.cursor = checked ? 'pointer' : 'not-allowed'; }
+  if (vb){
+    vb.textContent = lignes.length ? 'Écrire le relevé' : 'Marquer Sans musique';
+    vb.disabled = !checked; vb.style.opacity = checked ? '1' : '.5'; vb.style.cursor = checked ? 'pointer' : 'not-allowed';
+  }
 }
 function prpToggleSans(){
   const w = document.getElementById('prp-sans-wrap'), b = document.getElementById('prp-sans-btn');
@@ -2685,49 +2730,16 @@ function prpToggleSans(){
   w.style.display = open ? 'none' : 'flex';
   if (b) b.textContent = (open ? '▸' : '▾') + b.textContent.slice(1);
 }
-// Construit les lignes à écrire pour la séquence choisie (déclarables + autres sons cochés).
-function prpLignesChoisies(){
+// Le bouton « Écrire le relevé » VAUT confirmation — plus de second modal (donc plus de conflit de z-index).
+// Le diff est déjà à l'écran (panneau unique). Séquence sans musique de banque → « Sans musique », même fenêtre.
+async function prpValider(){
   const ov = document.getElementById('prp-overlay');
   const sel = ov && ov.querySelector('input[name="prp-seq"]:checked');
-  if (!sel) return null;
-  const seq = prpState.res.seqs[+sel.value];
-  const lignes = seq.musiques.filter(m => m.reference).slice();
-  const autres = seq.musiques.filter(m => !m.reference);
-  autres.forEach((m,j) => { const c = ov.querySelector('[data-autre="'+sel.value+'-'+j+'"]'); if (c && c.checked) lignes.push(m); });
-  return { seqNom: seq.nom, lignes };
-}
-async function prpValider(){
-  const choix = prpLignesChoisies();
-  if (!choix){ toast('Choisissez la séquence livrée','err'); return; }
-  if (!choix.lignes.length){
-    const s2 = sujets.find(x => x.id === prpState.sujetId) || {};
-    showConfirmModal({ title:'Séquence « '+choix.seqNom+' » sans musique de banque',
-      message:'Aucune musique déclarable dans cette séquence. Marquer « Sans musique » pour '+(s2.code||'ce sujet')+' ?',
-      confirmText:'Marquer Sans musique', onConfirm:()=>prpSansMusique() });
-    return;
-  }
+  if (!sel){ toast('Choisissez la séquence livrée','err'); return; }
+  const lignes = prpLignesDe(+sel.value);
   const { sujetId } = prpState;
-  const s = sujets.find(x => x.id === sujetId) || {};
-  const apercu = choix.lignes.map((m,i) => (i+1)+'. '+m.titre+' — '+prpMmss(m.total)+(m.reference?' — réf. '+m.reference:'')).join('\n');
-  // Comparaison au relevé précédent (critère 5) : signaler un CHANGEMENT de musique AVANT d'écraser.
-  let diff = '';
-  try {
-    const anc = await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} });
-    if (anc && anc.length){
-      const cleOld = r => (r.properties.Titre?.title?.[0]?.plain_text||'')+'|'+(r.properties['Durée']?.rich_text?.[0]?.plain_text||'');
-      const cleNew = m => (m.titre||'')+'|'+prpMmss(m.total);
-      const setOld = new Set(anc.map(cleOld)), setNew = new Set(choix.lignes.map(cleNew));
-      const ajout = choix.lignes.filter(m=>!setOld.has(cleNew(m))).map(m=>'+ '+m.titre+' '+prpMmss(m.total));
-      const retire = anc.filter(r=>!setNew.has(cleOld(r))).map(r=>'− '+(r.properties.Titre?.title?.[0]?.plain_text||'')+' '+(r.properties['Durée']?.rich_text?.[0]?.plain_text||''));
-      diff = (ajout.length||retire.length) ? '\n\n⚠️ La musique CHANGE depuis le relevé précédent :\n'+ajout.concat(retire).join('\n') : '\n\n(identique au relevé précédent)';
-    }
-  } catch(e){ /* la comparaison est indicative ; son échec ne bloque pas l'écriture */ }
-  showConfirmModal({
-    title: 'Écrire '+choix.lignes.length+' ligne'+(choix.lignes.length>1?'s':'')+' pour '+(s.code||'ce sujet')+' ?',
-    message: 'Séquence « '+choix.seqNom+' ».\n\n'+apercu+diff+'\n\nLe relevé existant de ce sujet sera remplacé.',
-    confirmText: 'Écrire le relevé',
-    onConfirm: () => prpEcrire(sujetId, choix.lignes)
-  });
+  if (!lignes.length){ prpSansMusique(); return; }
+  prpEcrire(sujetId, lignes);
 }
 // Écrit dans DB_MUSIQUES, de façon à ce que « case armée ⟹ liste exacte » ne soit JAMAIS faux.
 // Ordre : (0) désarmer la case → l'export est caché pendant toute l'écriture ; (1) créer les nouvelles lignes ;
@@ -2781,6 +2793,34 @@ async function prpSansMusique(){
   const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
   toast('Marqué « Sans musique »','ok');
   openDetail(sujetId, true);
+}
+// Pop-up FERMABLE déclenché à l'enregistrement du lien d'une nouvelle version Brand post-seuil (updateVersionUrl).
+// Il invite à déposer le .prproj (zone de dépôt + « Choisir le projet » → prpChoisir → fenêtre unique) ; « Plus
+// tard » ferme. Le verrou fait l'application, le pop-up ne fait que rappeler.
+function prpPromptReleve(sujetId, versionNum){
+  const ex = document.getElementById('prp-prompt'); if (ex) ex.remove();
+  const s = sujets.find(x => x.id === sujetId) || {};
+  const ov = document.createElement('div');
+  ov.id = 'prp-prompt';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = '<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);max-width:440px;width:100%;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.5)">'
+    + '<div style="font-size:15px;font-weight:600;color:var(--text)">Relevé musique de '+escapeHtml(versionNum||'cette version')+'</div>'
+    + '<div style="font-size:13px;color:var(--text2);line-height:1.5;margin:8px 0 4px">Déposez le projet Premiere (.prproj) de <b style="color:var(--text)">'+escapeHtml(s.code||'ce sujet')+'</b>. Tout se lit sur ce poste, rien n\'est envoyé.</div>'
+    + '<div style="font-size:12px;color:var(--amber);line-height:1.5;margin-bottom:14px">⚠️ La version suivante sera bloquée tant que le relevé manque.</div>'
+    + '<div id="prp-prompt-drop" style="border:1.5px dashed var(--border2);border-radius:10px;padding:18px;text-align:center;font-size:12px;color:var(--text3);cursor:pointer;margin-bottom:14px">Glissez le .prproj ici, ou cliquez pour le choisir</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button onclick="document.getElementById(\'prp-prompt\').remove()" class="nav-btn" style="font-size:12px">Plus tard</button>'
+    + '<button id="prp-prompt-choisir" class="nav-btn primary" style="font-size:12px;background:var(--green);border-color:var(--green)">Choisir le projet</button>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+  fermerSurClicFond(ov, () => ov.remove());
+  const choisir = () => { ov.remove(); prpChoisir(sujetId); };
+  document.getElementById('prp-prompt-choisir').addEventListener('click', choisir);
+  const drop = document.getElementById('prp-prompt-drop');
+  drop.addEventListener('click', choisir);
+  ['dragover','dragenter'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.style.borderColor = 'var(--green)'; }));
+  ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.style.borderColor = 'var(--border2)'; }));
+  drop.addEventListener('drop', ev => { const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (f){ ov.remove(); prpTraiter(sujetId, f); } });
 }
 // Sortie de secours réservée au CHEF : débloque un sujet Brand post-seuil dont le .prproj est perdu. Trace
 // (nom du chef + date) appondue dans « Notes chef », JAMAIS une ligne de musique (le document part au client/banque).
@@ -3495,6 +3535,8 @@ async function loadVersions(sujetId) {
     const _postSeuil = versions.length > 0 && _latestMs >= SEUIL_RELEVE_MS;
     if (isBrand && sujetCourant){
       sujetCourant._postSeuil = _postSeuil; sujetCourant._versErr = false;
+      // Index date par version, lisible plus tard par updateVersionUrl SANS requête (pour le pop-up post-seuil).
+      sujetCourant._versDates = {}; versions.forEach(v => { sujetCourant._versDates[v.id] = Date.parse(v.created_time) || 0; });
       const _mc = document.getElementById('mus-card-'+sujetId);
       if (_mc){ _mc.innerHTML = musiqueBloc(sujetCourant); if (sujetCourant.releveMusique) loadMusiques(sujetId); }
     }
@@ -3839,6 +3881,15 @@ async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
           `${currentUser.nom} a déposé un lien de montage sur ${s.code} — ${s.titre}`);
       }
       loadNotifs();
+    }
+    // Pop-up de relevé : dès que le lien d'une NOUVELLE version Brand POST-SEUIL est enregistré, on invite à
+    // déposer le .prproj. PAS le chef (jamais bloqué) ; PAS si relevé déjà fait ; PAS sur une version pré-seuil
+    // (date lue en cache _versDates, sans requête) ; sur doute (date inconnue) → rien. Le verrou, lui, protège seul.
+    if (s && s.format === 'Brand'
+        && currentUser?.role !== 'Chef'
+        && !(s.releveMusique || s.sansMusique)
+        && s._versDates && s._versDates[versionId] >= SEUIL_RELEVE_MS) {
+      prpPromptReleve(sujetId, versionNum);
     }
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
