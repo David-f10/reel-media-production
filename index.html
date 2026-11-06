@@ -2374,16 +2374,16 @@ async function exporterReleve(sujetId) {
         const titre = pr.Titre?.title?.[0]?.plain_text || '—';
         const artiste = pr.Artiste?.rich_text?.[0]?.plain_text || '—';
         const duree = pr.Durée?.rich_text?.[0]?.plain_text || '—';
-        const reference = pr['Référence']?.rich_text?.[0]?.plain_text || '—';  // rétrocompatible : ancien relevé → « — »
-        contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — réf. ' + reference + ' — ' + formatDuree(duree) + ' s' + NL;
+        contenu += (i+1) + '. ' + titre + ' — ' + artiste + ' — ' + formatDuree(duree) + ' s' + NL;
       });
     }
     // Mention de pied si un chef a débloqué sans projet (trace lue dans « Notes chef ») — un drapeau rouge
-    // volontaire pour le destinataire de la déclaration, jamais une ligne de musique.
+    // volontaire pour le destinataire. On expose QUE le relevé a été débloqué + la DATE, jamais PAR QUI :
+    // l'arbitrage interne (le nom du chef) reste dans Notes chef, il ne part pas au client/banque.
     // Un sujet peut avoir été débloqué plusieurs fois (une ligne appondue à chaque fois) : on prend le DERNIER.
     const debs = [...(s.notes || '').matchAll(/\[Relevé débloqué sans projet par (.+?) le (.+?)\]/g)];
     const mDeb = debs.length ? debs[debs.length - 1] : null;
-    if (mDeb) contenu += NL + '⚠️ Relevé débloqué sans projet par ' + mDeb[1] + ' le ' + mDeb[2] + ' — à vérifier.' + NL;
+    if (mDeb) contenu += NL + '⚠️ Relevé débloqué sans projet le ' + mDeb[2] + ' — à vérifier.' + NL;
     contenu += NL + ligne + NL;
     // Télécharger le fichier
     const blob = new Blob([contenu], {type:'text/plain;charset=utf-8'});
