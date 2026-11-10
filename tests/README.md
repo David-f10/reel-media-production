@@ -27,6 +27,10 @@ sinon `npm i -D playwright && npx playwright install chromium`).
 - `rearm-bench`   — réarmement atomique du relevé à l'ajout de version (#222) :
                     version + réarmement ensemble, rollback (y compris partiel et
                     rollback-en-échec), monteur après réarmement.
+- `releve-affichage-bench` — affichage « relevé manquant » (pastille/compte/filtre) découplé du
+                    verrou : en mémoire, sans seuil (statut ∈ STATUTS_MONTAGE), tandis que le verrou
+                    garde le seuil ; agrégat « dernier monteur » paresseux (ouverture du filtre) +
+                    état d'échec contenu à cette seule colonne.
 - `lecteur-etape2.bench.js` — lecteur vidéo natif (étape 2) : repli iOS, pas de
                     `<video>` en bureau, bouton Télécharger, messages.
 
