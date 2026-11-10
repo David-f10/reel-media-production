@@ -3964,15 +3964,40 @@ async function ajouterVersion(sujetId) {
         'Validée':{checkbox:false}
       }
     });
-    // Le monteur = CELUI QUI CRÉE la version (le déposant), jamais le journaliste par défaut.
-    // Écrit via la fonction UNIQUE (DB_VERSIONS = vérité + miroir carte Monteur V{n}), jamais en direct.
-    if(created?.id) await ecrireMonteurVersion(created.id, sujetId, versionNum, currentUser?.nom || '');
     // Nouvelle version Brand (créée maintenant → post-seuil) : le relevé est « à refaire » pour elle, on remet les
     // deux cases à zéro. Vaut aussi en statut PAD (cas b : reprise post-livraison, là où la musique change après coup).
+    // ATOMICITÉ (rollback) : la version et son réarmement tiennent ENSEMBLE, ou pas du tout. On réarme AVANT d'écrire
+    // le monteur (pour qu'un rollback n'ait pas à défaire le miroir Monteur V{n}) ; la mémoire passe à false APRÈS
+    // confirmation Notion, jamais avant (c'était la graine de la divergence) ; tout échec — même PARTIEL : 1re upd
+    // passée, 2e ratée — est un échec ENTIER → on archive la version créée + on restaure les cases d'avant. Réarmer
+    // AVANT de créer piégerait le monteur (porte :3953 : cases vidées + création ratée = tentative suivante refusée) ;
+    // créer puis réarmer-avec-rollback est la seule séquence qui ne bloque personne. Sans ça, un réarmement raté et
+    // avalé laissait au rechargement une version « relevé fait » périmé, les trois portes ouvertes en silence (#219).
     if (s.format === 'Brand'){
-      s.releveMusique = false; s.sansMusique = false;
-      try { await upd(sujetId,'Relevé musique','cb',false); await upd(sujetId,'Sans musique','cb',false); } catch(e){}
+      const prevRel = s.releveMusique, prevSans = s.sansMusique;   // état d'avant, pour le rollback
+      try {
+        await upd(sujetId,'Relevé musique','cb',false);
+        await upd(sujetId,'Sans musique','cb',false);
+        s.releveMusique = false; s.sansMusique = false;            // mémoire APRÈS Notion, jamais avant
+      } catch(e){
+        console.error('[ajouterVersion] réarmement du relevé échoué — rollback de la version créée', e);
+        // ROLLBACK best-effort. Si le rollback LUI-MÊME échoue, on loggue CHAQUE échec et on le DIT à l'écran —
+        // jamais un second catch muet au fond du premier. Pire cas d'un rollback incomplet : une case « à refaire »
+        // sans nouvelle version (sur-demande, côté SÛR — jamais un « fait » silencieux), signalée pour rechargement.
+        let rollbackOk = true;
+        try { if(created?.id) await api('/pages/'+created.id,'PATCH',{archived:true}); }
+        catch(e2){ rollbackOk = false; console.error('[ajouterVersion] rollback : archivage de la version échoué', e2); }
+        try { await upd(sujetId,'Relevé musique','cb',prevRel); await upd(sujetId,'Sans musique','cb',prevSans); }
+        catch(e3){ rollbackOk = false; console.error('[ajouterVersion] rollback : restauration des cases échouée', e3); }
+        toast(rollbackOk
+          ? 'Dépôt interrompu — réessayez, rien n\'a été laissé à moitié.'
+          : '⚠️ Dépôt interrompu et rollback incomplet — rechargez la page avant de réessayer.','err');
+        return;   // on NE continue pas : ni monteur, ni statut, ni toast de succès
+      }
     }
+    // Le monteur = CELUI QUI CRÉE la version (le déposant), jamais le journaliste par défaut. Écrit APRÈS le
+    // réarmement (DB_VERSIONS = vérité + miroir carte Monteur V{n}), jamais en direct.
+    if(created?.id) await ecrireMonteurVersion(created.id, sujetId, versionNum, currentUser?.nom || '');
     // Transition statut
     if(s.statut !== 'Montage' && s.statut !== 'Retours' && s.statut !== 'Validation chef' && s.statut !== 'PAD') {
       await upd(sujetId, 'Statut', 'sel', 'Montage');
@@ -3993,6 +4018,13 @@ async function ajouterVersion(sujetId) {
 // de loadVersions ET aux relectures Notion en retard (read-after-write), contrairement à
 // el.dataset.saved qui est détruit/re-dérivé quand loadVersions reconstruit le champ.
 const _lienNotifie = {};
+// ⚠️ CE CHEMIN NE RÉARME PAS le relevé, et c'est ASSUMÉ. updateVersionUrl pose/corrige l'URL d'une version DÉJÀ
+// existante : il ne crée aucune ligne DB_VERSIONS (seul ajouterVersion le fait) et n'écrit aucune des deux cases
+// Relevé musique / Sans musique. Le réarmement est porté UNIQUEMENT par ajouterVersion (création d'une version).
+// Raison : ce chemin sert à CORRIGER un lien (cassé, faute, ré-upload du MÊME montage), pas à LIVRER un nouveau
+// montage — pour ça la règle maison impose « + Ajouter une version ». Fermer ce chemin ou y mettre une confirmation
+// ferait payer une friction quotidienne à toute l'équipe pour un détournement rare (écraser en place un lien par un
+// montage à musique différente). Si un jour ce détournement devient courant, c'est ICI qu'il faudrait réarmer.
 async function updateVersionUrl(versionId, sujetId, url, versionNum, el) {
   if(!url) return;
   if(url === _lienNotifie[versionId]) return; // garde : ce lien a déjà été notifié → pas de re-notif
