@@ -1,6 +1,9 @@
 {
   "name": "reel-media-production",
   "version": "1.0.0",
+  "scripts": {
+    "test": "node tests/fix-bench.js && node tests/fenetre-bench.js && node tests/verrou-bench.js && node tests/ui-bench.js"
+  },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
     "googleapis": "^140.0.0",

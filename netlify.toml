@@ -77,3 +77,12 @@
   to = "/404.html"
   status = 404
   force = true
+
+# /tests/* = bancs de non-régression (dev seulement). publish = "." les servirait en clair (code ET
+# éventuelles fixtures locales) ; on les masque comme /docs/*. Un splat de préfixe couvre tout le dossier,
+# fichiers directs et sous-dossiers, présents et à venir. force = true pour masquer même ce qui existe.
+[[redirects]]
+  from = "/tests/*"
+  to = "/404.html"
+  status = 404
+  force = true

@@ -1,0 +1,36 @@
+# Bancs de non-régression (Playwright)
+
+Chaque banc sert le vrai `index.html` en local, mocke le réseau Notion/Drive,
+et vérifie un comportement critique du relevé musique et du dépôt `.prproj`.
+
+## Lancer
+
+```sh
+npm test                 # les quatre bancs à la suite
+node tests/ui-bench.js    # un seul banc
+```
+
+Nécessite Playwright + Chromium (préinstallés dans l'environnement cloud ;
+sinon `npm i -D playwright && npx playwright install chromium`).
+
+## Les bancs
+
+- `fix-bench`     — atomicité d'écriture du relevé (`prpEcrire`, #219) : un échec
+                    ne laisse jamais de ligne derrière lui, la case n'est armée
+                    qu'avec une liste exacte.
+- `fenetre-bench` — fenêtre unique de dépôt + pop-up après le dépôt d'un lien de
+                    version (#218).
+- `verrou-bench`  — verrou relevé Brand post-seuil (dépôt bloqué tant que le relevé
+                    manque), rollback, déblocage chef, export.
+- `ui-bench`      — extraction `.prproj` (ticks → durées, séquences, parsing du nom
+                    de fichier) + overlay de choix + écriture.
+
+## Données
+
+Aucune donnée client, aucun nom de personne, aucune référence de banque réelle.
+Les fixtures de `ui-bench` sont **synthétiques**, fabriquées dans le code (un
+`.prproj` minimal gzippé avec des valeurs inventées). `verrou-bench` utilise des
+placeholders de rôle (`TESTEUR_M`, `TESTEUR_C`…), jamais de vrais noms.
+
+Le dossier `tests/` est renvoyé en 404 par `netlify.toml` : rien ici n'est servi
+publiquement. Voir `fixtures-local/README.md` pour le mode réel optionnel d'`ui-bench`.
