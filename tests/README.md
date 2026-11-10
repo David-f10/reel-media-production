@@ -24,6 +24,11 @@ sinon `npm i -D playwright && npx playwright install chromium`).
                     manque), rollback, déblocage chef, export.
 - `ui-bench`      — extraction `.prproj` (ticks → durées, séquences, parsing du nom
                     de fichier) + overlay de choix + écriture.
+- `rearm-bench`   — réarmement atomique du relevé à l'ajout de version (#222) :
+                    version + réarmement ensemble, rollback (y compris partiel et
+                    rollback-en-échec), monteur après réarmement.
+- `lecteur-etape2.bench.js` — lecteur vidéo natif (étape 2) : repli iOS, pas de
+                    `<video>` en bureau, bouton Télécharger, messages.
 
 ## Données
 
