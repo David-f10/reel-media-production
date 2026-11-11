@@ -2298,25 +2298,28 @@ async function ouvrirEditionBrouillon(retourId, sujetId, version) {
 }
 
 // ─── MUSIQUES ───
-// Rendu de la carte musique. Le chemin MANUEL (« Avec/Sans musique », saisie à la main, « Modifier ») n'est
-// offert que si `manuelOK` : hors Brand (zéro changement pour les autres formats), OU Brand dont la version
-// COURANTE est antérieure au seuil (rattrapage à la main des anciens). Sur un Brand post-seuil, c'est le .prproj
-// ou rien ; la saisie et le dépôt .prproj restent disponibles même en statut PAD (reprise post-livraison, cas b).
-// `s._postSeuil` est posé par loadVersions quand la date de la dernière version est connue ; par défaut (avant),
-// on suppose post-seuil (strict) pour ne pas exposer le chemin manuel à tort.
+// Rendu de la carte musique. Le chemin MANUEL (« Avec/Sans musique », saisie à la main, « Modifier ») est offert
+// dès que l'état est RÉSOLU : hors Brand, OU Brand dont loadVersions a tranché le pré/post-seuil — donc pré- ET
+// post-seuil (on arrête de le cacher après une version). Le .prproj reste proposé EN PREMIER ; le manuel est la
+// voie de secours (« j'ai les infos sans le projet », ou « rien à déclarer »). Le VERROU, lui, garde le seuil du
+// 6 nov. (il bloque le dépôt de la version suivante) — rouvrir le manuel ne relâche QUE la garantie « durées lues
+// dans le .prproj », choix assumé côté déclaration banque. Tant que _postSeuil est indéterminé, seul le .prproj.
 function musiqueBloc(s){
   const id = s.id;
   const isBrand = s.format === 'Brand';
-  // Trois états pour un Brand : NON RÉSOLU (undefined, loadVersions n'a pas tranché) → neutre ; false → pré-seuil ;
-  // true → post-seuil. Non résolu = ni chemin manuel ni blocage « requis », seulement le .prproj (fail-open : un
-  // échec de loadVersions ne fait perdre ni le rattrapage, ni ne pose un faux « requis »).
+  // Brand : NON RÉSOLU (undefined, loadVersions n'a pas tranché) → neutre (seulement .prproj) ; RÉSOLU (true ou
+  // false) → chemin manuel offert. Fail-open : un échec de loadVersions ne fait pas perdre le manuel.
   const resolu = !isBrand || s._postSeuil === true || s._postSeuil === false;
-  const postSeuil = isBrand && s._postSeuil === true;
   const isChef = currentUser?.role === 'Chef';
-  const manuelOK = !isBrand || (resolu && !postSeuil);        // non-Brand : toujours ; Brand : seulement pré-seuil CONFIRMÉ
+  const manuelOK = !isBrand || resolu;        // manuel dès que l'état est résolu — pré- ET post-seuil
   const prpBtn = `<button onclick="prpChoisir('${id}')" class="nav-btn" style="font-size:12px;padding:10px;border-color:var(--green);color:var(--green)">🎬 Relever depuis le projet Premiere (.prproj)</button>`;
   if (s.sansMusique){
-    return `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique</span>${manuelOK?`<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=false;upd('${id}','Sans musique','cb',false).then(()=>refreshUI('${id}',true))" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Modifier</button>`:''}</div>`;
+    // « Modifier » redevient disponible même post-seuil (la décision reste réversible à la main, exactness-neutre) ;
+    // « Exporter » (re)télécharge le document affirmatif « aucune musique » à tout moment.
+    return `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)">`
+      + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font-size:12px;color:var(--green)">🔇 Aucune musique à déclarer</span>`
+      + `<button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=false;upd('${id}','Sans musique','cb',false).then(()=>refreshUI('${id}',true))" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;padding:0">Modifier</button></div>`
+      + `<button onclick="exporterReleve('${id}')" class="nav-btn" style="width:100%;font-size:12px;margin-top:8px">📄 Exporter le relevé</button></div>`;
   }
   if (s.releveMusique){
     return `<div style="padding:10px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim)"><div id="musiques-list-${id}" style="margin-bottom:10px"><div style="font-size:11px;color:var(--green);opacity:0.7">Chargement...</div></div>${manuelOK?`<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" id="mus-titre-${id}" placeholder="Titre..." style="flex:1;font-size:12px"><input type="text" id="mus-artiste-${id}" placeholder="Artiste..." style="width:110px;font-size:12px"><input type="text" id="mus-duree-${id}" placeholder="0:56" style="width:60px;font-size:12px"><button onclick="ajouterMusiqueEtVerif('${id}')" class="nav-btn primary" style="font-size:11px;white-space:nowrap">+ Ajouter</button></div>`:''}<div style="display:flex;gap:6px;margin-top:4px"><button onclick="prpChoisir('${id}')" class="nav-btn" style="flex:1;font-size:12px">🎬 Re-analyser un .prproj</button><button onclick="exporterReleve('${id}')" class="nav-btn" style="flex:1;font-size:12px">📄 Exporter le relevé</button></div></div>`;
@@ -2324,12 +2327,13 @@ function musiqueBloc(s){
   // relevé non fait
   let h = `<div style="display:flex;flex-direction:column;gap:8px">${prpBtn}`;
   if (manuelOK){
-    h += `<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.sansMusique=true;upd('${id}','Sans musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div>`;
+    h += `<div style="display:flex;gap:8px"><button onclick="const sx=sujets.find(x=>x.id==='${id}');if(sx)sx.releveMusique=true;upd('${id}','Relevé musique','cb',true).then(()=>refreshUI('${id}',true))" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🎵 Avec musique</button><button onclick="marquerSansMusique('${id}')" class="nav-btn" style="flex:1;font-size:12px;padding:10px">🔇 Sans musique</button></div>`;
   } else if (isBrand && !resolu){
     // État neutre : on ne sait pas encore si la version courante est pré- ou post-seuil. Ni manuel, ni « requis ».
     h += `<div style="font-size:11px;color:var(--text3);line-height:1.4">${s._versErr ? '⚠️ Versions non lues — réessayez. Le dépôt du projet Premiere reste possible.' : 'Versions en cours de chargement…'}</div>`;
   } else {
-    // Brand post-seuil confirmé, relevé manquant → requis + sortie chef.
+    // INATTEIGNABLE depuis que manuelOK = !isBrand || resolu (le manuel couvre tout Brand résolu, pré- ET
+    // post-seuil). Branche gardée inerte (ancien chemin « requis + déblocage chef »), à nettoyer séparément.
     h += `<div style="font-size:11px;color:var(--amber);line-height:1.4">⚠️ Relevé requis pour cette version — déposez le projet Premiere (le dépôt de la version suivante est bloqué tant qu'il manque).</div>`;
     if (isChef) h += `<button onclick="prpDebloquerChef('${id}')" class="nav-btn" style="font-size:11px;color:var(--text3);border-style:dashed">🔑 Débloquer sans projet (chef)</button>`;
   }
@@ -2421,9 +2425,83 @@ function formatDuree(val) {
     return min + ':' + (sec < 10 ? '0'+sec : sec);
   }
 }
+// Télécharge un .txt LOCALEMENT (blob → clic → révocation). Aucune dépendance réseau : le document existe toujours.
+function telecharger(contenu, nom){
+  const blob = new Blob([contenu], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nom;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+// Pied « débloqué sans projet » (lu dans Notes chef) — on expose la DATE, jamais le nom (l'arbitrage interne
+// reste dans Notes chef, il ne part pas au client/banque). Dernier déblocage si plusieurs.
+function piedDebloque(s){
+  const debs = [...((s && s.notes) || '').matchAll(/\[Relevé débloqué sans projet par (.+?) le (.+?)\]/g)];
+  const mDeb = debs.length ? debs[debs.length - 1] : null;
+  return mDeb ? ('\n⚠️ Relevé débloqué sans projet le ' + mDeb[2] + ' — à vérifier.\n') : '';
+}
+// Document « sans musique » — construit EN LOCAL depuis s (aucune requête → production garantie). Affirmation
+// EXPLICITE « aucune musique à déclarer » (≠ « pas encore rempli »), la convention qu'on appliquait à la main.
+function genReleveSansMusique(s){
+  const date = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const ligne = '─'.repeat(50); const NL = '\n';
+  let c = 'RELEVE DE MUSIQUE — Reel Media' + NL + ligne + NL;
+  c += 'Projet  : ' + (s.code||'—') + ' — ' + s.titre + NL;
+  c += 'Format  : ' + (s.format||'—') + (s.sousFormat?' · '+s.sousFormat:'') + NL;
+  c += 'Monteur : ' + (s.journaliste||'—') + NL;
+  c += 'Date    : ' + date + NL + ligne + NL + NL;
+  c += 'AUCUNE MUSIQUE A DECLARER' + NL + NL;
+  c += 'Ce montage ne contient aucune musique de banque — rien a declarer a la banque.' + NL;
+  c += piedDebloque(s);
+  c += NL + ligne + NL;
+  return { contenu: c, nom: `Releve_musique_${s.code||'projet'}_${date.replace(/\//g,'-')}.txt` };
+}
+// Geste UNIFIÉ « sans musique » : confirmer + PRODUIRE le document, PUIS poser la case. Le document est produit
+// EN PREMIER (local, fiable) → une case « sans musique » n'existe JAMAIS sans son document — c'est l'inverse exact
+// de ce qui a créé les cartes cochées à vide (cocher et produire étaient deux gestes séparés). Appelé depuis la
+// fiche (bouton) ET depuis l'overlay (prpSansMusique). La déclaration reste sur l'honneur (rien dans Havana ne
+// prouve le téléchargement) — le garde-fou est humain, mais skipper devient un geste CONFIRMÉ, pas un oubli.
+function marquerSansMusique(sujetId){
+  const s = sujets.find(x => x.id === sujetId); if (!s) return;
+  showConfirmModal({
+    title: 'Sans musique — ' + (s.code||'ce sujet'),
+    message: 'Confirmer qu\'il n\'y a AUCUNE musique à déclarer pour ce sujet. Le relevé « aucune musique à déclarer » va être téléchargé maintenant, et le sujet marqué « sans musique ».',
+    confirmText: 'Confirmer et télécharger', confirmStyle: 'primary',
+    onConfirm: async () => {
+      // 1) PRODUIRE d'abord (local, ne peut pas échouer sur le réseau).
+      const doc = genReleveSansMusique(s);
+      telecharger(doc.contenu, doc.nom);
+      // 2) Archiver les lignes puis poser les cases (réseau). Si (2) échoue, le document EST déjà produit.
+      try {
+        const toutes = (await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} })).results || [];
+        for (const a of toutes) await api('/pages/'+a.id,'PATCH',{archived:true});
+        await upd(sujetId,'Sans musique','cb',true);
+        await upd(sujetId,'Relevé musique','cb',false);
+        s.sansMusique = true; s.releveMusique = false;
+      } catch(e){
+        console.error('[marquerSansMusique] document produit mais état non enregistré', e);
+        toast('Relevé téléchargé, mais l\'état n\'a pas pu être enregistré — réessayez.','err');
+        openDetail(sujetId, true); return;
+      }
+      const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
+      toast('Sans musique — relevé téléchargé','ok');
+      openDetail(sujetId, true);
+    }
+  });
+}
+
 async function exporterReleve(sujetId) {
   const s = sujets.find(x=>x.id===sujetId);
   if(!s) return;
+  // « Sans musique » : document affirmatif LOCAL, piloté par le FLAG (pas « 0 ligne » — une base vide peut aussi
+  // vouloir dire « pas encore fait »). Aucune requête → re-téléchargeable à tout moment.
+  if (s.sansMusique){
+    const doc = genReleveSansMusique(s);
+    telecharger(doc.contenu, doc.nom);
+    toast('📄 Relevé exporté','ok');
+    return;
+  }
   try {
     const data = await api('/databases/'+DB_MUSIQUES+'/query','POST',{
       filter:{property:'Sujet ID',rich_text:{equals:sujetId}},
@@ -2459,16 +2537,7 @@ async function exporterReleve(sujetId) {
     const mDeb = debs.length ? debs[debs.length - 1] : null;
     if (mDeb) contenu += NL + '⚠️ Relevé débloqué sans projet le ' + mDeb[2] + ' — à vérifier.' + NL;
     contenu += NL + ligne + NL;
-    // Télécharger le fichier
-    const blob = new Blob([contenu], {type:'text/plain;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Releve_musique_${s.code||'projet'}_${date.replace(/\//g,'-')}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    telecharger(contenu, `Releve_musique_${s.code||'projet'}_${date.replace(/\//g,'-')}.txt`);
     toast('📄 Relevé exporté','ok');
   } catch(e) { toast('Erreur export : '+e.message,'err'); }
 }
@@ -2855,20 +2924,12 @@ async function prpEcrire(sujetId, lignes){
 }
 // « Sans musique » depuis l'overlay (projet sans musique) : on archive d'abord TOUTE ligne existante (une « sans
 // musique » doit être réellement vide), PUIS on arme la case en dernier.
-async function prpSansMusique(){
+// Chemin overlay « Marquer Sans musique » (séquence sans musique de banque) → MÊME geste confirmer+produire que
+// la fiche : confirmation + document AVANT la case, archivage ensuite. Unifié dans marquerSansMusique.
+function prpSansMusique(){
   const { sujetId } = prpState || {};
   if (!sujetId) return;
-  const sx = sujets.find(x => x.id === sujetId);
-  try {
-    const toutes = (await apiQueryAll('/databases/'+DB_MUSIQUES+'/query', { filter:{property:'Sujet ID',rich_text:{equals:sujetId}} })).results || [];  // apiQueryAll renvoie { results }
-    for (const a of toutes) await api('/pages/'+a.id,'PATCH',{archived:true});
-    await upd(sujetId,'Sans musique','cb',true);
-    await upd(sujetId,'Relevé musique','cb',false);
-    if (sx){ sx.sansMusique = true; sx.releveMusique = false; }
-  } catch(e){ console.error('[prpSansMusique] échec', e); toast('Opération interrompue, réessayez.','err'); openDetail(sujetId,true); return; }
-  const ov = document.getElementById('prp-overlay'); if (ov) ov.remove();
-  toast('Marqué « Sans musique »','ok');
-  openDetail(sujetId, true);
+  marquerSansMusique(sujetId);
 }
 // Pop-up FERMABLE déclenché à l'enregistrement du lien d'une nouvelle version Brand post-seuil (updateVersionUrl).
 // Il invite à déposer le .prproj (zone de dépôt + « Choisir le projet » → prpChoisir → fenêtre unique) ; « Plus
