@@ -569,6 +569,12 @@ const DB_CLIENTS='228c6efb-eb59-42ef-8926-7ce34816cb96';
 const DB_CLIENTS_BRAND='67abbb5f-f6a6-4937-89e3-6c852c515a8e';
 const DB_TACHES='0241d8dc-00a1-461c-9efa-00eb7e5fac70';
 const STATUS_ORDER=['Brief / Idée','Séquencier en cours','Séquencier validé','En tournage','Post-prod','Montage','Retours','Validation chef','PAD'];
+// Statuts où le MONTAGE a commencé (ou est passé). Source UNIQUE, utilisée à TROIS endroits : la garde de
+// transition de ajouterVersion (qui force déjà le statut à Montage pour tout statut HORS de ce set — Post-prod
+// compris, donc Post-prod est traité comme de l'amont par le code, pas par convention), le bloc Wording, et
+// l'affichage « relevé manquant » (pastille/compte/filtre). ⚠️ NE confond PAS avec le VERROU : le seuil du
+// 6 nov. ne vit QUE sur le chemin verrou (releveManquantNoyau + gardes de loadVersions/ajouterVersion/pop-up).
+const STATUTS_MONTAGE = ['Montage','Retours','Validation chef','PAD'];
 const FMT_COLORS={MAG:'#378ADD',Brand:'#EF9F27','Face Cam':'#e63946',YouTube:'#1D9E75',Desk:'#888780',Prodige:'#D4537E',Interne:'#5A5A70'};
 const NEEDS_TOUR=['MAG','Brand','Face Cam','YouTube','Prodige'];
 let sujets=[],sujetsArchives=[],idees=[],taches=[],compteurs={},clients=[],equipe=[],activeFmt=null,brandMode=null,curFilter={format:null,etat:null};
@@ -760,9 +766,9 @@ async function loadSujets(){
     document.getElementById('cnt-all').textContent=sujets.length;
     renderCards();
     if(vueActive!=='cards') setVue(vueActive);
-    // Agrégat versions (b) en arrière-plan : pastille « Relevé manquant » + compte du filtre apparaissent
-    // ENSEMBLE une fois complet (anti-clignotement). Ne bloque pas l'affichage de la grille.
-    rafraichirAggVersions();
+    // Plus d'agrégat au chargement : pastille/compte/filtre sont en mémoire (voir releveManquant). Le scan
+    // DB_VERSIONS ne sert QU'À la colonne « dernier monteur » de la vue liste et se charge PARESSEUSEMENT à
+    // l'ouverture du filtre (chargerMonteursSiBesoin) — il n'est plus porteur ni sur le chemin critique.
   }catch(e){document.getElementById('cards-wrap').innerHTML=`<div class="empty"><h3>Erreur de chargement</h3><p>${e.message}</p></div>`;}
 }
 
@@ -839,9 +845,9 @@ function parsePage(p){
     retoursOuverts:0};  // rempli après chargement
 }
 
+// ⚠️ MASQUÉ par l'override renderCards plus bas (hoisting) — fonction MORTE conservée telle quelle. Le routage
+// « Relevés manquants » vit dans l'override vivant, pas ici (ne rien ajouter à cette copie).
 function renderCards(){
-  // Filtre « Relevés manquants » actif → vue liste dédiée (CODE · SUJET · DERNIER MONTEUR · VERSION · STATUT).
-  if(curFilter && curFilter.etat && curFilter.etat.t === 'r'){ renderRelevesManquants(); return; }
   let list=sujets.filter(filtreCourant);
   if(!list.length){document.getElementById('cards-wrap').innerHTML='<div class="empty"><h3>Aucun sujet</h3><p>Créez votre premier sujet</p></div>';return;}
   document.getElementById('cards-wrap').innerHTML='<div class="cards cards--c">'+list.map(cardHTML).join('')+'</div>';
@@ -853,35 +859,47 @@ function renderCards(){
 function renderRelevesManquants(){
   const wrap = document.getElementById('cards-wrap');
   if(!wrap) return;
-  if(!_aggVersionsComplet){
-    wrap.innerHTML = '<div class="empty"><h3>Analyse des versions…</h3><p>La liste et le compte s\'affichent une fois les versions lues.</p></div>';
-    return;
-  }
-  // Même logique que le compteur (axe format + releveManquant), indépendante d'une recherche en cours.
+  // La SÉLECTION est EN MÉMOIRE (releveManquant) → toujours exacte et instantanée, indépendante de l'agrégat.
   const fmtOk = s => !(curFilter && curFilter.format) || s.format === curFilter.format;
   const list = sujets.filter(s => fmtOk(s) && releveManquant(s));
   if(!list.length){
-    wrap.innerHTML = '<div class="empty"><h3>Aucun relevé manquant</h3><p>Tous les sujets Brand post-seuil ont leur relevé (ou « sans musique »).</p></div>';
+    wrap.innerHTML = '<div class="empty"><h3>Aucun relevé manquant</h3><p>Toutes les cartes Brand en montage ont leur relevé (ou « sans musique »).</p></div>';
     return;
   }
+  // La colonne « dernier monteur » (+ version) vient de l'agrégat PARESSEUX : on le déclenche à la première
+  // ouverture. En attente / en échec, SEULE cette colonne se dégrade — les lignes (la sélection) restent justes.
+  if(_aggMonteurEtat === 'absent') chargerMonteursSiBesoin();
   const th = t => `<th style="text-align:left;font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.04em;padding:7px 10px;border-bottom:1px solid var(--border2)">${t}</th>`;
-  const rows = list.map(s => {
-    const agg = _aggVersions[s.id];
-    // Cas défensif « sans version » (hors périmètre normal du filtre) : repli journaliste, signalé comme tel.
-    const monteur = !agg
+  const celluleMonteur = s => {
+    if(_aggMonteurEtat === 'echec') return '<span style="color:var(--amber)">indisponible</span>';
+    if(_aggMonteurEtat !== 'ok')    return '<span style="color:var(--text3)">chargement…</span>';
+    const agg = _aggVersions && _aggVersions[s.id];
+    // « sans version » (ex. B08AA : en montage sans version déposée) : repli journaliste, signalé comme tel.
+    return !agg
       ? (s.journaliste ? escapeHtml(s.journaliste)+' <span style="color:var(--text3);font-size:10px">(journaliste)</span>' : '<span style="color:var(--text3)">—</span>')
       : (agg.monteur ? escapeHtml(agg.monteur) : '<span style="color:var(--text3)">—</span>');
-    const version = !agg ? '<span style="color:var(--text3)">aucune version</span>' : (agg.num ? escapeHtml(agg.num) : '<span style="color:var(--text3)">—</span>');
+  };
+  const celluleVersion = s => {
+    if(_aggMonteurEtat === 'echec') return '<span style="color:var(--text3)">—</span>';
+    if(_aggMonteurEtat !== 'ok')    return '<span style="color:var(--text3)">…</span>';
+    const agg = _aggVersions && _aggVersions[s.id];
+    return !agg ? '<span style="color:var(--text3)">aucune version</span>' : (agg.num ? escapeHtml(agg.num) : '<span style="color:var(--text3)">—</span>');
+  };
+  const rows = list.map(s => {
     const dot = stColor(s.statut);
     return `<tr onclick="openDetail('${s.id}')" style="cursor:pointer;border-bottom:1px solid var(--border)">
       <td style="padding:8px 10px;font-family:var(--mono);font-size:11px;color:var(--red)">${escapeHtml(s.code||'—')}</td>
       <td style="padding:8px 10px;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(s.titre||'')}">${escapeHtml(s.titre||'')}</td>
-      <td style="padding:8px 10px;font-size:11px">${monteur}</td>
-      <td style="padding:8px 10px;font-family:var(--mono);font-size:11px">${version}</td>
+      <td style="padding:8px 10px;font-size:11px">${celluleMonteur(s)}</td>
+      <td style="padding:8px 10px;font-family:var(--mono);font-size:11px">${celluleVersion(s)}</td>
       <td style="padding:8px 10px;font-size:11px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot};margin-right:5px;vertical-align:middle"></span>${escapeHtml(s.statut||'—')}</td>
     </tr>`;
   }).join('');
-  wrap.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+  // État d'échec : un bandeau clair + bouton réessayer, à la place d'un « chargement… » perpétuel qui mentirait.
+  const banniere = _aggMonteurEtat === 'echec'
+    ? `<div style="padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--amber);display:flex;align-items:center;gap:10px;flex-wrap:wrap">Dernier monteur indisponible — la liste et le compte restent justes, seule cette colonne manque. <button onclick="chargerMonteursSiBesoin()" class="nav-btn" style="font-size:11px;padding:3px 10px">Réessayer</button></div>`
+    : '';
+  wrap.innerHTML = `${banniere}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
     <thead><tr>${th('CODE')}${th('SUJET')}${th('DERNIER MONTEUR')}${th('VERSION')}${th('STATUT')}</tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
@@ -1276,7 +1294,7 @@ function openDetail(id, forcePadOpen=false){
   // ⚠️ GARDE ANTI-DISPARITION : visible si la carte est à un statut de fin de parcours
   //    (Montage/Retours/Validation chef/PAD) OU si du wording a déjà été écrit / une validation
   //    cochée. Donc si la carte REDESCEND de statut après saisie, le bloc NE disparaît JAMAIS.
-  const _statutsWording = ['Montage','Retours','Validation chef','PAD'];
+  const _statutsWording = STATUTS_MONTAGE;
   const _wordingEcrit = !!s.wording || s.validationWordingEdito || s.validationWordingBrand;
   if(_statutsWording.includes(s.statut) || _wordingEcrit){   // TOUS formats (wording = description réseaux, pas que Brand)
     const wPill = (s.format==='Brand' && s.validationWordingBrand) ? 'p-green Brand validé'
@@ -3563,63 +3581,67 @@ function selectVersion(sujetId, version) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RELEVÉ MUSIQUE — VISIBILITÉ (Brand UNIQUEMENT). Agrégat versions (b) + condition UNIQUE.
-// PÉRIMÈTRE : tout ce bloc ne vaut QUE pour Format === 'Brand'. MAG / Face Cam / YouTube / Desk :
-// releveManquant renvoie false d'emblée → aucune pastille, aucun compte, aucun bloc. Zéro régression.
+// RELEVÉ MUSIQUE — VISIBILITÉ (Brand UNIQUEMENT). Deux chemins SÉPARÉS, à ne jamais confondre :
+//   • AFFICHAGE (pastille / compte / filtre / sélection de la vue liste) = releveManquant, 100 % EN MÉMOIRE,
+//     SANS seuil : une carte Brand active dont le montage a commencé (statut ∈ STATUTS_MONTAGE) et qui n'a ni
+//     relevé ni « sans musique ». Déterministe, instantané, NE PEUT PAS échouer (aucun agrégat).
+//   • VERROU (pop-up + refus d'ajouter une version) = releveManquantNoyau + gardes de loadVersions /
+//     ajouterVersion / pop-up, qui GARDENT le seuil du 6 nov. Ce qui SE VOIT ≠ ce qui BLOQUE (décision David).
 //
-// Agrégat (b) : UNE requête DB_VERSIONS groupée par Sujet ID, au chargement de la grille. Donne par
-// sujet la DERNIÈRE version (numéro, date ms, monteur) depuis la SOURCE DE VÉRITÉ (DB_VERSIONS.Monteur,
-// cf. ecrireMonteurVersion). Le miroir carte Monteur V1/V2/V3 n'est PAS utilisé : il ment sur V4+
-// (3 slots seulement) et ne porte aucune date de version. Consommé par la pastille (3), le compte du
-// filtre (4) et la vue liste (5). _aggVersionsComplet garde la règle ANTI-CLIGNOTEMENT : rien affiché
-// tant qu'il n'est pas true (jamais « manquant » montré puis retiré, jamais un chiffre qui saute).
-let _aggVersions = null;          // { [sujetId]: { num:'V3', dateMs, monteur } } | null
-let _aggVersionsComplet = false;  // true une seule fois le balayage terminé
+// L'agrégat DB_VERSIONS (dernière version + monteur par sujet, source de vérité ; le miroir carte Monteur
+// V1/V2/V3 ment en V4+) ne sert PLUS qu'à la colonne « dernier monteur » de la vue liste, et il est PARESSEUX :
+// chargé à l'ouverture du filtre seulement (chargerMonteursSiBesoin), jamais au chargement de grille. Le scan
+// fragile est donc optionnel au lieu d'être porteur : s'il échoue, SEULE cette colonne se dégrade.
+let _aggVersions = null;          // { [sujetId]: { num:'V3', dateMs, monteur } } | null — colonne « dernier monteur »
+let _aggMonteurEtat = 'absent';   // 'absent' | 'chargement' | 'ok' | 'echec' — état du chargement paresseux
 
 async function chargerAggVersions(){
   const map = {};
-  const data = await apiQueryAll('/databases/' + DB_VERSIONS + '/query', {});
+  const data = await apiQueryAll('/databases/' + DB_VERSIONS + '/query', {});   // sans filtre : l'affichage n'a plus de seuil
   data.results.forEach(v => {
     const pr = v.properties;
     const sid = pr['Sujet ID']?.rich_text?.[0]?.plain_text || '';
     if(!sid) return;
     const dateMs = Date.parse(v.created_time) || 0;
     const prev = map[sid];
-    // « Dernière version » = dernière DÉPOSÉE (max created_time) — cohérent AU PIXEL avec _postSeuil /
-    // _verrouAjout de loadVersions (qui lit versions[last] par created_time ascendant). >= : à date égale,
-    // la dernière lue gagne.
-    if(!prev || dateMs >= prev.dateMs){
+    if(!prev || dateMs >= prev.dateMs){   // dernière version = max created_time
       map[sid] = { num: pr.Version?.rich_text?.[0]?.plain_text || '', dateMs, monteur: pr.Monteur?.rich_text?.[0]?.plain_text || '' };
     }
   });
-  _aggVersions = map;
-  _aggVersionsComplet = true;
+  _aggVersions = map;   // posé À LA FIN seulement → jamais d'agrégat partiel
 }
 
-// Agrégat en arrière-plan : la grille s'affiche tout de suite ; pastille + compte apparaissent ENSEMBLE
-// une fois complet. Un échec laisse l'état « absent » (ni compte, ni pastille) — jamais un faux chiffre.
-async function rafraichirAggVersions(){
-  _aggVersions = null; _aggVersionsComplet = false;
-  try { await chargerAggVersions(); }
-  catch(e){ console.warn('Agrégat versions (relevés manquants) :', e.message); _aggVersions = null; _aggVersionsComplet = false; return; }
-  majCompteursBarre();
-  if(currentPage === 'production' && currentVue === 'cards') renderCards();
+// PARESSEUX : déclenché par l'ouverture du filtre. Retry global (2 tentatives), jamais de partiel. Le warn porte
+// le STATUS HTTP réel (429 / 5xx / 403) — c'est ce qui manquait pour diagnostiquer. Ne re-rend que la vue liste.
+async function chargerMonteursSiBesoin(){
+  if(_aggMonteurEtat === 'chargement' || _aggMonteurEtat === 'ok') return;
+  _aggMonteurEtat = 'chargement'; _aggVersions = null;
+  renderRelevesManquantsSiActif();
+  for(let t = 0; t <= 2; t++){
+    try { await chargerAggVersions(); _aggMonteurEtat = 'ok'; renderRelevesManquantsSiActif(); return; }
+    catch(e){
+      const st = (e && e.status) ? ' (HTTP ' + e.status + ')' : '';
+      console.warn('Dernier monteur (relevés manquants) — tentative ' + (t+1) + st + ' :', e && e.message);
+      if(t === 2){ _aggVersions = null; _aggMonteurEtat = 'echec'; renderRelevesManquantsSiActif(); return; }
+      await new Promise(r => setTimeout(r, Math.pow(2, t) * 1000));
+    }
+  }
+}
+function renderRelevesManquantsSiActif(){
+  if(currentPage === 'production' && currentVue === 'cards' && curFilter && curFilter.etat && curFilter.etat.t === 'r') renderRelevesManquants();
 }
 
-// NOYAU PARTAGÉ — la MÊME condition pour la pastille, le compte du filtre ET le verrou (_verrouAjout) :
-// Brand + post-seuil + relevé ni fait ni « sans musique ». Chaque appelant fournit son signal post-seuil
-// depuis la BONNE source : agrégat pour la grille (releveManquant), requête fraîche pour le verrou
-// (loadVersions). Même logique, source adaptée à ce que l'appelant sait de juste.
+// VERROU — ne PAS toucher : seul chemin qui porte le seuil du 6 nov. Appelé en direct par _verrouAjout
+// (loadVersions). L'affichage (releveManquant) ne l'appelle plus.
 function releveManquantNoyau(s, postSeuil){
   return !!s && s.format === 'Brand' && !!postSeuil && !(s.releveMusique || s.sansMusique);
 }
-// Face GRILLE (pastille + filtre + vue liste) : post-seuil lu dans l'agrégat. MUET tant que l'agrégat
-// n'est pas complet → aucune pastille, aucun comptage avant (anti-clignotement).
+// AFFICHAGE — 100 % EN MÉMOIRE, SANS seuil (c'est le verrou qui garde le seuil, pas l'affichage). Pastille,
+// compte, filtre et sélection de la vue liste passent tous par ici. Jamais d'agrégat, donc jamais d'échec.
 function releveManquant(s){
-  if(!_aggVersionsComplet || !_aggVersions) return false;
-  const agg = _aggVersions[s.id];
-  const postSeuil = !!agg && agg.dateMs >= SEUIL_RELEVE_MS;
-  return releveManquantNoyau(s, postSeuil);
+  return !!s && s.format === 'Brand' && !s.archive
+    && STATUTS_MONTAGE.includes(s.statut)
+    && !(s.releveMusique || s.sansMusique);
 }
 
 async function loadVersions(sujetId) {
@@ -3656,9 +3678,9 @@ async function loadVersions(sujetId) {
       // Index date par version, lisible plus tard par updateVersionUrl SANS requête (pour le pop-up post-seuil).
       sujetCourant._versDates = {}; versions.forEach(v => { sujetCourant._versDates[v.id] = Date.parse(v.created_time) || 0; });
     }
-    // Garder l'agrégat GRILLE frais pour CE sujet (données fraîches de la requête ci-dessus) : après un dépôt,
-    // la pastille et le compte reflètent la réalité au prochain rendu de grille, sans rechargement complet.
-    // N'altère PAS _aggVersionsComplet (le bloc n'affiche rien tant que l'agrégat global n'est pas prêt).
+    // Si l'agrégat « dernier monteur » est DÉJÀ chargé (filtre ouvert), le garder frais pour CE sujet avec les
+    // données fraîches ci-dessus → la colonne monteur de la vue liste reste juste après un dépôt. La pastille et
+    // le compte, eux, sont en mémoire et n'en dépendent pas. Le guard `if(_aggVersions)` : rien si non chargé.
     if (_aggVersions){
       if (versions.length){
         const _vl = versions[versions.length-1];
@@ -3998,8 +4020,8 @@ async function ajouterVersion(sujetId) {
     // Le monteur = CELUI QUI CRÉE la version (le déposant), jamais le journaliste par défaut. Écrit APRÈS le
     // réarmement (DB_VERSIONS = vérité + miroir carte Monteur V{n}), jamais en direct.
     if(created?.id) await ecrireMonteurVersion(created.id, sujetId, versionNum, currentUser?.nom || '');
-    // Transition statut
-    if(s.statut !== 'Montage' && s.statut !== 'Retours' && s.statut !== 'Validation chef' && s.statut !== 'PAD') {
+    // Transition statut : tout statut HORS montage (Post-prod inclus) → Montage. Même set que l'affichage.
+    if(!STATUTS_MONTAGE.includes(s.statut)) {
       await upd(sujetId, 'Statut', 'sel', 'Montage');
       s.statut = 'Montage';
       renderCards();
@@ -9265,7 +9287,7 @@ function matchFiltre(s) {
   if(cf.format && s.format !== cf.format) return false; // axe format
   const e = cf.etat;                                    // axe état
   if(e && e.v) {
-    if(e.t === 'r') { if(!releveManquant(s)) return false; }  // « relevés manquants » (Brand post-seuil, muet tant que l'agrégat n'est pas prêt)
+    if(e.t === 'r') { if(!releveManquant(s)) return false; }  // « relevés manquants » (Brand en montage, en mémoire — sans seuil, ≠ verrou)
     else if(e.t === 's') { if(s.statut !== e.v) return false; }
     else if(e.t === 'd') {
       if(s.statut !== 'PAD') return false;
@@ -9305,10 +9327,10 @@ function majCompteursBarre() {
   if(elP) elP.textContent = sujets.filter(s => fmtOk(s) && s.statut === 'PAD' && !s.diffusion && !s.enStock).length;
   const elS = document.getElementById('cnt-stock');
   if(elS) elS.textContent = sujets.filter(s => fmtOk(s) && s.statut === 'PAD' && s.enStock && !s.diffusion).length;
-  // « Relevés manquants » (Brand) : RIEN affiché tant que l'agrégat versions n'est pas complet (pas un « 0 »
-  // qui saute ensuite). releveManquant renvoie déjà false avant complétion ; on vide le libellé pour ne pas montrer 0.
+  // « Relevés manquants » (Brand) : compte EN MÉMOIRE (releveManquant, statut ∈ STATUTS_MONTAGE) → toujours un
+  // nombre juste et immédiat, sans agrégat, donc jamais vide ni « 0 qui saute » par faute de chargement.
   const elR = document.getElementById('cnt-releve');
-  if(elR) elR.textContent = _aggVersionsComplet ? sujets.filter(s => fmtOk(s) && releveManquant(s)).length : '';
+  if(elR) elR.textContent = sujets.filter(s => fmtOk(s) && releveManquant(s)).length;
 }
 // appFilter route vers le BON axe et ne touche pas l'autre (avant : il écrasait curFilter entier). Re-clic
 // sur un filtre déjà actif → relâche CET axe. el = le bouton statut/diffusion cliqué (sbCatClick passe null
@@ -9571,8 +9593,12 @@ function appRenderDashboard() {
 }
 
 // ── Override renderCards pour utiliser curFilter ──
+// ⚠️ C'EST CE renderCards qui est VIVANT (il masque celui plus haut, par hoisting). Toute logique de rendu de
+// grille doit être ICI. Filtre « Relevés manquants » actif → vue liste dédiée (CODE · SUJET · DERNIER MONTEUR
+// · VERSION · STATUT), sinon cartes normales.
 const _rc = renderCards;
 function renderCards() {
+  if(curFilter && curFilter.etat && curFilter.etat.t === 'r'){ renderRelevesManquants(); return; }
   let list = sujets.filter(filtreCourant);
   list = applySearch(list);
   _searchCounts.prod = list.length; // compteur « en production » (réutilisé par _ligneComptesRecherche)
