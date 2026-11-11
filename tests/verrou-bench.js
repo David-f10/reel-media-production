@@ -108,8 +108,10 @@ const POST = new Date(SEUIL + 86400000).toISOString();  // le lendemain
   ok('version créée (pré-seuil autorisé)', r2.versions === 2);
   ok('boutons manuels présents (rattrapage)', r2.blocManuel === true);
 
-  // ───── Cas 3 : Brand POST-seuil sans relevé → dépôt bloqué + manuel absent ─────
-  console.log('\n\x1b[1mCas 3 — Brand post-seuil sans relevé : bloqué, manuel absent\x1b[0m');
+  // ───── Cas 3 : Brand POST-seuil sans relevé → dépôt TOUJOURS bloqué (verrou intact), mais le MANUEL est rouvert ─────
+  // Le VERROU (ajouterVersion) garde le seuil et bloque + toast. L'AFFICHAGE, lui, rouvre le chemin manuel en
+  // post-seuil (décision David, Option A) : musiqueBloc montre « Avec/Sans musique » + le .prproj, plus de « requis ».
+  console.log('\n\x1b[1mCas 3 — Brand post-seuil sans relevé : verrou bloque, manuel rouvert\x1b[0m');
   let r3 = await page.evaluate(async ({POST}) => {
     sujets = [{ id:'S3', code:'B61A', titre:'Brand récent', format:'Brand', releveMusique:false, sansMusique:false, _postSeuil:true, notes:'' }];
     currentUser = { nom:'TESTEUR_M', role:'Monteur' };
@@ -118,15 +120,15 @@ const POST = new Date(SEUIL + 86400000).toISOString();  // le lendemain
     await ajouterVersion('S3');
     const bloc = musiqueBloc(sujets.find(x=>x.id==='S3'));
     return { versions: window.__db.versions.length, bloque: window.__log.some(l=>l.toast&&l.toast.includes('Relevé musique requis')),
-      blocManuel: bloc.includes('Avec musique'), prpPresent: bloc.includes('.prproj'), requis: bloc.includes('Relevé requis') };
+      blocManuel: bloc.includes('Avec musique')&&bloc.includes('Sans musique'), prpPresent: bloc.includes('.prproj'), requis: bloc.includes('Relevé requis') };
   }, {POST});
-  ok('AUCUNE version créée (bloqué)', r3.versions === 1);
-  ok('toast « relevé requis »', r3.bloque === true);
-  ok('boutons manuels ABSENTS (.prproj ou rien)', r3.blocManuel === false);
-  ok('bouton .prproj présent', r3.prpPresent === true);
-  ok('mention « Relevé requis »', r3.requis === true);
+  ok('VERROU : aucune version créée (toujours bloqué post-seuil)', r3.versions === 1);
+  ok('VERROU : toast « relevé requis »', r3.bloque === true);
+  ok('AFFICHAGE : chemin manuel rouvert (Avec + Sans musique)', r3.blocManuel === true);
+  ok('bouton .prproj présent (proposé en premier)', r3.prpPresent === true);
+  ok('plus de mention « Relevé requis » dans le bloc (branche inerte)', r3.requis === false);
 
-  // ───── Chef jamais bloqué ─────
+  // ───── Chef jamais bloqué (et le déblocage chef n'est plus nécessaire : le manuel est rouvert pour tous) ─────
   console.log('\n\x1b[1mChef jamais bloqué\x1b[0m');
   let rc = await page.evaluate(async ({POST}) => {
     sujets = [{ id:'S4', code:'B61A', titre:'x', format:'Brand', releveMusique:false, sansMusique:false, _postSeuil:true, notes:'' }];
@@ -135,10 +137,10 @@ const POST = new Date(SEUIL + 86400000).toISOString();  // le lendemain
     window.__log = [];
     await ajouterVersion('S4');
     const bloc = musiqueBloc(sujets.find(x=>x.id==='S4'));
-    return { versions: window.__db.versions.length, escape: bloc.includes('Débloquer sans projet') };
+    return { versions: window.__db.versions.length, manuel: bloc.includes('Avec musique')&&bloc.includes('Sans musique') };
   }, {POST});
   ok('chef : version créée malgré relevé manquant', rc.versions === 2);
-  ok('chef : bouton de déblocage visible', rc.escape === true);
+  ok('chef : chemin manuel visible (le déblocage sans projet n\'est plus nécessaire)', rc.manuel === true);
 
   // ───── Atomicité (#219) : l'armement échoue → case reste false ET rollback des lignes créées (aucun orphelin) ─────
   // L'arme est le DERNIER geste (prpEcrire :2825). S'il lève, le catch archive les lignes créées (newIds) : la nouvelle

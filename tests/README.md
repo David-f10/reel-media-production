@@ -31,6 +31,10 @@ sinon `npm i -D playwright && npx playwright install chromium`).
                     verrou : en mémoire, sans seuil (statut ∈ STATUTS_MONTAGE), tandis que le verrou
                     garde le seuil ; agrégat « dernier monteur » paresseux (ouverture du filtre) +
                     état d'échec contenu à cette seule colonne.
+- `releve-sans-musique-bench` — geste « sans musique » confirmer + produire : le document
+                    est téléchargé AVANT la pose de la case (jamais de case sans document),
+                    export affirmatif piloté par le flag, disponible post-seuil sans .prproj,
+                    zéro écriture « Notes chef ».
 - `lecteur-etape2.bench.js` — lecteur vidéo natif (étape 2) : repli iOS, pas de
                     `<video>` en bureau, bouton Télécharger, messages.
 
