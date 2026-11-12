@@ -86,3 +86,12 @@
   to = "/404.html"
   status = 404
   force = true
+
+# /maquettes/* = maquettes de référence et propositions UI (dev seulement). publish = "." les servirait en
+# clair sur le site public (direction produit, maquette de l'espace client). On les masque comme /docs/* et
+# /tests/*. Splat de préfixe : tout le dossier, racine ET sous-dossiers (acces-client/…), présents et à venir.
+[[redirects]]
+  from = "/maquettes/*"
+  to = "/404.html"
+  status = 404
+  force = true

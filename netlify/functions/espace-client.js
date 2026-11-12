@@ -56,7 +56,10 @@ const dstart = (pr, k) => (pr && pr[k] && pr[k].date && pr[k].date.start) || '';
 // ses demandes — on ne FERME JAMAIS « Envoyer mes retours » au Nᵉ tour. Fermer le bouton transformerait une
 // conversation commerciale en refus technique ; le dépassement se gère avec le client, pas contre lui. Ne
 // « complète » PAS ce helper avec un blocage.
-const seriesAccordees = (pr) => { const n = pr && pr['Séries accordées'] && pr['Séries accordées'].number; return (typeof n === 'number' && n > 0) ? n : 5; };
+// Cascade (lot 2) : valeur de la CARTE si posée, sinon défaut de la MARQUE (`defautMarque`, lu en amont sur
+// 🏷️ Clients Brand), sinon 5. `defautMarque` absent/non-number → repli direct sur 5, exactement comme avant.
+// Reste AFFICHAGE SEULEMENT (cf. garde-fou ci-dessus) : le défaut marque n'ajoute aucun blocage.
+const seriesAccordees = (pr, defautMarque) => { const n = pr && pr['Séries accordées'] && pr['Séries accordées'].number; if (typeof n === 'number' && n > 0) return n; if (typeof defautMarque === 'number' && defautMarque > 0) return defautMarque; return 5; };
 
 async function query(dbId, body, token) {
   const r = await fetch('https://api.notion.com/v1/databases/' + dbId + '/query', {
@@ -129,6 +132,10 @@ exports.handler = async (event) => {
   if (!liv.ok) return { statusCode: liv.raison === 'indispo' ? 503 : 401, headers, body: JSON.stringify({ ok: false, error: liv.raison === 'indispo' ? 'Service temporairement indisponible' : 'Authentification requise' }) };
   const codeBrand = String(liv.codeBrand || '').trim();
   if (!CODE_BRAND_RE.test(codeBrand)) { console.error('espace-client : code marque invalide'); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+  // Défaut MARQUE de la cascade « tour N sur X » (lot 2), lu en amont depuis contactActif → marqueOuverte
+  // (row 🏷️ Clients Brand déjà chargée pour la porte, zéro appel en plus). null si non posé → seriesAccordees
+  // retombe sur 5, comportement inchangé. Affichage seulement.
+  const defautMarque = (typeof liv.seriesMarque === 'number') ? liv.seriesMarque : null;
 
   const reCode = new RegExp('^' + codeBrand + '[A-Za-z]+$'); // code marque + ≥1 LETTRE (exclut B33 vs B330)
   const auj = AUJOURDHUI();
@@ -203,7 +210,7 @@ exports.handler = async (event) => {
         // (Validé mais pas livré : estARelire faux → aMontage vrai → il peut revenir sur le film validé.)
         enCours.push({ code, titre, realisePar: realisePar(pr), etape, pastille: pastille(pr, auj), aMontage: !!courante && !estARelire, lienSeq: (pr['Lien sequencier'] && pr['Lien sequencier'].url) || '' });
       }
-      if (estARelire) aRelire.push({ code, titre, numero: vsClient.length, seriesAccordees: seriesAccordees(pr), dateDeposee: dstart(courante.properties, 'Date envoi client') });
+      if (estARelire) aRelire.push({ code, titre, numero: vsClient.length, seriesAccordees: seriesAccordees(pr, defautMarque), dateDeposee: dstart(courante.properties, 'Date envoi client') });
     });
 
     livres.sort((a, b) => (a.dateDiffusion < b.dateDiffusion ? 1 : a.dateDiffusion > b.dateDiffusion ? -1 : 0)); // plus récent d'abord
@@ -255,3 +262,7 @@ exports.handler = async (event) => {
     return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
   }
 };
+
+// Exposé pour le test unitaire de la cascade (lot 2). Netlify n'invoque QUE `.handler` — cet export additif
+// n'a aucun effet en production, il rend seulement le helper pur `seriesAccordees` vérifiable hors navigateur.
+exports.seriesAccordees = seriesAccordees;
