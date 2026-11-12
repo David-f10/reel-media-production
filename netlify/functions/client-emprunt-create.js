@@ -16,7 +16,8 @@
 
 const crypto = require('crypto');
 const { verifyUser } = require('./_auth');          // IMPORT seul (comme access-set / code-reset)
-const { contactActif } = require('./_authclient');
+const { contactActif, premierContactActif } = require('./_authclient');
+const { CODE_BRAND_RE } = require('./_perimetreclient'); // SEULE autorité sur la forme d'un code marque
 const { signer } = require('./_clienttoken');
 const { getEmpruntTokenStore, getEmpruntAuditStore } = require('./_blobs');
 
@@ -46,16 +47,32 @@ exports.handler = async (event) => {
     return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Réservé aux gestionnaires d\'accès' }) };
   }
 
-  // 2) Contact emprunté (le commentateur). Format d'id strict ; jamais un id forgé libre.
-  const contactId = String(body.contactId || '').trim();
+  // 2) Qui emprunter — DEUX portes :
+  //    (a) depuis un COMMENTAIRE : contactId fourni (le commentateur) ;
+  //    (b) depuis une CARTE : sujetCode fourni → on isole la marque et on prend un contact ACTIF déterministe
+  //        (premier par nom), sans attendre qu'un client écrive.
+  let contactId = String(body.contactId || '').trim();
+  if (!contactId) {
+    const sujetCode = String(body.sujetCode || '').trim();
+    // Découpe : on retire les lettres de déclinaison en fin de code ; la FORME du code marque est validée
+    // par la SEULE autorité partagée, CODE_BRAND_RE importée (pas de 2e regex de code marque ici).
+    const codeBrand = sujetCode.replace(/[A-Za-z]+$/, '').trim();
+    if (!CODE_BRAND_RE.test(codeBrand)) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Carte sans code marque exploitable' }) };
+    const pc = await premierContactActif(codeBrand);
+    if (!pc.ok) {
+      if (pc.raison === 'indispo') return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
+      return { statusCode: 404, headers, body: JSON.stringify({ ok: false, error: 'Aucun interlocuteur actif pour cette marque.' }) };
+    }
+    contactId = pc.contact.id;
+  }
   if (!EST_ID(contactId)) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'contactId manquant ou invalide' }) };
 
-  // 3) Le contact doit être ACTIF et sa marque OUVERTE — la MÊME porte que le client. Révoqué/fermé → refus
-  //    (on n'emprunte jamais une identité qui ne pourrait pas se connecter elle-même).
+  // 3) Le contact doit être ACTIF et sa marque OUVERTE — la MÊME porte que le client (pour les deux portes).
+  //    Échec = réglage (espace fermé) ou révocation ; dominante vérifiée en base : 63 marques sur 65 fermées.
   const liv = await contactActif(contactId);
   if (!liv.ok) {
-    return { statusCode: liv.raison === 'indispo' ? 503 : 403, headers,
-      body: JSON.stringify({ ok: false, error: liv.raison === 'indispo' ? 'Service temporairement indisponible' : 'Ce contact n\'a pas d\'accès actif' }) };
+    if (liv.raison === 'indispo') return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
+    return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'L\'espace client de cette marque n\'est pas encore ouvert.' }) };
   }
 
   // 4) Session ro, TTL court, acteur = chef (pour l'audit et l'estampille serveur).

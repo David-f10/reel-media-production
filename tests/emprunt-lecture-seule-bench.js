@@ -52,8 +52,10 @@ const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
 const { signer, verifier } = require('../netlify/functions/_clienttoken');
 const { appelNotion, estLecture, RefusLectureSeule } = require('../netlify/functions/_notionio');
 
-const ID = '11111111-1111-1111-1111-111111111111';          // id de page du contact emprunté
+const ID = '11111111-1111-1111-1111-111111111111';          // id de page du contact emprunté (Claire, B33)
 const RETOUR_ID = '22222222-2222-2222-2222-222222222222';   // id d'un brouillon à supprimer
+const ID2 = '55555555-5555-5555-5555-555555555555';         // 2e contact actif de B33 (Alice) — 1er par nom
+const ID_B77 = '66666666-6666-6666-6666-666666666666';      // contact actif d'une marque FERMÉE (B77)
 
 let fails = 0;
 const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗ ') + n + (c ? '' : '\x1b[0m')); if (!c) fails++; };
@@ -63,8 +65,18 @@ const CONTACT = { id: ID, properties: {
   'Mail': { email: 'claire@refashion.fr' }, 'Nom': { title: [{ plain_text: 'Claire' }] },
   'Code acces': { rich_text: [{ plain_text: 'XXXXXXXX' }] }, 'Actif': { checkbox: true },
   'Code Brand': { rich_text: [{ plain_text: 'B33' }] }, 'Marque': { rich_text: [{ plain_text: 'Refashion' }] } } };
+const CONTACT2 = { id: ID2, properties: {
+  'Nom': { title: [{ plain_text: 'Alice' }] }, 'Actif': { checkbox: true },
+  'Code Brand': { rich_text: [{ plain_text: 'B33' }] }, 'Marque': { rich_text: [{ plain_text: 'Refashion' }] } } };
+const CONTACT_B77 = { id: ID_B77, properties: {
+  'Nom': { title: [{ plain_text: 'Zoé' }] }, 'Actif': { checkbox: true },
+  'Code Brand': { rich_text: [{ plain_text: 'B77' }] }, 'Marque': { rich_text: [{ plain_text: 'FerméeSA' }] } } };
 const BRAND = { id: 'brand', properties: {
   'Code': { rich_text: [{ plain_text: 'B33' }] }, 'Espace client activé': { checkbox: true } } };
+const BRAND77 = { id: 'brand77', properties: { // marque FERMÉE : a un contact actif mais l'espace n'est pas ouvert
+  'Code': { rich_text: [{ plain_text: 'B77' }] }, 'Espace client activé': { checkbox: false } } };
+const BRAND88 = { id: 'brand88', properties: { // marque OUVERTE mais SANS aucun contact actif
+  'Code': { rich_text: [{ plain_text: 'B88' }] }, 'Espace client activé': { checkbox: true } } };
 const SUJET = { id: 'sujetpage', properties: {
   'Code': { rich_text: [{ plain_text: 'B33D' }] }, 'Visible espace client': { checkbox: true },
   'Format': { select: { name: 'Brand' } }, 'Titre': { title: [{ plain_text: 'Sujet' }] },
@@ -90,8 +102,8 @@ function stub(url, opt) {
   if (mq) {
     const db = mq[1];
     if (db === DB_EQUIPE) return Promise.resolve(rep({ results: [CHEF_GERE, CHEF_SIMPLE] }));
-    if (db === process.env.DB_CONTACTS_CLIENT) return Promise.resolve(rep({ results: [CONTACT] }));
-    if (db === DB_CLIENTS_BRAND) return Promise.resolve(rep({ results: [BRAND] }));
+    if (db === process.env.DB_CONTACTS_CLIENT) return Promise.resolve(rep({ results: [CONTACT, CONTACT2, CONTACT_B77] }));
+    if (db === DB_CLIENTS_BRAND) return Promise.resolve(rep({ results: [BRAND, BRAND77, BRAND88] }));
     if (db === DB_PROD) return Promise.resolve(rep({ results: [SUJET] }));
     if (db === DB_VERSIONS) return Promise.resolve(rep({ results: [VERSION] }));
     if (db === DB_RETOURS) return Promise.resolve(rep({ results: [RETOUR] }));
@@ -233,6 +245,38 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
 
   // Audit : une entrée a bien été écrite à la frappe.
   ok('audit Blobs : une entrée écrite par mint réussi', (_stores['emprunt-audit'] ? _stores['emprunt-audit'].size : 0) >= 1);
+
+  // ── 6) 2ᵉ PORTE — depuis la CARTE (sujetCode), sans qu'un client ait commenté ───────────────────────────
+  console.log('\n\x1b[1mEntrée depuis la carte — marque dérivée du code, contact actif déterministe\x1b[0m');
+  // B33 a deux contacts actifs (Alice, Claire) → premier par nom = Alice (ID2).
+  const crte = await create(evtChef(CHEF_ID, CHEF_CODE, { sujetCode: 'B33D' }));
+  const crteB = JSON.parse(crte.body || '{}');
+  ok('carte B33D (gestionnaire) → 200 + remise', crte.statusCode === 200 && crteB.ok && !!crteB.token);
+  const krte = await consume({ httpMethod: 'POST', headers: {}, body: JSON.stringify({ token: crteB.token }) });
+  const krteB = JSON.parse(krte.body || '{}');
+  const vC = krteB.token ? verifier(krteB.token) : { ok: false };
+  ok('jeton (carte) est ro', vC.ok && vC.ro === true);
+  ok('choix DÉTERMINISTE : 1er contact actif par nom (Alice, pas Claire)', vC.id && vC.id.replace(/-/g, '') === ID2.replace(/-/g, ''));
+
+  // Marque fermée (B77 a un contact actif mais l'espace n'est pas ouvert) → 403 « réglage », pas une panne.
+  const cFerm = await create(evtChef(CHEF_ID, CHEF_CODE, { sujetCode: 'B77A' }));
+  const cFermB = JSON.parse(cFerm.body || '{}');
+  ok('carte d\'une marque FERMÉE → 403', cFerm.statusCode === 403);
+  ok('403 dit que c\'est un réglage (« pas encore ouvert »)', /pas encore ouvert/i.test(cFermB.error || ''));
+
+  // Marque ouverte mais SANS contact actif (B88) → 404 distinct.
+  const cVide = await create(evtChef(CHEF_ID, CHEF_CODE, { sujetCode: 'B88X' }));
+  const cVideB = JSON.parse(cVide.body || '{}');
+  ok('carte d\'une marque sans interlocuteur actif → 404', cVide.statusCode === 404);
+  ok('404 « Aucun interlocuteur actif pour cette marque. »', /aucun interlocuteur actif/i.test(cVideB.error || ''));
+
+  // Code de carte sans marque exploitable → 400 (validé par CODE_BRAND_RE, pas une 2e regex).
+  const cMal = await create(evtChef(CHEF_ID, CHEF_CODE, { sujetCode: 'XYZ' }));
+  ok('carte sans code marque exploitable → 400', cMal.statusCode === 400);
+
+  // La carte garde la garde de clé : sans « Peut gérer les accès » → 403.
+  const cNoKey = await create(evtChef(CHEF2_ID, CHEF2_CODE, { sujetCode: 'B33D' }));
+  ok('carte sans la clé « Peut gérer les accès » → 403', cNoKey.statusCode === 403);
 
   console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
   process.exit(fails ? 1 : 0);

@@ -1509,6 +1509,7 @@ function openDetail(id, forcePadOpen=false){
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
       <span class="step-ttl">📋 Retours équipe</span>
       <div style="display:flex;align-items:center;gap:8px">
+        ${(s.format==='Brand'&&_suisGestionnaireAcces())?`<button onclick="voirIncognitoCarte('${s.code}',this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:''}
         <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:8px;font-family:var(--mono)" id="retours-count-${id}">...</span>
       </div>
     </div>
@@ -5680,6 +5681,26 @@ async function voirIncognito(contactId, btn) {
   if (btn) btn.disabled = true;
   try {
     const res = await fetch('/.netlify/functions/client-emprunt-create', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ contactId }) });
+    const b = await res.json().catch(() => ({}));
+    if (res.ok && b.ok && b.token) {
+      window.open('/client.html?emprunt=' + encodeURIComponent(b.token), '_blank', 'noopener');
+    } else {
+      toast(b.error || 'Impossible d\'ouvrir l\'espace client', 'err');
+    }
+  } catch (e) {
+    toast('Service temporairement indisponible', 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// 2ᵉ porte (depuis la carte) : même ouverture, mais on passe le CODE de carte ; le mint en dérive la marque
+// et choisit un contact actif déterministe. Mêmes gardes serveur ; messages d'échec distincts (marque fermée
+// vs aucun interlocuteur actif) remontés tels quels.
+async function voirIncognitoCarte(sujetCode, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/.netlify/functions/client-emprunt-create', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ sujetCode }) });
     const b = await res.json().catch(() => ({}));
     if (res.ok && b.ok && b.token) {
       window.open('/client.html?emprunt=' + encodeURIComponent(b.token), '_blank', 'noopener');

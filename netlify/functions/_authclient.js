@@ -195,4 +195,33 @@ async function contactActif(id) {
   }
 }
 
-module.exports = { verifyClient, contactActif, marqueOuverte };
+// premierContactActif(codeBrand) → { ok:true, contact:{ id, nom } } | { ok:false, raison:'aucun'|'indispo' }.
+// Choisit UN contact ACTIF d'une marque, de façon DÉTERMINISTE (tri par Nom, départage par id) — pour la
+// 2ᵉ porte d'emprunt « Voir incognito » depuis une carte, quand aucun client n'a encore commenté. Réutilise
+// le MÊME cache 60 s que verifyClient/contactActif (aucune requête de plus). Ne vérifie PAS la marque ouverte :
+// c'est contactActif (appelé ensuite par le mint) qui porte cette garde — on ne la duplique pas ici.
+async function premierContactActif(codeBrand) {
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.DB_CONTACTS_CLIENT;
+  if (!token || !dbId) {
+    console.error('premierContactActif indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')');
+    return { ok: false, raison: 'indispo' };
+  }
+  const code = String(codeBrand == null ? '' : codeBrand).trim();
+  if (!code) return { ok: false, raison: 'aucun' };
+  try {
+    const contacts = await _getContacts(token, dbId, false);
+    const actifs = (contacts || [])
+      .filter(p => _rt(p.properties, 'Code Brand').trim() === code && _actif(p.properties))
+      .map(p => ({ id: p.id, nom: _nom(p.properties) }));
+    if (!actifs.length) return { ok: false, raison: 'aucun' };
+    // Déterministe : par Nom (locale FR), puis par id (jamais d'ambiguïté si deux noms identiques).
+    actifs.sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr') || normId(a.id).localeCompare(normId(b.id)));
+    return { ok: true, contact: actifs[0] };
+  } catch (e) {
+    console.error('premierContactActif indispo : ' + (e && e.message || ''));
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
+module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif };
