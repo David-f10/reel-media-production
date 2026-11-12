@@ -76,6 +76,10 @@ exports.handler = async (event) => {
     const msg = az.statut === 403 ? 'Accès refusé' : (az.statut === 401 ? 'Authentification requise' : 'Service temporairement indisponible');
     return { statusCode: az.statut, headers, body: JSON.stringify({ ok: false, error: msg }) };
   }
+  // Emprunt chef = lecture seule (décision 5) : le téléchargement du livrable N'EST PAS une mutation Notion,
+  // il ne passe donc PAS par _notionio.appelNotion — le refus doit vivre ICI. Un chef qui veut le fichier
+  // passe par la porte équipe, jamais par l'espace client. Refus franc, même message que les écritures.
+  if (az.ro) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Mode consultation : lecture seule' }) };
 
   // ── Résolution du RANG → fileId, en RÉUTILISANT l'ordre du portier (az.versions, trié par Date envoi
   // client, départagé par id de page). Rang hors bornes → 404 (version qui n'existe pas pour ce client,

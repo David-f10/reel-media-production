@@ -25,6 +25,7 @@
 const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
 const { CODE_BRAND_RE, PRE_TOURNAGE } = require('./_perimetreclient'); // PRE_TOURNAGE : source unique partagée
+const { appelNotion } = require('./_notionio');
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_NOTIFS = '4398775b-c11f-4d73-99c4-9fc31c33ce8b';
@@ -41,19 +42,20 @@ function acao(event) {
   return (o && hotes.indexOf(o) !== -1) ? o : '';
 }
 
-async function notionFetch(pathApi, method, token, bodyObj) {
-  const r = await fetch('https://api.notion.com/v1' + pathApi, {
-    method,
-    headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-    body: bodyObj ? JSON.stringify(bodyObj) : undefined
-  });
-  if (!r.ok) throw new Error(method + ' ' + pathApi.slice(0, 16) + ' ' + r.status);
-  return r.json();
+// Client Notion LIÉ à la session (ro compris) : tout passe par _notionio.appelNotion. Ce fichier authentifie
+// en direct (verifier + contactActif, pas via autoriserMontage car le séquencier n'est pas Visible) ; ses deux
+// actions (valider, corrections) sont des écritures, donc le handler refuse ro d'entrée (403). Filet structurel.
+function creerNotionFetch(ro) {
+  return async (pathApi, method, token, bodyObj) => {
+    const r = await appelNotion(ro, pathApi, method, token, bodyObj);
+    if (!r.ok) throw new Error(method + ' ' + pathApi.slice(0, 16) + ' ' + r.status);
+    return r.json();
+  };
 }
 
 // Signalement d'équipe (journaliste + contacts Brand), best-effort, une page par destinataire. Mirror de
 // valider-client.signalerEquipe, destinataires alignés sur la notif séquencier-client de l'app équipe.
-async function signalerEquipe(pr, meta, type, message, auteurNom, token) {
+async function signalerEquipe(pr, meta, type, message, auteurNom, token, notionFetch) {
   try {
     const set = new Set();
     set.add(_sel(pr, 'Journaliste'));
@@ -108,6 +110,10 @@ exports.handler = async (event) => {
   if (!liv.ok) return { statusCode: liv.raison === 'indispo' ? 503 : 401, headers, body: JSON.stringify({ ok: false, error: liv.raison === 'indispo' ? 'Service temporairement indisponible' : 'Authentification requise' }) };
   const codeBrand = String(liv.codeBrand || '').trim();
   if (!CODE_BRAND_RE.test(codeBrand)) { console.error('valider-sequencier : code marque invalide'); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+  // Emprunt chef = lecture seule : les deux actions (valider, corrections) écrivent — valider mute le sujet,
+  // corrections envoie un message à l'équipe au nom du client. Refus franc d'entrée. _notionio = filet structurel.
+  if (vt.ro) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Mode consultation : lecture seule' }) };
+  const notionFetch = creerNotionFetch(vt.ro);
 
   // ── Périmètre séquencier : le sujet doit être un projet Brand de SA marque (préfixe + ≥1 lettre). ──
   const reCode = new RegExp('^' + codeBrand + '[A-Za-z]+$'); // codeBrand est ^B\d+$ → aucun métacaractère
@@ -134,7 +140,7 @@ exports.handler = async (event) => {
     const texte = String(body.texte || '').trim();
     if (!texte) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Décrivez les corrections souhaitées' }) };
     const msg = '✏️ Le client demande des corrections sur le séquencier — ' + meta.code + ' · ' + (meta.titre || '') + ' : ' + texte.slice(0, MAX_TEXTE);
-    await signalerEquipe(pr, meta, 'validation', msg, liv.nom || '', token);
+    await signalerEquipe(pr, meta, 'validation', msg, liv.nom || '', token, notionFetch);
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, corrections: true }) };
   }
 
@@ -156,7 +162,7 @@ exports.handler = async (event) => {
   catch (e) { console.error('valider-sequencier indispo (écriture) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
   // Notif équipe (best-effort), même texte que l'app équipe.
-  await signalerEquipe(pr, meta, 'nouveau_sujet', '✅ Séquencier validé client — ' + meta.code + ' · ' + (meta.titre || '') + ' · Tournage peut démarrer !', liv.nom || '', token);
+  await signalerEquipe(pr, meta, 'nouveau_sujet', '✅ Séquencier validé client — ' + meta.code + ' · ' + (meta.titre || '') + ' · Tournage peut démarrer !', liv.nom || '', token, notionFetch);
 
   return { statusCode: 200, headers, body: JSON.stringify({ ok: true, valide: true }) };
 };

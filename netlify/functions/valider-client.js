@@ -25,6 +25,7 @@
 // AUCUNE écriture. On le détecte par le nombre de versions que le client a vu (nbVersions) vs le nombre réel.
 
 const { autoriserMontage } = require('./_montageclient');
+const { appelNotion } = require('./_notionio');
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
@@ -40,21 +41,22 @@ const _sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || ''
 const _cb = (pr, k) => !!(pr && pr[k] && pr[k].checkbox);
 const _dateSet = (pr, k) => !!(pr && pr[k] && pr[k].date && pr[k].date.start);
 
-async function notionFetch(pathApi, method, token, bodyObj) {
-  const r = await fetch('https://api.notion.com/v1' + pathApi, {
-    method,
-    headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-    body: bodyObj ? JSON.stringify(bodyObj) : undefined
-  });
-  if (!r.ok) throw new Error(method + ' ' + pathApi.slice(0, 16) + ' ' + r.status);
-  return r.json();
+// Client Notion LIÉ à la session (ro compris), créé après le portier. Tout passe par _notionio.appelNotion :
+// un jeton ro ne peut muter (refus avant réseau). Les deux actions de ce fichier étant des écritures, le
+// handler refuse d'ailleurs ro d'entrée (403) ; ce client reste le filet structurel et garde la porte unique.
+function creerNotionFetch(ro) {
+  return async (pathApi, method, token, bodyObj) => {
+    const r = await appelNotion(ro, pathApi, method, token, bodyObj);
+    if (!r.ok) throw new Error(method + ' ' + pathApi.slice(0, 16) + ' ' + r.status);
+    return r.json();
+  };
 }
 
 // Signalement d'équipe — BEST-EFFORT de bout en bout : jamais une exception ne remonte, chaque échec se
 // logge (présence, aucun secret). Lit le sujet pour ses destinataires (mêmes que la lane review :
 // chef, journaliste, contacts Brand, monteur de CETTE version interne), puis une page 📥 Notifications
 // par destinataire. Jamais appelé avant que l'écriture primaire ait réussi.
-async function signalerEquipe(az, internalV, type, message, token) {
+async function signalerEquipe(az, internalV, type, message, token, notionFetch) {
   try {
     const sujet = await notionFetch('/pages/' + az.sujet.pageId, 'GET', token);
     const pr = (sujet && sujet.properties) || {};
@@ -119,6 +121,10 @@ exports.handler = async (event) => {
     const msg = az.statut === 403 ? 'Accès refusé' : (az.statut === 401 ? 'Authentification requise' : 'Service temporairement indisponible');
     return { statusCode: az.statut, headers, body: JSON.stringify({ ok: false, error: msg }) };
   }
+  // Emprunt chef = lecture seule : les deux actions de ce point d'entrée (valider, envoyer-retours) sont des
+  // écritures terminales. Refus franc AVANT tout calcul ; _notionio reste le filet structurel sous ce gate.
+  if (az.ro) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Mode consultation : lecture seule' }) };
+  const notionFetch = creerNotionFetch(az.ro);
 
   // La courante est la SEULE cible d'une action terminale (les versions passées sont des tours clos).
   const courante = az.versions.length ? az.versions[az.versions.length - 1] : null;
@@ -159,7 +165,7 @@ exports.handler = async (event) => {
     // envoyer-retours, lui, refuse déjà en 503 sur internalV vide, l. ~167 — il n'atteint jamais ce trou.)
     const vLabel = internalV || 'dernière version';
     await signalerEquipe(az, internalV, 'version_validee',
-      `${az.contact.nom || 'Le client'} a validé la ${vLabel} de ${az.sujet.code}${az.sujet.titre ? ' — ' + az.sujet.titre : ''}`, token);
+      `${az.contact.nom || 'Le client'} a validé la ${vLabel} de ${az.sujet.code}${az.sujet.titre ? ' — ' + az.sujet.titre : ''}`, token, notionFetch);
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   }
@@ -221,7 +227,7 @@ exports.handler = async (event) => {
   try { await notionFetch('/pages/' + az.sujet.pageId, 'PATCH', token, { properties: { 'Statut': { select: { name: 'Retours' } } } }); }
   catch (e) { console.error('valider-client statut (best-effort) : ' + (e && e.message || '')); }
   await signalerEquipe(az, internalV, 'retours_client',
-    `${az.contact.nom || 'Le client'} a envoyé ses retours sur la ${internalV} de ${az.sujet.code}${az.sujet.titre ? ' — ' + az.sujet.titre : ''}`, token);
+    `${az.contact.nom || 'Le client'} a envoyé ses retours sur la ${internalV} de ${az.sujet.code}${az.sujet.titre ? ' — ' + az.sujet.titre : ''}`, token, notionFetch);
 
   // ok:true SEULEMENT si tout a basculé. Partiel → ok:false (honnête) : le client ne lit pas « envoyés ».
   return { statusCode: echecs === 0 ? 200 : 502, headers, body: JSON.stringify({ ok: echecs === 0, envoyes, echecs }) };

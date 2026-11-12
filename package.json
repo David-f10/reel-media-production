@@ -2,7 +2,7 @@
   "name": "reel-media-production",
   "version": "1.0.0",
   "scripts": {
-    "test": "node tests/fix-bench.js && node tests/fenetre-bench.js && node tests/verrou-bench.js && node tests/ui-bench.js && node tests/rearm-bench.js && node tests/releve-affichage-bench.js && node tests/releve-sans-musique-bench.js && node tests/lecteur-etape2.bench.js && node tests/series-cascade-bench.js"
+    "test": "node tests/fix-bench.js && node tests/fenetre-bench.js && node tests/verrou-bench.js && node tests/ui-bench.js && node tests/rearm-bench.js && node tests/releve-affichage-bench.js && node tests/releve-sans-musique-bench.js && node tests/lecteur-etape2.bench.js && node tests/series-cascade-bench.js && node tests/emprunt-lecture-seule-bench.js"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
