@@ -22,6 +22,7 @@
 // les envoie dans le corps, elles sont ignorées.
 
 const { autoriserMontage } = require('./_montageclient');
+const { appelNotion } = require('./_notionio');
 
 const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
 const MAX_TEXTE = 5000;
@@ -63,19 +64,24 @@ const _versionInterne = (v) => (((v && v.brut && v.brut.properties && v.brut.pro
 // Comparaison d'ids Notion tolérante aux tirets et à la casse (id de page de contact, id de base, etc.).
 const _eqId = (a, b) => String(a || '').replace(/-/g, '').toLowerCase() === String(b || '').replace(/-/g, '').toLowerCase();
 
-async function notionFetch(pathApi, method, token, bodyObj) {
-  const r = await fetch('https://api.notion.com/v1' + pathApi, {
-    method,
-    headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-    body: bodyObj ? JSON.stringify(bodyObj) : undefined
-  });
-  if (!r.ok) throw new Error(method + ' ' + pathApi.slice(0, 16) + ' ' + r.status);
-  return r.json();
+// Client Notion LIÉ à la session : toute requête passe par _notionio.appelNotion(ro, …). Créé une fois par
+// invocation (après le portier, qui donne `ro`) → aucun site d'appel ne retape `ro`, et un jeton ro ne peut
+// muter (refus avant réseau). `notionFetch(...)` rend le JSON (comme avant) ; `notionFetch.brut(...)` rend la
+// Response brute (pour la création de retour, qui doit LIRE le corps d'erreur). Les deux sont ro-liés.
+function creerNotionFetch(ro) {
+  const brut = (pathApi, method, token, bodyObj) => appelNotion(ro, pathApi, method, token, bodyObj);
+  const json = async (pathApi, method, token, bodyObj) => {
+    const r = await brut(pathApi, method, token, bodyObj);
+    if (!r.ok) throw new Error(method + ' ' + pathApi.slice(0, 16) + ' ' + r.status);
+    return r.json();
+  };
+  json.brut = brut;
+  return json;
 }
 
 // Tous les retours CLIENT d'un sujet (clé = id de page). Source='Client' seulement (le reste = interne
 // équipe, hors espace). Pagination bornée. Lève en cas d'erreur → l'appelant rend 503 (jamais [] faux).
-async function retoursClientDuSujet(sujetPageId, token) {
+async function retoursClientDuSujet(sujetPageId, token, notionFetch) {
   const out = [];
   let cursor = null, pages = 0;
   do {
@@ -133,11 +139,14 @@ exports.handler = async (event) => {
     const msg = az.statut === 403 ? 'Accès refusé' : (az.statut === 401 ? 'Authentification requise' : 'Service temporairement indisponible');
     return { statusCode: az.statut, headers, body: JSON.stringify({ ok: false, error: msg }) };
   }
+  // Client Notion lié à la session (ro compris) : 'lire' passe ; 'ajouter-retour'/'supprimer-brouillon'
+  // sont des écritures → refusées avant le réseau sous ro (403 ci-dessous).
+  const notionFetch = creerNotionFetch(az.ro);
 
   // ── LECTURE ────────────────────────────────────────────────────────────────
   if (action === 'lire') {
     let retours;
-    try { retours = await retoursClientDuSujet(az.sujet.pageId, token); }
+    try { retours = await retoursClientDuSujet(az.sujet.pageId, token, notionFetch); }
     catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
 
     const versions = az.versions.map(v => ({ rang: v.rang, dateEnvoi: v.dateEnvoi, etat: etatVersion(v, retours) }));
@@ -242,11 +251,9 @@ exports.handler = async (event) => {
     // on renvoie un 422 DISTINCT (message clair + log serveur nommant la version) ; tout autre échec → 503.
     let created;
     try {
-      const r = await fetch('https://api.notion.com/v1/pages', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parent: { database_id: DB_RETOURS }, properties: props })
-      });
+      // Création via notionFetch.brut (et non un fetch nu) pour pouvoir LIRE le corps d'erreur TOUT en
+      // restant sous la garde de session : un jeton ro est refusé ici AVANT le réseau (RefusLectureSeule).
+      const r = await notionFetch.brut('/pages', 'POST', token, { parent: { database_id: DB_RETOURS }, properties: props });
       if (!r.ok) {
         if (r.status === 400) {
           const err = await r.json().catch(() => ({}));
@@ -259,7 +266,10 @@ exports.handler = async (event) => {
       }
       created = await r.json();
     }
-    catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+    catch (e) {
+      if (e && e.lectureSeule) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Mode consultation : lecture seule' }) };
+      console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
+    }
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, retourId: created.id }) };
   }
@@ -283,9 +293,7 @@ exports.handler = async (event) => {
     // Relecture du retour (bornée à son id). 404 = introuvable (donnée), distinct d'une panne (503).
     let retour;
     try {
-      const r = await fetch('https://api.notion.com/v1/pages/' + retourId, {
-        method: 'GET', headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': '2022-06-28' }
-      });
+      const r = await notionFetch.brut('/pages/' + retourId, 'GET', token); // lecture → passe la garde même sous ro
       if (r.status === 404) return { statusCode: 404, headers, body: JSON.stringify({ ok: false, error: 'Brouillon introuvable' }) };
       if (!r.ok) throw new Error('GET retour ' + r.status);
       retour = await r.json();
@@ -313,7 +321,10 @@ exports.handler = async (event) => {
 
     // Archivage (réversible dans Notion) — pas d'effacement dur.
     try { await notionFetch('/pages/' + retourId, 'PATCH', token, { archived: true }); }
-    catch (e) { console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+    catch (e) {
+      if (e && e.lectureSeule) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Mode consultation : lecture seule' }) };
+      console.error('montage-client indispo : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
+    }
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   }

@@ -90,8 +90,9 @@ async function _versionsClient(sujetPageId, token) {
 //   { ok:false, statut:401 } — session invalide/expirée OU contact désactivé/disparu → l'appelant re-login
 //   { ok:false, statut:503 } — config absente / Notion indisponible / périmètre en échec
 //   { ok:false, statut:403 } — sujetCode HORS du périmètre exposé de la marque
-//   { ok:true, contact:{ id, codeBrand, marque }, sujet:{ code, pageId },
+//   { ok:true, ro, contact:{ id, codeBrand, marque }, sujet:{ code, pageId },
 //              versions:[{ pageId, fileId, dateEnvoi, rang, brut }], courante:{ pageId, fileId } | null }
+//   ro : true si la session est un emprunt chef (lecture seule). L'appelant refuse alors toute écriture.
 async function autoriserMontage(event, params, deadline) {
   const token = process.env.NOTION_TOKEN;
   if (!token) { console.error('montage client indispo : NOTION_TOKEN=' + !!token); return { ok: false, statut: 503 }; }
@@ -134,6 +135,7 @@ async function autoriserMontage(event, params, deadline) {
 
   return {
     ok: true,
+    ro: !!vt.ro, // emprunt chef = lecture seule : relayé aux appelants, qui refusent toute écriture (403)
     contact: { id: vt.id, nom: liv.nom || '', codeBrand, marque: liv.marque || '' }, // nom : estampillage serveur de l'Auteur d'un retour (fiche lue en live)
     sujet: { code: sujetCode, pageId: sujetPage.id, titre: _titreSujet(sujetPage.properties) },
     versions,
