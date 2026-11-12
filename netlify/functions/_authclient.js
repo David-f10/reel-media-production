@@ -87,7 +87,7 @@ async function _getClientsBrand(token) {
   return _cbCache;
 }
 
-// marqueOuverte(codeBrand) → { ok:true, ouverte } | { ok:false, raison:'indispo' }.
+// marqueOuverte(codeBrand) → { ok:true, ouverte, series } | { ok:false, raison:'indispo' }.
 // Fail-closed sur la DONNÉE (marque introuvable / case absente ou décochée → ouverte:false). Une PANNE
 // (config/Notion) → 'indispo' et ne doit JAMAIS être traduite en « fermé » (Réserve 2 : ne pas dire au
 // client « pas ouvert » quand c'est le service qui est tombé).
@@ -95,12 +95,17 @@ async function marqueOuverte(codeBrand, token) {
   const tok = token || process.env.NOTION_TOKEN;
   if (!tok) { console.error('marqueOuverte indispo : NOTION_TOKEN manquant'); return { ok: false, raison: 'indispo' }; }
   const code = String(codeBrand == null ? '' : codeBrand).trim();
-  if (!code) return { ok: true, ouverte: false }; // pas de marque sur le contact → fermé (donnée), pas une panne
+  if (!code) return { ok: true, ouverte: false, series: null }; // pas de marque sur le contact → fermé (donnée), pas une panne
   try {
     const rows = await _getClientsBrand(tok);
     const row = rows.find(p => _codeOf(p.properties).trim() === code);
     const ouverte = !!(row && row.properties && row.properties['Espace client activé'] && row.properties['Espace client activé'].checkbox === true);
-    return { ok: true, ouverte };
+    // ADDITIF (lot 2) : « Séries accordées » au niveau MARQUE = repli de la cascade carte→marque→5. Lu sur la
+    // row DÉJÀ chargée pour la porte → zéro appel Notion en plus. Absent/non-number → null : l'appelant retombe
+    // sur 5 (seriesAccordees), comme aujourd'hui. Jamais une garde, purement un défaut d'affichage.
+    const sm = row && row.properties && row.properties['Séries accordées'] && row.properties['Séries accordées'].number;
+    const series = (typeof sm === 'number') ? sm : null;
+    return { ok: true, ouverte, series };
   } catch (e) {
     console.error('marqueOuverte indispo : ' + (e && e.message || ''));
     return { ok: false, raison: 'indispo' };
@@ -148,7 +153,7 @@ async function verifyClient({ mail, code }) {
 
 // F1 — relecture LIVE par id (jeton de session). Même base, même cache 60 s que verifyClient, mais clé = id
 // du contact (tiré du jeton), PAS mail+code. Sert à projets-client : vérifier Actif (révocation ~60 s) et
-// récupérer le Code Brand courant. → { ok:true, codeBrand, marque } | { ok:false, raison:'auth'|'indispo' }.
+// récupérer le Code Brand courant. → { ok:true, codeBrand, marque, seriesMarque } | { ok:false, raison:'auth'|'indispo' }.
 //   'auth'    = contact disparu ou désactivé → le jeton ne vaut plus → l'appelant renvoie 401 (re-login).
 //   'indispo' = config/Notion → 503.
 async function contactActif(id) {
@@ -181,7 +186,9 @@ async function contactActif(id) {
     if (!act.ouverte) return { ok: false, raison: 'auth' };
     // `nom` ajouté (tranche 2) : estampillage SERVEUR de l'Auteur d'un retour depuis la fiche lue EN LIVE
     // (montage-client ne fait jamais confiance au navigateur pour l'auteur). Additif — projets-client l'ignore.
-    return { ok: true, nom: _nom(page.properties), codeBrand, marque: _rt(page.properties, 'Marque') };
+    // `seriesMarque` ajouté (lot 2) : défaut marque de la cascade carte→marque→5, relayé depuis marqueOuverte
+    // (row déjà lue pour la porte). null si absent. Additif — les appelants qui l'ignorent ne voient rien changer.
+    return { ok: true, nom: _nom(page.properties), codeBrand, marque: _rt(page.properties, 'Marque'), seriesMarque: act.series };
   } catch (e) {
     console.error('contactActif indispo : ' + (e && e.message || ''));
     return { ok: false, raison: 'indispo' };
