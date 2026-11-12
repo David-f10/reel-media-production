@@ -119,7 +119,7 @@
     .mt-shell{min-height:100vh;display:flex;flex-direction:column}
     .mt-topbar{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;justify-content:space-between;padding:14px clamp(16px,3vw,32px);border-bottom:1px solid var(--line)}
     .mt-tb-l{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;min-width:0}
-    .mt-back{flex:0 0 auto;align-self:center;color:var(--txt2);text-decoration:none;font-size:15px;line-height:1;border:1px solid var(--line2);border-radius:6px;padding:5px 9px}
+    .mt-back{flex:0 0 auto;align-self:center;color:var(--txt2);text-decoration:none;font-size:15px;line-height:1;border:1px solid var(--line2);border-radius:6px;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
     .mt-back:hover{color:var(--txt);border-color:var(--txt3)}
     .mt-brand{flex:0 0 auto;font-weight:700;font-size:15px;letter-spacing:-.01em;color:var(--txt)}
     .mt-brand-x{color:var(--rouge)}
@@ -140,7 +140,7 @@
     .mt-code-chip:empty{display:none}
     .rv-meta{font-family:var(--mono);font-size:11.5px;color:var(--txt3)}
     .vers{display:flex;flex-wrap:wrap;gap:6px;margin:0}
-    .vch{font-family:var(--sans);font-size:12.5px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:6px 11px;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+    .vch{font-family:var(--sans);font-size:12.5px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:6px 11px;cursor:pointer;transition:background .12s,color .12s,border-color .12s;min-height:44px;display:inline-flex;align-items:center;gap:6px;box-sizing:border-box}
     .vch[aria-selected="true"]{background:var(--bg4);color:var(--txt);border-color:#3A3A50}
     .vch .pt{font-family:var(--mono);font-size:10px;color:var(--txt3);margin-left:7px}
     .vch[aria-selected="true"] .pt{color:var(--vert)}
@@ -159,8 +159,9 @@
     /* Lecteur natif : se dimensionne à son contenu (16:9 remplit la largeur ; 9:16 se centre sur le noir,
        object-fit:contain letterboxe). Pas de détection de ratio côté serveur — la vidéo porte le sien. */
     .mt-video{width:100%;max-height:72vh;background:#000;display:block;object-fit:contain}
-    /* Montage vertical : scène compacte centrée sur le noir (maquette C), pas une bande noire pleine largeur. */
-    .scene-portrait .mt-video{width:auto;max-width:100%}
+    /* Montage vertical : scène compacte centrée sur le noir (maquette C ≈ 460 px de haut), PAS 72vh (qui fait un
+       portrait géant sur grand écran). min(72vh,460px) : 460px comme la maquette sur bureau, responsive sur écran court. */
+    .scene-portrait .mt-video{width:auto;max-width:100%;max-height:min(72vh,460px)}
     /* Repli (relais indisponible) : iframe Drive (bureau) OU message + téléchargement (iOS). */
     .mt-iframe{width:100%;aspect-ratio:16/9;max-height:72vh;border:0;display:block;background:#000}
     .repli{width:100%;display:flex;flex-direction:column;gap:12px;padding:0}
@@ -180,7 +181,7 @@
     .ret-h{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
     .ret-tc{font-family:var(--mono);font-size:10px;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:1px 7px;border-radius:4px}
     /* Timecode cliquable (saut dans le lecteur). Rendu cliquable seulement une fois la durée connue et le tc dans le film. */
-    .ret-tc-seek{cursor:pointer}
+    .ret-tc-seek{cursor:pointer;min-height:44px;display:inline-flex;align-items:center;padding:0 10px} /* cible tactile 44px (maquettes) */
     .ret-tc-seek::before{content:'▶';font-size:8px;margin-right:4px;vertical-align:baseline}
     .ret-tc-seek:hover,.ret-tc-seek:focus-visible{background:var(--rouge);color:#fff;outline:none}
     /* Timecode hors film (après la fin) : désactivé visuellement, jamais cliquable. */
@@ -263,7 +264,8 @@
     .mt-fin-r{display:flex;flex-wrap:wrap;gap:9px}
     .mt-fin-r .bouton{flex:1 1 auto}
     .mt-fin-n{font-size:11.5px;color:var(--txt3);line-height:1.5;margin:0}
-    .bouton{background:var(--rouge);color:#fff;border:1px solid var(--rouge);font-family:var(--sans);font-size:14px;font-weight:500;padding:10px 16px;border-radius:7px;cursor:pointer;transition:background .12s,border-color .12s}
+    /* Cibles tactiles : min-height 44px partout (référence maquettes — chaque cible interactive y est à 44px). */
+    .bouton{background:var(--rouge);color:#fff;border:1px solid var(--rouge);font-family:var(--sans);font-size:14px;font-weight:500;padding:10px 16px;border-radius:7px;cursor:pointer;transition:background .12s,border-color .12s;min-height:44px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
     .bouton:hover{background:var(--rouge-fort);border-color:var(--rouge-fort)}
     .bouton[disabled]{opacity:.5;cursor:not-allowed}
     .bouton.vert{background:transparent;color:var(--vert);border-color:var(--vert-bord);font-weight:500}
@@ -274,7 +276,7 @@
     .close.gris{background:var(--bg3);border-top:1px solid var(--line);color:var(--txt2)}
     .close.gris b{color:var(--txt);font-weight:600}
     .mt-bandeau{background:var(--amber-voile);border:1px solid var(--amber-bord);color:var(--amber);border-radius:8px;padding:11px 14px;font-size:13.5px;margin-bottom:16px}
-    .voir-montage{flex:none;margin-left:auto;background:transparent;color:var(--rouge);border:1px solid var(--rouge-bord);font-family:var(--sans);font-size:12.5px;padding:6px 11px;border-radius:6px;cursor:pointer;transition:background .12s}
+    .voir-montage{flex:none;margin-left:auto;background:transparent;color:var(--rouge);border:1px solid var(--rouge-bord);font-family:var(--sans);font-size:12.5px;padding:6px 11px;border-radius:6px;cursor:pointer;transition:background .12s;min-height:44px;display:inline-flex;align-items:center;box-sizing:border-box}
     .voir-montage:hover{background:var(--rouge-voile)}
     .lien-reessai{background:transparent;border:0;color:var(--amber);text-decoration:underline;cursor:pointer;font:inherit}
     /* Empilement (main/aside wrap sous ~900px) : la bordure inter-colonnes passe du côté droit au séparateur
@@ -292,7 +294,7 @@
     h2 .n{color:var(--txt3);font-size:11px;font-variant-numeric:tabular-nums}
     h2:first-of-type{margin-top:0}
     .code{flex:none;font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:.06em;color:var(--rouge);background:var(--rouge-voile);border:1px solid var(--rouge-bord);padding:3px 8px;border-radius:4px}
-    .lnk{font-size:12.5px;color:var(--txt2);text-decoration:none;border:1px solid var(--line2);background:var(--bg3);padding:6px 11px;border-radius:6px;display:inline-block;white-space:nowrap;cursor:pointer;transition:color .12s,border-color .12s}
+    .lnk{font-size:12.5px;color:var(--txt2);text-decoration:none;border:1px solid var(--line2);background:var(--bg3);padding:6px 11px;border-radius:6px;display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box;white-space:nowrap;cursor:pointer;transition:color .12s,border-color .12s}
     .lnk:hover{color:var(--txt);border-color:var(--txt3)}
     .attente{display:flex;flex-direction:column;gap:11px}
     .att{background:var(--bg2);border:1px solid var(--rouge-bord);border-left:3px solid var(--rouge);border-radius:9px;padding:17px 19px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
@@ -586,6 +588,7 @@
       if (status !== 200 || !d || !d.ok) { espaceIndispo(); return; } // 503/échec → distinct, jamais des blocs vides
 
       var aValider = d.aValider || [], aRelire = d.aRelire || [], enCours = d.enCours || [], livres = d.livres || [], col = d.collaboration || {};
+      aRelire.forEach(function (p) { _seriesParCode[p.code] = p.seriesAccordees || 5; }); // mémorise le total par marque pour l'en-tête montage
       var zone = $('zone-projets');
 
       // PREMIER ACCÈS : ok ET rien à montrer (le cas normal au démarrage). aValider inclus : un projet en
@@ -739,6 +742,10 @@
       // (une ré-ouverture transparente si le cookie a expiré, puis repli). dureeMs vient de video.duration.
       flux: false, fluxReessai: 0 };
     var K_MOMENTS = 'rmc-moments'; // clé localStorage par sujet : moments marqués, non encore commentés (brouillon LOCAL)
+    // Total d'allers-retours par marque (« tour N sur X »), capté depuis l'accueil (où espace-client.js:206 l'envoie
+    // déjà via seriesAccordees — défaut 5, modifiable par marque). La vue montage se rejoint TOUJOURS par l'accueil,
+    // donc la carte est peuplée quand l'en-tête l'affiche ; repli à 5 (la règle par défaut) par sûreté.
+    var _seriesParCode = {};
 
     // Timecode « m:ss » (ou « h:mm:ss ») → secondes. Chiffres purs seulement ; sinon null (ex. « — », vide).
     function mTcEnSecondes(tc) {
@@ -789,10 +796,10 @@
       var vAff = data.versions[aff - 1];
       var estCourante = (aff === data.courante.rang);
       $('mt-meta').textContent = vAff ? ('Version ' + vAff.rang + ' · déposée le ' + mFmtDate(vAff.dateEnvoi)) : '';
-      // Puce version [Vx] + état dans l'en-tête. « tour N » = rang de la version affichée (sans total : pas de
-      // source confirmée pour « sur N », décision David). Version close → libellé d'état (à relire/validée/…).
+      // Puce version [Vx] + état dans l'en-tête. « tour N sur X » = rang de la version affichée / total d'allers-retours
+      // de la marque (défaut 5, cf. _seriesParCode, affichage SEULEMENT — jamais une garde). Version close → libellé d'état.
       $('mt-vchip').textContent = 'V' + aff;
-      $('mt-etat').textContent = (estCourante && vAff && vAff.etat === 'a-relire') ? ('À relire · tour ' + aff) : (ETIQ[vAff ? vAff.etat : ''] || '');
+      $('mt-etat').textContent = (estCourante && vAff && vAff.etat === 'a-relire') ? ('À relire · tour ' + aff + ' sur ' + (_seriesParCode[M.code] || 5)) : (ETIQ[vAff ? vAff.etat : ''] || '');
 
       $('mt-vers').innerHTML = data.versions.map(function (v) {
         return '<button class="vch" role="tab" type="button" data-rang="' + v.rang + '" aria-selected="' + (v.rang === aff) + '">Version ' + v.rang + '<span class="pt">' + esc(ETIQ[v.etat] || '') + '</span></button>';
