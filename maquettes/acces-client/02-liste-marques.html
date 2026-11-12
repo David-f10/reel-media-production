@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>La liste des marques et l'état de leur espace</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+<style>
+body { margin: 0; background: #0a0a0a; font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: #378ADD; } a:hover { color: #5BA3E8; }
+</style>
+</head>
+<body style="display:flex;justify-content:center;padding:24px 0">
+<div style="width: 1040px; height: 680px; box-sizing: border-box; background: #0a0a0a; display: flex; flex-direction: column">
+
+  <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,0.07)">
+    <div style="display: flex; align-items: baseline; gap: 11px">
+      <span style="font-size: 16px; font-weight: 700; color: #f0f0f0; letter-spacing: -0.01em">Accès clients</span>
+      <span style="font-family: 'DM Mono', monospace; font-size: 11.5px; color: #555">63 marques</span>
+    </div>
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #888; padding: 0 14px; min-height: 44px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer">Espace ouvert</button>
+      <button type="button" style="background: transparent; border: 1px solid rgba(255,255,255,0.12); color: #888; padding: 0 14px; min-height: 44px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer">Sans interlocuteur</button>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; padding: 20px 28px; gap: 14px; min-height: 0">
+
+    <div style="display: flex; gap: 14px">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 13px 15px; background: #111; border: 1px solid rgba(255,255,255,0.07); border-radius: 10px">
+        <span style="font-size: 21px; font-weight: 600; color: #1D9E75; font-variant-numeric: tabular-nums">8</span>
+        <span style="font-size: 11.5px; color: #888">espaces ouverts</span>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 13px 15px; background: #111; border: 1px solid rgba(255,255,255,0.07); border-radius: 10px">
+        <span style="font-size: 21px; font-weight: 600; color: #f0f0f0; font-variant-numeric: tabular-nums">55</span>
+        <span style="font-size: 11.5px; color: #888">fermés</span>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 13px 15px; background: #111; border: 1px solid rgba(239,159,39,0.3); border-radius: 10px">
+        <span style="font-size: 21px; font-weight: 600; color: #EF9F27; font-variant-numeric: tabular-nums">3</span>
+        <span style="font-size: 11.5px; color: #888">ouverts sans interlocuteur</span>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; background: #111; border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; min-height: 0">
+
+      <div style="display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: #181818; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0">
+        <span style="flex: 0 0 52px; font-family: 'DM Mono', monospace; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #888">code</span>
+        <span style="flex: 1 1 auto; font-family: 'DM Mono', monospace; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #888">marque</span>
+        <span style="flex: 0 0 120px; font-family: 'DM Mono', monospace; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #888">espace</span>
+        <span style="flex: 0 0 118px; font-family: 'DM Mono', monospace; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #888">interlocuteurs</span>
+        <span style="flex: 0 0 82px; font-family: 'DM Mono', monospace; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #888">retours</span>
+        <span style="flex: 0 0 34px"></span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.07)">
+        <span style="flex: 0 0 52px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: #e63946; background: rgba(230,57,70,0.15); border-radius: 4px; padding: 3px 7px; text-align: center">B33</span>
+        <span style="flex: 1 1 auto; font-size: 13.5px; color: #f0f0f0">Refashion</span>
+        <span style="flex: 0 0 120px; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #1D9E75"></span><span style="font-size: 12px; color: #1D9E75">Ouvert</span></span>
+        <span style="flex: 0 0 118px; font-size: 12.5px; color: #f0f0f0">2 actifs</span>
+        <span style="flex: 0 0 82px; font-family: 'DM Mono', monospace; font-size: 12px; color: #f0f0f0">5</span>
+        <a href="Marque.dc.html" aria-label="Ouvrir la fiche Refashion" style="flex: 0 0 34px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: #888"><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.07)">
+        <span style="flex: 0 0 52px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: #e63946; background: rgba(230,57,70,0.15); border-radius: 4px; padding: 3px 7px; text-align: center">B09</span>
+        <span style="flex: 1 1 auto; font-size: 13.5px; color: #f0f0f0">Fondation de France</span>
+        <span style="flex: 0 0 120px; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #1D9E75"></span><span style="font-size: 12px; color: #1D9E75">Ouvert</span></span>
+        <span style="flex: 0 0 118px; font-size: 12.5px; color: #f0f0f0">1 actif</span>
+        <span style="flex: 0 0 82px; font-family: 'DM Mono', monospace; font-size: 12px; color: #f0f0f0">3</span>
+        <a href="Marque.dc.html" aria-label="Ouvrir la fiche Fondation de France" style="flex: 0 0 34px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: #888"><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.07); background: rgba(239,159,39,0.06)">
+        <span style="flex: 0 0 52px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: #e63946; background: rgba(230,57,70,0.15); border-radius: 4px; padding: 3px 7px; text-align: center">B08</span>
+        <span style="flex: 1 1 auto; font-size: 13.5px; color: #f0f0f0">AXA</span>
+        <span style="flex: 0 0 120px; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #1D9E75"></span><span style="font-size: 12px; color: #1D9E75">Ouvert</span></span>
+        <span style="flex: 0 0 118px; display: flex; align-items: center; gap: 6px"><svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" style="flex-shrink: 0"><path d="M8 5.5v4M8 11.5h.01M8 1.8 1.3 13.5h13.4z" fill="none" stroke="#EF9F27" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-size: 12.5px; color: #EF9F27">aucun</span></span>
+        <span style="flex: 0 0 82px; font-family: 'DM Mono', monospace; font-size: 12px; color: #888">5</span>
+        <a href="Marque.dc.html" aria-label="Ouvrir la fiche AXA" style="flex: 0 0 34px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: #888"><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.07)">
+        <span style="flex: 0 0 52px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: #e63946; background: rgba(230,57,70,0.15); border-radius: 4px; padding: 3px 7px; text-align: center">B29</span>
+        <span style="flex: 1 1 auto; font-size: 13.5px; color: #f0f0f0">Engie</span>
+        <span style="flex: 0 0 120px; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #555"></span><span style="font-size: 12px; color: #888">Fermé</span></span>
+        <span style="flex: 0 0 118px; font-size: 12.5px; color: #888">1 inactif</span>
+        <span style="flex: 0 0 82px; font-family: 'DM Mono', monospace; font-size: 12px; color: #888">5</span>
+        <a href="Marque.dc.html" aria-label="Ouvrir la fiche Engie" style="flex: 0 0 34px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: #888"><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 16px">
+        <span style="flex: 0 0 52px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: #e63946; background: rgba(230,57,70,0.15); border-radius: 4px; padding: 3px 7px; text-align: center">B41</span>
+        <span style="flex: 1 1 auto; font-size: 13.5px; color: #f0f0f0">Trade Republic</span>
+        <span style="flex: 0 0 120px; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #555"></span><span style="font-size: 12px; color: #888">Fermé</span></span>
+        <span style="flex: 0 0 118px; font-size: 12.5px; color: #888">aucun</span>
+        <span style="flex: 0 0 82px; font-family: 'DM Mono', monospace; font-size: 12px; color: #888">5</span>
+        <a href="Marque.dc.html" aria-label="Ouvrir la fiche Trade Republic" style="flex: 0 0 34px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: #888"><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      </div>
+
+    </div>
+
+    <div style="font-size: 12px; color: #888; line-height: 1.5">La ligne ambrée est le cas qui doit sauter aux yeux : un espace ouvert sans personne pour y entrer. Les retours en gris sont hérités du défaut, ceux en blanc ont été posés au contrat.</div>
+
+  </div>
+
+</div>
+</body>
+</html>

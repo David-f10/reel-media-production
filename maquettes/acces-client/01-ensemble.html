@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Où vit chaque morceau de la gestion des accès</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap">
+<style>
+body { margin: 0; background: #0a0a0a; font-family: 'DM Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: #378ADD; } a:hover { color: #5BA3E8; }
+</style>
+</head>
+<body style="display:flex;justify-content:center;padding:24px 0">
+<div style="width: 1040px; height: 680px; box-sizing: border-box; padding: 40px 44px; background: #0a0a0a; display: flex; flex-direction: column; gap: 22px">
+
+  <div style="display: flex; flex-direction: column; gap: 7px">
+    <div style="font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #888">Gestion des accès clients</div>
+    <div style="font-size: 26px; font-weight: 600; color: #f0f0f0; line-height: 1.2">Deux niveaux, et un endroit pour chacun</div>
+    <div style="font-size: 13.5px; color: #888; line-height: 1.5">Ce qui se décide une fois par marque, et ce qui se décide mission par mission.</div>
+  </div>
+
+  <div style="display: flex; gap: 20px; flex-grow: 1">
+
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #111; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5h11v8h-11zM5 5.5V3.5h6v2" fill="none" stroke="#EF9F27" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+        <span style="font-size: 14.5px; font-weight: 600; color: #f0f0f0">Niveau marque</span>
+      </div>
+      <div style="font-size: 12.5px; color: #888; line-height: 1.5">Une fiche par client Brand. Ce qu'on décide ici vaut pour <strong style="color: #f0f0f0">toutes</strong> ses missions.</div>
+      <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 2px">
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: #181818; border: 1px solid rgba(255,255,255,0.07); border-radius: 7px">
+          <span style="font-family: 'DM Mono', monospace; font-size: 9.5px; color: #1D9E75; background: rgba(29,158,117,0.15); border-radius: 4px; padding: 3px 6px; flex-shrink: 0">existe</span>
+          <span style="font-size: 12.5px; color: #f0f0f0">L'espace client est ouvert ou fermé</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: #181818; border: 1px solid rgba(255,255,255,0.07); border-radius: 7px">
+          <span style="font-family: 'DM Mono', monospace; font-size: 9.5px; color: #EF9F27; background: rgba(239,159,39,0.15); border-radius: 4px; padding: 3px 6px; flex-shrink: 0">à créer</span>
+          <span style="font-size: 12.5px; color: #f0f0f0">Les retours accordés au contrat</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: #181818; border: 1px solid rgba(255,255,255,0.07); border-radius: 7px">
+          <span style="font-family: 'DM Mono', monospace; font-size: 9.5px; color: #EF9F27; background: rgba(239,159,39,0.15); border-radius: 4px; padding: 3px 6px; flex-shrink: 0">à créer</span>
+          <span style="font-size: 12.5px; color: #f0f0f0">Qui sont ses interlocuteurs</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 0 0 auto; align-self: center; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 0 2px">
+      <svg width="26" height="46" viewBox="0 0 26 46" aria-hidden="true"><path d="M13 3v34M7 31l6 6 6-6" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span style="font-family: 'DM Mono', monospace; font-size: 10px; color: #888; text-align: center; max-width: 76px; line-height: 1.4">hérite,<br>sauf si on dit autrement</span>
+    </div>
+
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #111; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h10v11H3zM5.5 6h5M5.5 9h3" fill="none" stroke="#378ADD" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"></path></svg>
+        <span style="font-size: 14.5px; font-weight: 600; color: #f0f0f0">Niveau mission</span>
+      </div>
+      <div style="font-size: 12.5px; color: #888; line-height: 1.5">La carte d'un sujet. Ce qu'on décide ici ne vaut que pour <strong style="color: #f0f0f0">cette</strong> mission.</div>
+      <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 2px">
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: #181818; border: 1px solid rgba(255,255,255,0.07); border-radius: 7px">
+          <span style="font-family: 'DM Mono', monospace; font-size: 9.5px; color: #1D9E75; background: rgba(29,158,117,0.15); border-radius: 4px; padding: 3px 6px; flex-shrink: 0">existe</span>
+          <span style="font-size: 12.5px; color: #f0f0f0">Les retours pour cette mission</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: #181818; border: 1px solid rgba(255,255,255,0.07); border-radius: 7px">
+          <span style="font-family: 'DM Mono', monospace; font-size: 9.5px; color: #EF9F27; background: rgba(239,159,39,0.15); border-radius: 4px; padding: 3px 6px; flex-shrink: 0">à créer</span>
+          <span style="font-size: 12.5px; color: #f0f0f0">Quels interlocuteurs la suivent</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: #181818; border: 1px solid rgba(255,255,255,0.07); border-radius: 7px">
+          <span style="font-family: 'DM Mono', monospace; font-size: 9.5px; color: #EF9F27; background: rgba(239,159,39,0.15); border-radius: 4px; padding: 3px 6px; flex-shrink: 0">à créer</span>
+          <span style="font-size: 12.5px; color: #f0f0f0">Entrer dans l'espace du client</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display: flex; align-items: flex-start; gap: 11px; padding: 14px 16px; background: rgba(239,159,39,0.08); border: 1px solid rgba(239,159,39,0.3); border-radius: 10px">
+    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px"><path d="M8 5.5v4M8 11.5h.01M8 1.8 1.3 13.5h13.4z" fill="none" stroke="#EF9F27" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    <span style="font-size: 12.5px; color: #888; line-height: 1.55">Aujourd'hui rien de tout ça ne se voit dans HAVANA : la fiche marque existe dans Notion, les interlocuteurs y sont aussi, et la cascade des retours n'a pas de niveau marque. <strong style="color: #f0f0f0">Les quatre écrans qui suivent sont ce qu'il faut construire</strong>, dans l'ordre des lots.</span>
+  </div>
+
+</div>
+</body>
+</html>
