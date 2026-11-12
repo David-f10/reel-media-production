@@ -43,6 +43,13 @@
           padding-right:max(16px,env(safe-area-inset-right,0px));
           padding-block:0 64px}
 
+    /* ── Bandeau d'emprunt chef (lecture seule) — barre haute, teinte ambre, au-dessus de tout. ── */
+    #bandeau-emprunt{position:sticky;top:0;z-index:50;background:#5a4300;color:#ffe9b0;
+      font-size:12.5px;font-weight:600;text-align:center;padding:7px 14px;letter-spacing:.01em;
+      border-bottom:1px solid #7a5c00}
+    #bandeau-emprunt.hidden{display:none}
+    #bandeau-emprunt::before{content:"👁 ";font-weight:400}
+
     /* ── écran 04 — connexion : carte bordée, tout aligné à gauche. Marque PAS affichée ici. ── */
     #vue-login{min-height:74vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-block:48px}
     .gate{width:100%;max-width:412px;background:var(--bg2);border:1px solid var(--line);border-radius:13px;
@@ -367,6 +374,9 @@
   </style>
 </head>
 <body>
+  <!-- Bandeau d'emprunt chef (lecture seule). Présent UNIQUEMENT sous un jeton ro ; la garantie de non-écriture
+       vit côté serveur (_notionio), ce bandeau n'est qu'un repère pour le chef qui consulte. -->
+  <div id="bandeau-emprunt" class="hidden" role="status" aria-live="polite"><span id="bandeau-emprunt-txt"></span></div>
   <div class="wrap">
 
     <!-- Chargement initial (anti-flash login→accueil). Production seulement. -->
@@ -481,6 +491,7 @@
     var STREAM = '/.netlify/functions/drive-stream';               // relais Range (le <video> pointe ici ; aucun id dans l'URL)
     var DOWNLOAD = '/.netlify/functions/drive-download-client';
     var VALIDER = '/.netlify/functions/valider-client';
+    var EMPRUNT = '/.netlify/functions/client-emprunt-consume'; // emprunt chef « Voir incognito » (lecture seule)
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
@@ -495,6 +506,49 @@
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     // esc() n'échappe PAS les guillemets (spec §8) → escAttr pour les valeurs serveur en position d'ATTRIBUT.
     function escAttr(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+    // ── Emprunt chef « Voir incognito » (lecture seule) ──
+    // La charge du jeton (base64url JSON, non secrète) porte ro/exp : on la lit pour piloter le bandeau, sans
+    // stockage supplémentaire. La VRAIE garantie de non-écriture est serveur (_notionio) — ceci n'est qu'un repère.
+    function jetonInfo() {
+      try {
+        var t = lire(K_TOKEN); if (!t) return null;
+        var p = t.split('.')[0]; if (!p) return null;
+        var s = p.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+        var j = JSON.parse(atob(s));
+        return { ro: !!j.ro, exp: +j.exp || 0 };
+      } catch (e) { return null; }
+    }
+    var _empTimer = null;
+    function majBandeau() {
+      var info = jetonInfo();
+      var b = $('bandeau-emprunt');
+      if (!info || !info.ro) { b.classList.add('hidden'); if (_empTimer) { clearInterval(_empTimer); _empTimer = null; } return; }
+      function peindre() {
+        var min = Math.max(0, Math.ceil((info.exp - Date.now()) / 60000));
+        var marque = lire(K_MARQUE);
+        $('bandeau-emprunt-txt').textContent = 'Mode consultation — lecture seule' + (marque ? (' · ' + marque) : '') + ' · ' + min + ' min';
+      }
+      peindre(); b.classList.remove('hidden');
+      if (_empTimer) clearInterval(_empTimer);
+      _empTimer = setInterval(peindre, 30000);
+    }
+    // Consomme la remise à usage unique → pose le jeton ro et entre dans l'accueil, en mode consultation.
+    function consommerEmprunt(remise) {
+      montrer('vue-chargement');
+      fetch(EMPRUNT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: remise }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          if (res.status === 200 && res.body && res.body.ok && res.body.token) {
+            var o = {}; o[K_TOKEN] = res.body.token; o[K_NOM] = res.body.nom || ''; o[K_MARQUE] = res.body.marque || '';
+            ecrire(o);
+            entrerAccueil(); majBandeau();
+            return;
+          }
+          allerLogin('Ce lien d\'emprunt n\'est plus valide. Repartez d\'une carte dans HAVANA.');
+        })
+        .catch(function () { allerLogin('Service temporairement indisponible, réessayez.'); });
+    }
 
     // ── Connexion ──
     $('btn-voir').addEventListener('click', function () {
@@ -544,6 +598,7 @@
       $('msg-login').textContent = notice || '';
       $('in-code').value = '';
       montrer('vue-login');
+      majBandeau(); // jeton effacé → le bandeau d'emprunt disparaît (déconnexion, session expirée)
     }
 
     function entrerAccueil() {
@@ -1464,7 +1519,14 @@
     // ── Démarrage : projets-client (via le jeton) est la source de vérité. ──
     // F1 : migration douce — un navigateur portant encore l'ancien stockage (mail+code) sans jeton est
     // PURGÉ et atterrit proprement sur la connexion, jamais sur une erreur.
-    if (lire(K_TOKEN)) entrerAccueil();
+    // Emprunt chef : une remise à usage unique arrive en ?emprunt=… On la consomme, on NETTOIE l'URL
+    // (jamais de remise qui traîne dans l'historique), puis on entre en mode consultation.
+    var _emp = '';
+    try { _emp = new URLSearchParams(location.search).get('emprunt') || ''; } catch (e) {}
+    if (_emp) {
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      consommerEmprunt(_emp);
+    } else if (lire(K_TOKEN)) { entrerAccueil(); majBandeau(); } // majBandeau : le bandeau survit à un rechargement sous jeton ro
     else { try { K_LEGACY.forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} montrer('vue-login'); }
   })();
   </script>

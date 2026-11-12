@@ -3455,6 +3455,7 @@ async function loadRetours(sujetId) {
       const statut = pr.Statut?.select?.name || 'Ouvert';
       const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || '?';
       const source = pr.Source?.select?.name || 'Équipe';
+      const contactClientId = (pr['Contact client']?.rich_text?.[0]?.plain_text || '').trim(); // commentateur (emprunt « Voir incognito »)
       const brouillon = estBrouillonRetour(pr);          // tout brouillon : rendu « draft » + opacity + titre
       const brouillonEquipe = estBrouillonEquipe(pr);    // gérable par l'équipe (éditer/supprimer) — PAS les brouillons client
       const date = new Date(r.created_time).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
@@ -3482,7 +3483,7 @@ async function loadRetours(sujetId) {
             ${estAdapte?`<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${texteLibre(desc)}</div><div class="retour-desc"><span style="font-size:9px;color:var(--blue);font-weight:600">↳ Adapté par ${texteLibre(reformulePar||'chef')}</span>${tcReformule?` <span class="retour-tc">${tcReformule}</span>`:''}<div style="margin-top:2px">${texteLibre(reformulation)}</div></div>`:`<div class="retour-desc">${texteLibre(desc)}</div>`}
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${texteLibre(pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser')}</div>`:''}
             <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${(()=>{if(source!=='Client')return escapeHtml(auteur);const dem=nomDemandeur(pr);const trans=(!(pr['Déposé en ligne']?.checkbox)&&auteur)?`<span style="color:var(--text3)">transmis par ${escapeHtml(auteur)}</span>`:'';return dem?escapeHtml(dem)+(trans?` · ${trans}`:''):(trans||'');})()} · ${date}</div>
-            ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">❓ Clarifier</button>`:''}
+            ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">❓ Clarifier</button>`:''}${(source==='Client'&&contactClientId&&_suisGestionnaireAcces())?`<button onclick="voirIncognito('${contactClientId}',this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="margin-top:6px;margin-left:6px;font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:''}
           </div>
           ${brouillon?brouillonActions:clarification?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}')" title="Répondre (adapter la clarification)" style="width:18px;height:18px;border-radius:50%;border:2px solid #378ADD;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.background='rgba(55,138,221,0.15)'" onmouseout="this.style.background='transparent'">✏️</div>`:`<span style="font-size:9px;color:#378ADD;white-space:nowrap;text-align:center">⏳ En<br>attente</span>`}</div>`:(!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
             ${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}')" title="${estAdapte?'Modifier la reformulation':'Adapter (reformuler pour le monteur)'}" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}
@@ -5670,6 +5671,26 @@ function _suisGestionnaireAcces() { return currentUser?.peutGererAcces === true;
 function peutOuvrirEquipe() { return _accesFeatureActif() ? _suisGestionnaireAcces() : true; }
 function _hdrsMembre() {
   return {'Content-Type':'application/json', 'x-rm-id':(currentUser&&currentUser.id)||'', 'x-rm-code':localStorage.getItem('rm-code')||''};
+}
+
+// Emprunt chef « Voir incognito » : demande une remise au mint (gardé serveur par la clé « Peut gérer les
+// accès »), puis ouvre l'espace du client EN LECTURE SEULE dans un nouvel onglet. On ne passe JAMAIS le jeton
+// dans l'URL : seule la remise à usage unique y transite. Le bouton n'existe que pour un porteur de clé.
+async function voirIncognito(contactId, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/.netlify/functions/client-emprunt-create', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ contactId }) });
+    const b = await res.json().catch(() => ({}));
+    if (res.ok && b.ok && b.token) {
+      window.open('/client.html?emprunt=' + encodeURIComponent(b.token), '_blank', 'noopener');
+    } else {
+      toast(b.error || 'Impossible d\'ouvrir l\'espace client', 'err');
+    }
+  } catch (e) {
+    toast('Service temporairement indisponible', 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function openGererJournalistes() {

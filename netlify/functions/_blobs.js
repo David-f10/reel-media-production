@@ -63,4 +63,29 @@ function getStreamBudgetStore() {
   return getStore({ name: 'stream-budget', siteID, token });
 }
 
-module.exports = { getPushStore, getAuthTokenStore, getDriveOpenPermsStore, getThrottleStore, getStreamBudgetStore };
+// Emprunt chef « Voir incognito » (lot 1) — remise à usage unique entre HAVANA et l'espace client. Clé =
+// jeton aléatoire base64url ; valeur = { jeton, exp, marque, nom, createdAt, expiresAt } ; TTL 120 s, usage
+// unique strict (supprimé à la consommation), même patron que getAuthTokenStore. Ne contient PAS le code
+// client : la session empruntée est un jeton signé ro, pas un couple mail/code.
+function getEmpruntTokenStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (!siteID || !token) {
+    throw new Error('Netlify Blobs non configuré : NETLIFY_SITE_ID et NETLIFY_BLOBS_TOKEN requis');
+  }
+  return getStore({ name: 'emprunt-tokens', siteID, token });
+}
+
+// Audit DURABLE des emprunts « Voir incognito ». Clé = '<ts>-<rand>' ; valeur = { chefId, chefNom, contactId,
+// codeBrand, marque, ts }. Écrit à la FRAPPE du jeton (avant d'émettre la remise) : toute entrée est tracée.
+// Jamais purgé automatiquement — c'est la trace « qui est entré où, quand ».
+function getEmpruntAuditStore() {
+  const siteID = process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (!siteID || !token) {
+    throw new Error('Netlify Blobs non configuré : NETLIFY_SITE_ID et NETLIFY_BLOBS_TOKEN requis');
+  }
+  return getStore({ name: 'emprunt-audit', siteID, token });
+}
+
+module.exports = { getPushStore, getAuthTokenStore, getDriveOpenPermsStore, getThrottleStore, getStreamBudgetStore, getEmpruntTokenStore, getEmpruntAuditStore };
