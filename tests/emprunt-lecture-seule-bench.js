@@ -13,6 +13,17 @@ process.env.CLIENT_SIGN_SECRET = 'banc-secret-emprunt';
 process.env.NOTION_TOKEN = 'banc-notion-token';
 process.env.DB_CONTACTS_CLIENT = 'dbcontacts';
 
+// Shim des dépendances natives (googleapis / @netlify/blobs) non installées pour un banc unitaire : elles ne
+// sont tirées que par la lane téléchargement, et JAMAIS exercées sous ro (403 avant tout appel Drive). Le
+// shim permet de charger drive-download-client sans node_modules ; la garde ro est pur contrôle de flux.
+const _Module = require('module');
+const _origLoad = _Module._load;
+_Module._load = function (request) {
+  if (request === 'googleapis') return { google: {} };
+  if (request === '@netlify/blobs') return { getStore: () => ({ get: async () => null, set: async () => {}, setJSON: async () => {} }) };
+  return _origLoad.apply(this, arguments);
+};
+
 const DB_CLIENTS_BRAND = '67abbb5f-f6a6-4937-89e3-6c852c515a8e';
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_VERSIONS = '3793eebb-2aeb-4d49-84ae-06d79cfb2704';
@@ -155,6 +166,16 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
     const mut = reseau.filter(mutationVersPages);
     ok(nom + ' (normal) → écriture /pages atteinte, pas de 403', mut.length >= 1 && res.statusCode !== 403);
   }
+
+  // ── 4) TÉLÉCHARGEMENT (décision 5) — refusé sous ro, HORS de la serrure Notion ──────────────────────────
+  // Un téléchargement n'est pas une mutation Notion : il ne passe pas par appelNotion. Le refus vit dans le
+  // handler, au même endroit que les écritures (juste après autoriserMontage, qui relaie ro).
+  console.log('\n\x1b[1mTéléchargement du livrable — refusé sous ro (décision 5)\x1b[0m');
+  const download = require('../netlify/functions/drive-download-client').handler;
+  const dlRo = await download(evt(emprunt.token, { sujetCode: 'B33D', rang: 1 }));
+  ok('drive-download-client (ro) → 403', dlRo.statusCode === 403);
+  const dlN = await download(evt(normal.token, { sujetCode: 'B33D', rang: 1 }));
+  ok('drive-download-client (normal) → passe la garde (pas de 403)', dlN.statusCode !== 403);
 
   console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
   process.exit(fails ? 1 : 0);
