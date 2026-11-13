@@ -160,12 +160,12 @@
     /* Rangée principale : main (s'étale) + aside (colonne retours pleine hauteur). Remplit le shell. */
     .rv{display:flex;flex-wrap:wrap;align-items:stretch;flex:1 1 auto;min-height:0;width:100%}
     .col-v{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:12px;padding:22px clamp(16px,2.4vw,28px);border-right:1px solid var(--line)}
-    .scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px}
+    .scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;padding:16px 0}  /* bande noire (maquette-C:39) : respiration verticale, pas horizontale */
     .scene-ph{display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;min-height:240px}
     .scene-grise{filter:grayscale(1);opacity:.55}
     /* Lecteur natif : se dimensionne à son contenu (16:9 remplit la largeur ; 9:16 se centre sur le noir,
        object-fit:contain letterboxe). Pas de détection de ratio côté serveur — la vidéo porte le sien. */
-    .mt-video{width:100%;max-height:72vh;background:#000;display:block;object-fit:contain}
+    .mt-video{width:100%;max-height:72vh;background:#000;display:block;object-fit:contain;border-radius:6px}  /* cadre arrondi (maquette-C:40) */
     /* Montage vertical : scène compacte centrée sur le noir (maquette C ≈ 460 px de haut), PAS 72vh (qui fait un
        portrait géant sur grand écran). min(72vh,460px) : 460px comme la maquette sur bureau, responsive sur écran court. */
     .scene-portrait .mt-video{width:auto;max-width:100%;max-height:min(72vh,460px)}
@@ -251,6 +251,7 @@
     .mt-wr-act .bouton{padding:9px 16px}
     .ret-cat{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);padding:1px 7px;border-radius:4px}
     .ret-x{font-size:13.5px;color:var(--txt);line-height:1.5}
+    .ret-meta{font-size:11.5px;color:var(--txt3);margin-top:2px}  /* auteur du retour (« Vous » / nom) */
     .ret-brouillon{font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber);opacity:.85;padding:1px 7px;border-radius:4px}
     .ret-foot{display:flex;justify-content:flex-end;margin-top:2px}
     .ret-suppr{background:none;border:0;color:var(--txt3);font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0}
@@ -260,7 +261,6 @@
     .ret-reform-by{font-family:var(--mono);font-size:10px;color:var(--txt3)}
     .ret-reform-x{font-size:13px;color:var(--txt2);line-height:1.5}
     .forme{border-top:1px solid var(--line);background:var(--bg3);padding:14px 15px;display:flex;flex-direction:column;gap:10px}
-    .forme-t{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt3)}
     .forme-r{display:flex;gap:8px}
     .forme-r input{font-family:var(--mono);max-width:128px}
     .forme-r select{flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);font-size:14px;padding:10px 12px}
@@ -270,6 +270,7 @@
     .mt-fin{margin-top:4px;display:flex;flex-direction:column;gap:9px}
     .mt-fin-r{display:flex;flex-wrap:wrap;gap:9px}
     .mt-fin-r .bouton{flex:1 1 auto}
+    .mt-fin-r .bouton.danger{flex:0 0 auto}  /* Valider : largeur naturelle, à part — jamais aussi dominant qu'Envoyer */
     .mt-fin-n{font-size:11.5px;color:var(--txt3);line-height:1.5;margin:0}
     /* Cibles tactiles : min-height 44px partout (référence maquettes — chaque cible interactive y est à 44px). */
     .bouton{background:var(--rouge);color:#fff;border:1px solid var(--rouge);font-family:var(--sans);font-size:14px;font-weight:500;padding:10px 16px;border-radius:7px;cursor:pointer;transition:background .12s,border-color .12s;min-height:44px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
@@ -279,6 +280,13 @@
     .bouton.vert:hover{background:var(--vert);color:#04150F;border-color:var(--vert)}
     .bouton.gris2{background:transparent;color:var(--txt2);border-color:var(--line2);font-weight:500}
     .bouton.gris2:hover{background:var(--bg4);color:var(--txt);border-color:var(--txt3)}
+    /* Hiérarchie des gestes (maquettes : le vert sur le geste qui engage). vert-plein = action principale
+       (Envoyer, pleine) ; danger = la SEULE irréversible (Valider clôt le film), à part et en retenue —
+       jamais recolorer .bouton (classe partagée : mt-ajout, sq-corr-send…). */
+    .bouton.vert-plein{background:var(--vert);color:#04150F;border-color:var(--vert);font-weight:700}
+    .bouton.vert-plein:hover{background:#17876B;border-color:#17876B}
+    .bouton.danger{background:transparent;color:var(--rouge);border-color:var(--rouge-bord);font-weight:500}
+    .bouton.danger:hover{background:var(--rouge-voile);border-color:var(--rouge)}
     .close{padding:15px;font-size:13px;line-height:1.5}
     .close.gris{background:var(--bg3);border-top:1px solid var(--line);color:var(--txt2)}
     .close.gris b{color:var(--txt);font-weight:600}
@@ -879,9 +887,14 @@
         // sur la bande), 0 = un autre contact de la même marque (repère gris).
         var tcAttr = (secTc != null) ? (' data-sec="' + secTc + '"') : '';
         tcAttr += ' data-mien="' + (r.mien ? '1' : '0') + '"';
+        // AUTEUR (serveur, montage-client:183) : « Vous » si c'est MON retour, sinon le nom de l'autre contact
+        // de la marque — Refashion a deux interlocuteurs, chacun doit savoir qui a écrit. (La DATE n'est pas
+        // transportée par la charge utile ; elle viendra quand le serveur l'ajoutera, cf. note à David.)
+        var qui = r.mien ? 'Vous' : esc(r.auteur || '');
+        var meta = qui ? ('<div class="ret-meta">' + qui + '</div>') : '';
         return '<div class="ret"><div class="ret-h"><span class="ret-tc"' + tcAttr + '>' + esc(r.timecode || '—') + '</span>' +
           (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + badge + '</div>' +
-          '<div class="ret-x">' + esc(r.texte) + '</div>' + reform + suppr + '</div>';
+          '<div class="ret-x">' + esc(r.texte) + '</div>' + meta + reform + suppr + '</div>';
       }).join('') : '<div class="ret"><div class="ret-x" style="color:var(--txt3)">Aucun retour sur cette version.</div></div>';
 
       // Formulaire + actions SEULEMENT sur la courante OUVERTE ; sinon bandeau de version close (pas de formulaire grisé).
@@ -907,7 +920,7 @@
       // Disposition (maquettes B/C) : colonne principale = lecteur → bande → écriture → actions ;
       // colonne droite = liste des retours pleine hauteur + téléchargement en pied.
       $('mt-corps').innerHTML = '<div class="rv"><div class="col-v">' + scene + frise + bloc + '</div>' +
-        '<div class="panneau"><div class="pan-t"><span>Mes retours</span><span class="pan-n">' + rets.length + '</span></div>' +
+        '<div class="panneau"><div class="pan-t"><span>Retours</span><span class="pan-n">' + rets.length + '</span></div>' +
         '<div class="retours">' + retoursHtml + '</div>' +
         '<div class="mt-telzone">' + telHtml + '</div></div></div>';
 
@@ -958,7 +971,7 @@
       var opts = CATS.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('');
       // Puce timecode (éditable) collée à gauche du champ ; sous le champ : la phrase de cadrage validée +
       // actions (catégorie, Annuler, Ajouter). Le timecode se remplit au focus du champ (mCapterSurFocus).
-      return '<div class="forme"><div class="forme-t">Laisser un retour</div>' +
+      return '<div class="forme">' +
         '<div class="mt-wr">' +
           '<label for="mt-tc" class="mt-tc-sr">Moment du film</label>' +
           '<input type="text" id="mt-tc" class="mt-tc-chip" placeholder="0:00" aria-label="Moment du film" inputmode="numeric">' +
@@ -969,7 +982,7 @@
           '<div class="mt-wr-act">' +
             '<select id="mt-cat" aria-label="Catégorie"><option value="">— Catégorie —</option>' + opts + '</select>' +
             '<button class="bouton gris2" type="button" id="mt-annuler">Annuler</button>' +
-            '<button class="bouton" type="button" id="mt-ajout">Ajouter</button>' +
+            '<button class="bouton gris2" type="button" id="mt-ajout">Ajouter</button>' +
           '</div>' +
         '</div>' +
         '<div class="msg" id="mt-forme-msg" role="status" aria-live="polite"></div></div>';
@@ -979,8 +992,8 @@
       // (le deux-temps conservé) en une rangée discrète sous le bloc d'écriture, avec la note explicative.
       return '<div class="mt-fin">' +
         '<div class="mt-fin-r">' +
-          '<button class="bouton vert" type="button" id="mt-valider">Valider cette version</button>' +
-          '<button class="bouton gris2" type="button" id="mt-envoyer">Envoyer mes retours</button>' +
+          '<button class="bouton vert-plein" type="button" id="mt-envoyer">Envoyer mes retours</button>' +
+          '<button class="bouton danger" type="button" id="mt-valider">Valider cette version</button>' +
         '</div>' +
         '<p class="mt-fin-n">Valider clôt le film : il part en diffusion tel quel. Envoyer vos retours clôt ce tour de relecture et lance une nouvelle version. Dans les deux cas l\'équipe est prévenue tout de suite.</p>' +
         '<div class="msg" id="mt-fin-msg" role="status" aria-live="polite"></div></div>';
