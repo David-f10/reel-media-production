@@ -160,15 +160,17 @@
     /* Rangée principale : main (s'étale) + aside (colonne retours pleine hauteur). Remplit le shell. */
     .rv{display:flex;flex-wrap:wrap;align-items:stretch;flex:1 1 auto;min-height:0;width:100%}
     .col-v{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:12px;padding:22px clamp(16px,2.4vw,28px);border-right:1px solid var(--line)}
-    .scene{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;padding:16px 0}  /* bande noire (maquette-C:39) : respiration verticale, pas horizontale */
+    .scene{background:#000;border:1px solid var(--line);border-radius:10px 10px 0 0;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px}  /* arrondi EN HAUT seulement : la frise est soudée dessous (B:39 / C:39) */
     .scene-ph{display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;min-height:240px}
     .scene-grise{filter:grayscale(1);opacity:.55}
     /* Lecteur natif : se dimensionne à son contenu (16:9 remplit la largeur ; 9:16 se centre sur le noir,
        object-fit:contain letterboxe). Pas de détection de ratio côté serveur — la vidéo porte le sien. */
-    .mt-video{width:100%;max-height:72vh;background:#000;display:block;object-fit:contain;border-radius:6px}  /* cadre arrondi (maquette-C:40) */
+    .mt-video{width:100%;max-height:72vh;background:#000;display:block;object-fit:contain}  /* 16:9 : la vidéo remplit la scène bord à bord (maquette-B:39-40) — aucun padding, aucun arrondi */
     /* Montage vertical : scène compacte centrée sur le noir (maquette C ≈ 460 px de haut), PAS 72vh (qui fait un
        portrait géant sur grand écran). min(72vh,460px) : 460px comme la maquette sur bureau, responsive sur écran court. */
-    .scene-portrait .mt-video{width:auto;max-width:100%;max-height:min(72vh,460px)}
+    /* 9:16 UNIQUEMENT (maquette-C:39-40) : respiration verticale sur la bande + cadre arrondi sur la vidéo. */
+    .scene-portrait{padding:16px 0}
+    .scene-portrait .mt-video{width:auto;max-width:100%;max-height:min(72vh,460px);border-radius:6px}
     /* Repli (relais indisponible) : iframe Drive (bureau) OU message + téléchargement (iOS). */
     .mt-iframe{width:100%;aspect-ratio:16/9;max-height:72vh;border:0;display:block;background:#000}
     .repli{width:100%;display:flex;flex-direction:column;gap:12px;padding:0}
