@@ -21,8 +21,10 @@ const { CODE_BRAND_RE } = require('./_perimetreclient'); // SEULE autorité sur 
 const { signer } = require('./_clienttoken');
 const { getEmpruntTokenStore, getEmpruntAuditStore } = require('./_blobs');
 
-const HANDOFF_TTL_MS = 120 * 1000;        // remise HAVANA → espace
-const SESSION_TTL_MS = 15 * 60 * 1000;    // emprunt (lecture seule)
+const HANDOFF_TTL_MS = 120 * 1000;              // remise HAVANA → espace (inchangé : usage unique bref)
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000;     // emprunt (lecture seule) : une journée de travail, sans
+                                                // réémission. La révocation d'un contact ou la fermeture d'une
+                                                // marque coupe l'accès en ~60 s (contactActif), indépendamment du TTL.
 const EST_ID = (s) => /^[0-9a-f]{32}$/.test(String(s || '').replace(/-/g, '').toLowerCase());
 
 exports.handler = async (event) => {

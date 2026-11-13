@@ -519,19 +519,25 @@
         return { ro: !!j.ro, exp: +j.exp || 0 };
       } catch (e) { return null; }
     }
-    var _empTimer = null;
     function majBandeau() {
       var info = jetonInfo();
       var b = $('bandeau-emprunt');
-      if (!info || !info.ro) { b.classList.add('hidden'); if (_empTimer) { clearInterval(_empTimer); _empTimer = null; } return; }
-      function peindre() {
-        var min = Math.max(0, Math.ceil((info.exp - Date.now()) / 60000));
-        var marque = lire(K_MARQUE);
-        $('bandeau-emprunt-txt').textContent = 'Mode consultation — lecture seule' + (marque ? (' · ' + marque) : '') + ' · ' + min + ' min';
-      }
-      peindre(); b.classList.remove('hidden');
-      if (_empTimer) clearInterval(_empTimer);
-      _empTimer = setInterval(peindre, 30000);
+      if (!info || !info.ro) { b.classList.add('hidden'); return; }
+      // Le bandeau dit le MODE, pas le temps restant : pas de décompte (David ne veut pas être interrompu ;
+      // la session dure une journée de travail). La coupure effective reste serveur (révocation ~60 s).
+      var marque = lire(K_MARQUE);
+      $('bandeau-emprunt-txt').textContent = 'Mode consultation — lecture seule' + (marque ? (' · ' + marque) : '');
+      b.classList.remove('hidden');
+    }
+    // Fin de session : message HONNÊTE selon le type. Un jeton ro (emprunt chef) n'a pas de code à retaper →
+    // on ne dit pas « reconnectez-vous ». On lit le type AVANT d'effacer le jeton.
+    var MSG_FIN_CLIENT = 'Votre session a expiré, reconnectez-vous.';
+    var MSG_FIN_EMPRUNT = 'Consultation terminée — repartez d\'une carte dans HAVANA.';
+    function finSession() {
+      var info = jetonInfo();
+      var emprunt = !!(info && info.ro);
+      effacer();
+      allerLogin(emprunt ? MSG_FIN_EMPRUNT : MSG_FIN_CLIENT);
     }
     // Consomme la remise à usage unique → pose le jeton ro et entre dans l'accueil, en mode consultation.
     function consommerEmprunt(remise) {
@@ -639,7 +645,7 @@
     }
 
     function renderEspace(status, d) {
-      if (status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+      if (status === 401) { finSession(); return; }
       if (status !== 200 || !d || !d.ok) { espaceIndispo(); return; } // 503/échec → distinct, jamais des blocs vides
 
       var aValider = d.aValider || [], aRelire = d.aRelire || [], enCours = d.enCours || [], livres = d.livres || [], col = d.collaboration || {};
@@ -763,7 +769,7 @@
       if (el) { el.textContent = 'Préparation…'; el.style.pointerEvents = 'none'; }
       var fini = function (txt) { if (el) { el.textContent = txt || label; el.style.pointerEvents = ''; } };
       mPost(DOWNLOAD, { sujetCode: code, rang: rang }).then(function (res) {
-        if (res.status === 401) { if (win && !win.closed) win.close(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 401) { if (win && !win.closed) win.close(); finSession(); return; }
         if (res.status === 200 && res.body && res.body.ok && res.body.downloadUrl) {
           if (win && !win.closed) win.location = res.body.downloadUrl;
           else { var a = document.createElement('a'); a.href = res.body.downloadUrl; a.target = '_blank'; document.body.appendChild(a); a.click(); a.remove(); }
@@ -831,7 +837,7 @@
     }
 
     function mRendre(status, data) {
-      if (status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+      if (status === 401) { mBattementsStop(); finSession(); return; }
       if (status !== 200 || !data || !data.ok) { mIndispo(); return; }  // 503/échec → distinct d'un vide
       $('mt-titre').textContent = data.titre || 'Montage';
       $('mt-code').textContent = M.code;
@@ -1008,7 +1014,7 @@
       mPost(STREAMOPEN, { sujetCode: M.code, rang: rang }).then(function (res) {
         if (!$('mt-scene')) return; // l'utilisateur a changé de version entre-temps
         if (res.status === 200 && res.body && res.body.ok) { mMonterVideo(rang); }
-        else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
+        else if (res.status === 401) { mBattementsStop(); finSession(); }
         else { mReplier(rang); } // mint indisponible (503 config, 403, 509 plafond…) → repli
       }).catch(function () { if ($('mt-scene')) mReplier(rang); });
     }
@@ -1115,7 +1121,7 @@
           f.setAttribute('allowfullscreen', '');
           $('mt-repli-frame').appendChild(f);
           mReplierCabler(rang);
-        } else if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); }
+        } else if (res.status === 401) { mBattementsStop(); finSession(); }
         else { mReplierTelSeul(rang); } // même le repli iframe échoue → téléchargement seul
       }).catch(function () { if ($('mt-scene')) mReplierTelSeul(rang); });
     }
@@ -1300,7 +1306,7 @@
       if (!retourId) return;
       if (btn) { btn.disabled = true; btn.textContent = 'Suppression…'; }
       mPost(MONTAGE, { action: 'supprimer-brouillon', sujetCode: M.code, retourId: retourId }).then(function (res) {
-        if (res.status === 401) { mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 401) { mBattementsStop(); finSession(); return; }
         if (res.status === 200 && res.body && res.body.ok) { mCharger(M.rangAff); return; }
         if (res.status === 409) { M.notice = 'Ce retour a déjà été envoyé : il n\'a pas été supprimé.'; mCharger(M.rangAff); return; }
         M.notice = 'Suppression impossible pour l\'instant. Réessayez.'; mCharger(M.rangAff);
@@ -1317,7 +1323,7 @@
       if (btn) { btn.disabled = true; }
       if (msg) { msg.textContent = 'Préparation…'; msg.style.color = ''; }
       mPost(DOWNLOAD, { sujetCode: M.code, rang: rang }).then(function (res) {
-        if (res.status === 401) { if (win && !win.closed) win.close(); mBattementsStop(); effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 401) { if (win && !win.closed) win.close(); mBattementsStop(); finSession(); return; }
         if (res.status === 200 && res.body && res.body.ok && res.body.downloadUrl) {
           if (win && !win.closed) win.location = res.body.downloadUrl;
           else { var a = document.createElement('a'); a.href = res.body.downloadUrl; a.target = '_blank'; document.body.appendChild(a); a.click(); a.remove(); }
@@ -1372,7 +1378,7 @@
           if (M.capeActif) mRetirerPastille(M.capeActif); // le moment commenté devient un brouillon SERVEUR → il quitte la liste locale
           mCharger(M.rangAff); return; // panneau rechargé → le retour (brouillon serveur) apparaît
         }
-        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 401) { finSession(); return; }
         var m = $('mt-forme-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; }
         var b = $('mt-ajout'); if (b) b.disabled = false;
       }).catch(function () { var m = $('mt-forme-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; } var b = $('mt-ajout'); if (b) b.disabled = false; });
@@ -1386,7 +1392,7 @@
         if (res.status === 409 && res.body && res.body.perime) {                     // une version plus récente est arrivée
           M.notice = 'Une version plus récente est arrivée. On recharge votre espace.'; mCharger(); return;
         }
-        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 401) { finSession(); return; }
         var m = $('mt-fin-msg'); if (m) { m.className = 'msg wait'; m.textContent = (res.body && res.body.error) || 'Action impossible, réessayez.'; }
         if (bV) bV.disabled = false; if (bE) bE.disabled = false;
       }).catch(function () { var m = $('mt-fin-msg'); if (m) { m.className = 'msg wait'; m.textContent = 'Service indisponible, réessayez.'; } if (bV) bV.disabled = false; if (bE) bE.disabled = false; });
@@ -1430,7 +1436,7 @@
       if (!box) return;
       mPost(SEQ_DOC, { sujetCode: code }).then(function (res) {
         if (!(box = $(boxId))) return; // la vue a pu changer
-        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 401) { finSession(); return; }
         if (res.status === 200 && res.body && res.body.ok && !res.body.indisponible && typeof res.body.html === 'string') {
           box.innerHTML = '';
           var f = document.createElement('iframe');
@@ -1478,7 +1484,7 @@
       if (!code) return;
       if (el) { el.disabled = true; el.textContent = 'Validation…'; }
       mPost(SEQ, { action: 'valider', sujetCode: code }).then(function (res) {
-        if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+        if (res.status === 401) { finSession(); return; }
         if (res.status === 200 && res.body && res.body.ok) {
           var carte = el; while (carte && carte !== document.body && !(carte.className && /\batt\b/.test(carte.className))) carte = carte.parentNode;
           if (carte) carte.innerHTML = '<div class="att-m"><div class="att-t">Séquencier validé</div>' +
@@ -1506,7 +1512,7 @@
         if (!v) { msg.className = 'msg err'; msg.textContent = 'Décrivez les corrections souhaitées.'; return; }
         send.disabled = true; send.textContent = 'Envoi…';
         mPost(SEQ, { action: 'corrections', sujetCode: code, texte: v }).then(function (res) {
-          if (res.status === 401) { effacer(); allerLogin('Votre session a expiré, reconnectez-vous.'); return; }
+          if (res.status === 401) { finSession(); return; }
           if (res.status === 200 && res.body && res.body.ok) { msg.className = 'msg'; msg.textContent = 'Demande envoyée à l\'équipe.'; setTimeout(chargerEspace, 1200); return; }
           send.disabled = false; send.textContent = 'Envoyer la demande'; msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.';
         }).catch(function () { send.disabled = false; send.textContent = 'Envoyer la demande'; msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.'; });
