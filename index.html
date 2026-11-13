@@ -1286,7 +1286,7 @@ function openDetail(id, forcePadOpen=false){
   // remplit via l'id mus-card-${id} (le hook de re-render A SUIVI le bloc depuis la section PAD). Rendu
   // synchrone initial pour éviter un vide le temps que loadVersions tourne ; loadVersions l'ajuste ensuite
   // (bloc sur la dernière version, pointeur honnête sur une version ancienne sélectionnée).
-  html+=step('Montage',`p-gray <span id="montage-pill-${id}">Chargement...</span>`,
+  html+=step('Montage'+((s.format==='Brand'&&_suisGestionnaireAcces())?`<button onclick="event.stopPropagation();voirIncognito({sujetCode:'${s.code}'},this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="margin-left:8px;font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:''),`p-gray <span id="montage-pill-${id}">Chargement...</span>`,
     `<div id="versions-list-${id}" style="margin-bottom:10px">
       <div style="font-size:11px;color:var(--text3)">Chargement...</div>
     </div>${s.format==='Brand' ? `<div id="mus-card-${id}" style="margin-top:4px">${musiqueBloc(s)}</div>` : ''}`,activeStep==='montage'||activeStep==='pad');
@@ -1509,7 +1509,6 @@ function openDetail(id, forcePadOpen=false){
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
       <span class="step-ttl">📋 Retours équipe</span>
       <div style="display:flex;align-items:center;gap:8px">
-        ${(s.format==='Brand'&&_suisGestionnaireAcces())?`<button onclick="voirIncognito({sujetCode:'${s.code}'},this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:''}
         <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:8px;font-family:var(--mono)" id="retours-count-${id}">...</span>
       </div>
     </div>

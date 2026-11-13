@@ -214,7 +214,7 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
   const dlN = await download(evt(normal.token, { sujetCode: 'B33D', rang: 1 }));
   ok('drive-download-client (normal) → passe la garde (pas de 403)', dlN.statusCode !== 403);
 
-  // ── 5) ENTRÉE — mint « Voir incognito » : gardé par la clé, signe un ro 15 min, remise à usage unique ──
+  // ── 5) ENTRÉE — mint « Voir incognito » : gardé par la clé, signe un ro longue durée, remise à usage unique ──
   console.log('\n\x1b[1mEntrée (mint/consume) — gardé par « Peut gérer les accès »\x1b[0m');
   const create = require('../netlify/functions/client-emprunt-create').handler;
   const consume = require('../netlify/functions/client-emprunt-consume').handler;
@@ -225,7 +225,7 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
   const cBody = JSON.parse(cRes.body || '{}');
   ok('mint (gestionnaire, contact actif) → 200 + remise', cRes.statusCode === 200 && cBody.ok && !!cBody.token);
 
-  // Consommation → jeton ro, acteur = chef, TTL ~15 min.
+  // Consommation → jeton ro, acteur = chef, TTL une journée de travail.
   const kRes = await consume({ httpMethod: 'POST', headers: {}, body: JSON.stringify({ token: cBody.token }) });
   const kBody = JSON.parse(kRes.body || '{}');
   const vK = kBody.token ? verifier(kBody.token) : { ok: false };
@@ -233,7 +233,7 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
   ok('jeton consommé est ro', vK.ok && vK.ro === true);
   ok('jeton consommé porte acteur = id du chef', vK.acteur === CHEF_ID);
   ok('jeton consommé impersonne le COMMENTATEUR (contactId)', vK.id && vK.id.replace(/-/g, '') === ID.replace(/-/g, ''));
-  ok('jeton consommé expire ~15 min', (() => { const d = (kBody.exp || 0) - Date.now(); return d > 13 * 60000 && d < 17 * 60000; })());
+  ok('jeton consommé expire dans ~une journée de travail (12 h)', (() => { const d = (kBody.exp || 0) - Date.now(); return d > 11 * 3600000 && d < 13 * 3600000; })());
 
   // Usage unique : seconde consommation refusée.
   const k2 = await consume({ httpMethod: 'POST', headers: {}, body: JSON.stringify({ token: cBody.token }) });
