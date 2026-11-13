@@ -181,6 +181,7 @@ exports.handler = async (event) => {
         statut: _sel(r.properties, 'Statut') || 'Ouvert',
         brouillon: _cb(r.properties, 'Brouillon'),
         auteur: _rt(r.properties, 'Auteur'),
+        date: r.created_time, // horodatage de dépôt (système Notion) — pour « Vous · hier à 16 h 02 ». Additif.
         reformulation: _rt(r.properties, 'Reformulation'),
         reformulePar: _rt(r.properties, 'Reformulé par'),
         timecodeReformule: _rt(r.properties, 'Timecode reformulé'),
