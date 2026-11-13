@@ -56,6 +56,7 @@ const ID = '11111111-1111-1111-1111-111111111111';          // id de page du con
 const RETOUR_ID = '22222222-2222-2222-2222-222222222222';   // id d'un brouillon à supprimer
 const ID2 = '55555555-5555-5555-5555-555555555555';         // 2e contact actif de B33 (Alice) — 1er par nom
 const ID_B77 = '66666666-6666-6666-6666-666666666666';      // contact actif d'une marque FERMÉE (B77)
+const ID_REV = '77777777-7777-7777-7777-777777777777';      // contact DÉSACTIVÉ dans une marque OUVERTE (B33)
 
 let fails = 0;
 const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗ ') + n + (c ? '' : '\x1b[0m')); if (!c) fails++; };
@@ -71,6 +72,9 @@ const CONTACT2 = { id: ID2, properties: {
 const CONTACT_B77 = { id: ID_B77, properties: {
   'Nom': { title: [{ plain_text: 'Zoé' }] }, 'Actif': { checkbox: true },
   'Code Brand': { rich_text: [{ plain_text: 'B77' }] }, 'Marque': { rich_text: [{ plain_text: 'FerméeSA' }] } } };
+const CONTACT_REVOQUE = { id: ID_REV, properties: { // désactivé, mais marque B33 OUVERTE → c'est le CONTACT, pas la marque
+  'Nom': { title: [{ plain_text: 'Révoqué' }] }, 'Actif': { checkbox: false },
+  'Code Brand': { rich_text: [{ plain_text: 'B33' }] }, 'Marque': { rich_text: [{ plain_text: 'Refashion' }] } } };
 const BRAND = { id: 'brand', properties: {
   'Code': { rich_text: [{ plain_text: 'B33' }] }, 'Espace client activé': { checkbox: true } } };
 const BRAND77 = { id: 'brand77', properties: { // marque FERMÉE : a un contact actif mais l'espace n'est pas ouvert
@@ -102,7 +106,7 @@ function stub(url, opt) {
   if (mq) {
     const db = mq[1];
     if (db === DB_EQUIPE) return Promise.resolve(rep({ results: [CHEF_GERE, CHEF_SIMPLE] }));
-    if (db === process.env.DB_CONTACTS_CLIENT) return Promise.resolve(rep({ results: [CONTACT, CONTACT2, CONTACT_B77] }));
+    if (db === process.env.DB_CONTACTS_CLIENT) return Promise.resolve(rep({ results: [CONTACT, CONTACT2, CONTACT_B77, CONTACT_REVOQUE] }));
     if (db === DB_CLIENTS_BRAND) return Promise.resolve(rep({ results: [BRAND, BRAND77, BRAND88] }));
     if (db === DB_PROD) return Promise.resolve(rep({ results: [SUJET] }));
     if (db === DB_VERSIONS) return Promise.resolve(rep({ results: [VERSION] }));
@@ -242,6 +246,12 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
   // Contact inconnu / inactif → refus (on n'emprunte pas une identité sans accès).
   const cUnknown = await create(evtChef(CHEF_ID, CHEF_CODE, { contactId: '99999999-9999-9999-9999-999999999999' }));
   ok('mint vers un contact inconnu → 403', cUnknown.statusCode === 403);
+
+  // Contact RÉVOQUÉ dans une marque OUVERTE (1ʳᵉ porte) → message du CONTACT, pas celui de la marque (non-régression).
+  const cRev = await create(evtChef(CHEF_ID, CHEF_CODE, { contactId: ID_REV }));
+  const cRevB = JSON.parse(cRev.body || '{}');
+  ok('contact révoqué (marque ouverte) → 403', cRev.statusCode === 403);
+  ok('403 dit « n\'a plus d\'accès » (le contact), PAS « marque pas ouverte »', /n'a plus d'accès/i.test(cRevB.error || '') && !/pas encore ouvert/i.test(cRevB.error || ''));
 
   // Audit : une entrée a bien été écrite à la frappe.
   ok('audit Blobs : une entrée écrite par mint réussi', (_stores['emprunt-audit'] ? _stores['emprunt-audit'].size : 0) >= 1);

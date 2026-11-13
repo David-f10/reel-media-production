@@ -68,11 +68,15 @@ exports.handler = async (event) => {
   if (!EST_ID(contactId)) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'contactId manquant ou invalide' }) };
 
   // 3) Le contact doit être ACTIF et sa marque OUVERTE — la MÊME porte que le client (pour les deux portes).
-  //    Échec = réglage (espace fermé) ou révocation ; dominante vérifiée en base : 63 marques sur 65 fermées.
+  //    Deux échecs DISTINCTS (contactActif les sépare) pour ne pas mentir : marque fermée (réglage, dominante —
+  //    63 marques sur 65) vs contact révoqué dans une marque ouverte.
   const liv = await contactActif(contactId);
   if (!liv.ok) {
     if (liv.raison === 'indispo') return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
-    return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'L\'espace client de cette marque n\'est pas encore ouvert.' }) };
+    const msg = liv.raison === 'ferme'
+      ? 'L\'espace client de cette marque n\'est pas encore ouvert.'
+      : 'Ce contact n\'a plus d\'accès à cet espace.';
+    return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: msg }) };
   }
 
   // 4) Session ro, TTL court, acteur = chef (pour l'audit et l'estampille serveur).

@@ -153,7 +153,9 @@ async function verifyClient({ mail, code }) {
 
 // F1 — relecture LIVE par id (jeton de session). Même base, même cache 60 s que verifyClient, mais clé = id
 // du contact (tiré du jeton), PAS mail+code. Sert à projets-client : vérifier Actif (révocation ~60 s) et
-// récupérer le Code Brand courant. → { ok:true, codeBrand, marque, seriesMarque } | { ok:false, raison:'auth'|'indispo' }.
+// récupérer le Code Brand courant. → { ok:true, codeBrand, marque, seriesMarque } | { ok:false, raison:'auth'|'ferme'|'indispo' }.
+//   'ferme' = contact OK mais espace de la marque fermé (distinct de 'auth' = contact disparu/désactivé).
+//   Les appelants client ne branchent que sur 'indispo' ; pour eux 'ferme' se comporte comme 'auth' (→ 401).
 //   'auth'    = contact disparu ou désactivé → le jeton ne vaut plus → l'appelant renvoie 401 (re-login).
 //   'indispo' = config/Notion → 503.
 async function contactActif(id) {
@@ -183,7 +185,11 @@ async function contactActif(id) {
     const codeBrand = _rt(page.properties, 'Code Brand');
     const act = await marqueOuverte(codeBrand, token);
     if (!act.ok) return { ok: false, raison: 'indispo' };
-    if (!act.ouverte) return { ok: false, raison: 'auth' };
+    // Marque FERMÉE → raison DISTINCTE de 'auth' (contact disparu/désactivé). Les cinq appelants client ne
+    // branchent que sur 'indispo' (le reste → 401), donc 'ferme' leur est invisible : aucun changement de
+    // comportement côté client. Seul le mint d'emprunt la distingue, pour ne pas dire « marque fermée » quand
+    // c'est le contact qui est révoqué (sinon David chercherait une case déjà cochée).
+    if (!act.ouverte) return { ok: false, raison: 'ferme' };
     // `nom` ajouté (tranche 2) : estampillage SERVEUR de l'Auteur d'un retour depuis la fiche lue EN LIVE
     // (montage-client ne fait jamais confiance au navigateur pour l'auteur). Additif — projets-client l'ignore.
     // `seriesMarque` ajouté (lot 2) : défaut marque de la cascade carte→marque→5, relayé depuis marqueOuverte
