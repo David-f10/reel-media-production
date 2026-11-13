@@ -147,8 +147,10 @@
     .mt-code-chip:empty{display:none}
     .rv-meta{font-family:var(--mono);font-size:11.5px;color:var(--txt3)}
     .vers{display:flex;flex-wrap:wrap;gap:6px;margin:0}
-    .vch{font-family:var(--sans);font-size:12.5px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:6px 11px;cursor:pointer;transition:background .12s,color .12s,border-color .12s;min-height:44px;display:inline-flex;align-items:center;gap:6px;box-sizing:border-box}
+    .vch{font-family:var(--sans);font-size:12.5px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:6px 11px;cursor:pointer;transition:background .12s,color .12s,border-color .12s;min-height:44px;display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;box-sizing:border-box}
     .vch[aria-selected="true"]{background:var(--bg4);color:var(--txt);border-color:#3A3A50}
+    .vch-top{display:inline-flex;align-items:center}
+    .vch-date{font-family:var(--mono);font-size:10px;color:var(--txt3)}  /* date d'envoi : « le montage du 28 » ne trompe jamais (vs « version 4 ») */
     .vch .pt{font-family:var(--mono);font-size:10px;color:var(--txt3);margin-left:7px}
     .vch[aria-selected="true"] .pt{color:var(--vert)}
     .vch:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
@@ -822,6 +824,16 @@
     }
 
     function mFmtDate(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? (parseInt(m[3], 10) + ' ' + MOIS[parseInt(m[2], 10) - 1]) : ''; }
+    // Horodatage d'un retour (created_time serveur) → « hier à 16 h 02 » : jour relatif (aujourd'hui/hier,
+    // sinon la date) + heure, en heure LOCALE du lecteur. Lève la confusion « sa version 4 / notre V6 ».
+    function mFmtRetour(iso) {
+      var d = new Date(iso); if (isNaN(d.getTime())) return '';
+      var now = new Date();
+      var diff = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+      var mn = d.getMinutes(), heure = d.getHours() + ' h ' + (mn < 10 ? '0' + mn : mn);
+      var quand = diff === 0 ? 'aujourd\'hui' : (diff === 1 ? 'hier' : ('le ' + d.getDate() + ' ' + MOIS[d.getMonth()]));
+      return quand + ' à ' + heure;
+    }
     function mBattementsStop() { if (M.hb) { clearInterval(M.hb); M.hb = null; } }
     function mQuitter() { mBattementsStop(); M.fileId = ''; M.dureeMs = null; montrer('vue-accueil'); }
 
@@ -864,10 +876,12 @@
       // Puce version [Vx] + état dans l'en-tête. « tour N sur X » = rang de la version affichée / total d'allers-retours
       // de la marque (défaut 5, cf. _seriesParCode, affichage SEULEMENT — jamais une garde). Version close → libellé d'état.
       $('mt-vchip').textContent = 'V' + aff;
-      $('mt-etat').textContent = (estCourante && vAff && vAff.etat === 'a-relire') ? ('À relire · tour ' + aff + ' sur ' + (_seriesParCode[M.code] || 5)) : (ETIQ[vAff ? vAff.etat : ''] || '');
+      $('mt-etat').textContent = (estCourante && vAff && vAff.etat === 'a-relire') ? ('À relire · ' + aff + (aff === 1 ? 'ᵉʳ' : 'ᵉ') + ' aller-retour sur ' + (_seriesParCode[M.code] || 5)) : (ETIQ[vAff ? vAff.etat : ''] || '');
 
       $('mt-vers').innerHTML = data.versions.map(function (v) {
-        return '<button class="vch" role="tab" type="button" data-rang="' + v.rang + '" aria-selected="' + (v.rang === aff) + '">Version ' + v.rang + '<span class="pt">' + esc(ETIQ[v.etat] || '') + '</span></button>';
+        return '<button class="vch" role="tab" type="button" data-rang="' + v.rang + '" aria-selected="' + (v.rang === aff) + '">' +
+          '<span class="vch-top">Version ' + v.rang + '<span class="pt">' + esc(ETIQ[v.etat] || '') + '</span></span>' +
+          '<span class="vch-date">' + esc(mFmtDate(v.dateEnvoi)) + '</span></button>';
       }).join('');
 
       var rets = data.retours || [];
@@ -893,7 +907,9 @@
         // de la marque — Refashion a deux interlocuteurs, chacun doit savoir qui a écrit. (La DATE n'est pas
         // transportée par la charge utile ; elle viendra quand le serveur l'ajoutera, cf. note à David.)
         var qui = r.mien ? 'Vous' : esc(r.auteur || '');
-        var meta = qui ? ('<div class="ret-meta">' + qui + '</div>') : '';
+        var quand = mFmtRetour(r.date);
+        var ligne = [qui, quand].filter(Boolean).join(' · '); // « Vous · hier à 16 h 02 » (maquette)
+        var meta = ligne ? ('<div class="ret-meta">' + ligne + '</div>') : '';
         return '<div class="ret"><div class="ret-h"><span class="ret-tc"' + tcAttr + '>' + esc(r.timecode || '—') + '</span>' +
           (r.categorie ? '<span class="ret-cat">' + esc(r.categorie) + '</span>' : '') + badge + '</div>' +
           '<div class="ret-x">' + esc(r.texte) + '</div>' + meta + reform + suppr + '</div>';
