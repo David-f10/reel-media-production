@@ -188,7 +188,7 @@
           <span style="width:16px;display:inline-flex;justify-content:center">🔑</span><span>Accès clients</span>
         </button>
         <button id="btn-demandes-admin" onclick="openDemandesAdmin()" style="display:none;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
-          <span style="width:16px;display:inline-flex;justify-content:center">📨</span><span style="flex:1;text-align:left">Demandes clients</span><span id="demandes-badge" style="display:none;font-family:var(--mono);font-size:10px;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px"></span>
+          <span style="width:16px;display:inline-flex;justify-content:center">📨</span><span style="flex:1;text-align:left">Demandes &amp; missions</span><span id="demandes-badge" style="display:none;font-family:var(--mono);font-size:10px;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px"></span>
         </button>
       </div>
       <div style="padding:10px 8px 0;display:flex;align-items:center;justify-content:space-between;gap:6px">
@@ -494,15 +494,22 @@
   </div>
 </div>
 
-<!-- MODAL DEMANDES CLIENTS (lot A — circuit court) -->
+<!-- MODAL CLIENT ENTRANT — deux onglets, un seul bouton de menu, une seule garde (peutGererClients).
+     Onglet 1 : demandes courtes (lot A, #240). Onglet 2 : triage commercial des nouvelles missions (étage 2b).
+     Deux files distinctes (bases distinctes), mais même public : une surface, deux onglets. -->
 <div class="overlay" id="ov-demandes">
   <div class="modal" style="max-width:680px">
     <div class="modal-hdr">
-      <div class="modal-title">📨 Demandes clients</div>
+      <div class="modal-title">📨 Demandes &amp; missions</div>
       <button class="modal-close" onclick="closeOv('ov-demandes')">×</button>
+    </div>
+    <div style="display:flex;gap:4px;padding:0 20px;border-bottom:1px solid var(--border)">
+      <button id="tab-btn-demandes" class="client-tab" onclick="switchClientTab('demandes')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--text2);font-size:12px;font-weight:600;font-family:var(--font);padding:10px 6px;cursor:pointer">Demandes <span id="tab-cnt-demandes" style="display:none;font-family:var(--mono);font-size:10px;background:var(--red);color:#fff;border-radius:10px;padding:0 6px;margin-left:3px"></span></button>
+      <button id="tab-btn-missions" class="client-tab" onclick="switchClientTab('missions')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--text2);font-size:12px;font-weight:600;font-family:var(--font);padding:10px 6px;cursor:pointer">Nouvelles missions <span id="tab-cnt-missions" style="display:none;font-family:var(--mono);font-size:10px;background:var(--red);color:#fff;border-radius:10px;padding:0 6px;margin-left:3px"></span></button>
     </div>
     <div style="padding:16px 20px 20px">
       <div id="demandes-body"><p style="font-size:12px;color:var(--text3)">Chargement…</p></div>
+      <div id="missions-body" style="display:none"><p style="font-size:12px;color:var(--text3)">Chargement…</p></div>
     </div>
   </div>
 </div>
@@ -5720,18 +5727,42 @@ function _serieTxt(s) { return (typeof s === 'number' && s > 0) ? String(s) : '5
 // Lecture + changement de statut/réponse via demandes-admin (gardé serveur par « Peut gérer les clients »).
 // La pastille compte les Nouvelle. Ouverture de la carte par Code carte (résolution code→id via `sujets`).
 var DEMANDES_ADMIN = '/.netlify/functions/demandes-admin';
+var MISSIONS_ADMIN = '/.netlify/functions/missions-admin'; // étage 2b : triage commercial des nouvelles missions
+var _clientTab = 'demandes'; // onglet actif de la surface « Demandes & missions »
+// Pastille du bouton = SOMME des Nouvelle des deux files (« il y a quelque chose à regarder ») ; chaque onglet
+// porte son propre compteur (« où »). Un chiffre pour attirer, deux pour orienter. Deux lectures, en parallèle.
 async function rafraichirBadgeDemandes() {
   try {
-    const res = await fetch(DEMANDES_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'liste'})});
-    const d = await res.json().catch(() => ({}));
-    const badge = document.getElementById('demandes-badge'); if(!badge) return;
-    if(res.ok && d.ok){ const n = (d.demandes||[]).filter(x => x.statut==='Nouvelle').length; badge.textContent = n; badge.style.display = n>0 ? 'inline-block' : 'none'; }
+    const [rd, rm] = await Promise.all([
+      fetch(DEMANDES_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'liste'})}).then(r=>r.json().catch(()=>({}))),
+      fetch(MISSIONS_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'liste'})}).then(r=>r.json().catch(()=>({})))
+    ]);
+    const nd = (rd && rd.ok) ? (rd.demandes||[]).filter(x => x.statut==='Nouvelle').length : 0;
+    const nm = (rm && rm.ok) ? (rm.missions||[]).filter(x => x.statut==='Nouvelle').length : 0;
+    _majCompteur('demandes-badge', nd+nm);     // bouton de menu : combiné
+    _majCompteur('tab-cnt-demandes', nd);      // onglet : par file
+    _majCompteur('tab-cnt-missions', nm);
   } catch(e){}
 }
+function _majCompteur(id, n){ const el = document.getElementById(id); if(!el) return; el.textContent = n; el.style.display = n>0 ? 'inline-block' : 'none'; }
 async function openDemandesAdmin() {
   if(!_suisGestionnaireClients()){ toast('Réservé aux gestionnaires des clients','err'); return; }
   openOv('ov-demandes');
-  chargerDemandesListe();
+  rafraichirBadgeDemandes(); // rafraîchit aussi les compteurs d'onglet
+  // Onglet par défaut : celui qui a des Nouvelle à traiter (missions prioritaire si elle en a), sinon demandes.
+  const cm = document.getElementById('tab-cnt-missions');
+  switchClientTab((cm && cm.style.display !== 'none') ? 'missions' : 'demandes');
+}
+function switchClientTab(which) {
+  _clientTab = (which === 'missions') ? 'missions' : 'demandes';
+  const bd = document.getElementById('demandes-body'), bm = document.getElementById('missions-body');
+  const tbd = document.getElementById('tab-btn-demandes'), tbm = document.getElementById('tab-btn-missions');
+  const actif = 'var(--text)', inactif = 'var(--text2)';
+  if(bd) bd.style.display = _clientTab==='demandes' ? 'block':'none';
+  if(bm) bm.style.display = _clientTab==='missions' ? 'block':'none';
+  if(tbd){ tbd.style.borderBottomColor = _clientTab==='demandes' ? 'var(--red)':'transparent'; tbd.style.color = _clientTab==='demandes' ? actif:inactif; }
+  if(tbm){ tbm.style.borderBottomColor = _clientTab==='missions' ? 'var(--red)':'transparent'; tbm.style.color = _clientTab==='missions' ? actif:inactif; }
+  if(_clientTab==='demandes') chargerDemandesListe(); else chargerMissionsListe();
 }
 async function chargerDemandesListe() {
   const body = document.getElementById('demandes-body');
@@ -5779,6 +5810,74 @@ async function enregistrerDemande(id, btn) {
   } catch(e){ toast('Service temporairement indisponible','err'); btn.disabled = false; }
 }
 function ouvrirCarteParCode(code){ const s = sujets.find(function(x){ return x.code===code; }); if(s){ closeOv('ov-demandes'); openDetail(s.id); } else { toast('Carte introuvable (archivée ?)','err'); } }
+
+// ── Onglet « Nouvelles missions » (étage 2b, triage commercial) ──────────────────────────────────────
+// Lecture + décision (accepter/refuser avec motif) via missions-admin (gardé serveur par « Peut gérer les
+// clients »). Le geste de cet étage s'arrête à Nouvelle → Acceptée|Refusée ; la suite (devis) est la compta.
+var MIS_COL = {'Nouvelle':'#EF9F27','Acceptée':'#1D9E75','Devis':'#378ADD','Validée':'#378ADD','En production':'#1D9E75','Refusée':'var(--text3)'};
+async function chargerMissionsListe() {
+  const body = document.getElementById('missions-body');
+  body.innerHTML = '<p style="font-size:12px;color:var(--text3)">Chargement…</p>';
+  try {
+    const res = await fetch(MISSIONS_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'liste'})});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || !d.ok){ body.innerHTML = '<p style="font-size:12px;color:var(--red)">'+(res.status===403?'Réservé aux gestionnaires des clients.':'Service temporairement indisponible.')+'</p>'; return; }
+    renderMissionsListe(d.missions||[]);
+  } catch(e){ body.innerHTML = '<p style="font-size:12px;color:var(--red)">Service temporairement indisponible.</p>'; }
+}
+function _misMeta(lbl, val){ return val ? '<div style="font-size:11px;color:var(--text3);margin-top:2px"><span style="color:var(--text2)">'+lbl+' :</span> '+escapeHtml(val)+'</div>' : ''; }
+function renderMissionsListe(ms) {
+  const body = document.getElementById('missions-body');
+  if(!ms.length){ body.innerHTML = '<p style="font-size:12px;color:var(--text3)">Aucune mission.</p>'; return; }
+  body.innerHTML = ms.map(function(x){
+    const nouvelle = x.statut === 'Nouvelle';
+    const carte = x.carteCreee ? '<button class="mis-carte-lnk" data-code="'+escapeHtml(x.carteCreee)+'" style="font-family:var(--mono);font-size:11px;color:var(--blue);background:none;border:none;cursor:pointer;padding:0">'+escapeHtml(x.carteCreee)+' ↗</button>' : '';
+    // En-tête : statut + marque + plateforme ; à droite, demandeur + date. Échéance « Pour quand » si fournie.
+    const tete = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'+
+      '<span style="font-size:11px;font-weight:600;color:'+(MIS_COL[x.statut]||'var(--text2)')+'">'+escapeHtml(x.statut||'')+'</span>'+
+      '<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">'+escapeHtml(x.codeBrand||'')+'</span>'+
+      (x.plateforme ? '<span style="font-size:11px;color:var(--text3)">· '+escapeHtml(x.plateforme)+'</span>' : '')+carte+
+      '<span style="font-size:11px;color:var(--text3);margin-left:auto">'+escapeHtml(x.demandeur||'')+' · '+_demDate(x.date)+'</span>'+
+    '</div>';
+    const details = _misMeta('Pour quand', x.pourQuand ? _demDate(x.pourQuand) : '')+
+      _misMeta('Lieu', x.lieu)+_misMeta('À interviewer', x.personnes)+_misMeta('Contact sur place', x.contactSurPlace);
+    // Geste : seulement sur Nouvelle. Ailleurs, on montre l'état (motif de refus, validé par) en lecture.
+    let bas;
+    if(nouvelle){
+      bas = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">'+
+        '<button class="mis-accept" data-id="'+escapeHtml(x.id)+'" style="font-size:12px;padding:6px 14px;background:rgba(29,158,117,0.12);color:#1D9E75;border:1px solid rgba(29,158,117,0.4);border-radius:6px;cursor:pointer;font-family:var(--font);font-weight:600">Accepter</button>'+
+        '<input type="text" class="mis-motif" data-id="'+escapeHtml(x.id)+'" placeholder="Motif du refus (visible par le client)" style="flex:1;min-width:160px;font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px">'+
+        '<button class="mis-refuse" data-id="'+escapeHtml(x.id)+'" style="font-size:12px;padding:6px 14px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-family:var(--font)">Refuser</button>'+
+      '</div>';
+    } else {
+      bas = (x.reponse ? '<div style="margin-top:8px;padding:8px 11px;border-left:2px solid var(--border2);background:var(--bg2);border-radius:0 6px 6px 0;font-size:12px;color:var(--text)">'+escapeHtml(x.reponse)+'</div>' : '')+
+        (x.valideCommercialPar ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">Traité par '+escapeHtml(x.valideCommercialPar)+'</div>' : '');
+    }
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px">'+
+      tete+
+      '<div style="font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap">'+escapeHtml(x.objet||'')+'</div>'+
+      details+bas+
+    '</div>';
+  }).join('');
+  [].slice.call(body.querySelectorAll('.mis-carte-lnk')).forEach(function(b){ b.addEventListener('click', function(){ ouvrirCarteParCode(b.getAttribute('data-code')); }); });
+  [].slice.call(body.querySelectorAll('.mis-accept')).forEach(function(b){ b.addEventListener('click', function(){ deciderMission(b.getAttribute('data-id'), 'accepter', b); }); });
+  [].slice.call(body.querySelectorAll('.mis-refuse')).forEach(function(b){ b.addEventListener('click', function(){ deciderMission(b.getAttribute('data-id'), 'refuser', b); }); });
+}
+async function deciderMission(id, decision, btn) {
+  let motif = '';
+  if(decision === 'refuser'){
+    const inp = document.querySelector('.mis-motif[data-id="'+id+'"]');
+    motif = inp ? inp.value.trim() : '';
+    if(!motif){ toast('Un refus doit porter un motif (le client le lit).','err'); if(inp) inp.focus(); return; }
+  }
+  btn.disabled = true;
+  try {
+    const res = await fetch(MISSIONS_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'decision', id:id, decision:decision, motif:motif})});
+    const d = await res.json().catch(() => ({}));
+    if(res.ok && d.ok){ toast(decision==='accepter' ? 'Mission acceptée' : 'Mission refusée','ok'); chargerMissionsListe(); rafraichirBadgeDemandes(); }
+    else { toast((d&&d.error)||'Échec de la décision','err'); btn.disabled = false; if(res.status===409) chargerMissionsListe(); }
+  } catch(e){ toast('Service temporairement indisponible','err'); btn.disabled = false; }
+}
 
 async function openClientsAdmin() {
   if (!_suisGestionnaireClients()) { toast('Réservé aux gestionnaires des clients', 'err'); return; }
