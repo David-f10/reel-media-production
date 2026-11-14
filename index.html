@@ -184,6 +184,9 @@
         <button onclick="openGererJournalistes()" style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
           <span style="width:16px;display:inline-flex;justify-content:center">👥</span><span>Gérer l'équipe</span>
         </button>
+        <button id="btn-clients-admin" onclick="openClientsAdmin()" style="display:none;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
+          <span style="width:16px;display:inline-flex;justify-content:center">🔑</span><span>Accès clients</span>
+        </button>
       </div>
       <div style="padding:10px 8px 0;display:flex;align-items:center;justify-content:space-between;gap:6px">
         <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
@@ -471,6 +474,19 @@
     <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button class="nav-btn" onclick="closeOv('ov-retour')">Annuler</button>
       <button class="nav-btn primary" id="ret-submit-btn" onclick="submitRetour()">Envoyer →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ACCÈS CLIENTS (lot 3, LECTURE SEULE) -->
+<div class="overlay" id="ov-clients">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-hdr">
+      <div class="modal-title">🔑 Accès clients <span style="font-size:11px;font-weight:400;color:var(--text3)">· lecture seule</span></div>
+      <button class="modal-close" onclick="closeOv('ov-clients')">×</button>
+    </div>
+    <div style="padding:16px 20px 20px">
+      <div id="clients-body"><p style="font-size:12px;color:var(--text3)">Chargement…</p></div>
     </div>
   </div>
 </div>
@@ -1290,7 +1306,7 @@ function openDetail(id, forcePadOpen=false){
     `<div id="versions-list-${id}" style="margin-bottom:10px">
       <div style="font-size:11px;color:var(--text3)">Chargement...</div>
     </div>${s.format==='Brand' ? `<div id="mus-card-${id}" style="margin-top:4px">${musiqueBloc(s)}</div>` : ''}`,activeStep==='montage'||activeStep==='pad',
-    (s.format==='Brand'&&_suisGestionnaireAcces())?`<button onclick="event.stopPropagation();voirIncognito({sujetCode:'${s.code}'},this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:'');
+    (s.format==='Brand'&&_suisGestionnaireClients())?`<button onclick="event.stopPropagation();voirIncognito({sujetCode:'${s.code}'},this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:'');
   // ── Bloc WORDING (Brand uniquement, fin de parcours : après Montage) ──
   // ⚠️ GARDE ANTI-DISPARITION : visible si la carte est à un statut de fin de parcours
   //    (Montage/Retours/Validation chef/PAD) OU si du wording a déjà été écrit / une validation
@@ -3487,7 +3503,7 @@ async function loadRetours(sujetId) {
             ${estAdapte?`<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:2px solid var(--border2);padding:2px 8px;margin-bottom:5px;line-height:1.5"><span style="font-size:8px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.7;font-style:normal">Retour client</span><br>${texteLibre(desc)}</div><div class="retour-desc"><span style="font-size:9px;color:var(--blue);font-weight:600">↳ Adapté par ${texteLibre(reformulePar||'chef')}</span>${tcReformule?` <span class="retour-tc">${tcReformule}</span>`:''}<div style="margin-top:2px">${texteLibre(reformulation)}</div></div>`:`<div class="retour-desc">${texteLibre(desc)}</div>`}
             ${impossible?`<div style="font-size:10px;color:#ff6b35;margin-top:3px;font-style:italic">${texteLibre(pr['Raison impossible']?.rich_text?.[0]?.plain_text||'Impossible à réaliser')}</div>`:''}
             <div class="retour-meta">${brouillon?`<span style="color:var(--red);font-weight:700;letter-spacing:0.04em;margin-right:6px">BROUILLON</span>`:''}${(()=>{if(source!=='Client')return escapeHtml(auteur);const dem=nomDemandeur(pr);const trans=(!(pr['Déposé en ligne']?.checkbox)&&auteur)?`<span style="color:var(--text3)">transmis par ${escapeHtml(auteur)}</span>`:'';return dem?escapeHtml(dem)+(trans?` · ${trans}`:''):(trans||'');})()} · ${date}</div>
-            ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">❓ Clarifier</button>`:''}${(source==='Client'&&contactClientId&&_suisGestionnaireAcces())?`<button onclick="voirIncognito({contactId:'${contactClientId}'},this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="margin-top:6px;margin-left:6px;font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:''}
+            ${peutDemander?`<button onclick="demanderClarification('${r.id}','${sujetId}')" style="margin-top:6px;font-size:10px;color:#378ADD;background:rgba(55,138,221,0.1);border:1px solid rgba(55,138,221,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">❓ Clarifier</button>`:''}${(source==='Client'&&contactClientId&&_suisGestionnaireClients())?`<button onclick="voirIncognito({contactId:'${contactClientId}'},this)" title="Ouvrir l'espace de ce client en lecture seule (mode consultation)" style="margin-top:6px;margin-left:6px;font-size:10px;color:#EF9F27;background:rgba(239,159,39,0.1);border:1px solid rgba(239,159,39,0.35);padding:3px 8px;border-radius:4px;cursor:pointer;font-family:var(--font)">👁 Voir incognito</button>`:''}
           </div>
           ${brouillon?brouillonActions:clarification?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}')" title="Répondre (adapter la clarification)" style="width:18px;height:18px;border-radius:50%;border:2px solid #378ADD;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.background='rgba(55,138,221,0.15)'" onmouseout="this.style.background='transparent'">✏️</div>`:`<span style="font-size:9px;color:#378ADD;white-space:nowrap;text-align:center">⏳ En<br>attente</span>`}</div>`:(!corrige&&!impossible?`<div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
             ${peutAdapter?`<div onclick="ouvrirAdapter('${r.id}','${sujetId}')" title="${estAdapte?'Modifier la reformulation':'Adapter (reformuler pour le monteur)'}" style="width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">✏️</div>`:''}
@@ -5319,6 +5335,7 @@ function showApp() {
   const initials = currentUser.nom.substring(0,2).toUpperCase();
   document.getElementById('user-avatar').textContent = initials;
   document.getElementById('user-name').textContent = currentUser.nom;
+  var _bca = document.getElementById('btn-clients-admin'); if(_bca) _bca.style.display = _suisGestionnaireClients() ? 'flex' : 'none'; // menu « Accès clients » : porteurs du droit client seulement
   // Demander permission notifs + s'abonner au push (best-effort, ne bloque pas le chargement).
   // EXCEPTION : une session issue du handoff (navigateur externe de passage) ne s'abonne PAS —
   // sa personne est notifiée via sa PWA installée (garde-fou de l'intention d'origine).
@@ -5670,6 +5687,79 @@ function _accesFeatureActif() {
   return _accesConfigure === true;
 }
 function _suisGestionnaireAcces() { return currentUser?.peutGererAcces === true; }
+// Droit CLIENT (lot 3), DISTINCT de la clé équipe : « Voir incognito » et l'écran d'accès clients. Descend
+// dans currentUser par login.js / verifyUser (fail-closed : absent → false). Ne pas confondre avec _suisGestionnaireAcces.
+function _suisGestionnaireClients() { return currentUser?.peutGererClients === true; }
+
+// ── Écran « Accès clients » (lot 3, LECTURE SEULE) ────────────────────────────────────────────────────
+// Montre les 65 marques et leurs interlocuteurs ; n'écrit RIEN (créer / coder / désactiver = lot 4). Le
+// serveur (clients-admin) ne renvoie JAMAIS de code d'accès. Gardé par le droit client.
+function _serieTxt(s) { return (typeof s === 'number' && s > 0) ? String(s) : '5 (par défaut)'; }
+async function openClientsAdmin() {
+  if (!_suisGestionnaireClients()) { toast('Réservé aux gestionnaires des clients', 'err'); return; }
+  openOv('ov-clients');
+  chargerClientsListe();
+}
+async function chargerClientsListe() {
+  const body = document.getElementById('clients-body');
+  body.innerHTML = '<p style="font-size:12px;color:var(--text3)">Chargement…</p>';
+  try {
+    const res = await fetch('/.netlify/functions/clients-admin', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ action:'liste' }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok) { body.innerHTML = '<p style="font-size:12px;color:var(--red)">' + (res.status===403 ? 'Réservé aux gestionnaires des clients.' : 'Service temporairement indisponible.') + '</p>'; return; }
+    renderClientsListe(d.marques || []);
+  } catch (e) { body.innerHTML = '<p style="font-size:12px;color:var(--red)">Service temporairement indisponible.</p>'; }
+}
+function renderClientsListe(marques) {
+  const body = document.getElementById('clients-body');
+  const ouverts = marques.filter(m => m.ouverte).length;
+  const head = '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">' + marques.length + ' marques · ' + ouverts + ' espace' + (ouverts>1?'s':'') + ' ouvert' + (ouverts>1?'s':'') + '</div>';
+  const rows = marques.map(function (m) {
+    const ambre = m.ouverte && m.nbActifs === 0; // porte ouverte sans personne derrière
+    const inter = m.nbActifs > 0 ? (m.nbActifs + ' actif' + (m.nbActifs>1?'s':'')) : (m.ouverte ? '⚠ aucun' : 'aucun');
+    return '<div class="cli-row" data-code="' + escapeHtml(m.code) + '" style="display:grid;grid-template-columns:52px 1fr auto auto auto;gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer' + (ambre?';background:rgba(239,159,39,0.08)':'') + '">' +
+      '<span style="font-family:var(--mono);font-size:12px;color:var(--text3)">' + escapeHtml(m.code) + '</span>' +
+      '<span style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(m.nom || '—') + '</span>' +
+      '<span style="font-size:11px;' + (m.ouverte?'color:#1D9E75':'color:var(--text3)') + '">' + (m.ouverte?'Ouvert':'Fermé') + '</span>' +
+      '<span style="font-size:11px;' + (ambre?'color:#EF9F27':'color:var(--text2)') + '">' + inter + '</span>' +
+      '<span style="font-size:11px;color:var(--text3)" title="séries accordées">' + _serieTxt(m.series) + '</span>' +
+      '</div>';
+  }).join('');
+  body.innerHTML = head + (rows || '<p style="font-size:12px;color:var(--text3)">Aucune marque.</p>');
+  [].slice.call(body.querySelectorAll('.cli-row')).forEach(function (r) {
+    r.addEventListener('click', function () { ouvrirFicheMarque(r.getAttribute('data-code')); });
+  });
+}
+async function ouvrirFicheMarque(code) {
+  const body = document.getElementById('clients-body');
+  body.innerHTML = '<p style="font-size:12px;color:var(--text3)">Chargement…</p>';
+  try {
+    const res = await fetch('/.netlify/functions/clients-admin', { method:'POST', headers:_hdrsMembre(), body: JSON.stringify({ action:'fiche', codeBrand: code }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok) { body.innerHTML = '<p style="font-size:12px;color:var(--red)">Service temporairement indisponible.</p>'; return; }
+    renderFicheMarque(d);
+  } catch (e) { body.innerHTML = '<p style="font-size:12px;color:var(--red)">Service temporairement indisponible.</p>'; }
+}
+function renderFicheMarque(d) {
+  const body = document.getElementById('clients-body');
+  const m = d.marque || {}, inter = d.interlocuteurs || [];
+  const back = '<button id="cli-back" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:12px;font-family:var(--font);padding:0 0 10px">← Toutes les marques</button>';
+  const entete = '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px"><span style="font-family:var(--mono);font-size:12px;color:var(--text3)">' + escapeHtml(m.code || '') + '</span><span style="font-size:15px;font-weight:600;color:var(--text)">' + escapeHtml(m.nom || '—') + '</span></div>';
+  const meta = '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-bottom:14px">' +
+    '<span>' + (m.ouverte ? '<span style="color:#1D9E75">● Espace ouvert</span>' : '<span style="color:var(--text3)">○ Espace fermé</span>') + '</span>' +
+    '<span>Séries accordées : ' + _serieTxt(m.series) + '</span>' +
+    (typeof m.nbProjets === 'number' ? '<span>' + m.nbProjets + ' mission' + (m.nbProjets>1?'s':'') + '</span>' : '') +
+    '</div>';
+  const liste = inter.length ? inter.map(function (c) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border)">' +
+      '<div style="min-width:0"><div style="font-size:13px;color:var(--text)">' + escapeHtml(c.nom || '—') + '</div>' +
+      '<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(c.mail || '') + '</div></div>' +
+      '<span style="font-size:11px;flex-shrink:0;' + (c.actif?'color:#1D9E75':'color:var(--text3)') + '">' + (c.actif?'actif':'désactivé') + '</span>' +
+      '</div>';
+  }).join('') : '<div style="font-size:12px;color:var(--text3);padding:10px 0">Aucun interlocuteur.</div>';
+  body.innerHTML = back + entete + meta + '<div class="field-label" style="margin-bottom:6px">Interlocuteurs</div>' + liste;
+  const b = document.getElementById('cli-back'); if (b) b.addEventListener('click', chargerClientsListe);
+}
 // « Gérer l'équipe » dépend de la CLÉ (pas du niveau) — mais seulement une fois la feature configurée,
 // sinon on verrouillerait les 7 au déploiement (personne n'a encore la clé).
 function peutOuvrirEquipe() { return _accesFeatureActif() ? _suisGestionnaireAcces() : true; }

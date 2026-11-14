@@ -136,6 +136,7 @@ exports.handler = async (event) => {
     const role = pr.Role?.select?.name || 'Journaliste';
     const acces = pr['Accès']?.select?.name || 'Complet';           // défaut sûr (cf. action:'list')
     const peutGererAcces = pr['Peut gérer les accès']?.checkbox === true;
+    const peutGererClients = pr['Peut gérer les clients']?.checkbox === true; // droit CLIENT (lot 3), distinct de la clé équipe ; absent → false (fail-closed)
 
     if (!codeNotion || codeNotion !== code) {
       await enregistrerEchec(ip, id, POLICE_EQUIPE);
@@ -155,7 +156,7 @@ exports.handler = async (event) => {
       headers,
       body: JSON.stringify({
         ok: true,
-        user: { id: page.id, nom, role, acces, peutGererAcces },
+        user: { id: page.id, nom, role, acces, peutGererAcces, peutGererClients },
         accesConfigure
       })
     };

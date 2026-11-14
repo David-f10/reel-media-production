@@ -40,9 +40,9 @@ _Module._load = function (request) {
 
 const DB_EQUIPE = 'df0e44e1-7c9c-4427-a9c2-af7b6da78fcb';
 const CHEF_ID = '33333333-3333-3333-3333-333333333333', CHEF_CODE = 'CLE00000';   // gestionnaire (porte la clé)
-const CHEF2_ID = '44444444-4444-4444-4444-444444444444', CHEF2_CODE = 'NOCLE000'; // membre sans la clé
-const CHEF_GERE = { id: CHEF_ID, properties: { 'Nom': { title: [{ plain_text: 'Chef' }] }, 'Code acces': { rich_text: [{ plain_text: CHEF_CODE }] }, 'Role': { select: { name: 'Chef' } }, 'Peut gérer les accès': { checkbox: true } } };
-const CHEF_SIMPLE = { id: CHEF2_ID, properties: { 'Nom': { title: [{ plain_text: 'Simple' }] }, 'Code acces': { rich_text: [{ plain_text: CHEF2_CODE }] }, 'Role': { select: { name: 'Monteur' } }, 'Peut gérer les accès': { checkbox: false } } };
+const CHEF2_ID = '44444444-4444-4444-4444-444444444444', CHEF2_CODE = 'NOCLE000'; // membre SANS le droit client (mais AVEC la clé équipe : prouve que le mint exige bien le droit CLIENT, pas la clé équipe)
+const CHEF_GERE = { id: CHEF_ID, properties: { 'Nom': { title: [{ plain_text: 'Chef' }] }, 'Code acces': { rich_text: [{ plain_text: CHEF_CODE }] }, 'Role': { select: { name: 'Chef' } }, 'Peut gérer les clients': { checkbox: true } } }; // porteur du droit CLIENT (lot 3) — ce que le mint exige désormais
+const CHEF_SIMPLE = { id: CHEF2_ID, properties: { 'Nom': { title: [{ plain_text: 'Simple' }] }, 'Code acces': { rich_text: [{ plain_text: CHEF2_CODE }] }, 'Role': { select: { name: 'Monteur' } }, 'Peut gérer les accès': { checkbox: true } } }; // a la clé ÉQUIPE mais PAS le droit client → doit être refusé
 
 const DB_CLIENTS_BRAND = '67abbb5f-f6a6-4937-89e3-6c852c515a8e';
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
@@ -214,8 +214,8 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
   const dlN = await download(evt(normal.token, { sujetCode: 'B33D', rang: 1 }));
   ok('drive-download-client (normal) → passe la garde (pas de 403)', dlN.statusCode !== 403);
 
-  // ── 5) ENTRÉE — mint « Voir incognito » : gardé par la clé, signe un ro longue durée, remise à usage unique ──
-  console.log('\n\x1b[1mEntrée (mint/consume) — gardé par « Peut gérer les accès »\x1b[0m');
+  // ── 5) ENTRÉE — mint « Voir incognito » : gardé par le droit client, signe un ro longue durée, remise à usage unique ──
+  console.log('\n\x1b[1mEntrée (mint/consume) — gardé par « Peut gérer les clients »\x1b[0m');
   const create = require('../netlify/functions/client-emprunt-create').handler;
   const consume = require('../netlify/functions/client-emprunt-consume').handler;
   const evtChef = (id, code, body) => ({ httpMethod: 'POST', headers: { 'x-rm-id': id, 'x-rm-code': code }, body: JSON.stringify(body) });
@@ -241,7 +241,7 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
 
   // Non-gestionnaire → refus.
   const cNo = await create(evtChef(CHEF2_ID, CHEF2_CODE, { contactId: ID }));
-  ok('mint sans la clé « Peut gérer les accès » → 403', cNo.statusCode === 403);
+  ok('mint sans le droit « Peut gérer les clients » (a pourtant la clé équipe) → 403', cNo.statusCode === 403);
 
   // Contact inconnu / inactif → refus (on n'emprunte pas une identité sans accès).
   const cUnknown = await create(evtChef(CHEF_ID, CHEF_CODE, { contactId: '99999999-9999-9999-9999-999999999999' }));
@@ -284,9 +284,9 @@ const evt = (jeton, body) => ({ httpMethod: 'POST', headers: { 'x-rmc-token': je
   const cMal = await create(evtChef(CHEF_ID, CHEF_CODE, { sujetCode: 'XYZ' }));
   ok('carte sans code marque exploitable → 400', cMal.statusCode === 400);
 
-  // La carte garde la garde de clé : sans « Peut gérer les accès » → 403.
+  // La carte garde la garde : sans le droit « Peut gérer les clients » → 403.
   const cNoKey = await create(evtChef(CHEF2_ID, CHEF2_CODE, { sujetCode: 'B33D' }));
-  ok('carte sans la clé « Peut gérer les accès » → 403', cNoKey.statusCode === 403);
+  ok('carte sans le droit « Peut gérer les clients » → 403', cNoKey.statusCode === 403);
 
   console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
   process.exit(fails ? 1 : 0);
