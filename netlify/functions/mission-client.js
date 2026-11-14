@@ -13,6 +13,7 @@ const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
 const { CODE_BRAND_RE } = require('./_perimetreclient'); // autorité unique du périmètre (ici : sanity du Code Brand serveur)
 const { appelNotion } = require('./_notionio');
+const { signalerSlack } = require('./_slack'); // miroir Slack à sens unique (best-effort, jamais bloquant)
 
 const DB_MISSIONS = '41875d81-5951-81b6-a6aa-ff03bfbcfd49';
 // select FERMÉ — aligné sur Notion (5 valeurs : David a ajouté « Interne » pour les films sans diffusion publique).
@@ -130,6 +131,9 @@ exports.handler = async (event) => {
 
   try {
     await notionFetch('/pages', 'POST', token, { parent: { database_id: DB_MISSIONS }, properties: props });
+    // Miroir Slack à sens unique, APRÈS l'écriture primaire : best-effort, ne lance jamais, ne peut pas faire
+    // échouer le dépôt. Nom de marque + libellé + lien HAVANA seulement — jamais l'objet saisi par le client.
+    await signalerSlack({ marque: liv.marque, type: 'nouvelle mission' });
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   } catch (e) {
     if (e && e.lectureSeule) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Mode consultation : lecture seule' }) };
