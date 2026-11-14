@@ -56,7 +56,9 @@ exports.handler = async (event) => {
   //    un membre sans rôle explicite Brand/Chef est donc refusé ici, ce qui est VOULU : pas d'envoi client
   //    sans rôle qui l'autorise. Les 6 rôles réels : Chef·Journaliste·Monteur·Pigiste·Brand·Compta ; seuls
   //    Brand et Chef passent.
-  if (auth.user.role !== 'Brand' && auth.user.role !== 'Chef') {
+  //    « Tous les droits » (vérification, David) ouvre cette garde de RÔLE comme Chef/Brand — APRÈS le refus
+  //    Externe ci-dessus (l'ordre compte : tous les droits donne des permissions, il ne lève pas le cloisonnement).
+  if (auth.user.role !== 'Brand' && auth.user.role !== 'Chef' && auth.user.tousLesDroits !== true) {
     return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Réservé aux contacts Brand ou aux chefs' }) };
   }
 

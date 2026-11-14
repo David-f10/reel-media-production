@@ -72,12 +72,13 @@ async function verifyUser({ id, code }) {
     const acces = page.properties['Accès']?.select?.name || 'Complet';
     const peutGererAcces = page.properties['Peut gérer les accès']?.checkbox === true;
     const peutGererClients = page.properties['Peut gérer les clients']?.checkbox === true; // droit CLIENT (lot 3), distinct de la clé équipe ; absent → false (fail-closed)
+    const tousLesDroits = page.properties['Tous les droits']?.checkbox === true; // vérification (David) : traite comme Chef/Brand sur les gardes de RÔLE ; ne franchit PAS les interlocks de production. absent → false
     // Set des ids de TOUS les membres — déjà en main depuis le fetch d'auth ci-dessus, AUCUN aller-retour
     // supplémentaire. Sert au proxy (notion.js) à reconnaître une page DB_EQUIPE sur un PATCH /pages/<id>
     // dont le corps ne porte PAS le parent (p.ex. { archived:true }). Ids normalisés (sans tirets, en
     // minuscules) pour comparer tels quels avec le norm() de notion.js.
     const equipeIds = new Set((membres || []).map(p => String(p.id || '').replace(/-/g, '').toLowerCase()));
-    return { ok: true, user: { id: page.id, nom, role, acces, peutGererAcces, peutGererClients }, equipeIds };
+    return { ok: true, user: { id: page.id, nom, role, acces, peutGererAcces, peutGererClients, tousLesDroits }, equipeIds };
   } catch (e) {
     // Ne plus avaler l'erreur (ex. 401 Notion) en silence — c'est le chemin chaud de chaque appel proxy,
     // et ce catch muet était l'angle mort de diagnostic du 24. Message seul, aucun secret.
