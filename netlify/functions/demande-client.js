@@ -11,6 +11,7 @@ const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
 const { CODE_BRAND_RE, reSujetMarque } = require('./_perimetreclient'); // autorité unique du périmètre
 const { appelNotion } = require('./_notionio');
+const { signalerSlack } = require('./_slack'); // miroir Slack à sens unique (best-effort, jamais bloquant)
 
 const DB_DEMANDES = '41875d81-5951-8115-b6c0-ede198a923ab';
 const TYPES = ['Décaler un tournage', 'Autre']; // select FERMÉ — aligné sur Notion
@@ -110,6 +111,9 @@ exports.handler = async (event) => {
 
   try {
     await notionFetch('/pages', 'POST', token, { parent: { database_id: DB_DEMANDES }, properties: props });
+    // Miroir Slack à sens unique, APRÈS l'écriture primaire : best-effort, ne lance jamais, ne peut pas faire
+    // échouer le dépôt. Nom de marque + libellé + lien HAVANA seulement — jamais le texte du client.
+    await signalerSlack({ marque: liv.marque, type: 'nouvelle demande' });
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   } catch (e) {
     if (e && e.lectureSeule) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Mode consultation : lecture seule' }) };
