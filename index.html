@@ -5493,7 +5493,7 @@ async function loadComments(sujetId) {
       return;
     }
     const myName = (currentUser?.nom||'').trim();
-    const isChefUser = currentUser?.role === 'Chef';
+    const isChefUser = currentUser?.role === 'Chef' || _tousDroits();
     listEl.innerHTML = comments.map(c => {
       const pr = c.properties;
       const auteur = pr.Auteur?.rich_text?.[0]?.plain_text || pr.Auteur?.text?.[0]?.plain_text || '?';
@@ -5633,7 +5633,7 @@ async function enregistrerComment(commentId, sujetId) {
 // (récupérable 30 j dans Notion, comme les brouillons du chantier 15).
 async function supprimerComment(commentId, sujetId) {
   if(!currentUser) { toast('Non connecté','err'); return; }
-  const estChef = currentUser?.role === 'Chef';
+  const estChef = currentUser?.role === 'Chef' || _tousDroits();
   const myName = (currentUser?.nom||'').trim();
   const chk = await relireComment(commentId);
   if(!chk) { toast('Ce commentaire a déjà été supprimé','err'); loadComments(sujetId); return; }
@@ -6425,7 +6425,7 @@ async function loadPlayerRetours(sujetId, version) {
       byVersion[v].push(r);
     });
     // Bouton de validation en bloc — chefs uniquement, s'il existe au moins un brouillon interne
-    const isChefUser = currentUser?.role === 'Chef';
+    const isChefUser = currentUser?.role === 'Chef' || _tousDroits();
     const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || chefParDefaut();
     const hasBrouillonEquipe = retoursAff.some(r => estBrouillonEquipe(r.properties));
     const myName = (currentUser?.nom||'').trim();
