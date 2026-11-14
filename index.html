@@ -4217,7 +4217,7 @@ async function toggleVersionValidationBrand(versionId, sujetId, wasValidee, wasV
   const s = sujets.find(x=>x.id===sujetId);
   if(s?.format !== 'Brand') return;
   if(!wasValidee) return; // garde silencieuse : la version doit d'abord être validée par le chef
-  if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') {
+  if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef' && !_tousDroits()) {
     toast('Réservé aux contacts Brand ou aux chefs','err');
     return;
   }
@@ -4538,7 +4538,7 @@ Si la cloche n'a pas de pastille rouge, c'est que tu es à jour 🎉</div>
 async function annulerVersion(versionId, sujetId, versionNum) {
   const s = sujets.find(x=>x.id===sujetId);
   if(s?.format !== 'Brand') return;
-  if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') {
+  if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef' && !_tousDroits()) {
     toast('Réservé aux contacts Brand ou aux chefs','err');
     return;
   }
@@ -4733,7 +4733,7 @@ async function toggleValidationWording(id, type) {
     refreshUI(id);
   } else if(type==='Brand') {
     if(!s.validationWordingEdito) return; // bouton désactivé : garde silencieuse (édito d'abord)
-    if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') { toast('Réservé aux contacts Brand ou aux chefs','err'); return; }
+    if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef' && !_tousDroits()) { toast('Réservé aux contacts Brand ou aux chefs','err'); return; }
     // Contact OBLIGATOIRE, même garantie que le séquencier : sans contact → popup, puis validation.
     if(!s.contactBrand) { ouvrirAssignBrand(id, 'wording'); return; }
     const newVal = !s.validationWordingBrand;
@@ -4786,13 +4786,13 @@ async function toggleValidationSeq(id, type) {
   } else if(type==='Brand') {
     if(!s.validationRM) return; // bouton désactivé : garde silencieuse
     if(!s.contactBrand) { toast("Assignez d'abord un contact Brand à cette carte",'err'); return; }
-    if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') { toast('Réservé aux contacts Brand ou aux chefs','err'); return; }
+    if(currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef' && !_tousDroits()) { toast('Réservé aux contacts Brand ou aux chefs','err'); return; }
     const newVal = !s.validationBrand;
     await upd(id,'Validation Brand','cb',newVal);
     s.validationBrand = newVal;
   } else if(type==='Client') {
     if(!s.validationBrand) return; // bouton désactivé : garde silencieuse
-    if(s.format==='Brand' && currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef') {
+    if(s.format==='Brand' && currentUser?.role !== 'Brand' && currentUser?.role !== 'Chef' && !_tousDroits()) {
       toast('Réservé aux contacts Brand ou aux chefs','err');
       return;
     }
