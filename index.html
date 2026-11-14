@@ -187,6 +187,9 @@
         <button id="btn-clients-admin" onclick="openClientsAdmin()" style="display:none;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
           <span style="width:16px;display:inline-flex;justify-content:center">🔑</span><span>Accès clients</span>
         </button>
+        <button id="btn-demandes-admin" onclick="openDemandesAdmin()" style="display:none;align-items:center;gap:8px;width:100%;padding:9px 14px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);box-sizing:border-box">
+          <span style="width:16px;display:inline-flex;justify-content:center">📨</span><span style="flex:1;text-align:left">Demandes clients</span><span id="demandes-badge" style="display:none;font-family:var(--mono);font-size:10px;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px"></span>
+        </button>
       </div>
       <div style="padding:10px 8px 0;display:flex;align-items:center;justify-content:space-between;gap:6px">
         <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
@@ -487,6 +490,19 @@
     </div>
     <div style="padding:16px 20px 20px">
       <div id="clients-body"><p style="font-size:12px;color:var(--text3)">Chargement…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DEMANDES CLIENTS (lot A — circuit court) -->
+<div class="overlay" id="ov-demandes">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-hdr">
+      <div class="modal-title">📨 Demandes clients</div>
+      <button class="modal-close" onclick="closeOv('ov-demandes')">×</button>
+    </div>
+    <div style="padding:16px 20px 20px">
+      <div id="demandes-body"><p style="font-size:12px;color:var(--text3)">Chargement…</p></div>
     </div>
   </div>
 </div>
@@ -5336,6 +5352,7 @@ function showApp() {
   document.getElementById('user-avatar').textContent = initials;
   document.getElementById('user-name').textContent = currentUser.nom;
   var _bca = document.getElementById('btn-clients-admin'); if(_bca) _bca.style.display = _suisGestionnaireClients() ? 'flex' : 'none'; // menu « Accès clients » : porteurs du droit client seulement
+  var _bda = document.getElementById('btn-demandes-admin'); if(_bda){ _bda.style.display = _suisGestionnaireClients() ? 'flex' : 'none'; if(_suisGestionnaireClients()) rafraichirBadgeDemandes(); } // menu « Demandes clients » + pastille Nouvelle
   // Demander permission notifs + s'abonner au push (best-effort, ne bloque pas le chargement).
   // EXCEPTION : une session issue du handoff (navigateur externe de passage) ne s'abonne PAS —
   // sa personne est notifiée via sa PWA installée (garde-fou de l'intention d'origine).
@@ -5699,6 +5716,70 @@ function _tousDroits() { return currentUser?.tousLesDroits === true; }
 // Montre les 65 marques et leurs interlocuteurs ; n'écrit RIEN (créer / coder / désactiver = lot 4). Le
 // serveur (clients-admin) ne renvoie JAMAIS de code d'accès. Gardé par le droit client.
 function _serieTxt(s) { return (typeof s === 'number' && s > 0) ? String(s) : '5 (par défaut)'; }
+// ── File « Demandes clients » (lot A, circuit court) ─────────────────────────────────────────────────
+// Lecture + changement de statut/réponse via demandes-admin (gardé serveur par « Peut gérer les clients »).
+// La pastille compte les Nouvelle. Ouverture de la carte par Code carte (résolution code→id via `sujets`).
+var DEMANDES_ADMIN = '/.netlify/functions/demandes-admin';
+async function rafraichirBadgeDemandes() {
+  try {
+    const res = await fetch(DEMANDES_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'liste'})});
+    const d = await res.json().catch(() => ({}));
+    const badge = document.getElementById('demandes-badge'); if(!badge) return;
+    if(res.ok && d.ok){ const n = (d.demandes||[]).filter(x => x.statut==='Nouvelle').length; badge.textContent = n; badge.style.display = n>0 ? 'inline-block' : 'none'; }
+  } catch(e){}
+}
+async function openDemandesAdmin() {
+  if(!_suisGestionnaireClients()){ toast('Réservé aux gestionnaires des clients','err'); return; }
+  openOv('ov-demandes');
+  chargerDemandesListe();
+}
+async function chargerDemandesListe() {
+  const body = document.getElementById('demandes-body');
+  body.innerHTML = '<p style="font-size:12px;color:var(--text3)">Chargement…</p>';
+  try {
+    const res = await fetch(DEMANDES_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'liste'})});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || !d.ok){ body.innerHTML = '<p style="font-size:12px;color:var(--red)">'+(res.status===403?'Réservé aux gestionnaires des clients.':'Service temporairement indisponible.')+'</p>'; return; }
+    renderDemandesListe(d.demandes||[]);
+  } catch(e){ body.innerHTML = '<p style="font-size:12px;color:var(--red)">Service temporairement indisponible.</p>'; }
+}
+function _demDate(iso){ try{ return new Date(iso).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}); }catch(e){ return ''; } }
+function renderDemandesListe(ds) {
+  const body = document.getElementById('demandes-body');
+  if(!ds.length){ body.innerHTML = '<p style="font-size:12px;color:var(--text3)">Aucune demande.</p>'; return; }
+  const COL = {'Nouvelle':'#EF9F27','En cours':'#378ADD','Traitée':'#1D9E75','Refusée':'var(--text3)'};
+  body.innerHTML = ds.map(function(x){
+    const carte = x.codeCarte ? '<button class="dem-carte-lnk" data-code="'+escapeHtml(x.codeCarte)+'" style="font-family:var(--mono);font-size:11px;color:var(--blue);background:none;border:none;cursor:pointer;padding:0">'+escapeHtml(x.codeCarte)+' ↗</button>' : '';
+    const opts = ['Nouvelle','En cours','Traitée','Refusée'].map(function(s){ return '<option '+(x.statut===s?'selected':'')+'>'+s+'</option>'; }).join('');
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px">'+
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'+
+        '<span style="font-size:11px;font-weight:600;color:'+(COL[x.statut]||'var(--text2)')+'">'+escapeHtml(x.type||'')+'</span>'+
+        '<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">'+escapeHtml(x.codeBrand||'')+'</span>'+carte+
+        '<span style="font-size:11px;color:var(--text3);margin-left:auto">'+escapeHtml(x.demandeur||'')+' · '+_demDate(x.date)+'</span>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:8px;white-space:pre-wrap">'+escapeHtml(x.message||'')+'</div>'+
+      '<div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">'+
+        '<select class="dem-statut" data-id="'+escapeHtml(x.id)+'" style="font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px">'+opts+'</select>'+
+        '<input type="text" class="dem-reponse" data-id="'+escapeHtml(x.id)+'" value="'+escapeHtml(x.reponse||'')+'" placeholder="Réponse (visible par le client)" style="flex:1;min-width:160px;font-size:12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px">'+
+        '<button class="dem-save" data-id="'+escapeHtml(x.id)+'" style="font-size:12px;padding:6px 12px;background:var(--bg2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-family:var(--font)">Enregistrer</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  [].slice.call(body.querySelectorAll('.dem-carte-lnk')).forEach(function(b){ b.addEventListener('click', function(){ ouvrirCarteParCode(b.getAttribute('data-code')); }); });
+  [].slice.call(body.querySelectorAll('.dem-save')).forEach(function(b){ b.addEventListener('click', function(){ enregistrerDemande(b.getAttribute('data-id'), b); }); });
+}
+async function enregistrerDemande(id, btn) {
+  const sel = document.querySelector('.dem-statut[data-id="'+id+'"]'); const inp = document.querySelector('.dem-reponse[data-id="'+id+'"]');
+  if(!sel) return; btn.disabled = true;
+  try {
+    const res = await fetch(DEMANDES_ADMIN, {method:'POST', headers:_hdrsMembre(), body: JSON.stringify({action:'statut', id:id, statut:sel.value, reponse:(inp?inp.value:'')})});
+    const d = await res.json().catch(() => ({}));
+    if(res.ok && d.ok){ toast('Demande mise à jour','ok'); chargerDemandesListe(); rafraichirBadgeDemandes(); }
+    else { toast((d&&d.error)||'Échec de l\'enregistrement','err'); btn.disabled = false; }
+  } catch(e){ toast('Service temporairement indisponible','err'); btn.disabled = false; }
+}
+function ouvrirCarteParCode(code){ const s = sujets.find(function(x){ return x.code===code; }); if(s){ closeOv('ov-demandes'); openDetail(s.id); } else { toast('Carte introuvable (archivée ?)','err'); } }
+
 async function openClientsAdmin() {
   if (!_suisGestionnaireClients()) { toast('Réservé aux gestionnaires des clients', 'err'); return; }
   openOv('ov-clients');
