@@ -26,7 +26,7 @@
 
 const { verifier } = require('./_clienttoken');
 const { contactActif } = require('./_authclient');
-const { CODE_BRAND_RE, PRE_TOURNAGE } = require('./_perimetreclient');
+const { CODE_BRAND_RE, PRE_TOURNAGE, reSujetMarque } = require('./_perimetreclient');
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_VERSIONS = '3793eebb-2aeb-4d49-84ae-06d79cfb2704';
@@ -137,7 +137,7 @@ exports.handler = async (event) => {
   // retombe sur 5, comportement inchangé. Affichage seulement.
   const defautMarque = (typeof liv.seriesMarque === 'number') ? liv.seriesMarque : null;
 
-  const reCode = new RegExp('^' + codeBrand + '[A-Za-z]+$'); // code marque + ≥1 LETTRE (exclut B33 vs B330)
+  const reCode = reSujetMarque(codeBrand); // autorité unique (_perimetreclient) : code marque + ≥1 LETTRE (exclut B33 vs B330)
   const auj = AUJOURDHUI();
 
   try {

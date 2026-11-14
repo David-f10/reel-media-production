@@ -28,6 +28,11 @@ const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const WAIT_CAP_MS = 4000;          // plafond d'UNE attente (Retry-After inclus)
 const DEFAULT_BUDGET_MS = 6000;    // budget de temps global par défaut (< timeout Netlify 10 s)
 const CODE_BRAND_RE = /^B\d{2,}$/; // forme d'un code marque : B + au moins 2 chiffres
+// Un sujet appartient à une marque si son `Code` = code marque + ≥1 LETTRE de déclinaison (B33D), ce qui
+// exclut la collision B33 vs B330 (le suffixe est des LETTRES, jamais un chiffre). `codeBrand` doit être
+// un code marque validé (^B\d+$) → aucun métacaractère regex. AUTORITÉ UNIQUE de cette règle (réutilisée par
+// espace-client, demande-client… pour qu'il n'en existe pas une 3ᵉ définition locale).
+function reSujetMarque(codeBrand) { return new RegExp('^' + String(codeBrand == null ? '' : codeBrand) + '[A-Za-z]+$'); }
 
 // HYGIÈNE, PAS UN CORRECTIF DE BUG : on JOINT tous les runs rich_text (comme espace-client/montage-client),
 // au lieu de ne lire que le premier. Rien de cassé aujourd'hui ; mise en cohérence, d'autant que ce module
@@ -54,7 +59,7 @@ async function projetsDeMarque(codeBrand, token, deadline) {
   // 3) Re-filtre de SORTIE incontournable (défense en profondeur) : le Code doit être EXACTEMENT le code
   //    marque suivi d'au moins une LETTRE (exclut une collision B33 vs B330 — le suffixe est des lettres,
   //    jamais un chiffre), ET on re-vérifie `Visible` côté serveur même si le filtre l'a déjà fait.
-  const reCode = new RegExp('^' + code + '[A-Za-z]+$'); // `code` est ^B\d+$ → aucun métacaractère regex
+  const reCode = reSujetMarque(code); // autorité unique (`code` est ^B\d+$ → aucun métacaractère regex)
   const projets = [];
   let cursor = null, pages = 0;
   do {
@@ -97,4 +102,4 @@ async function projetsDeMarque(codeBrand, token, deadline) {
 // validation d'un film déjà en production). Un seul endroit, jamais deux copies à tenir synchrones.
 const PRE_TOURNAGE = ['Brief / Idée', 'Séquencier en cours', 'Séquencier validé'];
 
-module.exports = { projetsDeMarque, CODE_BRAND_RE, PRE_TOURNAGE };
+module.exports = { projetsDeMarque, CODE_BRAND_RE, PRE_TOURNAGE, reSujetMarque };

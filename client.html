@@ -48,6 +48,24 @@
       font-size:12.5px;font-weight:600;text-align:center;padding:7px 14px;letter-spacing:.01em;
       border-bottom:1px solid #7a5c00}
     #bandeau-emprunt.hidden{display:none}
+    /* ── Une demande (circuit court, lot A) ── */
+    #zone-demandes{margin-top:34px}
+    #zone-demandes:empty{display:none}
+    .dem-sub{margin:4px 0 14px}
+    .dem-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    #form-demande select,#form-demande textarea{box-sizing:border-box;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font:inherit;font-size:14px;padding:10px 12px}
+    #form-demande .dem-row select{flex:1 1 200px;min-width:0}
+    #form-demande textarea{width:100%;resize:vertical;min-height:70px;line-height:1.5}
+    #form-demande select:focus,#form-demande textarea:focus{outline:none;border-color:var(--rouge);background:var(--bg3)}
+    .dem-bas{margin-top:10px}
+    .dem-h{font-size:13px;color:var(--txt2);margin:22px 0 8px}
+    .dem-item{border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:10px}
+    .dem-it-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+    .dem-type{font-size:12px;font-weight:600;color:var(--txt)}
+    .dem-st{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:5px;background:var(--bg4)}
+    .dem-msgtxt{font-size:14px;line-height:1.5;color:var(--txt)}
+    .dem-rep{margin-top:8px;padding:8px 11px;border-left:2px solid var(--line2);background:var(--bg2);border-radius:0 6px 6px 0;font-size:13.5px;color:var(--txt);line-height:1.5}
+    .dem-rep-by{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:2px}
     #bandeau-emprunt::before{content:"👁 ";font-weight:400}
 
     /* ── écran 04 — connexion : carte bordée, tout aligné à gauche. Marque PAS affichée ici. ── */
@@ -459,6 +477,7 @@
         </div>
       </div>
       <div id="zone-projets" role="status" aria-live="polite"></div>
+      <div id="zone-demandes"></div>
     </div>
 
     <!-- ÉCRAN « Voir un montage » — tranche 2. Le JS remplit mt-vers (pastilles) et mt-corps (scène +
@@ -504,6 +523,7 @@
     var DOWNLOAD = '/.netlify/functions/drive-download-client';
     var VALIDER = '/.netlify/functions/valider-client';
     var EMPRUNT = '/.netlify/functions/client-emprunt-consume'; // emprunt chef « Voir incognito » (lecture seule)
+    var DEMANDE = '/.netlify/functions/demande-client'; // circuit court : demandes hors montage (lot A)
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
@@ -656,12 +676,79 @@
       $('btn-reessayer').addEventListener('click', chargerEspace);
     }
 
+    // ── Une demande (circuit court, lot A) ──────────────────────────────────────────────────────────────
+    // Dépôt d'une demande hors montage + relecture de « Mes demandes » (Statut + Réponse équipe). Sous un
+    // emprunt chef (ro), le FORMULAIRE est masqué (on ne dépose pas au nom du client) ; la liste reste lisible.
+    function demRo() { var i = jetonInfo(); return !!(i && i.ro); }
+    function renderDemandes(cartes) {
+      var z = $('zone-demandes'); if (!z) return;
+      var opts = '<option value="">Aucune mission précise</option>' + (cartes || []).map(function (c) {
+        return '<option value="' + escAttr(c.code) + '">' + esc(c.code) + ' — ' + esc(c.titre || '') + '</option>';
+      }).join('');
+      var form = demRo() ? '' : (
+        '<form id="form-demande" autocomplete="off">' +
+          '<div class="dem-row">' +
+            '<select id="dem-type" aria-label="Type de demande"><option>Décaler un tournage</option><option>Autre</option></select>' +
+            '<select id="dem-carte" aria-label="Mission concernée">' + opts + '</select>' +
+          '</div>' +
+          '<textarea id="dem-msg" rows="3" placeholder="Votre demande (décaler un tournage, une question…)"></textarea>' +
+          '<div class="dem-bas"><button type="submit" class="bouton" id="dem-envoi">Envoyer la demande</button></div>' +
+          '<div class="msg" id="dem-etat" role="status" aria-live="polite"></div>' +
+        '</form>');
+      z.innerHTML = '<h2>Une demande</h2>' +
+        '<p class="sub dem-sub">Décaler un tournage, une question — hors montage. Pour un nouveau film, parlez-en à votre interlocuteur.</p>' +
+        form + '<div id="mes-demandes"></div>';
+      if (!demRo()) { $('form-demande').addEventListener('submit', envoyerDemande); }
+      chargerMesDemandes();
+    }
+    function envoyerDemande(e) {
+      e.preventDefault();
+      var type = $('dem-type').value, carte = $('dem-carte').value, msg = $('dem-msg').value.trim(), etat = $('dem-etat');
+      if (!msg) { etat.className = 'msg err'; etat.textContent = 'Écrivez votre demande.'; return; }
+      $('dem-envoi').disabled = true; etat.className = 'msg'; etat.textContent = '';
+      fetch(DEMANDE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'creer', type: type, codeCarte: carte, message: msg }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          $('dem-envoi').disabled = false;
+          if (res.status === 401) { finSession(); return; }
+          if (res.status === 200 && res.body && res.body.ok) { $('dem-msg').value = ''; etat.className = 'msg ok'; etat.textContent = 'Demande envoyée.'; chargerMesDemandes(); return; }
+          etat.className = 'msg err'; etat.textContent = (res.body && res.body.error) || 'Envoi impossible, réessayez.';
+        })
+        .catch(function () { $('dem-envoi').disabled = false; etat.className = 'msg err'; etat.textContent = 'Service indisponible, réessayez.'; });
+    }
+    function chargerMesDemandes() {
+      var el = $('mes-demandes'); if (!el) return;
+      fetch(DEMANDE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'mes' }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          if (res.status === 401) { finSession(); return; }
+          if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = ''; return; } // indispo → silencieux (pas un faux « aucune »)
+          var ds = res.body.demandes || [];
+          if (!ds.length) { el.innerHTML = ''; return; }
+          var ETIQD = { 'Nouvelle': 'reçue', 'En cours': 'en cours', 'Traitée': 'traitée', 'Refusée': 'refusée' };
+          el.innerHTML = '<h3 class="dem-h">Vos demandes</h3>' + ds.map(function (x) {
+            var coul = x.statut === 'Traitée' ? 'var(--vert)' : (x.statut === 'Nouvelle' ? '#E6B33A' : (x.statut === 'Refusée' ? 'var(--txt3)' : 'var(--txt2)'));
+            return '<div class="dem-item"><div class="dem-it-h"><span class="dem-type">' + esc(x.type || '') + '</span>' +
+              (x.codeCarte ? '<span class="code">' + esc(x.codeCarte) + '</span>' : '') +
+              '<span class="dem-st" style="color:' + coul + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
+              '<div class="dem-msgtxt">' + esc(x.message || '') + '</div>' +
+              (x.reponse ? '<div class="dem-rep"><span class="dem-rep-by">Réel Média</span>' + esc(x.reponse) + '</div>' : '') +
+            '</div>';
+          }).join('');
+        })
+        .catch(function () { el.innerHTML = ''; });
+    }
+
     function renderEspace(status, d) {
       if (status === 401) { finSession(); return; }
       if (status !== 200 || !d || !d.ok) { espaceIndispo(); return; } // 503/échec → distinct, jamais des blocs vides
 
       var aValider = d.aValider || [], aRelire = d.aRelire || [], enCours = d.enCours || [], livres = d.livres || [], col = d.collaboration || {};
       aRelire.forEach(function (p) { _seriesParCode[p.code] = p.seriesAccordees || 5; }); // mémorise le total par marque pour l'en-tête montage
+      // Section « Une demande » (lot A) : rendue sur les DEUX chemins ok (premier accès ET avec projets).
+      // Le sélecteur de mission ne propose QUE les cartes que le client voit déjà (0 requête de plus).
+      var cartes = [].concat(aValider, aRelire, enCours, livres).map(function (p) { return { code: p.code, titre: p.titre }; }).filter(function (c) { return !!c.code; });
+      renderDemandes(cartes);
       var zone = $('zone-projets');
 
       // PREMIER ACCÈS : ok ET rien à montrer (le cas normal au démarrage). aValider inclus : un projet en
