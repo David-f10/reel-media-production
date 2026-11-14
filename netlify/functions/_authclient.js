@@ -230,4 +230,40 @@ async function premierContactActif(codeBrand) {
   }
 }
 
-module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif };
+// adminClients() → { ok:true, marques:[…], contacts:[…] } | { ok:false, raison:'indispo' }.
+// Données de l'écran d'admin clients (lot 3, LECTURE SEULE). Réutilise les DEUX caches 60 s existants
+// (_getClientsBrand + _getContacts) → 0 requête à chaud, 2 à froid. NE MAPPE QUE des champs sûrs :
+// ⛔ JAMAIS 'Code acces' (ni lu, ni renvoyé — comme le proxy équipe le strippe). Aucune écriture.
+async function adminClients() {
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.DB_CONTACTS_CLIENT;
+  if (!token || !dbId) { console.error('adminClients indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
+  try {
+    const [rows, contacts] = await Promise.all([_getClientsBrand(token), _getContacts(token, dbId, false)]);
+    const _num = (pr, nom) => { const n = pr && pr[nom] && pr[nom].number; return (typeof n === 'number') ? n : null; };
+    const _titre = (pr, nom) => { const t = pr && pr[nom] && pr[nom].title; return (t && t[0] && t[0].plain_text) || ''; };
+    const marques = (rows || []).map(p => {
+      const pr = p.properties || {};
+      return {
+        code: _codeOf(pr).trim(),
+        nom: _titre(pr, 'Client'),
+        ouverte: !!(pr['Espace client activé'] && pr['Espace client activé'].checkbox === true),
+        series: _num(pr, 'Séries accordées'),   // null si vide → l'écran affiche « 5 (par défaut) »
+        nbProjets: _num(pr, 'Nb projets')
+      };
+    });
+    const contactsSafe = (contacts || []).map(p => ({
+      codeBrand: _rt(p.properties, 'Code Brand').trim(),
+      nom: _nom(p.properties),
+      mail: _mail(p.properties),
+      actif: _actif(p.properties)
+      // ⛔ pas de 'Code acces' : jamais lu ici, jamais renvoyé.
+    }));
+    return { ok: true, marques, contacts: contactsSafe };
+  } catch (e) {
+    console.error('adminClients indispo : ' + (e && e.message || ''));
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
+module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients };

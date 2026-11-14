@@ -5,7 +5,7 @@
 //
 // Gardes :
 //   - Appelant = membre vérifié (verifyUser, x-rm-id / x-rm-code, comme access-set.js / code-reset.js) ET
-//     porteur de la clé « Peut gérer les accès ». Sinon 403. (verifyUser est IMPORTÉ, _auth.js non modifié.)
+//     porteur du droit CLIENT « Peut gérer les clients » (lot 3, distinct de la clé équipe). Sinon 403.
 //   - On emprunte l'identité du CONTACT qui a commenté (contactId fourni), pour que ses retours s'affichent
 //     comme les siens. Ce contact doit être ACTIF et sa marque OUVERTE — même porte que le client lui-même
 //     (contactActif : révocation ~60 s, garde d'activation marque). Révoqué entre-temps → l'emprunt échoue.
@@ -41,12 +41,12 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'JSON invalide' }) }; }
 
-  // 1) Appelant : membre identifié ET porteur de la clé « Peut gérer les accès ».
+  // 1) Appelant : membre identifié ET porteur du droit CLIENT « Peut gérer les clients ».
   const rid = (event.headers && (event.headers['x-rm-id'] || event.headers['X-Rm-Id'])) || '';
   const rcode = (event.headers && (event.headers['x-rm-code'] || event.headers['X-Rm-Code'])) || '';
   const auth = await verifyUser({ id: rid, code: rcode });
-  if (!auth.ok || !auth.user || auth.user.peutGererAcces !== true) {
-    return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Réservé aux gestionnaires d\'accès' }) };
+  if (!auth.ok || !auth.user || auth.user.peutGererClients !== true) {
+    return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Réservé aux gestionnaires des clients' }) };
   }
 
   // 2) Qui emprunter — DEUX portes :
