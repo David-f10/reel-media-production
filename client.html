@@ -67,6 +67,21 @@
     .dem-rep{margin-top:8px;padding:8px 11px;border-left:2px solid var(--line2);background:var(--bg2);border-radius:0 6px 6px 0;font-size:13.5px;color:var(--txt);line-height:1.5}
     .dem-rep-by{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:2px}
     #bandeau-emprunt::before{content:"👁 ";font-weight:400}
+    /* ── Proposer un nouveau film (étage 2a) — voisine de « Une demande ». ── */
+    #zone-missions{margin-top:30px}
+    #zone-missions:empty{display:none}
+    #form-mission textarea,#form-mission input[type=text],#form-mission input[type=date],#form-mission select{box-sizing:border-box;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font:inherit;font-size:14px;padding:10px 12px}
+    #form-mission textarea{width:100%;resize:vertical;min-height:80px;line-height:1.5}
+    #form-mission textarea:focus,#form-mission input:focus,#form-mission select:focus{outline:none;border-color:var(--rouge);background:var(--bg3)}
+    .mis-plus{margin:12px 0 2px}
+    .mis-plus>summary{cursor:pointer;font-size:13px;color:var(--txt2);list-style:none;user-select:none}
+    .mis-plus>summary::-webkit-details-marker{display:none}
+    .mis-plus>summary::before{content:"▸ ";color:var(--txt3)}
+    .mis-plus[open]>summary::before{content:"▾ "}
+    .mis-champ{margin:12px 0}
+    .mis-champ label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px}
+    .mis-champ input,.mis-champ select{width:100%}
+    .mis-aide{font-size:11.5px;color:var(--txt3);margin-top:4px}
 
     /* ── écran 04 — connexion : carte bordée, tout aligné à gauche. Marque PAS affichée ici. ── */
     #vue-login{min-height:74vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-block:48px}
@@ -478,6 +493,7 @@
       </div>
       <div id="zone-projets" role="status" aria-live="polite"></div>
       <div id="zone-demandes"></div>
+      <div id="zone-missions"></div>
     </div>
 
     <!-- ÉCRAN « Voir un montage » — tranche 2. Le JS remplit mt-vers (pastilles) et mt-corps (scène +
@@ -524,6 +540,7 @@
     var VALIDER = '/.netlify/functions/valider-client';
     var EMPRUNT = '/.netlify/functions/client-emprunt-consume'; // emprunt chef « Voir incognito » (lecture seule)
     var DEMANDE = '/.netlify/functions/demande-client'; // circuit court : demandes hors montage (lot A)
+    var MISSION = '/.netlify/functions/mission-client';  // nouvelle mission : proposer un film (étage 2a)
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
@@ -695,11 +712,86 @@
           '<div class="dem-bas"><button type="submit" class="bouton" id="dem-envoi">Envoyer la demande</button></div>' +
           '<div class="msg" id="dem-etat" role="status" aria-live="polite"></div>' +
         '</form>');
-      z.innerHTML = '<h2>Une demande</h2>' +
-        '<p class="sub dem-sub">Décaler un tournage, une question — hors montage. Pour un nouveau film, parlez-en à votre interlocuteur.</p>' +
+      z.innerHTML = '<h2>📨 Une demande rapide</h2>' +
+        '<p class="sub dem-sub">Une question sur un film en cours, décaler un tournage. <strong>Pour une idée de nouveau film, c\'est juste en dessous.</strong></p>' +
         form + '<div id="mes-demandes"></div>';
       if (!demRo()) { $('form-demande').addEventListener('submit', envoyerDemande); }
       chargerMesDemandes();
+    }
+
+    // ── Étage 2a : proposer un NOUVEAU film. Porte voisine, distincte de « Une demande rapide » ci-dessus.
+    // Un seul champ nécessaire (l'idée). Tout le reste est caché dans un dépliant « Préciser » : l'état vide
+    // est l'état NORMAL, jamais pénalisé. Sous emprunt chef (ro), le formulaire est masqué ; la liste reste.
+    function renderMissions() {
+      var z = $('zone-missions'); if (!z) return;
+      var form = demRo() ? '' : (
+        '<form id="form-mission" autocomplete="off">' +
+          '<textarea id="mis-objet" rows="3" placeholder="Votre idée de film — de quoi ça parle ?"></textarea>' +
+          '<details class="mis-plus"><summary>Préciser (facultatif)</summary>' +
+            '<div class="mis-champ"><label for="mis-plateforme">Où le film sera diffusé</label>' +
+              '<select id="mis-plateforme"><option value="">Je ne sais pas encore</option>' +
+                '<option>Instagram</option><option>TikTok</option><option>Facebook</option><option>YouTube</option><option>Interne</option>' +
+              '</select></div>' +
+            '<div class="mis-champ"><label for="mis-quand">Pour quand</label>' +
+              '<input type="date" id="mis-quand"><div class="mis-aide">Pas encore fixé ? Laissez vide.</div></div>' +
+            '<div class="mis-champ"><label for="mis-lieu">Lieu de tournage</label>' +
+              '<input type="text" id="mis-lieu" placeholder="Une adresse, si vous la connaissez déjà"></div>' +
+            '<div class="mis-champ"><label for="mis-pers">Personnes à filmer / interviewer</label>' +
+              '<input type="text" id="mis-pers" placeholder="Des noms, si vous les avez déjà"></div>' +
+            '<div class="mis-champ"><label for="mis-contact">Contact sur place</label>' +
+              '<input type="text" id="mis-contact" placeholder="Qui appeler sur place : nom + téléphone"></div>' +
+          '</details>' +
+          '<div class="dem-bas"><button type="submit" class="bouton" id="mis-envoi">Proposer ce film</button></div>' +
+          '<div class="msg" id="mis-etat" role="status" aria-live="polite"></div>' +
+        '</form>');
+      z.innerHTML = '<h2>🎬 Proposer un nouveau film</h2>' +
+        '<p class="sub dem-sub">Une nouvelle idée de vidéo. On revient vers vous avec une réponse, puis un devis. Un seul champ nécessaire : votre idée.</p>' +
+        form + '<div id="mes-missions"></div>';
+      if (!demRo()) { $('form-mission').addEventListener('submit', envoyerMission); }
+      chargerMesMissions();
+    }
+    function envoyerMission(e) {
+      e.preventDefault();
+      var objet = $('mis-objet').value.trim(), etat = $('mis-etat');
+      if (!objet) { etat.className = 'msg err'; etat.textContent = 'Dites au moins de quoi parle le film.'; return; }
+      var corps = { action: 'creer', objet: objet,
+        plateforme: $('mis-plateforme').value, pourQuand: $('mis-quand').value,
+        lieu: $('mis-lieu').value.trim(), personnes: $('mis-pers').value.trim(), contactSurPlace: $('mis-contact').value.trim() };
+      $('mis-envoi').disabled = true; etat.className = 'msg'; etat.textContent = '';
+      fetch(MISSION, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify(corps) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          $('mis-envoi').disabled = false;
+          if (res.status === 401) { finSession(); return; }
+          if (res.status === 200 && res.body && res.body.ok) {
+            $('form-mission').reset(); etat.className = 'msg ok'; etat.textContent = 'Proposition envoyée.'; chargerMesMissions(); return;
+          }
+          etat.className = 'msg err'; etat.textContent = (res.body && res.body.error) || 'Envoi impossible, réessayez.';
+        })
+        .catch(function () { $('mis-envoi').disabled = false; etat.className = 'msg err'; etat.textContent = 'Service indisponible, réessayez.'; });
+    }
+    function chargerMesMissions() {
+      var el = $('mes-missions'); if (!el) return;
+      fetch(MISSION, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'mes' }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          if (res.status === 401) { finSession(); return; }
+          if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = ''; return; } // indispo → silencieux
+          var ms = res.body.missions || [];
+          if (!ms.length) { el.innerHTML = ''; return; }
+          var ETIQM = { 'Nouvelle': 'reçue', 'Acceptée': 'acceptée', 'Devis': 'devis en cours', 'Validée': 'validée', 'En production': 'en production', 'Refusée': 'refusée' };
+          el.innerHTML = '<h3 class="dem-h">Vos propositions de film</h3>' + ms.map(function (x) {
+            var coul = (x.statut === 'Validée' || x.statut === 'En production') ? 'var(--vert)'
+              : (x.statut === 'Nouvelle' ? '#E6B33A' : (x.statut === 'Refusée' ? 'var(--txt3)' : 'var(--txt2)'));
+            return '<div class="dem-item"><div class="dem-it-h"><span class="dem-type">' + esc(x.objet || '') + '</span>' +
+              (x.plateforme ? '<span class="code">' + esc(x.plateforme) + '</span>' : '') +
+              (x.carteCreee ? '<span class="code">' + esc(x.carteCreee) + '</span>' : '') +
+              '<span class="dem-st" style="color:' + coul + '">' + esc(ETIQM[x.statut] || x.statut || '') + '</span></div>' +
+              (x.reponse ? '<div class="dem-rep"><span class="dem-rep-by">Réel Média</span>' + esc(x.reponse) + '</div>' : '') +
+            '</div>';
+          }).join('');
+        })
+        .catch(function () { el.innerHTML = ''; });
     }
     function envoyerDemande(e) {
       e.preventDefault();
@@ -749,6 +841,7 @@
       // Le sélecteur de mission ne propose QUE les cartes que le client voit déjà (0 requête de plus).
       var cartes = [].concat(aValider, aRelire, enCours, livres).map(function (p) { return { code: p.code, titre: p.titre }; }).filter(function (c) { return !!c.code; });
       renderDemandes(cartes);
+      renderMissions(); // étage 2a : porte « nouveau film » (indépendante des cartes existantes)
       var zone = $('zone-projets');
 
       // PREMIER ACCÈS : ok ET rien à montrer (le cas normal au démarrage). aValider inclus : un projet en
