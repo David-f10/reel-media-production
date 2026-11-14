@@ -2270,7 +2270,7 @@ async function relireBrouillon(retourId) {
 // avant l'archivage (le retour a pu être transmis entre l'affichage du bouton et le clic).
 async function supprimerBrouillon(retourId, sujetId, version) {
   if(!currentUser) { toast('Non connecté','err'); return; }
-  const estChef = currentUser?.role === 'Chef';
+  const estChef = currentUser?.role === 'Chef' || _tousDroits();
   const myName = (currentUser?.nom||'').trim();
   const chk = await relireBrouillon(retourId);
   if(!chk) { toast('Impossible de vérifier l\'état du retour — réessaie','err'); loadRetours(sujetId); if(version) loadPlayerRetours(sujetId,version); return; }
@@ -3448,7 +3448,7 @@ async function loadRetours(sujetId) {
     let selVer = _versionSelectionnee[sujetId];
     if(!selVer || !/^V\d+$/.test(selVer) || !byVersion[selVer]) selVer = versionsVn.length ? versionsVn[versionsVn.length-1] : null;
     // Boutons de tête (empilés). (1) Brouillons — chef → tous les brouillons Équipe, sinon → les miens.
-    const isChefUser = currentUser?.role === 'Chef';
+    const isChefUser = currentUser?.role === 'Chef' || _tousDroits();
     const chefSujet = (sujets.find(x=>x.id===sujetId)?.chef) || chefParDefaut();
     const hasBrouillonEquipe = retours.some(r => estBrouillonEquipe(r.properties));
     const myName = (currentUser?.nom||'').trim();
@@ -3595,7 +3595,7 @@ async function validerTousRetours(sujetId, btnEl, version) {
       filter: {property:'Sujet ID', rich_text:{equals:sujetId}}
     });
     // Garde de périmètre : chef → tous les brouillons Équipe ; sinon → uniquement les siens.
-    const estChef = currentUser?.role === 'Chef';
+    const estChef = currentUser?.role === 'Chef' || _tousDroits();
     const myName = (currentUser?.nom||'').trim();
     const aValider = data.results.filter(r => estBrouillonEquipe(r.properties) && (estChef || (!!myName && (r.properties.Auteur?.rich_text?.[0]?.plain_text||'').trim()===myName)));
     if(!aValider.length) { toast('Aucun retour à valider','err'); return; } // bouton intact : état « envoi » pas encore posé
@@ -3734,7 +3734,7 @@ async function loadVersions(sujetId) {
   // « Envoyer au client » est une action client-facing → réservée aux Brand et aux Chefs (même garde que
   // les 4 « Réservé aux contacts Brand ou aux chefs » de l'app). L'affordance ne se REND PAS pour les
   // autres rôles — absente, pas grisée. La vraie frontière est serveur (envoyer-version.js).
-  const peutEnvoyerClient = !!(currentUser && (currentUser.role === 'Brand' || currentUser.role === 'Chef'));
+  const peutEnvoyerClient = !!(currentUser && (currentUser.role === 'Brand' || currentUser.role === 'Chef')) || _tousDroits();
   el.innerHTML = '<div style="font-size:11px;color:var(--text3)">Chargement...</div>';
   try {
     // Charger les versions ET les retours en parallèle
@@ -5690,6 +5690,10 @@ function _suisGestionnaireAcces() { return currentUser?.peutGererAcces === true;
 // Droit CLIENT (lot 3), DISTINCT de la clé équipe : « Voir incognito » et l'écran d'accès clients. Descend
 // dans currentUser par login.js / verifyUser (fail-closed : absent → false). Ne pas confondre avec _suisGestionnaireAcces.
 function _suisGestionnaireClients() { return currentUser?.peutGererClients === true; }
+// « Tous les droits » (vérification, David) : traite le porteur comme Chef/Brand sur les gardes de RÔLE
+// (envoi au client, brouillons équipe). NE touche PAS les interlocks de production (verrou relevé, déblocage
+// chef) ni les clés (gestion clients/accès). Descend par login.js + verifyUser ; absent → false (fail-closed).
+function _tousDroits() { return currentUser?.tousLesDroits === true; }
 
 // ── Écran « Accès clients » (lot 3, LECTURE SEULE) ────────────────────────────────────────────────────
 // Montre les 65 marques et leurs interlocuteurs ; n'écrit RIEN (créer / coder / désactiver = lot 4). Le
