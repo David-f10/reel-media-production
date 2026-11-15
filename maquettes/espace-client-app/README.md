@@ -53,12 +53,49 @@ Classic, Standard et Desk en ont été retirés **sur demande**. Mais **50 fiche
 existantes les portent** (24 / 20 / 6). On retire un **choix à la création**, pas une
 valeur de l'**affichage**. « Mes films » doit continuer à les afficher.
 
-## Décisions encore ouvertes
+## Décisions tranchées — état au 15/11/2026
 
-Elles sont listées dans l'en-tête du fichier HTML. En résumé : le modèle de stockage
-du fil de discussion, la référence de ticket (`D-207` / `M-14`), un cinquième statut
-« Clôturée », deux propriétés Notion à créer, la fabrication du code d'accès d'un
-collègue ajouté par un client, le droit d'ajouter un contact, la taille des cibles
-tactiles, et le contraste du jeton `--txt3`.
+| sujet | décision |
+|---|---|
+| modèle du fil | **option B** : base `💬 Messages`, 1 ligne = 1 message, rattachée **par code** |
+| référence de ticket | `DEM-207` / `MIS-14` — propriété `Réf` de type `auto_increment_id` |
+| 5ᵉ statut | **`Clôturée`**, posée par le client, transition bornée serveur |
+| modifier son dernier message | **on garde** — borné au dernier message, de soi, sans réponse en dessous, hors demande clôturée. **La règle doit être rejouée SERVEUR**, le navigateur n'en est pas l'autorité |
+| cibles tactiles | **44 px partout**, comme `client.html` (`.bouton` `:313`, `.lnk` `:349`). Appliqué |
+| contraste `--txt3` | à corriger vers `#84849C`, dans un **PR dédié** |
+| « Pour combien » | c'est un **vrai format éditorial**. Option créée |
+| « YouTube » dans les deux listes | **on garde les deux** : un Mag 9:16 part souvent en YouTube Short. Plateforme ≠ format |
+| contact référent | **pas de référent pour l'instant** — tout contact d'une marque peut en ajouter un autre. Décision provisoire et assumée |
 
-**Rien de tout cela n'est tranché. Ne pas coder en supposant une réponse.**
+## Notion : déjà fait, et testé en écriture réelle
+
+Une ligne a été créée dans chaque base, relue, puis supprimée.
+
+| base | créé | vérifié |
+|---|---|---|
+| Production | option `Pour combien` sur `Sous-format` | les 9 autres intactes |
+| 📨 Demandes | statut `Clôturée` · propriété `Réf` (préfixe `DEM`) | numéro attribué : 1 |
+| 🎬 Missions | propriété `Sous-format` (10 valeurs) · `Réf` (préfixe `MIS`) | numéro attribué : 1 |
+| 💬 Messages | base créée : `Message` · `Réf demande` · `Sens` · `Auteur` · `Code Brand` · `Modifié le` | 2 messages du même fil acceptés, les deux sens |
+
+**Trois pièges mesurés, à ne pas redécouvrir :**
+
+1. L'API **sait** créer une propriété `auto_increment_id`. Mais le préfixe doit faire
+   **2 à 10 caractères** : `D` seul est refusé, d'où `DEM` et `MIS`.
+2. L'API renvoie le numéro **nu** (`"1"`), pas `"DEM-1"`. Le préfixe vit dans le schéma :
+   **le serveur doit le composer**.
+3. Modifier un select **supprime toute option non listée**. Il faut rejouer les options
+   existantes avec leurs couleurs, sinon les 586 fiches perdent leur sous-format.
+
+## Ce qui reste ouvert
+
+- **La fabrication du code d'accès d'un collègue.** L'app n'envoie aucun mail et ne le
+  peut pas à court terme (ni fournisseur, ni domaine expéditeur vérifié). Le chantier
+  « mail réel » est mis de côté : il dépend d'une décision d'équipe chez Réel Média.
+  L'état « En attente d'accès » de la maquette reste donc la seule option honnête.
+- **Un bug dans `mission-client.js:126`** : `props['Plateforme'] = { select: ... }` alors
+  que `Plateforme` est un **multi-select**. Et `body.plateforme` n'accepte qu'une valeur.
+  Testé : la base accepte bien `["Instagram","TikTok"]`.
+- **`Format image` existe déjà** sur 🎬 Missions, en multi-select `9:16` / `16:9`.
+  Rien à créer, seulement à brancher — `mission-client.js` ne l'accepte pas encore.
+- Pagination au-delà de 50 demandes, et aucun champ de recherche dans la liste.
