@@ -393,6 +393,54 @@
     .c-d{font-family:var(--mono);font-size:12px;color:var(--txt2);white-space:nowrap;font-variant-numeric:tabular-nums;width:1%}
     .c-a{width:1%;white-space:nowrap}
     .replier{margin-top:13px;font-size:12.5px;color:var(--txt3);display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+    /* ── COQUE DE L'ESPACE CLIENT (PR-A) — rail fixe 252px + main large. Classes NEUVES (zéro collision vérifiée),
+       AUCUN sélecteur d'élément nu (button/table/td/th/textarea/select non touchés). Jetons de client.html
+       uniquement : --rouge-voile tient le rôle du --rouge-faible de la maquette ; aucun --bleu (c'est pour B). ── */
+    .coque{--rail-w:252px}
+    .coque.hidden{display:none}
+    .rail{position:fixed;top:0;bottom:0;left:0;width:var(--rail-w);box-sizing:border-box;background:var(--bg2);
+      border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:40;
+      padding:20px 16px 16px max(16px,env(safe-area-inset-left,0px))}
+    .rail-marque{display:flex;align-items:center;gap:10px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+    .rail-sig{width:34px;height:34px;border-radius:9px;background:var(--rouge-voile);border:1px solid var(--rouge-bord);
+      display:inline-flex;align-items:center;justify-content:center;color:var(--rouge);font-weight:700;font-size:14px;flex:none}
+    .rail-nm{min-width:0;font-size:14.5px;font-weight:500;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rail-nm .sub{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);margin-top:3px}
+    .rail-nav{display:flex;flex-direction:column;gap:1px;padding-top:15px}
+    .nv{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--txt2);font:inherit;
+      text-align:left;font-size:13.5px;padding:9px 10px;border-radius:8px;cursor:pointer;min-height:44px;box-sizing:border-box}
+    .nv:hover{background:var(--bg3);color:var(--txt)}
+    .nv[aria-current="page"]{background:var(--rouge-voile);color:var(--txt);box-shadow:inset 2px 0 0 var(--rouge)}
+    .nv:focus-visible{outline:2px solid var(--rouge);outline-offset:-2px}
+    .nv:disabled{opacity:.45;cursor:default}
+    .nv:disabled:hover{background:none;color:var(--txt2)}
+    .nv-ic{width:18px;text-align:center;flex:none;font-size:14px}
+    .nv-lb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .nv-bientot{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);flex:none}
+    .rail-ct{font-family:var(--mono);font-size:10px;color:#fff;background:var(--rouge);border-radius:9px;padding:1px 7px;flex:none}
+    .rail-ct.hidden{display:none}
+    .rail-bas{margin-top:auto;padding-top:14px;border-top:1px solid var(--line)}
+    .rail-deco{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--txt2);font:inherit;
+      text-align:left;font-size:13px;padding:9px 10px;border-radius:8px;cursor:pointer;min-height:44px;box-sizing:border-box}
+    .rail-deco:hover{background:var(--bg3);color:var(--txt)}
+    .rail-deco:focus-visible{outline:2px solid var(--rouge);outline-offset:-2px}
+    .coque-main{margin-left:var(--rail-w);min-height:100vh}
+    .coque-main > #vue-accueil{max-width:1140px;margin:0 auto;
+      padding:22px max(16px,env(safe-area-inset-right,0px)) 72px max(16px,env(safe-area-inset-left,0px))}
+    /* Téléphone : le rail devient une barre d'onglets en bas. La déconnexion n'y est PAS (ce n'est pas une
+       destination — elle reste dans l'en-tête de l'accueil). Le main reprend toute la largeur. */
+    @media (max-width:860px){
+      .rail{top:auto;right:0;bottom:0;left:0;width:auto;height:auto;flex-direction:row;border-right:none;
+        border-top:1px solid var(--line2);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px))}
+      .rail-marque,.rail-bas{display:none}
+      .rail-nav{flex-direction:row;padding-top:0;gap:2px;flex:1;justify-content:space-around}
+      .nv{flex-direction:column;gap:3px;font-size:10px;text-align:center;padding:6px 4px;min-height:52px;justify-content:center}
+      .nv[aria-current="page"]{box-shadow:none}
+      .nv-lb{flex:none;max-width:76px}
+      .nv-bientot{display:none}
+      .coque-main{margin-left:0}
+      .coque-main > #vue-accueil{padding-bottom:88px}
+    }
     .ref{background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:15px 17px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
     .av{width:40px;height:40px;flex:none;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:500;background:var(--rouge-voile);color:var(--rouge);border:1px solid var(--rouge-bord)}
     .ref-b{min-width:0;flex:1 1 200px}
@@ -465,6 +513,33 @@
       </div>
     </div>
 
+  </div><!-- /.wrap : chargement + login gardent la colonne 760. -->
+
+  <!-- COQUE DE L'ESPACE CLIENT (PR-A) — rail fixe 252px + main large (.vue à 1140). N'enveloppe QUE l'accueil
+       (et ses futures vues sœurs) ; chargement/login restent dans .wrap, le montage garde sa coque pleine
+       largeur. montrer() affiche #coque pour la seule vue accueil. Le CONTENU de l'accueil ne change pas (PR-A). -->
+  <div class="coque hidden" id="coque">
+    <aside class="rail" aria-label="Espace client">
+      <div class="rail-marque">
+        <span class="rail-sig" aria-hidden="true">·</span>
+        <span class="rail-nm"><span id="rail-marque-nom">Espace client</span><span class="sub"></span></span>
+      </div>
+      <nav class="rail-nav" aria-label="Destinations">
+        <button type="button" class="nv" id="nv-films" aria-current="page">
+          <span class="nv-ic" aria-hidden="true">🎞</span><span class="nv-lb">Mes films</span>
+          <span class="rail-ct hidden" id="rail-badge-films" title="Films en attente de vous"></span></button>
+        <button type="button" class="nv" disabled>
+          <span class="nv-ic" aria-hidden="true">📨</span><span class="nv-lb">Mes demandes</span><span class="nv-bientot">bientôt</span></button>
+        <button type="button" class="nv" disabled>
+          <span class="nv-ic" aria-hidden="true">🎬</span><span class="nv-lb">Proposer un film</span><span class="nv-bientot">bientôt</span></button>
+        <button type="button" class="nv" disabled>
+          <span class="nv-ic" aria-hidden="true">👥</span><span class="nv-lb">Qui a accès</span><span class="nv-bientot">bientôt</span></button>
+      </nav>
+      <div class="rail-bas">
+        <button type="button" class="rail-deco" id="rail-deco"><span class="nv-ic" aria-hidden="true">⏻</span><span class="nv-lb">Déconnexion</span></button>
+      </div>
+    </aside>
+    <main class="coque-main">
     <!-- ÉCRAN 05 — accueil. La marque apparaît ici, après authentification. -->
     <div id="vue-accueil" class="hidden">
       <div class="head">
@@ -494,11 +569,12 @@
       <div id="zone-projets" role="status" aria-live="polite"></div>
       <div id="zone-demandes"></div>
       <div id="zone-missions"></div>
-    </div>
+    </div><!-- /#vue-accueil -->
+    </main>
+  </div><!-- /#coque -->
 
     <!-- ÉCRAN « Voir un montage » — tranche 2. Le JS remplit mt-vers (pastilles) et mt-corps (scène +
          panneau, OU état vide, OU indispo). En-tête persistant, corps re-rendu à chaque version. -->
-  </div><!-- /.wrap : login + accueil gardent la colonne 760 ; le montage s'en détache ci-dessous. -->
 
     <!-- ÉCRAN « Voir un montage » — shell PLEINE LARGEUR, détaché de .wrap (diagnostic #214 : .wrap plafonne
          à 760 px et sert AUSSI login/accueil ; on sort le montage pour obtenir la disposition des maquettes
@@ -548,6 +624,7 @@
     function montrer(vue) {
       ['vue-chargement', 'vue-login', 'vue-accueil', 'vue-montage'].forEach(function (v) { $(v).classList.add('hidden'); });
       $(vue).classList.remove('hidden');
+      var cq = $('coque'); if (cq) cq.classList.toggle('hidden', vue !== 'vue-accueil'); // la coque (rail) n'existe que pour l'accueil
     }
     function lire(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
     function ecrire(o) { try { Object.keys(o).forEach(function (k) { localStorage.setItem(k, o[k]); }); } catch (e) {} }
@@ -647,6 +724,7 @@
 
     // ── Accueil + projets ──
     $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); });
+    var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (parité lien-deco)
 
     function allerLogin(notice) {
       $('msg-login').className = notice ? 'msg wait' : 'msg';
@@ -660,6 +738,10 @@
       var nom = lire(K_NOM), marque = lire(K_MARQUE);
       $('bonjour').textContent = nom ? ('Bonjour ' + nom) : '';
       $('titre-projets').textContent = marque ? ('Vos projets · ' + marque) : 'Vos projets';
+      // Rail (PR-A) : nom de marque + initiale. Fallback « Espace client » si la marque n'est pas connue.
+      var rmn = $('rail-marque-nom'); if (rmn) rmn.textContent = marque || 'Espace client';
+      var rsg = document.querySelector('.rail-sig'); if (rsg) rsg.textContent = marque ? marque.trim().charAt(0).toUpperCase() : '·';
+      var rsub = document.querySelector('.rail-marque .sub'); if (rsub) rsub.textContent = marque ? 'Espace client' : '';
       montrer('vue-accueil');
       chargerEspace();
     }
@@ -837,6 +919,8 @@
 
       var aValider = d.aValider || [], aRelire = d.aRelire || [], enCours = d.enCours || [], livres = d.livres || [], col = d.collaboration || {};
       aRelire.forEach(function (p) { _seriesParCode[p.code] = p.seriesAccordees || 5; }); // mémorise le total par marque pour l'en-tête montage
+      // Pastille du rail « Mes films » (PR-A) = ce qui attend le client : séquenciers à valider + montages à relire.
+      var _rbf = $('rail-badge-films'); if (_rbf) { var _na = aValider.length + aRelire.length; _rbf.textContent = _na; _rbf.classList.toggle('hidden', _na === 0); }
       // Section « Une demande » (lot A) : rendue sur les DEUX chemins ok (premier accès ET avec projets).
       // Le sélecteur de mission ne propose QUE les cartes que le client voit déjà (0 requête de plus).
       var cartes = [].concat(aValider, aRelire, enCours, livres).map(function (p) { return { code: p.code, titre: p.titre }; }).filter(function (c) { return !!c.code; });
