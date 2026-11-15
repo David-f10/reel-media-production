@@ -25,7 +25,7 @@
     :root{
       --bg:#08080F; --bg2:#0F0F1A; --bg3:#16161F; --bg4:#1E1E2A;
       --line:#1E1E2A; --line2:#2A2A3A;
-      --txt:#F0F0F5; --txt2:#9898B0; --txt3:#5A5A70;
+      --txt:#F0F0F5; --txt2:#9898B0; --txt3:#84849C; /* #5A5A70 échouait AA sur les 4 fonds (2.46–2.98 < 4.5) ; #84849C passe AA texte partout, pire cas 4.52 sur --bg4. --txt3 porte dates, horodatages, libellés d'étapes, méta mono — du CONTENU, pas de la déemphase. Teinte conservée. Ne pas re-noircir. */
       /* accent de la marque = ROUGE #E63946 (review.html --red) ; aucun bleu */
       --rouge:#E63946; --rouge-fort:#F04B57; --rouge-voile:rgba(230,57,70,.12); --rouge-bord:rgba(230,57,70,.30);
       --amber:#EF9F27; --amber-voile:rgba(239,159,39,.12); --amber-bord:rgba(239,159,39,.42);
