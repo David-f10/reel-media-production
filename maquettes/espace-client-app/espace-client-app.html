@@ -1,0 +1,1171 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Espace client Réel Média — maquette</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
+
+<!--
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+  MAQUETTE DE L'ESPACE CLIENT — contenu fictif, NON VALIDÉE. Ne jamais déployer ce fichier.
+
+  CE QUE C'EST : la cible visuelle de l'espace client. C'est une RÉFÉRENCE DU RÉSULTAT, jamais une
+  source à copier. Cette page est autonome : son CSS, sa coque à 4 vues, ses noms de classes. Le vrai
+  client.html fait 1751 lignes, n'a que 4 vues (chargement, login, accueil, montage) et construit tout
+  par concaténation de chaînes en JS. Transplanter ce fichier = réécrire client.html.
+
+  L'AUTORITÉ RESTE client.html ET LES CONTRATS SERVEUR EXISTANTS, pas cette maquette.
+
+  ─── CE QUI EXISTE DÉJÀ CÔTÉ SERVEUR (rien à construire) ───────────────────────────────────────
+  · demande-client.js  — actions 'creer' et 'mes'. En-tête : « Lot A — circuit COURT ».
+  · mission-client.js  — actions 'creer' et 'mes'. En-tête : « Étage 2a — la DEUXIÈME porte client ».
+  · client.html:542-543 déclare déjà les constantes DEMANDE et MISSION.
+  La plomberie de « Mes demandes » et « Proposer un film » est posée. Il manque l'écran.
+
+  ─── CE QUI N'EXISTE PAS ───────────────────────────────────────────────────────────────────────
+  · Le rail de navigation : 0 occurrence de « rail » dans client.html.
+  · Les vues « Proposer un film » et « Qui a accès » : 0 occurrence chacune.
+  · sousFormat sur un film EN COURS : espace-client.js:211 ne porte que code, titre, realisePar,
+    etape, pastille, aMontage, lienSeq. La ligne :203 ne le pousse que dans `livres`.
+    → La colonne Type est vide pour les films en cours tant que cette ligne n'est pas ajoutée.
+  · Toute écriture dans 📨 Contacts Client : AUCUNE fonction ne le fait. Seul _authclient.js la touche,
+    en lecture. clients-admin.js:2 dit : « LECTURE SEULE. N'ÉCRIT RIEN (créer / coder / désactiver
+    = lot 4) » — et son lot 4 est pensé côté ADMIN, pas côté client.
+  · Dans Notion : l'option « Pour combien » sur Sous-format (9 options définies, celle-ci n'y est pas),
+    et toute propriété Sous-format sur 🎬 Nouvelles missions.
+
+  ─── MES DÉVIATIONS ASSUMÉES vs LE CODE ACTUEL (voulues, pas des oublis) ───────────────────────
+  1. .proj est une GRILLE à colonnes fixes partagées avec la table des livrés. Dans client.html,
+     .lrow (:371) est un flex libre. C'est ce qui aligne les deux sections sur les mêmes colonnes.
+  2. Les actions d'un film sont des BOUTONS ICÔNE (▶ ⬇ 📄), repris de index.html:1505 et :1515.
+     client.html:349 utilise des pastilles texte .lnk à min-height:44px. Les icônes ici font 31 px :
+     conforme WCAG 2.5.8 (AA, 24 px), PAS WCAG 2.5.5 (AAA, 44 px). Décision à confirmer avec David.
+  3. « Votre montage est en cours… » (client.html:909) devient une pastille grise « Montage en cours »
+     dans la colonne ÉTAT. La phrase faisait 4 lignes et répétait la barre d'étapes.
+  4. Le sous-format quitte le dessous du titre chez les livrés pour sa propre colonne. La durée reste.
+
+  ─── PIÈGE À NE PAS TOMBER DEDANS ──────────────────────────────────────────────────────────────
+  Le sélecteur « Type de film » ne propose que 7 valeurs : Classic, Standard et Desk en sont retirés
+  SUR DEMANDE. Mais 50 fiches existantes les portent (Classic 24, Standard 20, Desk 6). On retire un
+  CHOIX à la création, PAS une valeur de l'affichage. « Mes films » doit continuer à les afficher.
+
+  ─── DÉCISIONS ENCORE OUVERTES ─────────────────────────────────────────────────────────────────
+  · Qui fabrique le code d'accès d'un collègue ajouté par un client, et comment il lui parvient ?
+    L'app ne l'affiche jamais (_authclient.js:236 et :260) et l'envoi de mail n'est pas automatisé.
+    D'où l'état « En attente d'accès » dessiné ici.
+  · N'importe quel contact d'une marque peut-il en ajouter un autre ? Aujourd'hui ils sont tous égaux
+    dans la base : un seul code qui fuite ouvrirait tout l'historique de la marque.
+  · « YouTube » désigne deux choses dans le même formulaire : une plateforme de diffusion et un type
+    de film.
+  · Les cibles tactiles : 31 px (actuel) ou 44 px (le AAA que client.html:349 visait) ?
+═══════════════════════════════════════════════════════════════════════════════════════════════════
+-->
+<style>
+  /* Coque d'app : rail à gauche (onglets en bas sur téléphone), contenu à droite.
+     Jetons et graisses de client.html — DM Sans 400/500/700, DM Mono 400/500. Pas de 600, il n'existe pas.
+     Les champs affichés reprennent EXACTEMENT ce que client.html rend aujourd'hui. */
+  :root{
+    --bg:#08080F; --bg2:#0F0F1A; --bg3:#16161F; --bg4:#1E1E2A;
+    --line:#1E1E2A; --line2:#2A2A3A;
+    --txt:#F0F0F5; --txt2:#9898B0; --txt3:#5A5A70;
+    --rouge:#E63946; --rouge-faible:rgba(230,57,70,.14); --rouge-bord:rgba(230,57,70,.45);
+    --vert:#1D9E75; --vert-faible:rgba(29,158,117,.13);
+    --ambre:#EF9F27; --ambre-faible:rgba(239,159,39,.13);
+    --bleu:#378ADD; --bleu-faible:rgba(55,138,221,.13);
+    --sans:'DM Sans',system-ui,-apple-system,sans-serif; --mono:'DM Mono',ui-monospace,Menlo,monospace;
+    --rail:252px;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14.5px;-webkit-font-smoothing:antialiased}
+  button{font-family:var(--sans)}
+
+  .mq{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;z-index:60;background:var(--bg4);border-bottom:1px solid var(--line2)}
+  .mq-in{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-block:8px}
+  .mq-lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ambre)}
+  .mq-sw{display:flex;gap:3px;margin-left:auto;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:3px}
+  .mq-sw button{background:none;border:none;color:var(--txt2);font-size:11.5px;padding:5px 10px;border-radius:5px;cursor:pointer}
+  .mq-sw button[aria-pressed="true"]{background:var(--bg4);color:var(--txt)}
+  .mq-sw button:focus-visible{outline:2px solid var(--rouge);outline-offset:1px}
+  .coque{padding-top:40px}
+
+  .rail{position:fixed;top:calc(40px + env(safe-area-inset-top,0px));bottom:0;left:0;width:var(--rail);
+    background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column;
+    padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;padding-block:20px 16px;z-index:40}
+  .marque{display:flex;align-items:center;gap:10px;padding-bottom:17px;border-bottom:1px solid var(--line)}
+  .sig{width:34px;height:34px;border-radius:9px;background:var(--rouge-faible);border:1px solid var(--rouge-bord);
+    display:inline-flex;align-items:center;justify-content:center;color:var(--rouge);font-weight:700;font-size:14px;flex-shrink:0}
+  .marque .nm{font-size:14.5px;font-weight:500;line-height:1.2}
+  .marque .sub{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);margin-top:3px}
+
+  nav{display:flex;flex-direction:column;gap:1px;padding-top:15px}
+  .nv{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--txt2);
+    text-align:left;font-size:13.5px;padding:9px 10px;border-radius:8px;cursor:pointer;min-height:42px}
+  .nv:hover{background:var(--bg3);color:var(--txt)}
+  .nv[aria-current="page"]{background:var(--rouge-faible);color:var(--txt);box-shadow:inset 2px 0 0 var(--rouge)}
+  .nv:focus-visible{outline:2px solid var(--rouge);outline-offset:-2px}
+  .nv .ic{width:17px;text-align:center;flex-shrink:0;font-size:14px}
+  .nv .lb{flex:1;min-width:0}
+  /* La pastille ne compte PAS les éléments : elle compte ce qui ATTEND le client. Sans mail, c'est la seule
+     notification qui existe — un total ne dit rien, un « 2 » rouge dit où aller. */
+  .nv .ct{font-family:var(--mono);font-size:10px;color:#fff;background:var(--rouge);border-radius:9px;padding:2px 7px;font-weight:500}
+  .neuf{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rouge);flex-shrink:0}
+  .msg-ok{display:flex;align-items:center;gap:9px;background:var(--vert-faible);border:1px solid rgba(29,158,117,.4);
+    border-radius:9px;padding:11px 14px;margin-top:14px;font-size:13px;color:var(--vert)}
+  .msg-ok[hidden]{display:none}
+  .rail-bas{margin-top:auto;display:flex;flex-direction:column;gap:1px;padding-top:14px;border-top:1px solid var(--line)}
+
+  main{margin-left:var(--rail);min-height:calc(100vh - 40px)}
+  .tete{position:sticky;top:calc(40px + env(safe-area-inset-top,0px));z-index:30;background:rgba(8,8,15,.92);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+    padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px));padding-block:17px}
+  .tete h1{margin:0;font-size:20px;font-weight:500;letter-spacing:-.01em}
+  .tete p{margin:4px 0 0;color:var(--txt2);font-size:13px}
+  .vue{display:none;padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px));padding-block:22px 70px;max-width:1140px}
+  /* La largeur suit la NATURE du contenu : large pour une table de films, étroit pour du texte et des
+     formulaires. Une seule largeur par vue — jamais deux blocs de largeurs différentes l'un sous l'autre. */
+  .vue.etroit{max-width:720px}
+  .vue.on{display:block}
+
+  .band{display:flex;align-items:center;gap:8px;background:var(--ambre-faible);border:1px solid rgba(239,159,39,.35);
+    border-radius:9px;padding:9px 13px;margin-bottom:20px;font-size:12.5px;color:var(--ambre);font-weight:500}
+  h2.sec{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3);
+    font-weight:400;margin:0 0 11px;display:flex;align-items:center;gap:8px}
+  h2.sec .n{color:var(--txt2)}
+  /* h2.sec (spécificité 0,1,1) écrasait .sec-esp (0,1,0) : le margin-top n'était jamais appliqué. */
+  h2.sec.sec-esp{margin-top:32px}
+
+  .chiffres{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg2)}
+  .ch{padding:13px 16px}
+  .ch+.ch{border-left:1px solid var(--line)}
+  .ch .n{font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
+  .ch .l{color:var(--txt2);font-size:11.5px;margin-top:5px}
+
+  /* ── Grille PARTAGÉE « En cours » / « Livrés » ────────────────────────────────────────────────
+     Les deux sections lisent sur les mêmes colonnes : code · film · réalisé par · état · actions.
+     « En cours » garde son apparence de carte (hiérarchie du vrai code : la table est réservée aux
+     livrés) mais ses cellules tombent exactement sur celles de la table en dessous — même largeur,
+     même padding horizontal de 14px, donc mêmes x. C'est ce qui « justifie » les deux blocs.
+     DÉVIATION ASSUMÉE : dans client.html la ligne En cours (.lrow) est un flex libre, pas une
+     grille. À briefer à Code. */
+  /* --k5 = 150px : trois boutons icône tiennent dans 124px de contenu. Les 170px repris à cette
+     colonne retournent à FILM, qui porte le titre et la barre d'étapes.
+     --kt = colonne TYPE (Sous-format Notion). 120px : « Vrai ou Faux », la plus longue des 9 valeurs
+     réelles, mesure 80px en mono 11.5. */
+  :root{--k1:84px;--kt:120px;--k3:180px;--k4:150px;--k5:150px}
+
+  /* Film en cours — code, titre + barre 4 étapes, réalisé par, pastille, entrée conditionnelle. */
+  .proj{display:grid;grid-template-columns:var(--k1) 1fr var(--kt) var(--k3) var(--k4) var(--k5);
+    align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:10px;
+    padding:13px 0;margin-bottom:7px}
+  .proj>*{padding-inline:14px;min-width:0}
+  .proj:hover{border-color:var(--line2)}
+  .proj h3{margin:0;font-size:14.5px;font-weight:500;line-height:1.3}
+  .p-who{color:var(--txt2);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .code{font-family:var(--mono);font-size:10.5px;color:var(--rouge);background:var(--rouge-faible);
+    border:1px solid var(--rouge-bord);border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .pill{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;padding:2px 7px;border-radius:5px;white-space:nowrap}
+  .pill.ambre{color:var(--ambre);background:var(--ambre-faible);border:1px solid rgba(239,159,39,.35)}
+  .pill.vert{color:var(--vert);background:var(--vert-faible);border:1px solid rgba(29,158,117,.4)}
+  .pill.bleu{color:var(--bleu);background:var(--bleu-faible);border:1px solid rgba(55,138,221,.35)}
+  .pill.gris{color:var(--txt3);background:var(--bg4);border:1px solid var(--line2)}
+  /* Barre 4 étapes AVEC ses libellés — structure de client.html:901 et CSS :378-383. Ma maquette
+     n'affichait que les barres nues : les libellés étaient une info du vrai écran que j'avais perdue. */
+  .etapes{display:flex;gap:4px;margin-top:9px;max-width:330px}
+  .et{flex:1;min-width:0}
+  .et-b{display:block;height:3px;border-radius:2px;background:var(--line2)}
+  .et-l{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:5px}
+  .et.fait .et-b{background:var(--txt3)} .et.fait .et-l{color:var(--txt2)}
+  .et.ici .et-b{background:var(--ambre)} .et.ici .et-l{color:var(--ambre)}
+  /* Entête de colonnes de « En cours » — mêmes largeurs, même typo que les th de la table. */
+  .proj-th{display:grid;grid-template-columns:var(--k1) 1fr var(--kt) var(--k3) var(--k4) var(--k5);
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--txt3);padding-bottom:9px}
+  .proj-th>*{padding-inline:14px}
+  /* Actions sur UNE ligne, calées à gauche de leur colonne — exactement comme la cellule d'actions
+     des livrés. « Revoir le montage » tombe donc au même x que « Revoir », sur toutes les lignes
+     des deux sections. (L'empilement de la v17 était une reprise littérale de .lrow-r ; abandonné.) */
+  .proj-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .attente{color:var(--txt3);font-size:11.5px;line-height:1.4}
+
+  .bouton{font-size:13px;padding:9px 14px;border-radius:8px;cursor:pointer;background:transparent;
+    color:var(--txt);border:1px solid var(--line2);min-height:42px;white-space:nowrap}
+  .bouton:hover{border-color:var(--txt3);background:var(--bg3)}
+  .bouton:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+  .bouton.plein{background:var(--rouge);border-color:var(--rouge);color:#fff;font-weight:500}
+  .bouton.plein:hover{background:#d32f3c}
+  .bouton.sm{font-size:12.5px;padding:7px 11px;min-height:38px}
+  /* ── Actions d'un film : icônes seules ──────────────────────────────────────────────────────────
+     Repris de index.html:1505 (le ▶ rouge, title="Visionner") et :1515 (l'icône neutre bordée,
+     title="Dossier Drive"). Règle maison : UNE seule icône rouge, celle qui lance la lecture ; toutes
+     les autres neutres. title + aria-label sur chacune : c'est ce qui compense le fait qu'une icône
+     seule ne se devine pas — 📄 surtout, qui n'a aucune convention. 📋 n'était pas réutilisable,
+     index.html:1721 le réserve aux retours d'équipe.
+     DÉVIATION ASSUMÉE vs client.html:349, où les actions sont des pastilles texte à min-height:44px.
+     Ici 26 px, la taille réelle des boutons icône de l'app : conforme AA (24 px), pas AAA (44 px).
+     À briefer à Code. */
+  .ico{border:1px solid var(--line2);background:var(--bg4);color:var(--txt2);cursor:pointer;
+       border-radius:6px;font-size:12px;line-height:1.4;padding:6px 10px;flex-shrink:0;
+       font-family:inherit;display:inline-flex;align-items:center;justify-content:center}
+  .ico:hover{color:var(--txt);border-color:var(--txt3)}
+  .ico:focus-visible{outline:2px solid var(--bleu);outline-offset:2px}
+  .ico.lire{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .ico.lire:hover{background:#d32f3c;border-color:#d32f3c}
+
+  /* Lien texte — réservé à ce qui n'agit pas sur un film (le dépliage des livrés). */
+  .lnk{background:none;border:none;color:var(--bleu);font-size:12.5px;cursor:pointer;
+       padding:5px 3px;font-family:inherit}
+  .lnk:hover{text-decoration:underline}
+  .lnk:focus-visible{outline:2px solid var(--rouge);outline-offset:2px;border-radius:4px}
+
+  .tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--bg2)}
+  /* table-layout:fixed + les mêmes --k que .proj : c'est ce qui fait tomber les colonnes des livrés
+     exactement sous celles des films en cours. Sans fixed, la table calculerait ses propres largeurs. */
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+  th:nth-child(1),td:nth-child(1){width:var(--k1)}
+  th:nth-child(3),td:nth-child(3){width:var(--kt)}
+  th:nth-child(4),td:nth-child(4){width:var(--k3)}
+  th:nth-child(5),td:nth-child(5){width:var(--k4)}
+  th:nth-child(6),td:nth-child(6){width:var(--k5)}
+  /* Colonne TYPE, partagée par les deux sections : typo discrète des métadonnées de l'app. */
+  .p-type,td.c-ty{font-family:var(--mono);font-size:11.5px;color:var(--txt2);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  th{font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--txt3);
+    font-weight:400;text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody:last-child tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--bg3)}
+  td.c-t b{font-weight:500;display:block}
+  td.c-t span{color:var(--txt3);font-size:11.5px;font-family:var(--mono)}
+  td.c-who{color:var(--txt2);white-space:nowrap}
+  td.c-d{font-family:var(--mono);font-size:11.5px;color:var(--txt3);white-space:nowrap}
+  /* Largeur donnée par --k5 ci-dessus (plus width:1%, incompatible avec table-layout:fixed).
+     Alignement par défaut, donc à gauche de la colonne : « Revoir » tombe au MÊME x sur toutes les
+     lignes, qu'il y ait 1, 2 ou 3 actions — et au même x que « Revoir le montage » au-dessus. */
+  td.c-a{white-space:nowrap;color:var(--txt3);display:flex;gap:6px;align-items:center;height:100%}
+  .replier{display:flex;align-items:center;gap:9px;justify-content:center;padding:11px;color:var(--txt3);font-size:12.5px}
+  tbody.cache{display:none}
+
+  .panneau{background:var(--bg2);border:1px solid var(--line2);border-radius:11px;padding:19px;margin-bottom:22px}
+  .panneau[hidden]{display:none}
+  .panneau h3{margin:0 0 4px;font-size:14.5px;font-weight:500}
+  .panneau .intro{color:var(--txt2);font-size:12.5px;margin:0 0 16px;line-height:1.55}
+  label.ch-l{display:block;color:var(--txt2);font-size:12px;margin:0 0 6px}
+  .rang{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
+  select,input[type=text],input[type=date],textarea{width:100%;background:var(--bg3);color:var(--txt);
+    border:1px solid var(--line2);border-radius:8px;padding:10px 12px;font-family:var(--sans);font-size:13.5px;min-height:42px}
+  textarea{min-height:84px;resize:vertical;line-height:1.55}
+  select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--rouge);outline-offset:1px;border-color:var(--rouge-bord)}
+  .bas{display:flex;gap:9px;align-items:center;margin-top:15px;flex-wrap:wrap}
+
+  /* L'idée : UN champ, UN bouton. Les précisions viennent après l'envoi, sur la proposition. */
+  .idee{font-size:16.5px;min-height:124px;background:var(--bg3);line-height:1.6}
+  .idee-aide{color:var(--txt3);font-size:12.5px;line-height:1.6;margin:0;flex:1;min-width:220px}
+  /* Sur large, l'idée et la fiche du tournage tiennent côte à côte : la page raccourcit et aucun champ
+     ne s'étire sur 800px pour accueillir un numéro de téléphone. */
+  /* UNE SEULE COLONNE. L'étude CXL (n≈700) mesure un formulaire en une colonne rempli 15,4 s plus vite
+     qu'en deux. Un formulaire ne doit pas remplir la largeur : il doit rester sous l'œil. */
+  .form-col .idee{min-height:120px}
+  .form-col .fr{display:block;margin-bottom:15px}
+  .form-col .fr .k{display:block;font-size:12.5px;margin-bottom:7px}
+  .form-col .fv{border-color:var(--line2);background:var(--bg3)}
+  .w-court{max-width:190px} .w-moyen{max-width:330px} .w-long{max-width:100%}
+  /* Deux champs courts peuvent partager une ligne — CXL l'admet explicitement tant que le flux général
+     reste en une colonne. Ils se remettent l'un sous l'autre dès que la place manque. */
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:15px}
+  .duo .fr{margin-bottom:0}
+  @media (max-width:620px){ .duo{grid-template-columns:1fr;gap:0} .duo .fr{margin-bottom:15px} }
+  .req{font-size:11px;color:var(--txt3);font-weight:400;margin-left:7px}
+  .fac{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin:22px 0 15px;padding-top:17px;border-top:1px solid var(--line)}
+  .fac b{font-size:13px;font-weight:500;color:var(--txt2)}
+  .fac span{font-size:12.5px;color:var(--txt3)}
+  .p-b{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:20px}
+
+  .dem{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:8px}
+  .dem-t{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dem-ty{font-size:13.5px;font-weight:500;flex:1;min-width:130px}
+  .dem-dt{font-family:var(--mono);font-size:10px;color:var(--txt3)}
+  .dem-msg{color:var(--txt2);font-size:13px;line-height:1.6;margin-top:9px}
+  /* Réponse de Réel Média : décalée à droite, avec son propre fond et un filet gauche — le motif que
+     l'app utilise déjà côté admin (index.html:5853 : border-left 2px, fond, border-radius 0 6px 6px 0).
+     Le décalage porte la logique de fil : le message est au client, la réponse est à nous. Le trait de
+     séparation en haut devient inutile, le retrait et le fond séparent mieux que lui. */
+  .rep{display:flex;gap:10px;margin:12px 0 0 32px;padding:11px 13px;background:var(--bg3);
+    border-left:2px solid var(--rouge-bord);border-radius:0 8px 8px 0}
+
+  /* ── Historique des demandes : liste + détail dépliable ──────────────────────────────────────── */
+  .tdem{table-layout:fixed}
+  .tdem th:nth-child(1),.tdem td:nth-child(1){width:84px}
+  .tdem th:nth-child(2),.tdem td:nth-child(2){width:auto}
+  .tdem th:nth-child(3),.tdem td:nth-child(3){width:78px}
+  .tdem th:nth-child(4),.tdem td:nth-child(4){width:166px}
+  .tdem th:nth-child(5),.tdem td:nth-child(5){width:106px}
+  .tdem th:nth-child(6),.tdem td:nth-child(6){width:34px}
+  /* Le message est tronqué sur UNE ligne : c'est ce qui rend la liste scannable. Le texte entier est
+     dans le détail, qui s'ouvre au clic — on ne perd rien, on ne montre pas tout d'un coup. */
+  .c-m{color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* À l'ouverture, c'est la ligne elle-même qui se déplie : le message long devient lisible en entier
+     et le détail n'a plus à le répéter. Un message court n'apparaît donc jamais deux fois. */
+  .dl.ouverte .c-m{white-space:normal;overflow:visible}
+  .c-m .neuf{margin-right:7px;vertical-align:middle}
+  .dl{cursor:pointer}
+  .dl:hover{background:var(--bg3)}
+  .dl:focus-visible{outline:2px solid var(--rouge);outline-offset:-2px}
+  .c-x{text-align:right;color:var(--txt3)}
+  .chev{display:inline-block;font-size:11px;transition:transform .13s}
+  .dl.ouverte .chev{transform:rotate(90deg)}
+  .dl.ouverte{background:var(--bg3)}
+  .dd>td{background:var(--bg3);padding:4px 13px 15px}
+
+
+  /* ── Historique des demandes : deux volets (master-detail) ───────────────────────────────────
+     Motif retenu après recherche. Nielsen Norman : une modale sert aux « short, direct dialogs »,
+     pas quand « the user must consult other information » — et un processus à plusieurs étapes
+     « justifies dedicating a full page ». Lire un fil, décider, répondre = trois étapes.
+     UX Patterns Guide : « Conversation-like detail: master-detail fits best ».
+     La liste reste donc visible pendant la lecture, et passer d'une demande à l'autre coûte un clic.
+     Sous 860px la liste et le fil s'empilent, avec un retour explicite. */
+  .inbox{display:grid;grid-template-columns:372px minmax(0,1fr);border:1px solid var(--line);
+    border-radius:12px;background:var(--bg2);overflow:hidden}
+  .ibx-l{border-right:1px solid var(--line);max-height:600px;overflow-y:auto}
+  .ibx-r{max-height:600px;overflow-y:auto;padding:19px 22px}
+  .di{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);
+    padding:12px 15px 13px;cursor:pointer;font-family:inherit;color:inherit}
+  .di:hover{background:var(--bg3)}
+  .di:focus-visible{outline:2px solid var(--rouge);outline-offset:-2px}
+  .di.sel{background:var(--bg3);box-shadow:inset 2px 0 0 var(--rouge)}
+  .di-h{display:flex;gap:8px;align-items:baseline}
+  .di-m{flex:1;min-width:0;font-size:13px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .di-d{font-family:var(--mono);font-size:10.5px;color:var(--txt3);flex-shrink:0}
+  .di-b{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}
+  .di-b>span:not(.code):not(.pill){font-family:var(--mono);font-size:10.5px;color:var(--txt3)}
+  .di-b .pill{margin-left:auto}
+  .di .neuf{flex-shrink:0;align-self:center}
+  .ibx-fin{padding:13px 15px;color:var(--txt3);font-size:11.5px;line-height:1.5}
+
+  .fv-pan{display:none} .fv-pan.on{display:block}
+  .retour{display:none;background:none;border:none;color:var(--bleu);font-family:inherit;font-size:12.5px;
+    cursor:pointer;padding:0 0 13px}
+  /* Le panneau de saisie ne suit PAS la largeur de la vue : une colonne de saisie large se lit mal.
+     Mon commentaire l'annonçait sans que ce soit fait — la boîte s'étalait sur 1140px. */
+  #p-dem{max-width:720px}
+  .cpt{font-family:var(--mono);font-size:10.5px;color:var(--txt3);text-align:right;margin-top:5px}
+  .cpt.limite{color:var(--ambre)}
+
+  /* Référence du ticket — propriété Unique ID de Notion (préfixe + compteur auto, lecture seule).
+     Elle vit partout : ici, dans Notion, et dans le ping Slack. C'est elle qui permet de dire
+     « D-207 » au téléphone, et c'est elle qui rend le rattachement PAR CODE possible pour les
+     messages d'un fil — la doctrine de la base interdit les relations Notion.
+     ⚠ Le compteur est unique PAR BASE, donc partagé entre les 65 marques : les numéros d'un même
+     client ne se suivent pas. C'est visible exprès dans la maquette.
+     La référence ne figure PAS dans la ligne de liste : on y cherche par SUJET (l'aperçu + le film),
+     jamais par numéro — personne ne retient « D-207 ». La retirer rend 49px à l'aperçu (240 -> 289).
+     Elle vit dans l'en-tête du fil, là où on a besoin de citer la demande. */
+  .ref{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);
+    border:1px solid var(--line2);border-radius:4px;padding:1px 5px;white-space:nowrap}
+  .ref.gros{font-size:11px;padding:2px 7px;color:var(--txt2)}
+  .fv-h{display:flex;gap:11px;align-items:center;flex-wrap:wrap}
+  .fv-h h3{margin:0;font-size:15.5px;font-weight:500;line-height:1.35}
+  .fv-m{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 17px;padding-bottom:16px;
+    border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--txt3)}
+  .fv-m .sep{color:var(--line2)}
+  /* Le délai est la seule info du volet que le fil ne porte pas : c'est le suivi demandé. En ambre
+     quand la balle est dans NOTRE camp depuis trop longtemps — un client doit le voir sans compter. */
+  .delai.tard{color:var(--ambre)}
+
+  /* ── Le fil d'une demande ────────────────────────────────────────────────────────────────────
+     Chaque message porte son auteur ET son horodatage : c'est ce qui permet de suivre qui a
+     répondu quand, et combien de temps on a mis. Les messages du client restent à gauche, ceux de
+     Réel Média sont décalés à droite avec le filet — même logique que index.html:5853. */
+  .fil{display:flex;flex-direction:column;gap:9px;white-space:normal;padding-top:4px}
+  .msg{max-width:none}
+  .msg-h{display:flex;gap:9px;align-items:baseline;margin-bottom:3px}
+  .msg-h b{font-size:12px;font-weight:500;color:var(--txt)}
+  .msg-h span{font-family:var(--mono);font-size:10.5px;color:var(--txt3)}
+  .msg-t{color:var(--txt2);font-size:13px;line-height:1.6}
+  .msg.eux{margin-left:34px;background:var(--bg2);border-left:2px solid var(--rouge-bord);
+    border-radius:0 8px 8px 0;padding:10px 13px}
+  .msg.eux .msg-h b{color:var(--rouge)}
+  /* Les deux seules sorties d'un fil, offertes SEULEMENT quand la balle est dans le camp du client. */
+  .fil-a{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px;padding-top:12px;border-top:1px solid var(--line2)}
+  /* Composeur permanent : il ne disparaît JAMAIS après un envoi. Enchaîner deux messages est normal. */
+  .fil-c{margin-top:14px;padding-top:15px;border-top:1px solid var(--line2)}
+  .fil-c .k{display:block;font-size:12px;color:var(--txt3);margin-bottom:6px}
+  .fil-c textarea.fv{background:var(--bg3);border-color:var(--line2);min-height:66px;font-size:13px}
+  .fil-cb{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  /* « Modifier » n'apparaît que sur le DERNIER message et seulement s'il est du client. */
+  .lnk-x{background:none;border:none;color:var(--bleu);font-family:inherit;font-size:11px;cursor:pointer;padding:0}
+  .lnk-x:hover{text-decoration:underline}
+  .msg-h .modif{font-family:var(--mono);font-size:10px;color:var(--txt3);font-style:italic}
+  .msg-ed{margin-top:6px}
+  .msg-ed textarea.fv{background:var(--bg3);border-color:var(--line2);min-height:62px;font-size:13px}
+  .fil-f{margin-top:7px;padding-top:11px;border-top:1px solid var(--line2);
+    color:var(--txt3);font-size:12px;font-style:italic}
+  .fil-r{margin-top:7px;padding-top:12px;border-top:1px solid var(--line2)}
+  .fil-r .k{display:block;font-size:12px;color:var(--txt3);margin-bottom:6px}
+  .fil-r textarea.fv{background:var(--bg3);border-color:var(--line2);min-height:62px;font-size:13px}
+  .fil-r .bas{margin-top:9px}
+  .pill.rouge{color:var(--rouge);background:var(--rouge-faible);border:1px solid var(--rouge-bord)}
+  .av{width:26px;height:26px;border-radius:50%;background:var(--rouge-faible);border:1px solid var(--rouge-bord);
+    display:inline-flex;align-items:center;justify-content:center;color:var(--rouge);font-size:11px;flex-shrink:0}
+  .rep .qui{font-size:12px;font-weight:500}
+  .rep .txt{color:var(--txt2);font-size:13px;line-height:1.6;margin-top:3px}
+
+  /* Précisions attachées à une proposition déjà envoyée */
+  .prec-ouvre{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line2)}
+  .prec{margin-top:12px;padding-top:14px;border-top:1px dashed var(--line2);display:grid;gap:13px}
+  .prec[hidden]{display:none}
+  .prec-g{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cases{display:flex;flex-wrap:wrap;gap:7px}
+  .case{display:inline-flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--line2);
+    color:var(--txt2);font-size:12.5px;padding:8px 12px;border-radius:8px;cursor:pointer;min-height:40px}
+  .case:hover{border-color:var(--txt3);color:var(--txt)}
+  .case input{accent-color:var(--rouge);width:15px;height:15px;cursor:pointer;min-height:0}
+  .case:focus-within{outline:2px solid var(--rouge);outline-offset:2px}
+  /* La fiche du film : les précisions SONT l'information de la proposition, pas un ajout en bas de carte.
+     Un champ vide se lit comme une ligne à compléter, pas comme un formulaire à remplir. */
+  .fiche{margin-top:13px;padding-top:13px;border-top:1px solid var(--line)}
+  .fiche-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt3);margin-bottom:10px}
+  .fr{display:grid;grid-template-columns:128px 1fr;gap:10px;align-items:center;margin-bottom:3px}
+  .fr .k{color:var(--txt3);font-size:12.5px}
+  .fr .v{min-width:0}
+  .fv{width:100%;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--txt);
+    font-family:var(--sans);font-size:13px;padding:7px 9px;min-height:36px}
+  .fv::placeholder{color:var(--txt3);font-style:italic}
+  /* Dans la règle ligne 199, input[type=text] vaut 0,1,1 et bat .fv (0,1,0) — mais select ne vaut que
+     0,0,1 et perd. Résultat : 42px pour les champs texte, 36px pour le select, côte à côte dans le
+     même duo. On réaligne explicitement. */
+  select.fv{min-height:42px;padding:10px 12px;font-size:13.5px;border-radius:8px}
+  /* « Pour quand » est une DATE dans Notion : un sélecteur, pas du texte libre à reparser. */
+  .fv-date{color-scheme:dark}
+  .fv-date::-webkit-calendar-picker-indicator{opacity:.45;cursor:pointer}
+  .fv-date:hover::-webkit-calendar-picker-indicator,.fv-date:focus::-webkit-calendar-picker-indicator{opacity:1}
+  .fr .aide{display:block;margin-top:3px;padding-left:9px}
+  .opt{color:var(--txt3);font-size:11.5px;white-space:nowrap}
+  .fv:hover{border-color:var(--line2);background:var(--bg3)}
+  .fv:focus{outline:2px solid var(--rouge);outline-offset:1px;border-color:var(--rouge-bord);background:var(--bg3)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;padding:3px 0}
+  .chip{font-size:12px;color:var(--txt3);background:transparent;border:1px solid var(--line2);border-radius:16px;
+    padding:6px 10px;cursor:pointer;min-height:34px;white-space:nowrap}
+  .chip:hover{color:var(--txt);border-color:var(--txt3)}
+  .chip[aria-pressed="true"]{color:var(--txt);background:var(--rouge-faible);border-color:var(--rouge-bord)}
+  .chip:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+  /* Une proposition envoyée ne réaffiche QUE ce que le client a donné — pas de ligne vide à compléter. */
+  .donnes{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+  .tag{font-family:var(--mono);font-size:10.5px;color:var(--txt2);background:var(--bg4);border:1px solid var(--line2);
+    border-radius:6px;padding:4px 9px}
+  .aide{color:var(--txt3);font-size:11.5px;margin-top:5px}
+
+  .pers{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;background:var(--bg2);
+    border:1px solid var(--line);border-radius:10px;padding:13px 15px;margin-bottom:7px}
+  .pers.off{opacity:.55}
+  .pers.off:focus-within,.pers.off:hover{opacity:.8}
+  .pers .nm{font-size:13.5px;font-weight:500}
+  .pers .ml{font-family:var(--mono);font-size:11.5px;color:var(--txt3);margin-top:3px;word-break:break-all}
+  /* Colonne d'action d'une personne. Largeur plancher pour que « Retirer l'accès », « Redonner
+     l'accès » et la confirmation tombent au même x d'une ligne à l'autre. */
+  .pers-a{display:flex;justify-content:flex-end;align-items:center;gap:9px;min-width:116px;text-align:right}
+  /* Retirer un accès touche quelqu'un d'autre : jamais une icône muette, toujours le mot, et en rouge
+     — mais sans fond plein, l'action reste réversible et ne mérite pas d'alarme. */
+  .lnk.danger{color:var(--rouge)}
+  .pers-a .conf{font-size:12px;color:var(--txt2)}
+
+  /* .band et .ro-note posent display:flex, qui écrase le display:none que le navigateur applique à
+     [hidden] : les deux bandeaux « Mode consultation » restaient visibles en vue client. */
+  [hidden]{display:none!important}
+  .ro-note{display:flex;gap:10px;align-items:flex-start;background:var(--bg2);border:1px solid rgba(239,159,39,.3);
+    border-radius:11px;padding:15px 17px;margin-bottom:20px;color:var(--txt2);font-size:12.5px;line-height:1.6}
+  .ro-note b{color:var(--ambre);font-weight:500}
+  .note{color:var(--txt3);font-size:12px;line-height:1.6;margin-top:13px}
+  .marque-mob{display:none;align-items:center;gap:9px;margin-bottom:13px}
+
+  @media (max-width:860px){
+    .rail{top:auto;left:0;right:0;bottom:0;width:auto;height:auto;flex-direction:row;border-right:none;
+      border-top:1px solid var(--line2);padding-block:6px;padding-left:max(6px,env(safe-area-inset-left,0px));
+      padding-right:max(6px,env(safe-area-inset-right,0px));padding-bottom:max(6px,env(safe-area-inset-bottom,0px))}
+    .marque{display:none}
+    .rail-bas{margin-top:0;padding-top:0;border-top:none;flex-direction:row;flex:1}
+    nav{flex-direction:row;gap:3px;padding-top:0;flex:2}
+    .rail{gap:3px}
+    .nv{flex-direction:column;gap:3px;justify-content:center;text-align:center;font-size:10.5px;padding:6px 3px;flex:1;min-height:50px}
+    .nv[aria-current="page"]{box-shadow:none}
+    .nv .ct{display:none}
+    main{margin-left:0;padding-bottom:78px}
+    .tete,.vue{padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+    .chiffres,.rang,.prec-g{grid-template-columns:1fr}
+    .fr{grid-template-columns:1fr;gap:3px;margin-bottom:9px}
+    .ch+.ch{border-left:none;border-top:1px solid var(--line)}
+    /* La grille partagée ne tient pas sous 860px : la carte redevient une pile, la table garde ses
+       colonnes et défile horizontalement dans .tw (overflow-x:auto). */
+    .proj{grid-template-columns:1fr;gap:7px;padding:13px 0}
+    .p-code{order:-1}
+    .proj-th{display:none}
+    .inbox{grid-template-columns:1fr}
+    .ibx-l{border-right:none;max-height:none}
+    .ibx-r{max-height:none;padding:16px 17px}
+    .inbox:not(.ouvert) .ibx-r{display:none}
+    .inbox.ouvert .ibx-l{display:none}
+    .retour{display:block}
+    .etapes{max-width:none}
+    table{table-layout:auto}
+    .marque-mob{display:flex}
+    .deco-rail{display:none}  /* la déconnexion n'est pas une destination : hors de la barre d'onglets */
+  }
+</style>
+</head>
+<body>
+
+<div class="mq">
+  <div class="mq-in">
+    <span class="mq-lab">Maquette · contenu fictif · non validée</span>
+    <div class="mq-sw" role="group" aria-label="Vue">
+      <button id="v-cli" aria-pressed="true" onclick="vue('client')">Vue client</button>
+      <button id="v-ro" aria-pressed="false" onclick="vue('ro')">Mode consultation</button>
+    </div>
+  </div>
+</div>
+
+<div class="coque">
+
+  <aside class="rail">
+    <div class="marque">
+      <span class="sig">R</span>
+      <div><div class="nm">Refashion</div><div class="sub">Espace client</div></div>
+    </div>
+
+    <nav>
+      <button class="nv" id="n-proj" aria-current="page" onclick="aller('proj')">
+        <span class="ic">🎞</span><span class="lb">Mes films</span><span class="ct" title="2 films attendent votre relecture">2</span></button>
+      <button class="nv" id="n-dem" onclick="aller('dem')">
+        <span class="ic">📨</span><span class="lb">Mes demandes</span><span class="ct" title="1 nouvelle réponse">1</span></button>
+      <button class="nv" id="n-mis" onclick="aller('mis')">
+        <span class="ic">🎬</span><span class="lb">Proposer un film</span></button>
+    </nav>
+
+    <div class="rail-bas">
+      <button class="nv" id="n-eq" onclick="aller('eq')">
+        <span class="ic">👥</span><span class="lb">Qui a accès</span></button>
+      <button class="nv deco-rail"><span class="ic">↪</span><span class="lb">Déconnexion</span></button>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- ── MES FILMS ────────────────────────────────────────────── -->
+    <header class="tete" id="t-proj">
+      <h1>Mes films</h1><p>Bonjour Test Refashion — voici où en sont vos projets.</p>
+    </header>
+    <section class="vue on" id="s-proj">
+      <div class="marque-mob"><span class="sig" style="width:28px;height:28px;border-radius:8px;font-size:12px">R</span><span style="font-size:13.5px;font-weight:500">Refashion</span></div>
+      <div class="band" hidden data-ro>👁 Mode consultation — lecture seule</div>
+
+      <div class="chiffres">
+        <div class="ch"><div class="n">6</div><div class="l">films livrés</div></div>
+        <div class="ch"><div class="n">5</div><div class="l">en cours</div></div>
+        <div class="ch"><div class="n">2</div><div class="l">en attente de vous</div></div>
+      </div>
+
+      <h2 class="sec sec-esp">En cours <span class="n">5</span></h2>
+
+      <div class="proj-th"><div>Code</div><div>Film</div><div>Type</div><div>Réalisé par</div><div>État</div><div></div></div>
+
+      <article class="proj">
+        <div class="p-code"><span class="code">B33D</span></div>
+        <div class="p-film"><h3>Tu préfères ?</h3>
+          <div class="etapes"><span class="et fait"><span class="et-b"></span><span class="et-l">Tournage</span></span><span class="et ici"><span class="et-b"></span><span class="et-l">Montage</span></span><span class="et"><span class="et-b"></span><span class="et-l">Validation</span></span><span class="et"><span class="et-b"></span><span class="et-l">Diffusion</span></span></div>
+        </div>
+        <div class="p-type">Face Cam</div>
+        <div class="p-who">Juliette Cohen</div>
+        <div class="p-etat"><span class="pill ambre">V4 · à relire</span></div>
+        <div class="proj-a"><button class="ico lire" title="Revoir le montage" aria-label="Revoir le montage">▶</button><button class="ico" title="Voir le séquencier" aria-label="Voir le séquencier">📄</button></div>
+      </article>
+
+      <article class="proj">
+        <div class="p-code"><span class="code">B33H</span></div>
+        <div class="p-film"><h3>Chiffres clés 2026</h3>
+          <div class="etapes"><span class="et fait"><span class="et-b"></span><span class="et-l">Tournage</span></span><span class="et ici"><span class="et-b"></span><span class="et-l">Montage</span></span><span class="et"><span class="et-b"></span><span class="et-l">Validation</span></span><span class="et"><span class="et-b"></span><span class="et-l">Diffusion</span></span></div>
+        </div>
+        <div class="p-type">Mag</div>
+        <div class="p-who">Camille Dalicieux</div>
+        <div class="p-etat"><span class="pill ambre">V2 · à relire</span></div>
+        <div class="proj-a"><button class="ico lire" title="Revoir le montage" aria-label="Revoir le montage">▶</button></div>
+      </article>
+
+      <article class="proj">
+        <div class="p-code"><span class="code">B33G</span></div>
+        <div class="p-film"><h3>La seconde vie d'un jean</h3>
+          <div class="etapes"><span class="et fait"><span class="et-b"></span><span class="et-l">Tournage</span></span><span class="et fait"><span class="et-b"></span><span class="et-l">Montage</span></span><span class="et ici"><span class="et-b"></span><span class="et-l">Validation</span></span><span class="et"><span class="et-b"></span><span class="et-l">Diffusion</span></span></div>
+        </div>
+        <div class="p-type">Mag</div>
+        <div class="p-who">Juliette Cohen</div>
+        <div class="p-etat"><span class="pill bleu">Validé par vous</span></div>
+        <div class="proj-a"><button class="ico lire" title="Revoir le montage" aria-label="Revoir le montage">▶</button><button class="ico" title="Voir le séquencier" aria-label="Voir le séquencier">📄</button></div>
+      </article>
+
+      <article class="proj">
+        <div class="p-code"><span class="code">B33E</span></div>
+        <div class="p-film"><h3>Les ateliers de Lille</h3>
+          <div class="etapes"><span class="et fait"><span class="et-b"></span><span class="et-l">Tournage</span></span><span class="et ici"><span class="et-b"></span><span class="et-l">Montage</span></span><span class="et"><span class="et-b"></span><span class="et-l">Validation</span></span><span class="et"><span class="et-b"></span><span class="et-l">Diffusion</span></span></div>
+        </div>
+        <div class="p-type">Standard</div>
+        <div class="p-who">Mathilde Kaczkowski</div>
+        <!-- Pas de montage visible ET etape >= 1 (règle de client.html:909). L'information est un ÉTAT,
+             pas une action : elle passe dans la colonne ÉTAT, en pastille grise — le gris est déjà le
+             registre « information, rien à faire » de l'app (« Désactivé » dans Qui a accès). La phrase
+             de 4 lignes faisait 17px de haut en plus que les autres fiches et répétait la barre
+             d'étapes, qui affiche déjà MONTAGE en ambre juste en face. -->
+        <div class="p-etat"><span class="pill gris">Montage en cours</span></div>
+        <div class="proj-a"></div>
+      </article>
+
+      <article class="proj">
+        <div class="p-code"><span class="code">B33F</span></div>
+        <div class="p-film"><h3>Portrait : Sofia, couturière</h3>
+          <div class="etapes"><span class="et ici"><span class="et-b"></span><span class="et-l">Tournage</span></span><span class="et"><span class="et-b"></span><span class="et-l">Montage</span></span><span class="et"><span class="et-b"></span><span class="et-l">Validation</span></span><span class="et"><span class="et-b"></span><span class="et-l">Diffusion</span></span></div>
+        </div>
+        <div class="p-type">Classic</div>
+        <div class="p-who">Augustin Bernard</div>
+        <div class="p-etat"></div>
+        <div class="proj-a"></div>
+      </article>
+
+      <h2 class="sec sec-esp">Livrés <span class="n">6</span></h2>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Code</th><th>Film</th><th>Type</th><th>Réalisé par</th><th>Diffusion</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span class="code">B33I</span></td><td class="c-t"><b>Teaser Salon du réemploi</b><span>0:28</span></td><td class="c-ty">Décli</td><td class="c-who">Paul Henry</td><td class="c-d">2 nov. 2026</td>
+              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><button class="ico" title="Séquencier" aria-label="Séquencier">📄</button></td></tr>
+            <tr><td><span class="code">B33C</span></td><td class="c-t"><b>Atelier mobile à Roubaix</b><span>2:14</span></td><td class="c-ty">Mag</td><td class="c-who">Mathilde Kaczkowski</td><td class="c-d">17 oct. 2026</td>
+              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button></td></tr>
+            <tr><td><span class="code">B33B</span></td><td class="c-t"><b>Le tri, mode d'emploi</b><span>0:45</span></td><td class="c-ty">Standard</td><td class="c-who">Juliette Cohen</td><td class="c-d">3 oct. 2026</td>
+              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><button class="ico" title="Séquencier" aria-label="Séquencier">📄</button></td></tr>
+            <tr><td><span class="code">B33A</span></td><td class="c-t"><b>Manifeste Refashion</b><span>1:52</span></td><td class="c-ty">Classic</td><td class="c-who">Camille Dalicieux</td><td class="c-d">12 sept. 2026</td>
+              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button></td></tr>
+          </tbody>
+          <tbody id="cache" class="cache">
+            <tr><td><span class="code">B33J</span></td><td class="c-t"><b>Rentrée 2026</b><span>0:31</span></td><td class="c-ty">Mag</td><td class="c-who">Nico Wan</td><td class="c-d">28 août 2026</td>
+              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button></td></tr>
+            <tr><td><span class="code">B33K</span></td><td class="c-t"><b>Interview fondatrice</b><span>3:40</span></td><td class="c-ty">Face Cam</td><td class="c-who">Augustin Bernard</td><td class="c-d">14 juin 2026</td>
+              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button></td></tr>
+          </tbody>
+        </table>
+        <div class="replier" id="rep"><span>2 films plus anciens</span><button class="lnk" onclick="plier()">Afficher</button></div>
+      </div>
+    </section>
+
+    <!-- ── MES DEMANDES ─────────────────────────────────────────── -->
+    <header class="tete" id="t-dem" hidden>
+      <h1>Mes demandes</h1><p>Décaler un tournage, poser une question sur un film en cours.</p>
+    </header>
+    <!-- Pleine largeur : la liste est une table, elle a besoin de ses colonnes. Le formulaire, lui,
+         reste étroit (voir #p-dem) — une colonne de saisie large se lit mal. -->
+    <section class="vue" id="s-dem">
+      <div class="band" hidden data-ro>👁 Mode consultation — lecture seule</div>
+      <div class="ro-note" hidden data-ro-note><span>👁</span>
+        <span><b>Vous consultez cet espace sans pouvoir écrire.</b> Le formulaire n'apparaît pas : une demande n'est jamais déposée au nom du client. Vous voyez ses demandes et nos réponses, exactement comme lui.</span></div>
+
+      <div data-act style="margin-bottom:20px">
+        <button class="bouton plein" id="b-dem" onclick="ouvrirDem()">Nouvelle demande</button>
+      </div>
+
+      <!-- Entrées calées sur demande-client.js 'creer' :
+           · type     — select FERMÉ, exactement TYPES (:17) = ['Décaler un tournage', 'Autre'].
+                        « Autre chose » renvoyait un 400 « Type de demande invalide ».
+           · message  — obligatoire (:93) et plafonné à MAX_TEXTE = 2000 (:18), d'où le compteur.
+           · codeCarte— FACULTATIF, mais s'il est fourni il doit tomber dans le périmètre de la marque
+                        (:98, reSujetMarque). Le sélecteur ne propose donc que les films de la marque.
+           DA : même vocabulaire que « Proposer un film » (.form-col / .fr / .k / .fv / .duo). Il y avait
+           deux langages de formulaire dans la même app. -->
+      <div class="panneau form-col" id="p-dem" data-act hidden>
+        <div class="duo">
+          <div class="fr"><label class="k" for="d-ty">Votre demande porte sur</label>
+            <select id="d-ty" class="fv">
+              <option>Décaler un tournage</option><option>Autre</option></select></div>
+          <div class="fr"><label class="k" for="d-mi">Sur quel film<span class="req">facultatif</span></label>
+            <select id="d-mi" class="fv">
+              <option value="">Aucun film précis</option>
+              <option>B33D — Tu préfères ?</option>
+              <option>B33H — Chiffres clés 2026</option>
+              <option>B33G — La seconde vie d'un jean</option>
+              <option>B33E — Les ateliers de Lille</option>
+              <option>B33F — Portrait : Sofia, couturière</option>
+              <option>B33I — Teaser Salon du réemploi</option>
+              <option>B33C — Atelier mobile à Roubaix</option>
+              <option>B33B — Le tri, mode d'emploi</option>
+              <option>B33A — Manifeste Refashion</option></select></div>
+        </div>
+        <div class="fr"><label class="k" for="d-ms">Votre message<span class="req">obligatoire</span></label>
+          <textarea id="d-ms" class="fv idee" maxlength="2000" oninput="compte(this)"
+            placeholder="On ne peut plus tourner le 20, est-ce qu'on décale ?"></textarea>
+          <div class="cpt"><span id="d-cpt">0</span> / 2000</div></div>
+        <div class="bas"><button class="bouton plein" onclick="envoyer()">Envoyer</button>
+          <button class="bouton discret" onclick="fermerDem()">Annuler</button></div>
+      </div>
+
+      <div class="msg-ok" id="ok-dem" hidden role="status">✓ Votre demande est bien arrivée. Vous verrez notre réponse ici même.</div>
+
+      <h2 class="sec sec-esp">Historique <span class="n">35</span></h2>
+
+      <!-- Vue LISTE et non cartes dépliées : à 35 demandes sur deux mois, les cartes faisaient
+           5299 px de défilement (mesuré), soit près de six écrans. Une ligne par demande, le détail
+           s'ouvre sur place — pas de navigation à apprendre, et ça tient sur téléphone.
+           Colonnes = EXACTEMENT ce que demande-client.js 'mes' renvoie : date, message, codeCarte,
+           type, statut, reponse. Rien d'inventé.
+           ⚠ 'mes' ne renvoie PAS « Traité par » : impossible de nommer qui a répondu. La réponse est
+           donc signée « Réel Média ». L'ajouter = une ligne dans le map de demande-client.js. -->
+      <div class="inbox" id="inbox">
+        <div class="ibx-l">
+              <button class="di sel" data-d="1" onclick="ouvrirFil(1)" aria-current="true">
+                <div class="di-h"><span class="di-m">Est-ce qu&#x27;on peut récupérer les rushes du tournage de septembre pour nos archives ?</span><span class="di-d">12 nov.</span></div>
+                <div class="di-b"><span>Autre</span><span class="pill ambre">En cours</span></div>
+              </button>
+              <button class="di" data-d="2" onclick="ouvrirFil(2)" aria-current="false">
+                <div class="di-h"><span class="neuf"></span><span class="di-m">Le sous-titrage du teaser comporte une faute sur le nom de notre fondatrice.</span><span class="di-d">9 nov.</span></div>
+                <div class="di-b"><span class="code">B33I</span><span>Autre</span><span class="pill bleu">Réponse reçue</span></div>
+              </button>
+              <button class="di" data-d="3" onclick="ouvrirFil(3)" aria-current="false">
+                <div class="di-h"><span class="di-m">Notre atelier est fermé la semaine du 17, est-ce qu&#x27;on peut décaler le tournage ?</span><span class="di-d">6 nov.</span></div>
+                <div class="di-b"><span class="code">B33D</span><span>Décaler un tournage</span><span class="pill vert">Réglée</span></div>
+              </button>
+              <button class="di" data-d="4" onclick="ouvrirFil(4)" aria-current="false">
+                <div class="di-h"><span class="di-m">Qui vient tourner jeudi ? Il nous faut les noms pour le badge d&#x27;accès du site.</span><span class="di-d">4 nov.</span></div>
+                <div class="di-b"><span class="code">B33E</span><span>Autre</span><span class="pill gris">Envoyée</span></div>
+              </button>
+              <button class="di" data-d="5" onclick="ouvrirFil(5)" aria-current="false">
+                <div class="di-h"><span class="neuf"></span><span class="di-m">On aimerait déplacer le tournage du 3 au 10 décembre, c&#x27;est encore possible ?</span><span class="di-d">28 oct.</span></div>
+                <div class="di-b"><span class="code">B33F</span><span>Décaler un tournage</span><span class="pill bleu">Réponse reçue</span></div>
+              </button>
+              <button class="di" data-d="6" onclick="ouvrirFil(6)" aria-current="false">
+                <div class="di-h"><span class="di-m">Est-ce qu&#x27;on peut avoir une version sans musique pour la diffuser en salon ?</span><span class="di-d">21 oct.</span></div>
+                <div class="di-b"><span class="code">B33C</span><span>Autre</span><span class="pill vert">Réglée</span></div>
+              </button>
+              <button class="di" data-d="7" onclick="ouvrirFil(7)" aria-current="false">
+                <div class="di-h"><span class="di-m">Notre logo a changé, pouvez-vous l&#x27;utiliser sur les prochains montages ?</span><span class="di-d">14 oct.</span></div>
+                <div class="di-b"><span>Autre</span><span class="pill rouge">Refusée</span></div>
+              </button>
+              <div class="ibx-fin">Les 28 demandes plus anciennes se chargent à la suite.</div>
+        </div>
+        <div class="ibx-r">
+            <article class="fv-pan on" data-p="1">
+              <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
+              <div class="fv-h"><span class="ref gros">D-212</span><h3>Aucun film précis</h3></div>
+              <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai tard">en attente depuis 3 j</span></div>
+              <div class="fil">
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>12 nov. 09:41</span></div><div class="msg-t">Est-ce qu&#x27;on peut récupérer les rushes du tournage de septembre pour nos archives ?</div></div></div>
+              <div class="fil-c" data-act>
+                <label class="k" for="c-1">Écrire un message</label>
+                <textarea id="c-1" class="fv" maxlength="2000" placeholder="Ajoutez une précision, posez une autre question…"></textarea>
+                <div class="fil-cb"><button class="bouton sm plein" onclick="envoyerMsg(this)">Envoyer</button></div>
+              </div>
+            </article>
+            <article class="fv-pan" data-p="2" hidden>
+              <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
+              <div class="fv-h"><span class="ref gros">D-207</span><span class="code">B33I</span><h3>Teaser Salon du réemploi</h3></div>
+              <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai">première réponse en 18 h</span></div>
+              <div class="fil">
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>9 nov. 15:12</span></div><div class="msg-t">Le sous-titrage du teaser comporte une faute sur le nom de notre fondatrice.</div></div>
+                <div class="msg eux"><div class="msg-h"><b>Réel Média</b><span>10 nov. 09:03</span></div><div class="msg-t">Corrigé et réexporté, la nouvelle version est en ligne. Merci de l&#x27;avoir vu.</div></div>
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>10 nov. 11:40</span></div><div class="msg-t">Parfait. Et le fichier téléchargeable, il est à jour aussi ?</div></div>
+                <div class="msg eux"><div class="msg-h"><b>Réel Média</b><span>10 nov. 16:22</span></div><div class="msg-t">Oui, les deux pointent sur le même export. Vous pouvez le reprendre tel quel.</div></div></div>
+              <div class="fil-c" data-act>
+                <label class="k" for="c-2">Écrire un message</label>
+                <textarea id="c-2" class="fv" maxlength="2000" placeholder="Ajoutez une précision, posez une autre question…"></textarea>
+                <div class="fil-cb"><button class="bouton sm plein" onclick="envoyerMsg(this)">Envoyer</button><button class="bouton sm" onclick="clore(this)">C'est réglé, merci</button></div>
+              </div>
+            </article>
+            <article class="fv-pan" data-p="3" hidden>
+              <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
+              <div class="fv-h"><span class="ref gros">D-198</span><span class="code">B33D</span><h3>Tu préfères ?</h3></div>
+              <div class="fv-m"><span>Décaler un tournage</span><span class="sep">·</span><span class="delai">première réponse en 7 h</span></div>
+              <div class="fil">
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>6 nov. 10:28</span></div><div class="msg-t">Notre atelier est fermé la semaine du 17, est-ce qu&#x27;on peut décaler le tournage ?</div></div>
+                <div class="msg eux"><div class="msg-h"><b>Réel Média</b><span>6 nov. 17:50</span></div><div class="msg-t">C&#x27;est noté, on repousse au 24 novembre. Augustin vous confirme l&#x27;horaire d&#x27;ici vendredi.</div></div>
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>7 nov. 08:15</span></div><div class="msg-t">Nickel, le 24 nous va. Merci.</div></div></div>
+              <div class="fil-f">Vous avez clôturé cette demande le 6 nov. <button class="lnk" onclick="rouvrir(this)">Rouvrir</button></div>
+            </article>
+            <article class="fv-pan" data-p="4" hidden>
+              <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
+              <div class="fv-h"><span class="ref gros">D-193</span><span class="code">B33E</span><h3>Les ateliers de Lille</h3></div>
+              <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai tard">en attente depuis 11 j</span></div>
+              <div class="fil">
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>4 nov. 18:03</span></div><div class="msg-t">Qui vient tourner jeudi ? Il nous faut les noms pour le badge d&#x27;accès du site.</div></div></div>
+              <div class="fil-c" data-act>
+                <label class="k" for="c-4">Écrire un message</label>
+                <textarea id="c-4" class="fv" maxlength="2000" placeholder="Ajoutez une précision, posez une autre question…"></textarea>
+                <div class="fil-cb"><button class="bouton sm plein" onclick="envoyerMsg(this)">Envoyer</button></div>
+              </div>
+            </article>
+            <article class="fv-pan" data-p="5" hidden>
+              <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
+              <div class="fv-h"><span class="ref gros">D-181</span><span class="code">B33F</span><h3>Portrait : Sofia, couturière</h3></div>
+              <div class="fv-m"><span>Décaler un tournage</span><span class="sep">·</span><span class="delai">première réponse en 21 h</span></div>
+              <div class="fil">
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>28 oct. 14:30</span></div><div class="msg-t">On aimerait déplacer le tournage du 3 au 10 décembre, c&#x27;est encore possible ?</div></div>
+                <div class="msg eux"><div class="msg-h"><b>Réel Média</b><span>29 oct. 11:07</span></div><div class="msg-t">Le 10 est pris, mais le 12 est libre avec la même équipe. On part là-dessus ?</div></div></div>
+              <div class="fil-c" data-act>
+                <label class="k" for="c-5">Écrire un message</label>
+                <textarea id="c-5" class="fv" maxlength="2000" placeholder="Ajoutez une précision, posez une autre question…"></textarea>
+                <div class="fil-cb"><button class="bouton sm plein" onclick="envoyerMsg(this)">Envoyer</button><button class="bouton sm" onclick="clore(this)">C'est réglé, merci</button></div>
+              </div>
+            </article>
+            <article class="fv-pan" data-p="6" hidden>
+              <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
+              <div class="fv-h"><span class="ref gros">D-174</span><span class="code">B33C</span><h3>Atelier mobile à Roubaix</h3></div>
+              <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai">première réponse en 30 h</span></div>
+              <div class="fil">
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>21 oct. 09:55</span></div><div class="msg-t">Est-ce qu&#x27;on peut avoir une version sans musique pour la diffuser en salon ?</div></div>
+                <div class="msg eux"><div class="msg-h"><b>Réel Média</b><span>22 oct. 15:40</span></div><div class="msg-t">Oui, on vous prépare une version clean. Elle arrive dans vos films livrés en fin de semaine.</div></div>
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>27 oct. 10:02</span></div><div class="msg-t">Bien reçue, c&#x27;est parfait.</div></div></div>
+              <div class="fil-f">Vous avez clôturé cette demande le 21 oct. <button class="lnk" onclick="rouvrir(this)">Rouvrir</button></div>
+            </article>
+            <article class="fv-pan" data-p="7" hidden>
+              <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
+              <div class="fv-h"><span class="ref gros">D-166</span><h3>Aucun film précis</h3></div>
+              <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai">première réponse en 17 h</span></div>
+              <div class="fil">
+                <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>14 oct. 16:11</span></div><div class="msg-t">Notre logo a changé, pouvez-vous l&#x27;utiliser sur les prochains montages ?</div></div>
+                <div class="msg eux"><div class="msg-h"><b>Réel Média</b><span>15 oct. 09:20</span></div><div class="msg-t">Ça dépasse le cadre d&#x27;une demande : on ouvre un point avec Arnaud pour revoir la charte ensemble.</div></div></div>
+              <div class="fil-c" data-act>
+                <label class="k" for="c-7">Écrire un message</label>
+                <textarea id="c-7" class="fv" maxlength="2000" placeholder="Ajoutez une précision, posez une autre question…"></textarea>
+                <div class="fil-cb"><button class="bouton sm plein" onclick="envoyerMsg(this)">Envoyer</button></div>
+              </div>
+            </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PROPOSER UN FILM ─────────────────────────────────────── -->
+    <header class="tete" id="t-mis" hidden>
+      <h1>Proposer un film</h1><p>Dites-nous votre idée. On revient vers vous, puis un devis.</p>
+    </header>
+    <section class="vue etroit" id="s-mis">
+      <div class="band" hidden data-ro>👁 Mode consultation — lecture seule</div>
+      <div class="ro-note" hidden data-ro-note><span>👁</span>
+        <span><b>Vous consultez cet espace sans pouvoir écrire.</b> On ne propose jamais un film au nom du client.</span></div>
+
+      <div class="panneau form-col" data-act>
+        <label class="ch-l" for="m-id" style="font-size:14px;color:var(--txt)">De quoi parle votre film ?<span class="req">obligatoire</span></label>
+        <textarea id="m-id" class="idee" placeholder="Un format court sur nos ateliers de réparation, pour nos réseaux."></textarea>
+
+        <div class="fac"><b>Le tournage</b><span>facultatif — si vous le savez déjà, ça nous évite un appel</span></div>
+
+        <div>
+          <div class="fr"><span class="k" id="l0-df">Diffusion</span><span class="v"><span class="chips" role="group" aria-labelledby="l0-df">
+            <button class="chip" aria-pressed="false" onclick="bascChip(this)">Instagram</button>
+            <button class="chip" aria-pressed="false" onclick="bascChip(this)">TikTok</button>
+            <button class="chip" aria-pressed="false" onclick="bascChip(this)">Facebook</button>
+            <button class="chip" aria-pressed="false" onclick="bascChip(this)">YouTube</button>
+            <button class="chip" aria-pressed="false" onclick="bascChip(this)">Interne</button></span></span></div>
+          <div class="fr"><span class="k" id="l0-fm">Format</span><span class="v"><span class="chips" role="group" aria-labelledby="l0-fm">
+            <button class="chip" aria-pressed="false" onclick="bascChip(this)">9:16</button>
+            <button class="chip" aria-pressed="false" onclick="bascChip(this)">16:9</button></span></span></div>
+          <div class="duo">
+            <div class="fr"><label class="k" for="f0-qd">Pour quand</label><input id="f0-qd" class="fv fv-date" type="date"></div>
+            <div class="fr"><label class="k" for="f0-ct">Contact sur place</label><input id="f0-ct" class="fv" type="text" placeholder="Nom et téléphone"></div>
+          </div>
+          <!-- Type de film = Sous-format Notion, un select SIMPLE côté base.
+               Sous-format compte 9 options DÉFINIES dans Notion (vérifié sur le schéma) : Classic,
+               Vrai ou Faux, Standard, Prodige, Décli, Mag, Face Cam, Desk, YouTube.
+               Ici on en propose 7 : Classic, Standard et Desk retirés sur demande de David, et
+               « Pour combien » AJOUTÉ.
+               ⚠ DEUX POINTS À NE PAS CONFONDRE :
+               1. Classic / Standard / Desk restent portées par 50 fiches existantes (24 / 20 / 6) —
+                  « Mes films » doit continuer à les AFFICHER. On retire un choix, pas une valeur.
+               2. « Pour combien » n'existe PAS dans Notion : il faut créer l'option sur Sous-format
+                  avant que ce formulaire puisse écrire. Aucune écriture faite sans l'accord de David.
+               Reste ouvert : « YouTube » est déjà une plateforme de diffusion plus haut dans le même
+               écran — le même mot y désigne deux choses différentes. -->
+          <div class="duo">
+            <div class="fr"><label class="k" for="f0-lu">Lieu de tournage</label><input id="f0-lu" class="fv" type="text" placeholder="Nos ateliers, 14 rue des Arts, Lille"></div>
+            <div class="fr"><label class="k" for="f0-ty">Type de film</label>
+              <select id="f0-ty" class="fv">
+                <option value="">Non précisé</option>
+                <option>Mag</option><option>Face Cam</option><option>Prodige</option>
+                <option>Vrai ou Faux</option><option>Pour combien</option>
+                <option>YouTube</option><option>Décli</option>
+              </select></div>
+          </div>
+        </div>
+
+        <div class="p-b">
+          <button class="bouton plein">Proposer ce film</button>
+        </div>
+      </div>
+
+      <h2 class="sec sec-esp">Vos propositions <span class="n">2</span></h2>
+
+      <article class="dem">
+        <div class="dem-t"><span class="dem-ty">Les ateliers de réparation</span><span class="pill bleu">Devis envoyé</span><span class="dem-dt">9 nov.</span></div>
+        <div class="dem-msg">Un format court sur nos ateliers, pour nos réseaux.</div>
+        <div class="donnes">
+          <span class="tag">Instagram</span><span class="tag">TikTok</span><span class="tag">Face Cam</span><span class="tag">9:16</span>
+          <span class="tag">Décembre 2026</span><span class="tag">Nos ateliers, Lille</span>
+        </div>
+        <div class="rep"><span class="av">L</span><div><div class="qui">Louise · Réel Média</div>
+          <div class="txt">Très bonne idée, on part dessus. Nicolas vous envoie le devis cette semaine.</div></div></div>
+      </article>
+
+      <article class="dem">
+        <div class="dem-t"><span class="dem-ty">Portraits de nos bénévoles</span><span class="pill ambre">Reçue</span><span class="dem-dt">13 nov.</span></div>
+        <div class="dem-msg">Une série de portraits courts, un par bénévole, à tourner sur plusieurs sites.</div>
+
+        <div class="donnes"><span class="tag" style="border-style:dashed;color:var(--txt3)">Aucune précision donnée</span></div>
+      </article>
+    </section>
+
+    <!-- ── QUI A ACCÈS ──────────────────────────────────────────── -->
+    <header class="tete" id="t-eq" hidden>
+      <h1>Qui a accès</h1><p>Les personnes de Refashion qui voient cet espace.</p>
+    </header>
+    <section class="vue etroit" id="s-eq">
+      <div class="band" hidden data-ro>👁 Mode consultation — lecture seule</div>
+      <div class="ro-note" hidden data-ro-note><span>👁</span>
+        <span><b>Vous consultez cet espace sans pouvoir écrire.</b> Donner ou retirer un accès appartient au client.</span></div>
+
+      <div data-act style="margin-bottom:18px">
+        <button class="bouton plein" id="b-inv" onclick="ouvrirInv()">Ajouter un collègue</button>
+      </div>
+
+      <!-- Ajout d'un collègue. Nom + mail seulement : le Code acces n'est NI saisi NI affiché ici
+           (règle de _authclient.js:236 et :260). La personne apparaît « En attente d'accès » tant que
+           son code ne lui est pas parvenu. -->
+      <div class="panneau form-col" id="p-inv" data-act hidden>
+        <div class="duo">
+          <div class="fr"><label class="k" for="i-nm">Nom et prénom<span class="req">obligatoire</span></label>
+            <input id="i-nm" class="fv" type="text" placeholder="Jonas Meyer"></div>
+          <div class="fr"><label class="k" for="i-ml">Adresse e-mail<span class="req">obligatoire</span></label>
+            <input id="i-ml" class="fv" type="email" placeholder="j.meyer@refashion.fr"></div>
+        </div>
+        <p class="note" style="margin-top:0">Son code d'accès lui sera envoyé directement par Réel Média. Vous ne le verrez pas, nous non plus une fois créé.</p>
+        <div class="bas"><button class="bouton plein" onclick="inviter()">Ajouter</button>
+          <button class="bouton discret" onclick="fermerInv()">Annuler</button></div>
+      </div>
+
+      <div class="msg-ok" id="ok-inv" hidden role="status">✓ Jonas Meyer est ajouté. Il recevra son code d'accès de notre part.</div>
+
+      <div class="pers"><span class="av">C</span>
+        <div><div class="nm">Claire Besson</div><div class="ml">claire.besson@refashion.fr</div></div>
+        <span class="pill vert">Actif</span>
+        <span class="pers-a" data-act><button class="lnk danger" onclick="demanderRetrait(this)">Retirer l'accès</button></span></div>
+
+      <div class="pers"><span class="av">M</span>
+        <div><div class="nm">Marc Oliveira</div><div class="ml">m.oliveira@refashion.fr</div></div>
+        <span class="pill vert">Actif</span>
+        <span class="pers-a" data-act><button class="lnk danger" onclick="demanderRetrait(this)">Retirer l'accès</button></span></div>
+
+      <!-- État neuf : ajouté par le client, pas encore en mesure de se connecter. C'est ce qui rend
+           l'écran honnête tant que la remise du code n'est pas automatisée. -->
+      <div class="pers"><span class="av">J</span>
+        <div><div class="nm">Jonas Meyer</div><div class="ml">j.meyer@refashion.fr</div></div>
+        <span class="pill ambre">En attente d'accès</span>
+        <span class="pers-a" data-act><button class="lnk danger" onclick="demanderRetrait(this)">Annuler l'ajout</button></span></div>
+
+      <div class="pers off"><span class="av">S</span>
+        <div><div class="nm">Sofia Arnaut</div><div class="ml">s.arnaut@refashion.fr</div></div>
+        <span class="pill gris">Sans accès</span>
+        <span class="pers-a" data-act><button class="lnk" onclick="rendre(this)">Redonner l'accès</button></span></div>
+
+      <p class="note"><b style="color:var(--txt2);font-weight:400">Ce que vous faites ici arrive chez nous, et l'inverse aussi.</b>
+        Les personnes que vous ajoutez sont enregistrées chez Réel Média, et celles que notre équipe ajoute
+        apparaissent ici. Retirer un accès ne supprime rien : la personne ne peut plus se connecter, et vous
+        pouvez le lui rendre quand vous voulez. Chaque personne a son propre code — il ne s'affiche jamais ici.</p>
+
+      <div data-act style="margin-top:4px">
+        <button class="lnk" onclick="aller('dem');ouvrirDem()">Un cas particulier ? Écrivez-nous</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  var estRo = false, VUES = ['proj', 'dem', 'mis', 'eq'];
+  function aller(q) {
+    VUES.forEach(function (v) {
+      document.getElementById('s-' + v).classList.toggle('on', v === q);
+      document.getElementById('t-' + v).hidden = (v !== q);
+      var n = document.getElementById('n-' + v); if (!n) return;
+      if (q === v) { n.setAttribute('aria-current', 'page'); } else { n.removeAttribute('aria-current'); }
+    });
+    // Forme à deux arguments : universelle. L'objet { behavior:'instant' } lève un TypeError sur
+    // Safari et Firefox anciens, qui ne connaissent pas cette valeur d'énumération.
+    window.scrollTo(0, 0);
+  }
+  function plier() {
+    var t = document.getElementById('cache'), b = document.querySelector('#rep .lnk');
+    var ouvert = !t.classList.contains('cache');
+    t.classList.toggle('cache', ouvert);
+    b.textContent = ouvert ? 'Afficher' : 'Masquer';
+  }
+  // Les précisions vivent DANS la fiche de la proposition : chaque ligne se complète sur place, quand on sait.
+  // Les deux groupes de chips restants (Diffusion, Format image) sont des multi-select Notion :
+  // cumulables. Le choix unique de Sous-format est porté par le <select>, pas par des chips.
+  function bascChip(b) {
+    if (estRo) return;
+    b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+  }
+  // ── Qui a accès ────────────────────────────────────────────────────────────────────────────────
+  function ouvrirInv() { if (estRo) return; document.getElementById('p-inv').hidden = false;
+    document.getElementById('b-inv').hidden = true; document.getElementById('ok-inv').hidden = true;
+    document.getElementById('i-nm').focus(); }
+  function fermerInv() { document.getElementById('p-inv').hidden = true; document.getElementById('b-inv').hidden = false; }
+  function inviter() { fermerInv(); document.getElementById('i-nm').value = ''; document.getElementById('i-ml').value = '';
+    document.getElementById('ok-inv').hidden = false; }
+  // Retirer un accès touche une AUTRE personne : on confirme sur place. Pas de confirm() navigateur,
+  // qui bloque la page et qu'on ne peut pas mettre au ton de l'app.
+  function demanderRetrait(b) {
+    if (estRo) return;
+    var z = b.parentNode, mot = b.textContent;
+    z.innerHTML = '<span class="conf">Sûr ?</span>' +
+      '<button class="lnk danger" data-ok>Oui</button><button class="lnk" data-non>Non</button>';
+    z.querySelector('[data-ok]').onclick = function () { retirer(z); };
+    z.querySelector('[data-non]').onclick = function () {
+      z.innerHTML = '<button class="lnk danger">' + mot + '</button>';
+      z.firstChild.onclick = function () { demanderRetrait(z.firstChild); };
+    };
+  }
+  function retirer(z) {
+    var l = z.closest('.pers');
+    l.classList.add('off');
+    l.querySelector('.pill').className = 'pill gris';
+    l.querySelector('.pill').textContent = 'Sans accès';
+    z.innerHTML = '<button class="lnk">Redonner l\'accès</button>';
+    z.firstChild.onclick = function () { rendre(z.firstChild); };
+  }
+  function rendre(b) {
+    if (estRo) return;
+    var z = b.parentNode, l = z.closest('.pers');
+    l.classList.remove('off');
+    l.querySelector('.pill').className = 'pill vert';
+    l.querySelector('.pill').textContent = 'Actif';
+    z.innerHTML = '<button class="lnk danger">Retirer l\'accès</button>';
+    z.firstChild.onclick = function () { demanderRetrait(z.firstChild); };
+  }
+  // Deux volets : sélectionner une demande n'écrase pas la liste, elle reste à gauche. Sous 860px
+  // la classe « ouvert » bascule l'affichage et le bouton Retour redonne la liste.
+  function ouvrirFil(id) {
+    document.querySelectorAll('.di').forEach(function (b) {
+      var a = +b.dataset.d === id;
+      b.classList.toggle('sel', a); b.setAttribute('aria-current', a ? 'true' : 'false');
+      if (a) { var pt = b.querySelector('.neuf'); if (pt) pt.remove(); }   // la réponse est lue
+    });
+    document.querySelectorAll('.fv-pan').forEach(function (p) {
+      var a = +p.dataset.p === id; p.classList.toggle('on', a); p.hidden = !a;
+    });
+    var pan = document.querySelector('.fv-pan.on'); if (pan) majEdition(pan);
+    document.getElementById('inbox').classList.add('ouvert');
+    document.querySelector('.ibx-r').scrollTop = 0;
+  }
+  function fermerFil() { document.getElementById('inbox').classList.remove('ouvert'); }
+
+  // Les deux sorties d'un fil. « C'est réglé » clôt ; « une autre question » rouvre et rend la main
+  // à Réel Média. Dans les deux cas le statut de la ligne suit, pour que la liste reste vraie.
+  // Le statut ne vit plus QUE dans la liste : le volet l'exprimait en double, et son pied de fil le
+  // dit déjà en toutes lettres (« Vous avez clôturé… », « Envoyée… », ou les deux boutons).
+  function majStatut(pan, texte, classe) {
+    var l = document.querySelector('.di[data-d="' + pan.dataset.p + '"] .pill');
+    if (l) { l.className = 'pill ' + classe; l.textContent = texte; }
+  }
+  function clore(b) {
+    var pan = b.closest('.fv-pan');
+    majStatut(pan, 'Réglée', 'vert');
+    pan.querySelector('.fil-c').outerHTML =
+      '<div class="fil-f">Vous avez clôturé cette demande à l\'instant. ' +
+      '<button class="lnk" onclick="rouvrir(this)">Rouvrir</button></div>';
+    majEdition(pan);
+  }
+  // Une demande clôturée se rouvre : on se rend compte après coup que ce n'était pas réglé.
+  function rouvrir(b) {
+    var pan = b.closest('.fv-pan'), i = pan.dataset.p;
+    majStatut(pan, 'En cours', 'ambre');
+    b.closest('.fil-f').outerHTML =
+      '<div class="fil-c" data-act><label class="k" for="c-' + i + '">Écrire un message</label>' +
+      '<textarea id="c-' + i + '" class="fv" maxlength="2000" placeholder="Ajoutez une précision, posez une autre question…"></textarea>' +
+      '<div class="fil-cb"><button class="bouton sm plein" onclick="envoyerMsg(this)">Envoyer</button></div></div>';
+    pan.querySelector('.fil-c textarea').focus();
+  }
+  // Le composeur RESTE après l'envoi : on enchaîne deux messages quand on a oublié quelque chose.
+  function envoyerMsg(b) {
+    var pan = b.closest('.fv-pan'), zone = pan.querySelector('.fil-c textarea');
+    var t = zone.value.trim(); if (!t) { zone.focus(); return; }
+    var d = document.createElement('div');
+    d.className = 'msg moi'; d.setAttribute('data-mien', '');
+    d.innerHTML = '<div class="msg-h"><b>Vous</b><span>à l\'instant</span></div><div class="msg-t"></div>';
+    d.querySelector('.msg-t').textContent = t;      // textContent : jamais d'injection depuis une saisie
+    pan.querySelector('.fil').appendChild(d);
+    zone.value = '';
+    majStatut(pan, 'En cours', 'ambre');
+    var c = pan.querySelector('.fil-cb .bouton:not(.plein)'); if (c) c.remove();  // plus rien à clore
+    majEdition(pan);
+  }
+  // Modifiable SEULEMENT le dernier message, et seulement s'il est de vous : une fois que Réel Média
+  // a répondu en dessous, modifier la question rendrait la réponse incohérente.
+  function majEdition(pan) {
+    pan.querySelectorAll('.msg-e').forEach(function (e) { e.remove(); });
+    var msgs = pan.querySelectorAll('.msg'), dernier = msgs[msgs.length - 1];
+    if (!dernier || !dernier.hasAttribute('data-mien')) return;
+    if (pan.querySelector('.fil-f')) return;                       // demande clôturée : figée
+    var b = document.createElement('button');
+    b.className = 'lnk-x msg-e'; b.textContent = 'Modifier';
+    b.onclick = function () { editer(b); };
+    dernier.querySelector('.msg-h').appendChild(b);
+  }
+  function editer(b) {
+    var msg = b.closest('.msg'), corps = msg.querySelector('.msg-t'), avant = corps.textContent;
+    b.remove();
+    var z = document.createElement('div');
+    z.className = 'msg-ed';
+    z.innerHTML = '<textarea class="fv" maxlength="2000"></textarea>' +
+      '<div class="fil-cb"><button class="bouton sm plein">Enregistrer</button>' +
+      '<button class="bouton sm">Annuler</button></div>';
+    z.querySelector('textarea').value = avant;
+    corps.hidden = true; msg.appendChild(z);
+    var bb = z.querySelectorAll('.bouton');
+    bb[0].onclick = function () {
+      var v = z.querySelector('textarea').value.trim() || avant;
+      corps.textContent = v; corps.hidden = false; z.remove();
+      var h = msg.querySelector('.msg-h');
+      if (!h.querySelector('.modif')) {
+        var m = document.createElement('span'); m.className = 'modif'; m.textContent = 'modifié';
+        h.insertBefore(m, h.querySelector('.msg-e') || null);
+      }
+      majEdition(msg.closest('.fv-pan'));
+    };
+    bb[1].onclick = function () { corps.hidden = false; z.remove(); majEdition(msg.closest('.fv-pan')); };
+    z.querySelector('textarea').focus();
+  }
+
+  // MAX_TEXTE = 2000 côté serveur (demande-client.js:18). Le compteur rend la limite visible AVANT
+  // l'envoi plutôt que de la découvrir par un 400.
+  function compte(t) {
+    var c = document.getElementById('d-cpt');
+    c.textContent = t.value.length;
+    c.parentNode.classList.toggle('limite', t.value.length > 1800);
+  }
+  function ouvrirDem() { document.getElementById('p-dem').hidden = false; document.getElementById('b-dem').hidden = true;
+    document.getElementById('ok-dem').hidden = true; document.getElementById('d-ms').focus(); compte(document.getElementById('d-ms')); }
+  function fermerDem() { document.getElementById('p-dem').hidden = true; document.getElementById('b-dem').hidden = false; }
+  // Le moment de doute d'un client, c'est juste après l'envoi : il doit voir que c'est parti, et où regarder.
+  function envoyer() { fermerDem(); document.getElementById('d-ms').value = ''; compte(document.getElementById('d-ms')); document.getElementById('ok-dem').hidden = false; }
+  function vue(v) {
+    estRo = (v === 'ro');
+    document.getElementById('v-cli').setAttribute('aria-pressed', estRo ? 'false' : 'true');
+    document.getElementById('v-ro').setAttribute('aria-pressed', estRo ? 'true' : 'false');
+    document.querySelectorAll('[data-ro]').forEach(function (e) { e.hidden = !estRo; });
+    document.querySelectorAll('[data-ro-note]').forEach(function (e) { e.hidden = !estRo; });
+    document.querySelectorAll('[data-act]').forEach(function (e) { e.hidden = estRo; });
+    // Sous consultation la fiche reste LISIBLE : on voit ce que le client a renseigné, on ne peut rien y écrire.
+    document.querySelectorAll('.fv').forEach(function (e) { e.readOnly = estRo; });
+    document.querySelectorAll('.chip').forEach(function (e) { e.disabled = estRo; });
+  }
+</script>
+
+</body>
+</html>
