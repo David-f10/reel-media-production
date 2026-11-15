@@ -208,7 +208,7 @@ exports.handler = async (event) => {
         // mentirait pour une version jamais vue). Par construction, UN seul point d'entrée par film :
         // à relire → lien dans À relire ; tour clos/validé → lien dans En cours ; tournage → aucun lien.
         // (Validé mais pas livré : estARelire faux → aMontage vrai → il peut revenir sur le film validé.)
-        enCours.push({ code, titre, realisePar: realisePar(pr), etape, pastille: pastille(pr, auj), aMontage: !!courante && !estARelire, lienSeq: (pr['Lien sequencier'] && pr['Lien sequencier'].url) || '' });
+        enCours.push({ code, titre, sousFormat: sel(pr, 'Sous-format'), realisePar: realisePar(pr), etape, pastille: pastille(pr, auj), aMontage: !!courante && !estARelire, lienSeq: (pr['Lien sequencier'] && pr['Lien sequencier'].url) || '' });
       }
       if (estARelire) aRelire.push({ code, titre, numero: vsClient.length, seriesAccordees: seriesAccordees(pr, defautMarque), dateDeposee: dstart(courante.properties, 'Date envoi client') });
     });

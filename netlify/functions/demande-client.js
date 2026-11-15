@@ -67,11 +67,22 @@ exports.handler = async (event) => {
   // ── MES DEMANDES (lecture — autorisée sous ro) ──
   if (action === 'mes') {
     try {
-      const d = await notionFetch('/databases/' + DB_DEMANDES + '/query', 'POST', token, {
-        filter: { property: 'Contact client', rich_text: { equals: vt.id } },
-        sorts: [{ timestamp: 'created_time', direction: 'descending' }], page_size: 50
-      });
-      const demandes = (d.results || []).map(p => ({
+      // Pagination RÉELLE : sans curseur, au-delà d'une page les demandes les plus anciennes du contact
+      // disparaissaient en silence (une demande non lue se croit perdue). Boucle bornée à 20 pages (2000
+      // demandes pour un seul contact) comme adminClients / demandes-admin.
+      const resultats = [];
+      let cursor = null, pages = 0;
+      do {
+        const corps = {
+          filter: { property: 'Contact client', rich_text: { equals: vt.id } },
+          sorts: [{ timestamp: 'created_time', direction: 'descending' }], page_size: 100
+        };
+        if (cursor) corps.start_cursor = cursor;
+        const d = await notionFetch('/databases/' + DB_DEMANDES + '/query', 'POST', token, corps);
+        resultats.push(...(d.results || []));
+        cursor = d.has_more ? d.next_cursor : null; pages++;
+      } while (cursor && pages < 20);
+      const demandes = resultats.map(p => ({
         message: _ti(p.properties, 'Message'),
         type: _sel(p.properties, 'Type'),
         statut: _sel(p.properties, 'Statut') || 'Nouvelle',
