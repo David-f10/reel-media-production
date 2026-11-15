@@ -380,6 +380,10 @@
     .pill{flex:none;font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:4px;white-space:nowrap;background:var(--amber-voile);color:var(--amber);border:1px solid var(--amber-bord)}
     .pill.gris{background:var(--bg4);color:var(--txt3);border-color:var(--line2)}       /* « Montage en cours » — inerte */
     .pill.bleu{background:var(--bleu-voile);color:var(--bleu);border-color:var(--bleu-bord)} /* « Validé par vous » — inerte */
+    .pill.rouge{background:var(--rouge-voile);color:var(--rouge);border-color:var(--rouge-bord)} /* « Séquencier à valider » */
+    .pill-clic{cursor:pointer} /* pastille qui EST le point d'entrée (à relire → montage ; séquencier → overlay) */
+    .pill-clic:hover{filter:brightness(1.18)}
+    .pill-clic:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
     .etapes{display:flex;gap:4px;margin-top:9px;max-width:330px}
     .et{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
     .et-b{height:3px;border-radius:2px;background:var(--line2)}
@@ -412,6 +416,9 @@
     .p-type{font-family:var(--mono);font-size:11.5px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .p-who{color:var(--txt2);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .p-etat{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+    .p-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--txt3);white-space:nowrap} /* « tour N/X · date » sous la pastille à relire */
+    .p-seqnote{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--txt3);margin-top:9px} /* remplace la barre d'étapes sur un séquencier à valider */
+    .p-tiret{color:var(--txt3)} /* Type / Réalisé par en « — » quand le film n'a pas encore d'étape */
     .proj-a{display:flex;gap:6px;align-items:center}
     /* Icône d'action : cible 44px, slot FIXE 39px par type ; slot vide = place tenue (.ico-vide). */
     .ico{width:39px;height:44px;flex:none;border:1px solid var(--line2);background:var(--bg4);color:var(--txt2);border-radius:6px;
@@ -483,13 +490,15 @@
     .coque-main{margin-left:var(--rail-w);min-height:100vh}
     .coque-main > #vue-accueil{max-width:1140px;margin:0 auto;
       padding:22px max(16px,env(safe-area-inset-right,0px)) 72px max(16px,env(safe-area-inset-left,0px))}
-    /* Téléphone : le rail devient une barre d'onglets en bas. La déconnexion n'y est PAS (ce n'est pas une
-       destination — elle reste dans l'en-tête de l'accueil). Le main reprend toute la largeur. */
+    /* Téléphone : le rail devient une barre d'onglets en bas. Les QUATRE destinations y tiennent (Qui a accès
+       rejoint la barre : rail-nav ET rail-bas passent en display:contents, leurs .nv deviennent les onglets).
+       La déconnexion N'Y EST PAS (ce n'est pas une destination — elle reste dans l'en-tête de l'accueil). */
     @media (max-width:860px){
-      .rail{top:auto;right:0;bottom:0;left:0;width:auto;height:auto;flex-direction:row;border-right:none;
-        border-top:1px solid var(--line2);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px))}
-      .rail-marque,.rail-bas{display:none}
-      .rail-nav{flex-direction:row;padding-top:0;gap:2px;flex:1;justify-content:space-around}
+      .rail{top:auto;right:0;bottom:0;left:0;width:auto;height:auto;flex-direction:row;justify-content:space-around;
+        border-right:none;border-top:1px solid var(--line2);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px))}
+      .rail-marque{display:none}
+      .rail-nav,.rail-bas{display:contents}   /* leurs .nv deviennent directement les onglets de la barre */
+      .rail-deco{display:none}                 /* la déconnexion n'est pas une destination */
       .nv{flex-direction:column;gap:3px;font-size:10px;text-align:center;padding:6px 4px;min-height:52px;justify-content:center}
       .nv[aria-current="page"]{box-shadow:none}
       .nv-lb{flex:none;max-width:76px}
@@ -588,10 +597,12 @@
           <span class="nv-ic" aria-hidden="true">📨</span><span class="nv-lb">Mes demandes</span><span class="nv-bientot">bientôt</span></button>
         <button type="button" class="nv" disabled>
           <span class="nv-ic" aria-hidden="true">🎬</span><span class="nv-lb">Proposer un film</span><span class="nv-bientot">bientôt</span></button>
+      </nav>
+      <!-- rail-bas = gestion du COMPTE, séparée des destinations : « Qui a accès » (placeholder) + déconnexion.
+           La maquette (nav vs rail-bas) groupe ainsi. Sur téléphone, Qui a accès rejoint la barre, pas la déco. -->
+      <div class="rail-bas">
         <button type="button" class="nv" disabled>
           <span class="nv-ic" aria-hidden="true">👥</span><span class="nv-lb">Qui a accès</span><span class="nv-bientot">bientôt</span></button>
-      </nav>
-      <div class="rail-bas">
         <button type="button" class="rail-deco" id="rail-deco"><span class="nv-ic" aria-hidden="true">⏻</span><span class="nv-lb">Déconnexion</span></button>
       </div>
     </aside>
@@ -999,70 +1010,71 @@
       }
 
       var h = '';
-      // 0. À VALIDER (séquencier) — tout en haut : le client valide le séquencier (ou demande des corrections)
-      //    avant que le tournage démarre. seqLienHtml = point d'accroche pour l'ouverture du document ;
-      //    laissé inerte tant que la convention de partage des Google Docs n'est pas tranchée (à brancher ici).
-      if (aValider.length) {
-        h += '<h2>À valider <span class="n">' + aValider.length + '</span></h2><div class="attente">' +
-          aValider.map(function (p) {
-            return '<div class="att sq"><div class="att-m"><div class="att-t">' + esc(p.titre) + '</div>' +
-              '<div class="att-l"><span class="code">' + esc(p.code) + '</span><span>Séquencier à valider</span></div>' +
-              seqLienHtml(p) + '</div>' +
-              '<div class="sq-actions">' +
-              '<button type="button" class="bouton vert sq-ok" data-seq-code="' + escAttr(p.code) + '">Valider le séquencier</button>' +
-              '<button type="button" class="lnk sq-corr" data-corr-code="' + escAttr(p.code) + '">Demander des corrections</button>' +
-              '</div></div>';
-          }).join('') + '</div>';
-      }
-      // 1. À relire — bloc d'action, affiché seulement s'il y a quelque chose à relire.
-      if (aRelire.length) {
-        h += '<h2>À relire <span class="n">' + aRelire.length + '</span></h2><div class="attente">' +
-          aRelire.map(function (p) {
-            // « tour N sur X » = numéro de tour (rang recalculé sur les versions envoyées) + séries accordées.
-            // AFFICHAGE SEULEMENT : repère pour que le client arbitre ses demandes, jamais un blocage.
-            var tour = p.numero ? ('<span>tour ' + p.numero + ' sur ' + (p.seriesAccordees || 5) + '</span>') : '';
-            return '<div class="att"><div class="att-m"><div class="att-t">' + esc(p.titre) + '</div>' +
-              '<div class="att-l"><span class="code">' + esc(p.code) + '</span>' + tour +
-              '<span class="mono">déposée le ' + esc(dateFrLongue(p.dateDeposee)) + '</span></div></div>' +
-              '<button type="button" class="voir-montage" data-code="' + escAttr(p.code) + '">Voir le montage →</button></div>';
-          }).join('') + '</div>';
-      }
+      // C1/C2 — « À valider » et « À relire » NE SONT PLUS des sections : ce sont des ÉTATS de « En cours »
+      // (un seul endroit où regarder ses films). On indexe aRelire PAR CODE (c'est un sous-ensemble de enCours,
+      // le même film) ; les films aValider (séquencier, hors enCours car pré-tournage) deviennent des rangées
+      // à part dans « En cours » plus bas.
+      var relireParCode = {};
+      aRelire.forEach(function (p) { relireParCode[p.code] = p; });
       // 2. Votre collaboration — toujours (hors premier accès).
       h += '<h2>Votre collaboration</h2><div class="stats">' +
         '<div class="stat"><span class="stat-n">' + (col.livres || 0) + '</span><span class="stat-l">films livrés</span></div>' +
         '<div class="stat"><span class="stat-n">' + (col.enCours || 0) + '</span><span class="stat-l">en cours</span></div>' +
-        (col.depuis ? ('<div class="stat"><span class="stat-n petit">' + esc(col.depuis) + '</span><span class="stat-l">depuis</span></div>') : '') +
-        '</div>';
-      // 3. En cours (si présent). Barre à 4 étapes ; l'étape en-cours plafonne à Validation (2).
-      if (enCours.length) {
+        '<div class="stat"><span class="stat-n">' + (aValider.length + aRelire.length) + '</span><span class="stat-l">en attente de vous</span></div>' +
+        '</div>'; // C2 : « depuis » cède la place à « en attente de vous » (séquenciers à valider + montages à relire),
+                  // seul agrégat actionnable maintenant que les deux sections ont fondu dans « En cours ».
+      // 3. En cours — TOUS les films non livrés. D'abord les séquenciers à valider (rangées à part, sans étape
+      //    ni réalisateur : le séquencier se valide AVANT le tournage, une barre serait FAUSSE), puis les
+      //    montages, avec l'état « à relire » fondu dans la rangée.
+      if (enCours.length || aValider.length) {
         var LBL = ['Tournage', 'Montage', 'Validation', 'Diffusion'];
-        h += '<h2>En cours <span class="n">' + enCours.length + '</span></h2>' +
-          '<div class="proj-th"><div>Code</div><div>Film</div><div>Type</div><div>Réalisé par</div><div>État</div><div></div></div>' +
-          enCours.map(function (p) {
-            var etapes = LBL.map(function (l, i) { var c = i < p.etape ? 'et fait' : (i === p.etape ? 'et ici' : 'et'); return '<div class="' + c + '"><div class="et-b"></div><div class="et-l">' + l + '</div></div>'; }).join('');
-            // Colonne ÉTAT : pastille serveur si présente ; sinon « Validé par vous » (bleu, inerte) grâce au
-            // champ valideeClient ajouté au payload ; sinon « Montage en cours » (gris) dès l'étape Montage ;
-            // à l'étape Tournage (etape 0), RIEN — un montage « en cours » serait faux sur un film pas tourné.
-            var etat = p.pastille && p.pastille.texte ? '<span class="pill">' + esc(p.pastille.texte) + '</span>'
+        var total = enCours.length + aValider.length;
+        // Rangées SÉQUENCIER À VALIDER : Type et Réalisé par en « — », pas de barre (remplacée par une note).
+        // Pastille ROUGE et 📄 rouge ouvrent l'overlay ACTIONNABLE (data-seqval-code) ; slot ▶ tenu vide.
+        var rangsSeq = aValider.map(function (p) {
+          return '<article class="proj" data-row="' + escAttr(p.code) + '">' +
+            '<div class="p-code"><span class="code">' + esc(p.code) + '</span></div>' +
+            '<div class="p-film"><h3>' + esc(p.titre) + '</h3><div class="p-seqnote">Séquencier — à valider avant le tournage</div></div>' +
+            '<div class="p-type p-tiret">—</div>' +
+            '<div class="p-who p-tiret">—</div>' +
+            '<div class="p-etat"><button type="button" class="pill rouge pill-clic" data-seqval-code="' + escAttr(p.code) + '" title="Ouvrir le séquencier et décider">Séquencier à valider</button></div>' +
+            '<div class="proj-a"><span class="ico-vide" aria-hidden="true"></span>' +
+              '<button type="button" class="ico lire" data-seqval-code="' + escAttr(p.code) + '" title="Ouvrir le séquencier et décider" aria-label="Ouvrir le séquencier et décider">📄</button></div>' +
+          '</article>';
+        }).join('');
+        // Rangées MONTAGE. État : à relire (ambre, CLIQUABLE — la pastille EST l'entrée, elle porte data-code
+        // car aMontage vaut faux pour un film à relire : UN seul point d'entrée) + « tour N/X · date » dessous ;
+        // sinon pastille serveur ; sinon « Validé par vous » (bleu) ; sinon « Montage en cours » (gris) dès
+        // Montage ; sinon rien à l'étape Tournage.
+        var rangsMontage = enCours.map(function (p) {
+          var etapes = LBL.map(function (l, i) { var c = i < p.etape ? 'et fait' : (i === p.etape ? 'et ici' : 'et'); return '<div class="' + c + '"><div class="et-b"></div><div class="et-l">' + l + '</div></div>'; }).join('');
+          var r = relireParCode[p.code], etat, sub = '';
+          if (r) {
+            etat = '<button type="button" class="pill pill-clic" data-code="' + escAttr(p.code) + '" title="Voir le montage">V' + (r.numero || '') + ' · à relire</button>';
+            if (r.numero) sub = '<span class="p-sub">tour ' + r.numero + '/' + (r.seriesAccordees || 5) + ' · ' + esc(dateFrCourte(r.dateDeposee)) + '</span>';
+          } else {
+            etat = p.pastille && p.pastille.texte ? '<span class="pill">' + esc(p.pastille.texte) + '</span>'
               : (p.valideeClient ? '<span class="pill bleu">Validé par vous</span>'
               : (p.etape >= 1 ? '<span class="pill gris">Montage en cours</span>' : ''));
-            // Actions à EMPLACEMENTS FIXES : ▶ (si aMontage, data-code → montage) puis 📄 (si lienSeq,
-            // data-seqdoc-code → overlay). Slot vide = place tenue, le 📄 ne glisse jamais sous les ▶ voisins.
-            var aRevoir = p.aMontage
-              ? '<button type="button" class="ico lire" data-code="' + escAttr(p.code) + '" title="Revoir le montage" aria-label="Revoir le montage">▶</button>'
-              : '<span class="ico-vide" aria-hidden="true"></span>';
-            var aSeq = p.lienSeq
-              ? '<button type="button" class="ico" data-seqdoc-code="' + escAttr(p.code) + '" title="Voir le séquencier" aria-label="Voir le séquencier">📄</button>'
-              : '<span class="ico-vide" aria-hidden="true"></span>';
-            return '<article class="proj">' +
-              '<div class="p-code"><span class="code">' + esc(p.code) + '</span></div>' +
-              '<div class="p-film"><h3>' + esc(p.titre) + '</h3><div class="etapes">' + etapes + '</div></div>' +
-              '<div class="p-type">' + esc(p.sousFormat || '') + '</div>' +
-              '<div class="p-who">' + esc(p.realisePar) + '</div>' +
-              '<div class="p-etat">' + etat + '</div>' +
-              '<div class="proj-a">' + aRevoir + aSeq + '</div>' +
-            '</article>';
-          }).join('');
+          }
+          var aRevoir = p.aMontage
+            ? '<button type="button" class="ico lire" data-code="' + escAttr(p.code) + '" title="Revoir le montage" aria-label="Revoir le montage">▶</button>'
+            : '<span class="ico-vide" aria-hidden="true"></span>';
+          var aSeq = p.lienSeq
+            ? '<button type="button" class="ico" data-seqdoc-code="' + escAttr(p.code) + '" title="Voir le séquencier" aria-label="Voir le séquencier">📄</button>'
+            : '<span class="ico-vide" aria-hidden="true"></span>';
+          return '<article class="proj">' +
+            '<div class="p-code"><span class="code">' + esc(p.code) + '</span></div>' +
+            '<div class="p-film"><h3>' + esc(p.titre) + '</h3><div class="etapes">' + etapes + '</div></div>' +
+            '<div class="p-type">' + esc(p.sousFormat || '') + '</div>' +
+            '<div class="p-who">' + esc(p.realisePar) + '</div>' +
+            '<div class="p-etat">' + etat + sub + '</div>' +
+            '<div class="proj-a">' + aRevoir + aSeq + '</div>' +
+          '</article>';
+        }).join('');
+        h += '<h2>En cours <span class="n">' + total + '</span></h2>' +
+          '<div class="proj-th"><div>Code</div><div>Film</div><div>Type</div><div>Réalisé par</div><div>État</div><div></div></div>' +
+          rangsSeq + rangsMontage;
       }
       // 4. Livrés (si présent) — plus récents d'abord ; au-delà de 4, le reste se replie (spec §6.1).
       if (livres.length) {
@@ -1101,7 +1113,7 @@
       if (tout) tout.addEventListener('click', function (e) { e.preventDefault(); var c = $('livres-caches'); if (c) c.classList.remove('hidden'); var rp = $('livres-replier'); if (rp) rp.style.display = 'none'; });
       // Séquencier : 2e passe APRÈS le shell (comme la vidéo du montage) — on charge le Doc de chaque carte
       // « À valider » dans son conteneur. Asynchrone, dégradation propre, n'empêche jamais la validation.
-      aValider.forEach(function (p) { mChargerSequencier(p.code); });
+      // (C2 : plus de 2e passe inline pour aValider — le séquencier se charge dans l'overlay actionnable.)
     }
 
     // ── Téléchargement depuis le tableau Livrés : récupérer un film fini SANS passer par la vue montage,
@@ -1775,14 +1787,12 @@
       // Remonter jusqu'à un élément porteur d'une action : ouvrir le montage (data-code), télécharger
       // (data-dl-code), valider le séquencier (data-seq-code) ou demander des corrections (data-corr-code).
       // Le télécharger doit rester SYNCHRONE au clic (window.open non bloqué).
-      var t = e.target; while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-code') || t.getAttribute('data-dl-code') || t.getAttribute('data-seq-code') || t.getAttribute('data-corr-code') || t.getAttribute('data-seqdoc-code')))) t = t.parentNode;
+      var t = e.target; while (t && t !== this && !(t.getAttribute && (t.getAttribute('data-code') || t.getAttribute('data-dl-code') || t.getAttribute('data-seqdoc-code') || t.getAttribute('data-seqval-code')))) t = t.parentNode;
       if (!t || t === this || !t.getAttribute) return;
+      var sv = t.getAttribute('data-seqval-code');
+      if (sv) { e.preventDefault(); ouvrirSequencier(sv, true); return; }  // séquencier À VALIDER → overlay ACTIONNABLE
       var sd = t.getAttribute('data-seqdoc-code');
-      if (sd) { e.preventDefault(); ouvrirSequencier(sd); return; }
-      var seq = t.getAttribute('data-seq-code');
-      if (seq) { e.preventDefault(); mValiderSequencier(seq, t); return; }
-      var corr = t.getAttribute('data-corr-code');
-      if (corr) { e.preventDefault(); mDemanderCorrections(corr, t); return; }
+      if (sd) { e.preventDefault(); ouvrirSequencier(sd); return; }         // historique → overlay LECTURE SEULE
       var dl = t.getAttribute('data-dl-code');
       if (dl) { e.preventDefault(); telechargerLivre(dl, parseInt(t.getAttribute('data-dl-rang'), 10), t); return; }
       if (t.getAttribute('data-code')) { e.preventDefault(); ouvrirMontage(t.getAttribute('data-code')); }
@@ -1823,64 +1833,81 @@
     // il lui faut une LARGEUR DE LECTURE bornée ; et déplier un document dans une cellule du tableau Livrés
     // donnerait une colonne étroite. Panneau centré, largeur bornée, fermeture ✕ / Échap / fond. Le contenu
     // est chargé par mChargerSequencier (même iframe sandbox, même dégradation).
-    function ouvrirSequencier(code) {
+    function ouvrirSequencier(code, actionnable) {
       var exist = $('seqdoc-overlay'); if (exist) exist.remove();
       var ov = document.createElement('div');
       ov.id = 'seqdoc-overlay';
       ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;overflow:auto';
       var onEsc, close = function () { ov.remove(); if (onEsc) document.removeEventListener('keydown', onEsc); };
       onEsc = function (e) { if (e.key === 'Escape') close(); };
+      // Mode ACTIONNABLE : une zone d'actions sous le document (le doc est AU-DESSUS → on décide APRÈS lecture).
+      var actionsHtml = actionnable ? '<div id="seqov-actions" style="border-top:1px solid var(--line);padding:13px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"></div>' : '';
       ov.innerHTML = '<div style="background:var(--bg2);border:1px solid var(--line2);border-radius:12px;width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)">' +
         '<span style="font-size:14px;font-weight:600">Séquencier · ' + esc(code) + '</span>' +
         '<button type="button" id="seqdoc-x" class="lnk" aria-label="Fermer">✕ Fermer</button></div>' +
-        '<div id="sq-doc-ov" style="padding:4px 2px;overflow:auto"><p class="sub" style="color:var(--txt3);padding:16px">Chargement du séquencier…</p></div></div>';
+        '<div id="sq-doc-ov" style="padding:4px 2px;overflow:auto;flex:1"><p class="sub" style="color:var(--txt3);padding:16px">Chargement du séquencier…</p></div>' +
+        actionsHtml + '</div>';
       document.body.appendChild(ov);
       ov.addEventListener('click', function (e) { if (e.target === ov) close(); }); // clic sur le fond
       $('seqdoc-x').addEventListener('click', close);
       document.addEventListener('keydown', onEsc);
+      // L'overlay vit hors de #zone-projets (la délégation ne l'atteint pas) → on câble ses boutons EN DIRECT.
+      if (actionnable) _seqActions(code, close);
       mChargerSequencier(code, 'sq-doc-ov');
     }
-    // Valider le séquencier → POST { action:'valider' }. Succès → on NE recharge PAS : le projet quitte
-    // « À valider » et n'entre pas dans « En cours » (gardé par Visible, non posé en phase séquencier) ; un
-    // rechargement ferait « s'évaporer » la carte, voire tomber sur l'écran de bienvenue. On remplace donc
-    // le contenu de la carte par une confirmation qui reste à l'écran.
-    function mValiderSequencier(code, el) {
+    // Les deux boutons du mode actionnable. On ne peut plus valider un séquencier sans l'avoir ouvert : c'est
+    // le gain du déplacement (avant, les boutons côtoyaient un simple lien, donc on validait à l'aveugle).
+    function _seqActions(code, close) {
+      var zone = $('seqov-actions'); if (!zone) return;
+      zone.innerHTML = '<button type="button" class="bouton vert" id="seqov-ok">Valider le séquencier</button>' +
+        '<button type="button" class="lnk" id="seqov-corr">Demander des corrections</button>';
+      $('seqov-ok').addEventListener('click', function () { mValiderSequencier(code, $('seqov-ok'), zone); });
+      $('seqov-corr').addEventListener('click', function () { mDemanderCorrections(code, zone, close); });
+    }
+    // Valider → POST { action:'valider' }. Succès → on NE recharge PAS : le film quitte aValider et n'est pas
+    // encore dans enCours (gardé par Visible, non posé en phase séquencier) ; un reload le ferait disparaître.
+    // On confirme DANS l'overlay ET on met à jour la rangée sous-jacente (jointure par data-row).
+    function mValiderSequencier(code, btn, zone) {
       if (!code) return;
-      if (el) { el.disabled = true; el.textContent = 'Validation…'; }
+      if (btn) { btn.disabled = true; btn.textContent = 'Validation…'; }
       mPost(SEQ, { action: 'valider', sujetCode: code }).then(function (res) {
         if (res.status === 401) { finSession(); return; }
         if (res.status === 200 && res.body && res.body.ok) {
-          var carte = el; while (carte && carte !== document.body && !(carte.className && /\batt\b/.test(carte.className))) carte = carte.parentNode;
-          if (carte) carte.innerHTML = '<div class="att-m"><div class="att-t">Séquencier validé</div>' +
-            '<div class="att-l" style="color:var(--txt2)">Le tournage peut démarrer. Vous retrouverez le film ici dès la première version.</div></div>';
+          if (zone) zone.innerHTML = '<div style="font-size:13px;color:var(--vert)">✓ Séquencier validé — le tournage peut démarrer. Vous retrouverez le film ici dès la première version.</div>';
+          _marquerSeqValide(code);
           return;
         }
-        if (el) { el.disabled = false; el.textContent = 'Réessayer la validation'; }
-      }).catch(function () { if (el) { el.disabled = false; el.textContent = 'Réessayer la validation'; } });
+        if (btn) { btn.disabled = false; btn.textContent = 'Réessayer la validation'; }
+      }).catch(function () { if (btn) { btn.disabled = false; btn.textContent = 'Réessayer la validation'; } });
     }
-    // Demander des corrections → petit formulaire inline (texte) puis POST { action:'corrections' }. AUCUN
-    // changement d'état côté serveur : c'est un message à l'équipe, le projet reste « À valider ».
-    function mDemanderCorrections(code, el) {
-      if (!code) return;
-      var row = el; while (row && row !== document.body && !(row.className && /sq-actions/.test(row.className))) row = row.parentNode;
+    // Met la rangée « séquencier à valider » en état validé SANS rechargement (le film n'a pas de version, un
+    // reload le ferait disparaître). Elle quittera aValider au prochain chargement, quand la 1re version arrive.
+    function _marquerSeqValide(code) {
+      var row = document.querySelector('.proj[data-row="' + String(code == null ? '' : code).replace(/"/g, '') + '"]');
       if (!row) return;
-      row.innerHTML = '<textarea class="sq-corr-txt" placeholder="Qu\'aimeriez-vous changer dans le séquencier ?" aria-label="Corrections souhaitées"></textarea>' +
-        '<div class="sq-corr-bas"><button type="button" class="bouton sq-corr-send">Envoyer la demande</button>' +
-        '<button type="button" class="lnk sq-corr-cancel">Annuler</button></div>' +
-        '<div class="msg" role="status" aria-live="polite"></div>';
-      var txt = row.querySelector('.sq-corr-txt'), send = row.querySelector('.sq-corr-send'), cancel = row.querySelector('.sq-corr-cancel'), msg = row.querySelector('.msg');
-      if (txt) txt.focus();
-      cancel.addEventListener('click', function () { chargerEspace(); }); // recharge → remet les boutons
-      send.addEventListener('click', function () {
-        var v = (txt.value || '').trim();
-        if (!v) { msg.className = 'msg err'; msg.textContent = 'Décrivez les corrections souhaitées.'; return; }
+      var et = row.querySelector('.p-etat'); if (et) et.innerHTML = '<span class="pill gris">Séquencier validé</span>';
+      var ac = row.querySelector('.proj-a'); if (ac) ac.innerHTML = '<span class="ico-vide" aria-hidden="true"></span><span class="ico-vide" aria-hidden="true"></span>';
+      var note = row.querySelector('.p-seqnote'); if (note) note.textContent = 'Le tournage peut démarrer.';
+    }
+    // Demander des corrections → formulaire DANS l'overlay, puis POST { action:'corrections' }. AUCUN changement
+    // d'état serveur : le film reste « à valider » → pas de rechargement, on confirme et on laisse fermer.
+    function mDemanderCorrections(code, zone, close) {
+      if (!code || !zone) return;
+      zone.innerHTML = '<textarea class="sq-corr-txt" maxlength="2000" placeholder="Qu\'aimeriez-vous changer dans le séquencier ?" aria-label="Corrections souhaitées" style="width:100%;min-height:70px;resize:vertical;background:var(--bg3);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font:inherit;font-size:13px;padding:10px 12px;box-sizing:border-box"></textarea>' +
+        '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:9px;width:100%"><button type="button" class="bouton" id="seqov-send">Envoyer la demande</button>' +
+        '<button type="button" class="lnk" id="seqov-cancel">Annuler</button><span class="msg" id="seqov-cmsg" role="status" aria-live="polite"></span></div>';
+      var txt = zone.querySelector('.sq-corr-txt'); if (txt) txt.focus();
+      $('seqov-cancel').addEventListener('click', function () { _seqActions(code, close); }); // revient aux deux boutons
+      $('seqov-send').addEventListener('click', function () {
+        var v = (txt && txt.value || '').trim(), msg = $('seqov-cmsg'), send = $('seqov-send');
+        if (!v) { if (msg) { msg.className = 'msg err'; msg.textContent = 'Décrivez les corrections souhaitées.'; } return; }
         send.disabled = true; send.textContent = 'Envoi…';
         mPost(SEQ, { action: 'corrections', sujetCode: code, texte: v }).then(function (res) {
           if (res.status === 401) { finSession(); return; }
-          if (res.status === 200 && res.body && res.body.ok) { msg.className = 'msg'; msg.textContent = 'Demande envoyée à l\'équipe.'; setTimeout(chargerEspace, 1200); return; }
-          send.disabled = false; send.textContent = 'Envoyer la demande'; msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.';
-        }).catch(function () { send.disabled = false; send.textContent = 'Envoyer la demande'; msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.'; });
+          if (res.status === 200 && res.body && res.body.ok) { zone.innerHTML = '<div style="font-size:13px;color:var(--txt2)">✓ Demande envoyée à l\'équipe. Vous pouvez fermer.</div>'; return; }
+          send.disabled = false; send.textContent = 'Envoyer la demande'; if (msg) { msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.'; }
+        }).catch(function () { send.disabled = false; send.textContent = 'Envoyer la demande'; if (msg) { msg.className = 'msg err'; msg.textContent = 'Envoi impossible pour l\'instant. Réessayez.'; } });
       });
     }
     $('mt-retour').addEventListener('click', function (e) { e.preventDefault(); mQuitter(); });
