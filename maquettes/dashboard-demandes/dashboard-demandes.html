@@ -1,0 +1,1222 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demandes & missions — page dashboard</title>
+
+<!--
+===============================================================================
+  MAQUETTE — « Demandes & missions » en PAGE ENTIÈRE du dashboard HAVANA
+  Contenu fictif. NON VALIDÉE. ⛔ Ne jamais déployer ce fichier.
+===============================================================================
+
+  CE QUE C'EST
+  Une référence du RÉSULTAT, jamais une source à copier. Elle fixe la
+  disposition, la densité et les gestes de la page équipe. L'autorité reste
+  index.html, css/*.css et les contrats serveur existants.
+
+  POURQUOI UNE PAGE ET PLUS UNE MODALE
+  Aujourd'hui : openDemandesAdmin() → openOv('ov-demandes') → une modale de
+  680 px (index.html:500) à deux onglets maison (.client-tab).
+  Le dashboard a DÉJÀ cinq pages — navTo('dashboard'|'production'|'idees'|
+  'taches'|'archives') — avec un motif parfaitement régulier dans appRender() :
+  breadcrumb + #main-actions + #view-tabs + un loadX(). Cette page est la
+  SIXIÈME, bâtie sur ce motif. Rien n'est inventé.
+
+  CE QUE LA PAGE RÉUTILISE, VERBATIM, DE css/*.css
+  .sb-nav-item .sb-nav-icon .sb-nav-badge[.red] .main-topbar .main-breadcrumb
+  .main-content .view-tabs .vtab[.active] .nav-btn[.primary] .list-table
+  .pill .p-red .p-amber .p-blue .p-green .p-gray .p-purple
+  .search-input-wrap .search-input .search-icon .search-highlight .empty
+  .sb-filters .sb-filter[.active] .sb-dot .sb-badge
+  Les classes NEUVES sont toutes préfixées dm- : elles n'écrasent rien.
+
+  LE BANDEAU DE FILTRES EST CELUI DE PRODUCTION, À L'IDENTIQUE
+  Première version : des chips maison, fond --bg4 à l'actif, compteur nu,
+  pas de pastille. Ça ne ressemblait à rien d'autre dans l'app. La vraie
+  grammaire est index.html:223 + css/layout.css :
+    • bandeau PLEINE LARGEUR sous les onglets, fond --bg, trait en bas,
+      padding 8px 24px, défilement horizontal sans barre visible
+    • chip : border-radius 999px, 11px, padding 5px 12px, fond --bg3,
+      bordure transparente
+    • ACTIF = ROUGE VOILÉ (--red-dim en fond ET en bordure, texte --red),
+      pas un gris plus clair
+    • PASTILLE DE COULEUR .sb-dot 6px AVANT le libellé — chaque filtre
+      porte le point de son étape, comme Montage, Retours, PAD
+    • compteur .sb-badge APRÈS le libellé, mono 10px sur fond --bg4
+    • « ↺ Tout afficher » en bout de bandeau dès qu'un filtre est posé
+    • le compteur de résultats est une BARRE À PART (#search-count), qui
+      n'apparaît QU'EN RECHERCHE — pas un compteur permanent
+  La couleur de pastille est dérivée de PILL : le point du filtre et la
+  pastille de la rangée ne peuvent pas diverger.
+
+  CE QUI EST DÉJÀ CONSTRUIT CÔTÉ SERVEUR — à brancher, pas à écrire
+  • demandes-admin.js  action 'liste'  → id, message, type, codeBrand,
+    codeCarte, demandeur, statut, reponse, traitePar, date
+  • demandes-admin.js  action 'statut' → change Statut + Réponse + Traité par
+  • missions-admin.js  action 'liste'  → id, objet, statut, plateforme,
+    codeBrand, demandeur, lieu, personnes, contactSurPlace, pourQuand,
+    reponse, carteCreee, valideCommercialPar, date
+  • missions-admin.js  action 'decision' → accepter | refuser (+ motif)
+
+  TROIS CONTRAINTES SERVEUR QUE LA MAQUETTE RESPECTE
+  1. demandes-admin.js:13 — STATUTS = ['Nouvelle','En cours','Traitée',
+     'Refusée'] et :54 rejette tout le reste en 400. Donc « Clôturée »
+     (option créée dans Notion, posée par le CLIENT) est AFFICHÉE mais
+     N'EST PAS dans le sélecteur de l'équipe. Pour que l'équipe puisse la
+     poser, il faut d'abord l'ajouter à STATUTS et à ORDRE (:21).
+  2. missions-admin.js n'a PAS de sélecteur de statut : seulement
+     'decision' → Acceptée | Refusée. Donc l'onglet Missions porte deux
+     boutons Accepter / Refuser, jamais une liste déroulante.
+  3. demandes-admin.js:66 ÉCRASE le champ Réponse à chaque écriture. Le fil
+     de messages affiché ici suppose la base 💬 Messages (PR-5a) :
+     Message · Réf demande · Sens · Auteur · Code Brand · Modifié le.
+     Tant que PR-5a n'est pas livré, le panneau n'a qu'UNE réponse.
+
+  DEUX BUGS VÉRIFIÉS, DÉCOUVERTS EN LISANT POUR CETTE MAQUETTE
+  a. missions-admin.js lit  plateforme: _sel(p.properties,'Plateforme')
+     alors que Plateforme est un MULTI-SELECT côté Notion. _sel renvoie ''
+     systématiquement : la plateforme est VIDE pour toutes les missions, en
+     silence. C'est le jumeau en LECTURE du bug en ÉCRITURE que Code a
+     trouvé à mission-client.js:126. Les deux vont ensemble (PR-4).
+  b. index.html:5748 — rafraichirBadgeDemandes() avale tous les échecs
+     (catch(e){} + `(rd && rd.ok) ? … : 0`). Une pastille à 0 est donc
+     indistinguable d'une panne d'accès. À remplacer par un état visible.
+
+  DÉVIATION ASSUMÉE, À TRANCHER PAR DAVID
+  css/base.css:4 porte --text2:#888 (4,60 ✓) et --text3:#555 (2,19 ✗ AA).
+  Monter --text3 seul à #878787 le rend identique à --text2 (écart 1,01) :
+  la hiérarchie à trois niveaux meurt. La maquette utilise donc DEUX jetons
+  relevés — --text2:#B4B4B4 (7,86) et --text3:#878787 (4,54), écart 1,73,
+  proche de l'écart actuel 2,10. Ratios calculés, pas estimés. Si David
+  refuse, la page marche quand même : seuls les gris changent.
+
+  DÉCISIONS DE DESIGN, ET LEUR SOURCE
+  • liste + panneau de détail à droite — « quick view sidebar : the most
+    scalable option » (Pencil & Paper, tables d'entreprise) ; trois volets
+    nav|fil|contexte chez Intercom, le premier volet étant ici la sidebar
+    de l'app, qui existe déjà.
+  • STATUT changé EN LIGNE dans la rangée — « inline editing allows for the
+    least friction and maintains the most context » (idem).
+  • RÉPONSE écrite dans le PANNEAU, jamais dans la rangée — « add friction
+    on purpose for high-stakes data » : la Réponse est marquée côté Notion
+    « VISIBLE PAR LE CLIENT ». Une réponse partie par mégarde ne se reprend
+    pas.
+  • « ATTENTE », PAS « ÂGE ». Première version : l'âge depuis la création.
+    Mauvais — il dit « 9 j » d'une demande réglée en deux heures, et il ne
+    répond pas à la seule question qui compte quand on ouvre une demande :
+    QUI ATTEND QUI. Les files ne meurent pas à la fin mais au MILIEU, dans
+    l'état où chacun croit que l'autre doit jouer : un audit cité par eesel
+    trouve 90 tickets parqués sur 200, tous en attente d'un client qui ne
+    revient jamais. Chez Zendesk et Freshdesk cet état porte un nom —
+    « Pending » = la balle est chez le client.
+    Donc : la colonne ET la bannière du panneau calculent le temps depuis
+    le DERNIER MESSAGE, et son SENS décide de qui attend. Rouge au-delà de
+    2 jours quand c'est nous. Gris quand la balle est chez le client. Tiret
+    quand c'est fini. Les deux écrans disent la même chose, toujours.
+  • SEUIL DE RETARD = 2 JOURS. Choix de Réel Média, pas une norme : la
+    référence du secteur est une première réponse en ~9 h (Freshservice,
+    187 M de tickets), mais une boîte de production n'est pas un support.
+    Une seule constante à changer : SEUIL_RETARD_J.
+  • « 1re RÉPONSE EN 4 H » dans la fiche — du premier mot du client au
+    premier mot de l'équipe. C'est la mesure que suivent les vraies files,
+    et la seule qui dise après coup si on a été correct avec ce client.
+  • CHAMP VIDE = « — », jamais une phrase : même convention que la liste.
+  • TRAITÉ PAR affiché, et « — » quand personne ne l'a pris —
+    effet bystander : une demande sans propriétaire n'est traitée par
+    personne (BoldDesk).
+  • TRI : Nouvelle d'abord, puis récentes. C'est déjà le tri serveur
+    (demandes-admin.js:96), et le FIFO strict est l'erreur la plus courante
+    en gestion de file (BoldDesk).
+  • 8 colonnes, sous la limite de 15 colonnes d'une vue d'agent Zendesk.
+  • Densité de la maison conservée : .list-table td{padding:9px 12px} ≈ 35 px
+    par rangée, sous le « condensed 40px » de Pencil & Paper. C'est le choix
+    de la boîte, et David a déjà validé cette densité côté client.
+  • Majuscules des en-têtes de colonne : convention existante de la maison
+    (.list-table th), conservée volontairement.
+  • CIBLES TACTILES — le dashboard n'a AUCUNE convention : 2 occurrences de
+    min-height:44px dans tout css/*.css, zéro dans index.html. Rien à
+    imiter, donc un choix à assumer. La règle retenue ici : plancher à
+    24 px partout (WCAG 2.5.8, niveau AA, exigé) et 44 px (2.5.5, AAA)
+    PARTOUT OÙ C'EST GRATUIT — liens texte et boutons icône, dont la
+    hauteur est invisible. La rangée mesure 47 px, dimensionnée par le
+    select de statut, donc un lien à 44 px n'épaissit rien. Le select
+    reste à 28 px : sa taille EST son apparence, et 28 > 24 satisfait AA.
+    L'espace client, lui, est à 44 px partout (client.html .lnk:349).
+    Divergence volontaire : table dense interne vs surface client.
+
+  LA RÉFÉRENCE DU TICKET — FORMAT NON TRANCHÉ, À POSER À CODE
+  La liste et le panneau affichent « D-7F3A » / « M-2B91 ». Le FORMAT est
+  une proposition, pas une décision. Ce qui est en revanche ÉTABLI, et
+  payé cher :
+  • Une propriété Notion de type `unique_id` NE MARCHE PAS. Elle a été
+    créée le 15/11, puis retirée : l'app lit Notion en `2022-06-28`
+    (_notionio.js:45), version ANTÉRIEURE à ce type. Le panneau est tombé
+    en 503. Ne pas y revenir sans monter l'app en version d'API — ce qui
+    touche TOUTES les fonctions.
+  • Donc la référence doit être fabriquée autrement. La piste la moins
+    chère : la DÉRIVER de l'id de page Notion, que l'app a déjà en main
+    (demandes-admin.js:85 renvoie `id`). Quatre caractères hexa ne
+    suffisent pas (≈26 % de collision à 200 demandes, paradoxe des
+    anniversaires) ; SIX donnent 16,7 M de valeurs, soit une collision
+    négligeable. Aucun champ Notion neuf, aucune écriture, aucun compteur,
+    et ça marche sur la version d'API actuelle.
+  • L'autre piste, un compteur séquentiel (« DEM-207 »), est plus lisible
+    mais demande une écriture et gère mal les courses. C'est une question
+    pour Code, pas une décision de maquette.
+  La référence doit être la MÊME des deux côtés — l'équipe et le client
+  doivent pouvoir dire « D-7F3A » et parler de la même chose. Et c'est
+  elle, pas le code marque, qui part dans Slack.
+
+  CE QUI RESTE OUVERT
+  • L'assignation : aucun champ « Assigné à » n'existe. « Traité par » est
+    posé AUTOMATIQUEMENT par le serveur au premier changement de statut
+    (demandes-admin.js:65). On ne peut donc pas « prendre » une demande sans
+    la faire changer d'état. Si l'équipe en a besoin, c'est un champ Notion
+    de plus, donc une décision, pas un détail.
+  • Les actions en masse (traiter 5 demandes d'un coup) : pas dans le
+    serveur, pas dans cette maquette.
+  • La pagination : demandes-admin.js boucle jusqu'à 20×100, donc OK.
+    demande-client.js:71 est à page_size 50 sans curseur — c'est PR-2.
+===============================================================================
+-->
+
+<style>
+/* ---------------------------------------------------------------------------
+   JETONS — copiés de css/base.css:4, avec la seule déviation déclarée
+   ci-dessus (--text2 et --text3 relevés pour passer AA).
+   --------------------------------------------------------------------------- */
+:root{
+  --bg:#0a0a0a; --bg2:#111; --bg3:#181818; --bg4:#202020;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.12);
+  --text:#f0f0f0;
+  --text2:#B4B4B4;  /* css/base.css = #888 (4,60) — relevé, voir en-tête */
+  --text3:#878787;  /* css/base.css = #555 (2,19 ✗ AA) — relevé à 4,54 */
+  --red:#e63946; --red-dim:rgba(230,57,70,0.15);
+  --green:#1D9E75; --green-dim:rgba(29,158,117,0.15);
+  --amber:#EF9F27; --amber-dim:rgba(239,159,39,0.15);
+  --purple:#7F77DD; --purple-dim:rgba(127,119,221,0.15);
+  --blue:#378ADD; --blue-dim:rgba(55,138,221,0.15);
+  --r:8px; --rl:12px;
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'DM Mono','SF Mono',ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;-webkit-font-smoothing:antialiased}
+
+/* --- coque d'app (reprise de .app-shell / .sidebar / .main) --- */
+.dm-shell{display:flex;height:100vh;overflow:hidden}
+.dm-side{width:232px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 10px}
+.dm-logo{font-size:15px;font-weight:700;letter-spacing:-0.01em;padding:4px 10px 2px}
+.dm-logo-sub{font-size:10px;color:var(--text3);padding:0 10px 16px;font-family:var(--mono)}
+.dm-sect{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;padding:12px 10px 6px}
+
+/* copiés verbatim de css/layout.css */
+.sb-nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r);font-size:13px;color:var(--text2);cursor:pointer;transition:all .1s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left;font-family:var(--font)}
+.sb-nav-item:hover{background:var(--bg3);color:var(--text)}
+.sb-nav-item.active{background:var(--bg4);color:var(--text)}
+.sb-nav-icon{font-size:15px;width:20px;text-align:center}
+.sb-nav-badge{margin-left:auto;font-size:10px;font-family:var(--mono);background:var(--bg4);padding:1px 6px;border-radius:8px;color:var(--text3)}
+.sb-nav-badge.red{background:var(--red-dim);color:var(--red)}
+
+.dm-main{flex:1;display:flex;flex-direction:column;min-width:0}
+.main-topbar{padding:0 24px;height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--bg);gap:16px}
+.main-breadcrumb{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2)}
+.main-breadcrumb b{color:var(--text);font-weight:500}
+.view-tabs{display:flex;padding:0 24px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0}
+.vtab{padding:9px 14px;font-size:12px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font);white-space:nowrap;display:inline-flex;align-items:center;gap:7px;min-height:40px}
+.vtab:hover{color:var(--text2)}
+.vtab.active{color:var(--text);border-bottom-color:var(--red)}
+.main-content{flex:1;overflow-y:auto;padding:18px 24px 28px}
+
+.nav-btn{background:transparent;border:1px solid var(--border2);color:var(--text2);padding:6px 14px;border-radius:var(--r);font-size:12px;font-family:var(--font);cursor:pointer;transition:all .15s;min-height:34px}
+.nav-btn:hover{background:var(--bg3);color:var(--text)}
+.nav-btn.primary{background:var(--red);border-color:var(--red);color:#fff;font-weight:500}
+.nav-btn.primary:hover{background:#c0313d}
+.nav-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.search-input-wrap{position:relative;display:flex;align-items:center;width:270px;max-width:46vw}
+.search-icon{position:absolute;left:10px;color:var(--text3);font-size:13px;pointer-events:none;line-height:1}
+.search-input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 28px 7px 32px;border-radius:var(--r);font-size:12px;font-family:var(--font);transition:border-color .15s;min-height:34px}
+.search-input:focus{outline:none;border-color:var(--red)}
+.search-clear{position:absolute;right:5px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;line-height:1;padding:3px 5px;font-family:var(--font)}
+.search-clear:hover{color:var(--text)}
+.search-highlight{background:var(--amber-dim);color:var(--amber);border-radius:2px;padding:0 2px}
+
+.pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:500;white-space:nowrap}
+.p-red{background:var(--red-dim);color:var(--red)}
+.p-amber{background:var(--amber-dim);color:var(--amber)}
+.p-blue{background:var(--blue-dim);color:var(--blue)}
+.p-green{background:var(--green-dim);color:var(--green)}
+.p-gray{background:var(--bg4);color:var(--text3)}
+.p-purple{background:var(--purple-dim);color:var(--purple)}
+
+.empty{text-align:center;padding:60px 20px;color:var(--text3)}
+.empty h3{font-size:15px;color:var(--text2);margin-bottom:8px;font-weight:500}
+.empty p{font-size:12px}
+
+/* --- LE BANDEAU DE FILTRES — copié de Production, pas réinventé ---------
+   index.html:223 + css/layout.css : #sb-filters.is-visible, .sb-filter,
+   .sb-dot, .sb-badge. Pastille de couleur AVANT le libellé, compteur
+   APRÈS, actif en ROUGE VOILÉ, bandeau pleine largeur sous les onglets
+   avec un trait en bas, défilement horizontal sans barre. Verbatim. */
+.sb-filters{display:flex;flex-direction:row;align-items:center;gap:6px;flex-shrink:0;
+  overflow-x:auto;white-space:nowrap;scrollbar-width:none;
+  padding:8px 24px;background:var(--bg);border-bottom:1px solid var(--border)}
+.sb-filters::-webkit-scrollbar{display:none}
+.sb-filter{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;width:auto;
+  padding:5px 12px;font-size:11px;border-radius:999px;color:var(--text2);
+  cursor:pointer;transition:all .1s;margin-bottom:0;
+  border:1px solid transparent;background:var(--bg3);
+  text-align:left;font-family:var(--font);min-height:28px}
+.sb-filter:hover{background:var(--bg3);color:var(--text)}
+.sb-filter.active{background:var(--red-dim);color:var(--red);border-color:var(--red-dim)}
+.sb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sb-badge{margin-left:auto;font-size:10px;font-family:var(--mono);background:var(--bg4);
+  padding:1px 6px;border-radius:8px;color:var(--text3)}
+.sb-filter.active .sb-badge{background:rgba(230,57,70,.18);color:var(--red)}
+.sb-tout{background:none;border:0;color:var(--text3);font-size:12px;cursor:pointer;
+  text-decoration:underline;padding:6px 10px;font-family:var(--font);flex-shrink:0}
+.sb-tout:hover{color:var(--text2)}
+/* le compteur de résultats : barre à part, visible seulement en recherche,
+   exactement comme #search-count d'index.html */
+.dm-cntbar{padding:4px 24px;font-size:11px;color:var(--text3);font-family:var(--mono);
+  background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
+
+/* --- NEUF : la fente liste | détail --- */
+.dm-split{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.dm-split.ouvert{grid-template-columns:minmax(0,1fr) 430px}
+.dm-liste{border:1px solid var(--border);border-radius:var(--rl);background:var(--bg2);overflow:hidden;min-width:0}
+
+.list-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.list-table th{text-align:left;padding:8px 12px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--bg2)}
+.list-table td{padding:9px 12px;font-size:12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-table tr{cursor:pointer;transition:background .1s}
+.list-table tbody tr:hover td{background:var(--bg3)}
+.list-table tbody tr.sel td{background:var(--bg4)}
+.list-table tbody tr:last-child td{border-bottom:none}
+/* Largeurs mesurées sur le contenu réel, pas devinées : la première version
+   tronquait « il y a 6 j » en « il y a … » et « Clinique Vaugirard » en
+   « Clinique Vaugira… ». Une colonne Âge coupée annule la seule chose
+   qu'elle sert à faire. */
+.dm-c-ref{width:80px}
+.dm-c-st{width:112px}
+.dm-c-age{width:72px}
+.dm-c-mq{width:auto;min-width:176px}
+.dm-c-dem{width:128px}
+.dm-c-ty{width:98px}
+.dm-c-ca{width:78px}
+.dm-c-tr{width:104px}
+/* Panneau ouvert : la liste se réduit à ses colonnes d'IDENTIFICATION.
+   L'aperçu du message, le type et le traité par vivent alors dans le
+   panneau — les répéter à gauche écrase les colonnes entre elles
+   (en-têtes superposés) et ne sert à rien. */
+.dm-split.ouvert .dm-c-msg,
+.dm-split.ouvert .dm-c-ty,
+.dm-split.ouvert .dm-c-tr{display:none}
+
+.dm-mq{color:var(--text);font-size:12px}
+.dm-code{font-family:var(--mono);font-size:10.5px;color:var(--text3)}
+/* La référence du ticket : c'est par elle qu'on désigne une demande dans
+   Slack, au téléphone, dans un couloir. Elle vit donc en PREMIÈRE colonne,
+   comme un identifiant, et dans l'en-tête du panneau. */
+.ref{font-family:var(--mono);font-size:10.5px;color:var(--text2);background:var(--bg4);border:1px solid var(--border);border-radius:4px;padding:2px 6px;white-space:nowrap}
+.dm-msg{color:var(--text2)}
+.dm-age{font-family:var(--mono);font-size:11px;color:var(--text3)}
+.dm-age.vieux{color:var(--amber)}
+.dm-age.tard{color:var(--red)}
+.dm-rien{color:var(--text3)}
+/* 44 px gratuits : la rangée fait déjà 47 px (mesuré), c'est le select de
+   statut qui la dimensionne. Même motif que client.html .lnk:349. */
+.dm-carte{font-family:var(--mono);font-size:10.5px;color:var(--blue);background:none;border:none;padding:2px 4px;cursor:pointer;font-weight:500;min-height:44px;display:inline-flex;align-items:center;font-size:10.5px}
+.dm-carte:hover{text-decoration:underline}
+
+/* le select de statut, en ligne dans la rangée */
+.dm-selst{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:5px;font-size:10.5px;font-family:var(--font);padding:3px 5px;cursor:pointer;max-width:100%;min-height:28px}
+.dm-selst:focus{outline:none;border-color:var(--red)}
+
+/* --- NEUF : le panneau de détail --- */
+.dm-pan{border:1px solid var(--border);border-radius:var(--rl);background:var(--bg2);position:sticky;top:0;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 150px)}
+.dm-pan-h{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px;flex-shrink:0}
+.dm-pan-t{flex:1;min-width:0}
+.dm-pan-t h3{font-size:13px;font-weight:500;color:var(--text);line-height:1.45;margin-bottom:5px}
+.dm-pan-meta{font-size:10.5px;color:var(--text3);display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-family:var(--mono)}
+.dm-x{background:none;border:none;color:var(--text3);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;font-family:var(--font);flex-shrink:0;min-height:32px}
+.dm-x:hover{color:var(--text)}
+.dm-pan-b{padding:14px 16px;overflow-y:auto;flex:1}
+.dm-pan-f{padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg2)}
+
+.dm-fiche{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:11.5px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.dm-fiche.bas{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.dm-fiche dt{color:var(--text3)}
+.dm-fiche dd{color:var(--text2)}
+.dm-fiche dd b{color:var(--text);font-weight:500}
+
+/* LA LIGNE QUI COMPTE — « qui attend qui ». Les files ne meurent pas à la
+   fin, elles meurent au milieu, dans l'état où chacun croit que l'autre
+   doit jouer. L'âge seul ne le dit pas : une demande de 9 jours à qui on a
+   répondu en 2 h va bien ; une demande de 2 jours sans réponse, non. */
+.dm-att{display:flex;align-items:center;gap:9px;border-radius:var(--r);padding:9px 12px;font-size:12px;line-height:1.45;margin-bottom:14px;border:1px solid}
+.dm-att b{font-weight:600}
+.dm-att .ic{font-size:13px;line-height:1;flex-shrink:0}
+.dm-att.nous{background:var(--amber-dim);border-color:rgba(239,159,39,.35);color:var(--amber)}
+.dm-att.tard{background:var(--red-dim);border-color:rgba(230,57,70,.38);color:var(--red)}
+.dm-att.eux{background:var(--bg3);border-color:var(--border);color:var(--text2)}
+.dm-att.fin{background:var(--purple-dim);border-color:rgba(127,119,221,.32);color:var(--purple)}
+
+.dm-sect-t{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:9px}
+
+/* le fil — bâti sur le motif .retour-row de la maison */
+.dm-fil{display:flex;flex-direction:column;gap:9px}
+.dm-m{border-radius:var(--r);padding:9px 12px;font-size:12px;line-height:1.55}
+.dm-m.eux{background:var(--bg3);border-left:2px solid var(--border2);border-radius:0 var(--r) var(--r) 0;color:var(--text2)}
+.dm-m.ouv{color:var(--text);font-size:12.5px;border-left-color:var(--text3);padding:11px 13px}
+.dm-m.nous{background:var(--red-dim);border-left:2px solid var(--red);border-radius:0 var(--r) var(--r) 0;margin-left:24px;color:var(--text)}
+.dm-m-h{font-size:10px;color:var(--text3);margin-bottom:4px;display:flex;align-items:center;gap:6px;font-family:var(--mono)}
+.dm-m.nous .dm-m-h{color:var(--text2)}
+
+.dm-ta{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);padding:9px 11px;font-size:12.5px;font-family:var(--font);resize:vertical;min-height:72px;line-height:1.5}
+.dm-ta:focus{outline:none;border-color:var(--red)}
+.dm-ta-pied{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.dm-cpt{font-size:10px;color:var(--text3);font-family:var(--mono)}
+.dm-cpt.trop{color:var(--red)}
+.dm-prev{font-size:10.5px;color:var(--text3);margin-top:8px;line-height:1.5}
+
+.dm-note{font-size:10.5px;color:var(--text3);line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;margin-top:12px}
+
+/* missions : deux boutons, pas un select */
+.dm-dec{display:flex;gap:8px;margin-top:4px}
+
+/* téléphone : le panneau prend toute la largeur, la liste s'efface */
+@media(max-width:1180px){
+  .dm-split.ouvert{grid-template-columns:minmax(0,1fr)}
+  .dm-split.ouvert .dm-liste{display:none}
+  .dm-pan{max-height:none;position:static}
+}
+@media(max-width:860px){
+  .dm-side{display:none}
+  .main-topbar{padding:0 14px;height:auto;min-height:48px;flex-wrap:wrap;gap:8px;padding-top:8px;padding-bottom:8px}
+  .view-tabs{padding:0 10px;overflow-x:auto;scrollbar-width:none}
+  .sb-filters{padding:6px 12px;gap:4px}
+  .sb-filter{padding:5px 10px}
+  .dm-cntbar{padding:4px 14px}
+  .view-tabs::-webkit-scrollbar{display:none}
+  .main-content{padding:14px 14px 24px}
+  .search-input-wrap{width:100%;max-width:none}
+  .dm-c-ty,.dm-c-tr,.dm-c-dem{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="dm-shell">
+
+  <!-- SIDEBAR : montrée pour situer la page dans le menu. La 6e entrée est
+       « Demandes » — là où vit aujourd'hui un bouton d'action (index.html:190). -->
+  <aside class="dm-side">
+    <div class="dm-logo">HAVANA</div>
+    <div class="dm-logo-sub">Réel Média</div>
+
+    <div class="dm-sect">Navigation</div>
+    <button class="sb-nav-item"><span class="sb-nav-icon">◫</span><span>Dashboard</span></button>
+    <button class="sb-nav-item"><span class="sb-nav-icon">▦</span><span>Production</span><span class="sb-nav-badge">34</span></button>
+    <button class="sb-nav-item"><span class="sb-nav-icon">💡</span><span>Idées</span><span class="sb-nav-badge">7</span></button>
+    <button class="sb-nav-item"><span class="sb-nav-icon">✓</span><span>Tâches</span><span class="sb-nav-badge">3</span></button>
+    <button class="sb-nav-item active" aria-current="page"><span class="sb-nav-icon">📨</span><span>Demandes</span><span class="sb-nav-badge red" id="sb-badge">6</span></button>
+    <button class="sb-nav-item"><span class="sb-nav-icon">🗄</span><span>Archives</span></button>
+
+    <div class="dm-sect">Actions</div>
+    <button class="sb-nav-item"><span class="sb-nav-icon">＋</span><span>Nouveau sujet</span></button>
+    <button class="sb-nav-item"><span class="sb-nav-icon">👥</span><span>Gérer l'équipe</span></button>
+    <button class="sb-nav-item"><span class="sb-nav-icon">🔑</span><span>Accès clients</span></button>
+  </aside>
+
+  <div class="dm-main">
+
+    <div class="main-topbar">
+      <div class="main-breadcrumb">Dashboard <span>/</span> <b>Demandes &amp; missions</b></div>
+      <div class="search-input-wrap">
+        <span class="search-icon">⌕</span>
+        <input class="search-input" id="q" type="text" placeholder="Réf, marque, demandeur, carte, texte…" oninput="chercher(this.value)" aria-label="Rechercher dans les demandes">
+        <button class="search-clear" id="q-x" hidden onclick="viderRech()" aria-label="Vider la recherche">×</button>
+      </div>
+    </div>
+
+    <div class="view-tabs" role="tablist">
+      <button class="vtab active" id="t-dem" role="tab" aria-selected="true" onclick="onglet('dem')">
+        📨 Demandes <span class="sb-nav-badge red" id="t-dem-n">4</span>
+      </button>
+      <button class="vtab" id="t-mis" role="tab" aria-selected="false" onclick="onglet('mis')">
+        🎬 Missions <span class="sb-nav-badge red" id="t-mis-n">2</span>
+      </button>
+    </div>
+
+    <div class="sb-filters" id="filtres"></div>
+    <div class="dm-cntbar" id="cntbar" hidden></div>
+
+    <div class="main-content">
+
+      <div class="dm-split" id="split">
+        <div class="dm-liste" id="liste"></div>
+        <div class="dm-pan" id="pan" hidden></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===========================================================================
+   DONNÉES FICTIVES. Les champs portent EXACTEMENT les noms renvoyés par
+   demandes-admin.js 'liste' et missions-admin.js 'liste' — rien de plus.
+   `fil` est la seule addition : c'est la base 💬 Messages de PR-5a.
+   =========================================================================== */
+var MAINTENANT = new Date('2026-11-15T18:00:00+01:00');
+
+var DEMANDES = [
+  { id:'d1', ref:'D-7F3A', statut:'Nouvelle', codeBrand:'B33', marque:'Rugby Drancy', codeCarte:'B33D',
+    demandeur:'Camille Besson', type:'Décaler un tournage', traitePar:'',
+    date:'2026-11-09T09:12:00+01:00',
+    message:'Le tournage du 18 ne va pas être possible, notre président est en déplacement. On peut viser la semaine suivante ?',
+    fil:[ {sens:'Client', auteur:'Camille Besson', date:'2026-11-09T09:12:00+01:00',
+           texte:'Le tournage du 18 ne va pas être possible, notre président est en déplacement. On peut viser la semaine suivante ?'} ] },
+
+  { id:'d2', ref:'D-C14E', statut:'Nouvelle', codeBrand:'B41', marque:'Refashion', codeCarte:'',
+    demandeur:'Yanis Khalfi', type:'Autre', traitePar:'',
+    date:'2026-11-14T16:40:00+01:00',
+    message:'Est-ce qu\'on peut récupérer les rushes bruts du dernier Mag ? Notre agence en a besoin pour un montage interne.',
+    fil:[ {sens:'Client', auteur:'Yanis Khalfi', date:'2026-11-14T16:40:00+01:00',
+           texte:'Est-ce qu\'on peut récupérer les rushes bruts du dernier Mag ? Notre agence en a besoin pour un montage interne.'} ] },
+
+  { id:'d3', ref:'D-9B02', statut:'Nouvelle', codeBrand:'B52', marque:'Hôtel Lumen', codeCarte:'B52A',
+    demandeur:'Perrine Vasseur', type:'Décaler un tournage', traitePar:'',
+    date:'2026-11-15T11:05:00+01:00',
+    message:'Décalage d\'une heure possible lundi ? L\'équipe du restaurant ne sera pas prête avant 10h.',
+    fil:[ {sens:'Client', auteur:'Perrine Vasseur', date:'2026-11-15T11:05:00+01:00',
+           texte:'Décalage d\'une heure possible lundi ? L\'équipe du restaurant ne sera pas prête avant 10h.'} ] },
+
+  { id:'d4', ref:'D-4D77', statut:'Nouvelle', codeBrand:'B18', marque:'Clinique Vaugirard', codeCarte:'',
+    demandeur:'Sofiane Merad', type:'Autre', traitePar:'',
+    date:'2026-11-15T15:28:00+01:00',
+    message:'Qui est notre contact pour les sous-titres ? On voudrait une version sourds et malentendants.',
+    fil:[ {sens:'Client', auteur:'Sofiane Merad', date:'2026-11-15T15:28:00+01:00',
+           texte:'Qui est notre contact pour les sous-titres ? On voudrait une version sourds et malentendants.'} ] },
+
+  { id:'d5', ref:'D-A6E1', statut:'En cours', codeBrand:'B33', marque:'Rugby Drancy', codeCarte:'B33I',
+    demandeur:'Camille Besson', type:'Autre', traitePar:'Chloé',
+    date:'2026-11-11T10:02:00+01:00',
+    message:'Le teaser du salon, on peut avoir une version sans la musique ? Notre écran du stand n\'a pas de son.',
+    fil:[ {sens:'Client', auteur:'Camille Besson', date:'2026-11-11T10:02:00+01:00',
+           texte:'Le teaser du salon, on peut avoir une version sans la musique ? Notre écran du stand n\'a pas de son.'},
+          {sens:'Réel Média', auteur:'Chloé', date:'2026-11-11T14:30:00+01:00',
+           texte:'Oui, c\'est faisable. On vous prépare une version clean sans musique ni voix off, livrée avec le reste.'},
+          {sens:'Client', auteur:'Camille Besson', date:'2026-11-12T08:55:00+01:00',
+           texte:'Parfait. Et les sous-titres peuvent rester incrustés dessus ?'} ] },
+
+  { id:'d6', ref:'D-23BC', statut:'En cours', codeBrand:'B07', marque:'Groupe Aveline', codeCarte:'B07C',
+    demandeur:'Marion Delpech', type:'Décaler un tournage', traitePar:'Thierry',
+    date:'2026-11-13T17:44:00+01:00',
+    message:'On doit repousser le tournage de Nantes, le site est en travaux jusqu\'au 5 décembre.',
+    fil:[ {sens:'Client', auteur:'Marion Delpech', date:'2026-11-13T17:44:00+01:00',
+           texte:'On doit repousser le tournage de Nantes, le site est en travaux jusqu\'au 5 décembre.'},
+          {sens:'Réel Média', auteur:'Thierry', date:'2026-11-14T09:10:00+01:00',
+           texte:'Noté. Je regarde avec le journaliste et je vous propose deux dates après le 8.'} ] },
+
+  { id:'d7', ref:'D-E580', statut:'Traitée', codeBrand:'B41', marque:'Refashion', codeCarte:'B41B',
+    demandeur:'Yanis Khalfi', type:'Autre', traitePar:'Chloé',
+    date:'2026-11-06T13:20:00+01:00',
+    message:'Le format vertical est bien prévu pour les trois films ou seulement le premier ?',
+    fil:[ {sens:'Client', auteur:'Yanis Khalfi', date:'2026-11-06T13:20:00+01:00',
+           texte:'Le format vertical est bien prévu pour les trois films ou seulement le premier ?'},
+          {sens:'Réel Média', auteur:'Chloé', date:'2026-11-06T15:02:00+01:00',
+           texte:'Les trois. Chaque film est livré en 16:9 et en 9:16, c\'est dans le devis validé.'} ] },
+
+  { id:'d8', ref:'D-1F49', statut:'Traitée', codeBrand:'B52', marque:'Hôtel Lumen', codeCarte:'',
+    demandeur:'Perrine Vasseur', type:'Autre', traitePar:'Joël',
+    date:'2026-11-04T09:33:00+01:00',
+    message:'Possible d\'avoir une facture par film plutôt qu\'une facture globale ?',
+    fil:[ {sens:'Client', auteur:'Perrine Vasseur', date:'2026-11-04T09:33:00+01:00',
+           texte:'Possible d\'avoir une facture par film plutôt qu\'une facture globale ?'},
+          {sens:'Réel Média', auteur:'Joël', date:'2026-11-04T11:48:00+01:00',
+           texte:'Oui, Nicolas s\'en occupe. Vous recevrez trois factures distinctes.'} ] },
+
+  { id:'d9', ref:'D-B7D3', statut:'Clôturée', codeBrand:'B07', marque:'Groupe Aveline', codeCarte:'B07A',
+    demandeur:'Marion Delpech', type:'Autre', traitePar:'Thierry',
+    date:'2026-10-29T14:15:00+01:00',
+    message:'Les visuels du générique sont validés de notre côté, on peut avancer.',
+    fil:[ {sens:'Client', auteur:'Marion Delpech', date:'2026-10-29T14:15:00+01:00',
+           texte:'Les visuels du générique sont validés de notre côté, on peut avancer.'},
+          {sens:'Réel Média', auteur:'Thierry', date:'2026-10-29T16:02:00+01:00',
+           texte:'Super, on lance le montage final cette semaine.'},
+          {sens:'Client', auteur:'Marion Delpech', date:'2026-10-30T08:20:00+01:00',
+           texte:'Nickel, merci. Je clôture de mon côté.'} ] },
+
+  { id:'d10', ref:'D-6C2A', statut:'Refusée', codeBrand:'B18', marque:'Clinique Vaugirard', codeCarte:'B18B',
+    demandeur:'Sofiane Merad', type:'Décaler un tournage', traitePar:'Chloé',
+    date:'2026-10-27T10:40:00+01:00',
+    message:'On aimerait avancer le tournage à cette semaine finalement.',
+    fil:[ {sens:'Client', auteur:'Sofiane Merad', date:'2026-10-27T10:40:00+01:00',
+           texte:'On aimerait avancer le tournage à cette semaine finalement.'},
+          {sens:'Réel Média', auteur:'Chloé', date:'2026-10-27T12:15:00+01:00',
+           texte:'Impossible cette semaine, l\'équipe est sur un autre tournage. La date initiale reste la bonne.'} ] }
+];
+
+var MISSIONS = [
+  { id:'m1', ref:'M-2B91', statut:'Nouvelle', codeBrand:'B52', marque:'Hôtel Lumen',
+    objet:'Portrait du chef pour le lancement de la carte d\'hiver',
+    demandeur:'Perrine Vasseur', lieu:'12 rue de l\'Échiquier, Paris 10e',
+    personnes:'Le chef, et peut-être le directeur de salle',
+    contactSurPlace:'Perrine — 06 ** ** ** **', pourQuand:'2026-12-05',
+    plateforme:['Instagram','TikTok'], formatImage:['9:16'], sousFormat:'Face Cam',
+    valideCommercialPar:'', reponse:'', date:'2026-11-12T11:30:00+01:00' },
+
+  { id:'m2', ref:'M-8E44', statut:'Nouvelle', codeBrand:'B41', marque:'Refashion',
+    objet:'Trois déclinaisons courtes à partir du Mag déjà tourné',
+    demandeur:'Yanis Khalfi', lieu:'', personnes:'', contactSurPlace:'',
+    pourQuand:'', plateforme:['Instagram'], formatImage:['9:16','16:9'], sousFormat:'Décli',
+    valideCommercialPar:'', reponse:'', date:'2026-11-15T09:05:00+01:00' },
+
+  { id:'m3', ref:'M-D30F', statut:'Devis', codeBrand:'B07', marque:'Groupe Aveline',
+    objet:'Film de recrutement, deux sites, interviews de six salariés',
+    demandeur:'Marion Delpech', lieu:'Nantes et Rennes',
+    personnes:'Six salariés, liste à venir', contactSurPlace:'Marion sur place à Nantes',
+    pourQuand:'2027-01-20', plateforme:['YouTube','Interne'], formatImage:['16:9'], sousFormat:'Mag',
+    valideCommercialPar:'Chloé', reponse:'', date:'2026-11-07T15:50:00+01:00' },
+
+  { id:'m4', ref:'M-57A6', statut:'En production', codeBrand:'B33', marque:'Rugby Drancy',
+    objet:'Vrai ou Faux sur les règles du rugby, avec deux joueurs',
+    demandeur:'Camille Besson', lieu:'Stade de Drancy',
+    personnes:'Deux joueurs de l\'équipe première', contactSurPlace:'Camille — sur place',
+    pourQuand:'2026-11-28', plateforme:['Instagram','TikTok','YouTube'], formatImage:['9:16'],
+    sousFormat:'Vrai ou Faux', valideCommercialPar:'Chloé',
+    reponse:'Accepté, carte créée.', date:'2026-10-30T10:00:00+01:00', carteCreee:'B33K' }
+];
+
+/* --- contrats serveur : ce que l'équipe PEUT poser, et rien de plus --------
+   demandes-admin.js:13  STATUTS  = ['Nouvelle','En cours','Traitée','Refusée']
+   « Clôturée » est posée par le CLIENT. Absente du sélecteur : le serveur la
+   rejetterait en 400 (:54). Affichée, jamais proposée.
+   missions-admin.js     action 'decision' → accepter | refuser, c'est tout. */
+var ST_EQUIPE = ['Nouvelle','En cours','Traitée','Refusée'];
+var ST_TOUS   = ['Nouvelle','En cours','Traitée','Clôturée','Refusée'];
+var ST_MIS    = ['Nouvelle','Acceptée','Devis','Validée','En production','Refusée'];
+
+/* couleurs : celles déjà en production à index.html:5781, + Clôturée en
+   violet, qui est aussi sa couleur côté Notion. */
+var PILL = {
+  'Nouvelle':'p-amber', 'En cours':'p-blue', 'Traitée':'p-green',
+  'Clôturée':'p-purple', 'Refusée':'p-gray',
+  'Acceptée':'p-blue', 'Devis':'p-amber', 'Validée':'p-blue', 'En production':'p-green'
+};
+/* La pastille du filtre prend la couleur de la pastille de statut de la
+   rangée : dérivée de PILL, donc impossible de les faire diverger. Même
+   grammaire que Production, où chaque filtre porte le point de son étape. */
+var DOT = { 'p-red':'var(--red)', 'p-amber':'var(--amber)', 'p-blue':'var(--blue)',
+            'p-green':'var(--green)', 'p-purple':'var(--purple)', 'p-gray':'var(--text3)' };
+function couleurDot(st){ return DOT[PILL[st]] || 'var(--text3)'; }
+
+var ORDRE_DEM = { 'Nouvelle':0, 'En cours':1, 'Traitée':2, 'Clôturée':3, 'Refusée':4 };
+var ORDRE_MIS = { 'Nouvelle':0, 'Acceptée':1, 'Devis':2, 'Validée':3, 'En production':4, 'Refusée':5 };
+var MAX_REPONSE = 2000;
+
+/* --------------------------------------------------------------------------- */
+var vue = 'dem';        // 'dem' | 'mis'
+var filtre = 'tous';
+var rech = '';
+var ouvert = null;      // id de la ligne ouverte
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function jours(iso){
+  var d = new Date(iso);
+  return Math.floor((MAINTENANT - d) / 86400000);
+}
+/* Forme COMPACTE : la colonne fait 72 px et l'âge doit se lire d'un coup
+   d'œil, pas se faire tronquer. La date et l'heure exactes restent dans
+   l'infobulle de la cellule. */
+function age(iso){
+  var j = jours(iso);
+  if(j <= 0) return 'auj.';
+  if(j === 1) return 'hier';
+  return j + ' j';
+}
+/* Forme longue, pour le panneau où il y a la place de l'écrire en français. */
+function ageLong(iso){
+  var j = jours(iso);
+  if(j <= 0) return "aujourd'hui";
+  if(j === 1) return 'hier';
+  return 'il y a ' + j + ' jours';
+}
+
+/* La bannière « qui attend qui ». Un seul message, jamais deux. */
+function banniere(x){
+  var a = attente(x);
+  if(!a) return '';
+  if(a.qui === 'fin'){
+    return '<div class="dm-att fin"><span class="ic">●</span><span>'
+      + (a.refus ? 'Demande <b>refusée</b>. Rien n\'est attendu de part ni d\'autre.'
+                 : 'Le client a <b>clôturé</b> cette demande. Rien ne part plus d\'ici.')
+      + '</span></div>';
+  }
+  if(a.qui === 'nous'){
+    var jamais = premiereReponse(x) === null;
+    return '<div class="dm-att ' + (a.tard ? 'tard' : 'nous') + '"><span class="ic">▲</span><span>'
+      + (jamais ? 'Jamais répondu. ' : '')
+      + 'Le client attend <b>notre réponse</b> depuis <b>' + esc(a.duree) + '</b>.'
+      + '</span></div>';
+  }
+  return '<div class="dm-att eux"><span class="ic">○</span><span>'
+    + 'La balle est <b>chez le client</b>. On a répondu il y a ' + esc(a.duree) + '.'
+    + '</span></div>';
+}
+/* Le Type n'a que DEUX valeurs côté serveur (demande-client.js:17). Affiché
+   en forme courte pour tenir dans la colonne ; la valeur stockée, elle, ne
+   change pas. */
+var TYPE_COURT = { 'Décaler un tournage':'Décalage', 'Autre':'Autre' };
+
+/* Durée lisible : on ne dit pas « 0,17 j », on dit « 4 h ». */
+function duree(ms){
+  var min = Math.round(ms / 60000);
+  if(min < 60) return min + ' min';
+  var h = Math.round(min / 60);
+  if(h < 36) return h + ' h';
+  return Math.round(h / 24) + ' j';
+}
+
+/* QUI ATTEND QUI — déduit du SENS du dernier message du fil, pas du statut.
+   Le statut dit ce que l'équipe a coché ; le fil dit ce qui s'est passé.
+   Seuil de retard : 2 jours. Choix de Réel Média, pas une norme — la
+   référence du secteur est une première réponse en ~9 h (Freshservice,
+   187 M de tickets), mais une boîte de production n'est pas un support. */
+var SEUIL_RETARD_J = 2;
+
+function attente(x){
+  if(x.statut === 'Clôturée') return { qui:'fin' };
+  if(x.statut === 'Refusée')  return { qui:'fin', refus:true };
+  var dernier = x.fil[x.fil.length - 1];
+  if(!dernier) return null;
+  var depuis = MAINTENANT - new Date(dernier.date);
+  var j = Math.floor(depuis / 86400000);
+  return {
+    qui: dernier.sens === 'Client' ? 'nous' : 'eux',
+    duree: duree(depuis),
+    jours: j,
+    tard: (dernier.sens === 'Client' && j >= SEUIL_RETARD_J)
+  };
+}
+
+/* Délai de PREMIÈRE RÉPONSE : du premier mot du client au premier mot de
+   l'équipe. C'est la mesure que suivent les vraies files, et la seule qui
+   dise si on a été correct avec ce client. */
+function premiereReponse(x){
+  var t0 = null;
+  for(var i=0;i<x.fil.length;i++){
+    if(x.fil[i].sens === 'Client' && !t0) t0 = new Date(x.fil[i].date);
+    if(x.fil[i].sens === 'Réel Média' && t0) return duree(new Date(x.fil[i].date) - t0);
+  }
+  return null;
+}
+function dateCourte(iso){
+  try{ return new Date(iso).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}); }catch(e){ return ''; }
+}
+function dateHeure(iso){
+  try{
+    var d = new Date(iso);
+    return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}) + ' à ' +
+           d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){ return ''; }
+}
+function echeance(iso){
+  if(!iso) return null;
+  try{ return new Date(iso).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}); }catch(e){ return iso; }
+}
+/* Champ vide = un tiret discret, JAMAIS une phrase. C'est déjà la
+   convention de la liste (.dm-rien), et un panneau qui dirait « pas
+   précisé » là où la liste dit « — » ferait parler deux langues à la
+   même page. Et une fiche criblée de tirets dit d'elle-même ce qu'il
+   faut savoir : le brief est maigre. */
+function rien(){ return '<span class="dm-rien">—</span>'; }
+
+function pill(st){
+  return '<span class="pill ' + (PILL[st] || 'p-gray') + '">' + esc(st) + '</span>';
+}
+/* surligne les correspondances — .search-highlight existe déjà dans la maison */
+function sur(txt){
+  var t = esc(txt);
+  if(!rech) return t;
+  var re = new RegExp('(' + rech.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')','gi');
+  return t.replace(re,'<span class="search-highlight">$1</span>');
+}
+
+function jeu(){ return vue === 'dem' ? DEMANDES : MISSIONS; }
+
+function correspond(x){
+  if(!rech) return true;
+  var q = rech.toLowerCase();
+  var champs = [x.ref, x.marque, x.codeBrand, x.codeCarte, x.demandeur, x.traitePar,
+                x.message, x.objet, x.lieu, x.type, TYPE_COURT[x.type], x.statut];
+  for(var i=0;i<champs.length;i++){
+    if(champs[i] && String(champs[i]).toLowerCase().indexOf(q) !== -1) return true;
+  }
+  return false;
+}
+
+function filtrees(){
+  var ordre = vue === 'dem' ? ORDRE_DEM : ORDRE_MIS;
+  return jeu()
+    .filter(function(x){ return filtre === 'tous' || x.statut === filtre; })
+    .filter(correspond)
+    .slice()
+    .sort(function(a,b){
+      var da = ordre[a.statut], db = ordre[b.statut];
+      if(da === undefined) da = 99;
+      if(db === undefined) db = 99;
+      return (da - db) || (a.date < b.date ? 1 : -1);
+    });
+}
+
+/* ---- le bandeau de filtres ------------------------------------------------ */
+function rendFiltres(){
+  var liste = vue === 'dem' ? ST_TOUS : ST_MIS;
+  var chip = function(actif, couleur, libelle, n, arg){
+    return '<button class="sb-filter' + (actif ? ' active' : '') + '" onclick="setFiltre(\'' + arg + '\')">'
+         + '<span class="sb-dot" style="background:' + couleur + '"></span>' + esc(libelle)
+         + ' <span class="sb-badge">' + n + '</span></button>';
+  };
+  var h = chip(filtre === 'tous', 'var(--text3)', 'Tous', jeu().filter(correspond).length, 'tous');
+  liste.forEach(function(st){
+    var n = jeu().filter(function(x){ return x.statut === st; }).filter(correspond).length;
+    if(!n && filtre !== st) return;   // un filtre qui ne mène nulle part ne s'affiche pas
+    h += chip(filtre === st, couleurDot(st), st, n, st);
+  });
+  if(filtre !== 'tous' || rech){
+    h += '<button class="sb-tout" onclick="toutAfficher()">↺ Tout afficher</button>';
+  }
+  $('filtres').innerHTML = h;
+}
+
+/* Le « ↺ Tout afficher » de Production (index.html:235, #sb-tout). */
+function toutAfficher(){
+  filtre = 'tous';
+  rech = '';
+  $('q').value = '';
+  $('q-x').hidden = true;
+  rendTout();
+}
+function setFiltre(st){
+  filtre = st;
+  if(ouvert){
+    var enc = filtrees().some(function(x){ return x.id === ouvert; });
+    if(!enc) fermer();
+  }
+  rendTout();
+}
+
+/* ---- la liste ------------------------------------------------------------- */
+function rendListe(){
+  var xs = filtrees();
+  if(!xs.length){
+    $('liste').innerHTML = '<div class="empty"><h3>Rien à afficher</h3><p>'
+      + (rech ? 'Aucun résultat pour « ' + esc(rech) + ' ».' : 'Aucune entrée avec ce statut.')
+      + '</p></div>';
+    majCompteur(0);
+    return;
+  }
+  $('liste').innerHTML = vue === 'dem' ? tableDemandes(xs) : tableMissions(xs);
+  majCompteur(xs.length);
+}
+function majCompteur(n){
+  var bar = $('cntbar');
+  if(!bar) return;
+  if(!rech){ bar.hidden = true; bar.textContent = ''; return; }
+  var mot = vue === 'dem' ? (n > 1 ? 'demandes' : 'demande') : (n > 1 ? 'missions' : 'mission');
+  bar.hidden = false;
+  bar.textContent = n + ' ' + mot + ' pour « ' + rech + ' »';
+}
+
+function tableDemandes(xs){
+  var h = '<table class="list-table"><thead><tr>'
+    + '<th class="dm-c-ref">Réf</th>'
+    + '<th class="dm-c-st">Statut</th>'
+    + '<th class="dm-c-age" title="Depuis combien de temps l\'autre attend">Attente</th>'
+    + '<th class="dm-c-mq">Marque</th>'
+    + '<th class="dm-c-dem">Demandeur</th>'
+    + '<th class="dm-c-ty">Type</th>'
+    + '<th class="dm-c-ca">Carte</th>'
+    + '<th class="dm-c-tr">Traité par</th>'
+    + '</tr></thead><tbody>';
+
+  xs.forEach(function(x){
+    /* La colonne dit la MÊME chose que la bannière du panneau : depuis
+       combien de temps l'autre attend. Un âge depuis la création dirait
+       « 9 j » d'une demande réglée en deux heures — et les deux écrans se
+       contrediraient. */
+    var a = attente(x);
+    var cel, tt;
+    if(!a || a.qui === 'fin'){
+      cel = '<span class="dm-rien">—</span>';
+      tt  = 'Terminée · reçue le ' + dateHeure(x.date);
+    } else {
+      cel = '<span class="dm-age' + (a.tard ? ' tard' : (a.qui === 'nous' ? ' vieux' : '')) + '">' + esc(a.duree) + '</span>';
+      tt  = (a.qui === 'nous' ? 'Le client attend notre réponse' : 'On attend le client')
+          + ' · reçue le ' + dateHeure(x.date);
+    }
+    h += '<tr class="' + (ouvert===x.id?'sel':'') + '" title="' + esc(x.message) + '" onclick="ouvrir(\'' + x.id + '\')">'
+      +   '<td class="dm-c-ref"><span class="ref">' + sur(x.ref) + '</span></td>'
+      +   '<td class="dm-c-st">' + selStatut(x) + '</td>'
+      +   '<td class="dm-c-age" title="' + esc(tt) + '">' + cel + '</td>'
+      +   '<td class="dm-c-mq" title="' + esc(x.codeBrand) + '"><span class="dm-mq">' + sur(x.marque) + '</span></td>'
+      +   '<td class="dm-c-dem">' + sur(x.demandeur) + '</td>'
+      +   '<td class="dm-c-ty" title="' + esc(x.type) + '">' + sur(TYPE_COURT[x.type] || x.type) + '</td>'
+      +   '<td class="dm-c-ca">' + (x.codeCarte
+            ? '<button class="dm-carte" onclick="event.stopPropagation();allerCarte(\'' + esc(x.codeCarte) + '\')">' + sur(x.codeCarte) + ' ↗</button>'
+            : '<span class="dm-rien">—</span>') + '</td>'
+      +   '<td class="dm-c-tr">' + (x.traitePar ? sur(x.traitePar) : '<span class="dm-rien">—</span>') + '</td>'
+      + '</tr>';
+  });
+  return h + '</tbody></table>';
+}
+
+/* Le statut se change EN LIGNE : geste fréquent, réversible, et il garde le
+   contexte des rangées voisines. « Clôturée » n'est jamais proposée. */
+function selStatut(x){
+  if(x.statut === 'Clôturée'){
+    return pill('Clôturée');
+  }
+  var o = ST_EQUIPE.map(function(s){
+    return '<option' + (x.statut===s?' selected':'') + '>' + s + '</option>';
+  }).join('');
+  return '<select class="dm-selst" onclick="event.stopPropagation()" '
+       + 'onchange="changeStatut(\'' + x.id + '\',this.value)" '
+       + 'aria-label="Statut de la demande de ' + esc(x.marque) + '">' + o + '</select>';
+}
+
+function tableMissions(xs){
+  var h = '<table class="list-table"><thead><tr>'
+    + '<th class="dm-c-ref">Réf</th>'
+    + '<th class="dm-c-st">Statut</th>'
+    + '<th class="dm-c-age" title="Depuis combien de temps le client attend notre décision">Attente</th>'
+    + '<th class="dm-c-mq">Marque</th>'
+    + '<th class="dm-c-dem">Demandeur</th>'
+    + '<th class="dm-c-msg">Objet</th>'
+    + '<th class="dm-c-ty">Pour quand</th>'
+    + '<th class="dm-c-tr">Validé par</th>'
+    + '</tr></thead><tbody>';
+
+  xs.forEach(function(x){
+    /* Une mission n'a pas de fil : ce qu'on attend, c'est notre décision,
+       et seulement tant qu'elle est Nouvelle. Une fois décidée, la colonne
+       ne prétend pas qu'il reste quelque chose à faire. */
+    var att = x.statut === 'Nouvelle';
+    var jm = jours(x.date);
+    var cel = att
+      ? '<span class="dm-age' + (jm >= SEUIL_RETARD_J ? ' tard' : ' vieux') + '">' + esc(duree(MAINTENANT - new Date(x.date))) + '</span>'
+      : '<span class="dm-rien">—</span>';
+    h += '<tr class="' + (ouvert===x.id?'sel':'') + '" onclick="ouvrir(\'' + x.id + '\')">'
+      +   '<td class="dm-c-ref"><span class="ref">' + sur(x.ref) + '</span></td>'
+      +   '<td class="dm-c-st">' + pill(x.statut) + '</td>'
+      +   '<td class="dm-c-age" title="' + esc((att ? 'Le client attend notre décision' : 'Décidée') + ' · reçue le ' + dateHeure(x.date)) + '">' + cel + '</td>'
+      +   '<td class="dm-c-mq" title="' + esc(x.codeBrand) + '"><span class="dm-mq">' + sur(x.marque) + '</span></td>'
+      +   '<td class="dm-c-dem">' + sur(x.demandeur) + '</td>'
+      +   '<td class="dm-msg dm-c-msg" title="' + esc(x.objet) + '">' + sur(x.objet) + '</td>'
+      +   '<td class="dm-c-ty">' + (x.pourQuand ? esc(dateCourte(x.pourQuand)) : '<span class="dm-rien">non fixé</span>') + '</td>'
+      +   '<td class="dm-c-tr">' + (x.valideCommercialPar ? sur(x.valideCommercialPar) : '<span class="dm-rien">—</span>') + '</td>'
+      + '</tr>';
+  });
+  return h + '</tbody></table>';
+}
+
+/* ---- le panneau de détail ------------------------------------------------- */
+function trouver(id){
+  var xs = jeu();
+  for(var i=0;i<xs.length;i++){ if(xs[i].id === id) return xs[i]; }
+  return null;
+}
+function ouvrir(id){
+  ouvert = id;
+  $('split').classList.add('ouvert');
+  $('pan').hidden = false;
+  rendListe();
+  rendPanneau();
+  if(window.matchMedia('(max-width:1180px)').matches) $('pan').scrollIntoView({block:'start'});
+}
+function fermer(){
+  ouvert = null;
+  $('split').classList.remove('ouvert');
+  $('pan').hidden = true;
+  $('pan').innerHTML = '';
+  rendListe();
+}
+
+function rendPanneau(){
+  var x = trouver(ouvert);
+  if(!x){ fermer(); return; }
+  $('pan').innerHTML = vue === 'dem' ? panDemande(x) : panMission(x);
+}
+
+function panDemande(x){
+  var clos = x.statut === 'Clôturée';
+  /* L'en-tête ne porte PLUS l'âge : il est devenu la bannière ci-dessous,
+     où il veut enfin dire quelque chose. Et la carte n'apparaît qu'une
+     fois — elle était en double, dans le méta ET dans la fiche. */
+  var h = '<div class="dm-pan-h">'
+    + '<div class="dm-pan-t"><h3>' + esc(x.marque) + '</h3>'
+    + '<div class="dm-pan-meta">' + pill(x.statut)
+    + ' <span class="ref">' + esc(x.ref) + '</span>'
+    + (x.codeCarte ? ' <span>·</span> <span>carte ' + esc(x.codeCarte) + '</span>' : '')
+    + '</div></div>'
+    + '<button class="dm-x" onclick="fermer()" aria-label="Fermer le panneau">×</button></div>';
+
+  h += '<div class="dm-pan-b">';
+  h += banniere(x);
+
+  /* LA DEMANDE D'ABORD. Elle a quitté la liste — on ne lit pas dix messages
+     tronqués pour en trier un —, donc c'est ICI qu'elle doit sauter aux
+     yeux, juste sous la bannière, avant tout le reste. */
+  var msg = function(m, ouv){
+    var nous = m.sens === 'Réel Média';
+    return '<div class="dm-m ' + (nous?'nous':'eux') + (ouv?' ouv':'') + '">'
+      +   '<div class="dm-m-h">' + esc(m.auteur) + ' <span>·</span> ' + esc(dateHeure(m.date)) + '</div>'
+      +   esc(m.texte)
+      + '</div>';
+  };
+
+  h += '<div class="dm-sect-t">La demande</div><div class="dm-fil">'
+     + msg(x.fil[0], true) + '</div>';
+
+  if(x.fil.length > 1){
+    h += '<div class="dm-sect-t" style="margin-top:16px">Les échanges</div><div class="dm-fil">';
+    for(var i = 1; i < x.fil.length; i++) h += msg(x.fil[i], false);
+    h += '</div>';
+  }
+
+  var pr = premiereReponse(x);
+  h += '<div class="dm-sect-t" style="margin-top:18px">Détails</div>'
+     + '<dl class="dm-fiche bas">'
+     + '<dt>Demandeur</dt><dd>' + esc(x.demandeur) + '</dd>'
+     + '<dt>Type</dt><dd>' + esc(x.type) + '</dd>'
+     + '<dt>Reçue</dt><dd>' + esc(dateHeure(x.date)) + ' <span style="color:var(--text3)">· ' + esc(ageLong(x.date)) + '</span></dd>'
+     + '<dt>1<sup>re</sup> réponse</dt><dd>' + (pr ? 'en <b>' + esc(pr) + '</b>' : rien()) + '</dd>'
+     + '<dt>Traité par</dt><dd>' + (x.traitePar ? esc(x.traitePar) : rien()) + '</dd>'
+     + '</dl>';
+
+  if(clos){
+    h += '<div class="dm-note">Le client a clôturé cette demande. On garde le fil en lecture : '
+       + 'plus rien ne part de notre côté. S\'il relance, il ouvrira une nouvelle demande.</div>';
+  }
+  h += '</div>';
+
+  /* La réponse s'écrit ICI, pas dans la rangée : elle est VISIBLE PAR LE
+     CLIENT, et une réponse partie par mégarde ne se reprend pas. */
+  if(!clos){
+    h += '<div class="dm-pan-f">'
+      + '<div class="dm-sect-t">Répondre au client</div>'
+      + '<textarea class="dm-ta" id="rep" maxlength="' + MAX_REPONSE + '" '
+      + 'placeholder="Votre réponse, telle que le client la lira dans son espace…" '
+      + 'oninput="compter()" aria-label="Réponse visible par le client"></textarea>'
+      + '<div class="dm-ta-pied">'
+      +   '<span class="dm-cpt" id="cpt-rep">0 / ' + MAX_REPONSE + '</span>'
+      +   '<button class="nav-btn primary" id="btn-rep" onclick="repondre()" disabled>Envoyer la réponse</button>'
+      + '</div>'
+      + '<div class="dm-prev">Elle apparaîtra dans l\'espace de ' + esc(x.marque)
+      + ', signée Réel Média. Changer le statut ci-contre n\'envoie rien.</div>'
+      + '</div>';
+  }
+  return h;
+}
+
+function panMission(x){
+  var aDecider = x.statut === 'Nouvelle';
+  var h = '<div class="dm-pan-h">'
+    + '<div class="dm-pan-t"><h3>' + esc(x.objet) + '</h3>'
+    + '<div class="dm-pan-meta">' + pill(x.statut)
+    + ' <span class="ref">' + esc(x.ref) + '</span>'
+    + (x.carteCreee ? ' <span>·</span> <span>carte ' + esc(x.carteCreee) + '</span>' : '')
+    + '</div></div>'
+    + '<button class="dm-x" onclick="fermer()" aria-label="Fermer le panneau">×</button></div>';
+
+  h += '<div class="dm-pan-b">';
+
+  /* Même logique qu'une demande, mais une mission n'a pas de fil : ce qu'on
+     attend, c'est une DÉCISION de notre côté tant qu'elle est Nouvelle. */
+  var jm = jours(x.date);
+  if(x.statut === 'Nouvelle'){
+    h += '<div class="dm-att ' + (jm >= SEUIL_RETARD_J ? 'tard' : 'nous') + '">'
+       + '<span class="ic">▲</span><span>Le client attend <b>notre décision</b> depuis <b>'
+       + esc(duree(MAINTENANT - new Date(x.date))) + '</b>.</span></div>';
+  } else if(x.statut === 'Refusée'){
+    h += '<div class="dm-att fin"><span class="ic">●</span><span>Mission <b>refusée</b>. '
+       + 'Le motif est parti au client.</span></div>';
+  } else {
+    h += '<div class="dm-att eux"><span class="ic">○</span><span>Acceptée. '
+       + (x.carteCreee ? 'La carte <b>' + esc(x.carteCreee) + '</b> existe.' : 'La carte reste à créer.')
+       + '</span></div>';
+  }
+
+  h += '<dl class="dm-fiche">'
+     + '<dt>Marque</dt><dd>' + esc(x.marque) + '</dd>'
+     + '<dt>Demandeur</dt><dd>' + esc(x.demandeur) + '</dd>'
+     + '<dt>Pour quand</dt><dd>' + (echeance(x.pourQuand) ? esc(echeance(x.pourQuand)) : rien()) + '</dd>'
+     + '<dt>Lieu</dt><dd>' + (x.lieu ? esc(x.lieu) : rien()) + '</dd>'
+     + '<dt>À interviewer</dt><dd>' + (x.personnes ? esc(x.personnes) : rien()) + '</dd>'
+     + '<dt>Sur place</dt><dd>' + (x.contactSurPlace ? esc(x.contactSurPlace) : rien()) + '</dd>'
+     + '<dt>Type de film</dt><dd>' + (x.sousFormat ? esc(x.sousFormat) : rien()) + '</dd>'
+     + '<dt>Format image</dt><dd>' + ((x.formatImage && x.formatImage.length) ? esc(x.formatImage.join(' et ')) : rien()) + '</dd>'
+     + '<dt>Diffusion</dt><dd>' + ((x.plateforme && x.plateforme.length) ? esc(x.plateforme.join(', ')) : rien()) + '</dd>'
+     + '<dt>Reçue</dt><dd>' + esc(dateHeure(x.date)) + ' <span style="color:var(--text3)">· ' + esc(ageLong(x.date)) + '</span></dd>'
+     + '</dl>';
+
+  if(x.reponse){
+    h += '<div class="dm-sect-t">Notre réponse</div>'
+       + '<div class="dm-m nous" style="margin-left:0">'
+       + '<div class="dm-m-h">' + esc(x.valideCommercialPar || 'Réel Média') + '</div>'
+       + esc(x.reponse) + '</div>';
+  }
+
+  h += '<div class="dm-note"><b>Diffusion et format image sont vides en production aujourd\'hui</b> — '
+     + 'missions-admin.js lit <code>_sel</code> sur <code>Plateforme</code>, qui est un multi-select. '
+     + 'Même famille que le bug d\'écriture de mission-client.js:126. À corriger ensemble.</div>';
+  h += '</div>';
+
+  /* Missions : le serveur n'offre qu'accepter | refuser (+ motif). Pas de
+     liste déroulante de statut — elle serait un mensonge. */
+  if(aDecider){
+    h += '<div class="dm-pan-f">'
+      + '<div class="dm-sect-t">Décision commerciale</div>'
+      + '<textarea class="dm-ta" id="motif" maxlength="' + MAX_REPONSE + '" '
+      + 'placeholder="Un mot pour le client. Obligatoire si vous refusez…" '
+      + 'oninput="compterMotif()" aria-label="Motif, visible par le client"></textarea>'
+      + '<div class="dm-ta-pied">'
+      +   '<span class="dm-cpt" id="cpt-motif">0 / ' + MAX_REPONSE + '</span>'
+      +   '<div class="dm-dec">'
+      +     '<button class="nav-btn" id="btn-ref" onclick="decider(\'refuser\')">Refuser</button>'
+      +     '<button class="nav-btn primary" onclick="decider(\'accepter\')">Accepter</button>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="dm-prev">Accepter passe la mission à <b>Acceptée</b>. La carte se crée ensuite, '
+      + 'depuis le bouton « Créer la carte », qui pré-remplit le formulaire Nouveau sujet.</div>'
+      + '</div>';
+  }
+  return h;
+}
+
+/* ---- gestes --------------------------------------------------------------- */
+function compter(){
+  var t = $('rep'); if(!t) return;
+  var n = t.value.length;
+  var c = $('cpt-rep'), b = $('btn-rep');
+  if(c){ c.textContent = n + ' / ' + MAX_REPONSE; c.classList.toggle('trop', n >= MAX_REPONSE); }
+  if(b) b.disabled = (t.value.trim().length === 0);
+}
+function compterMotif(){
+  var t = $('motif'); if(!t) return;
+  var n = t.value.length;
+  var c = $('cpt-motif');
+  if(c){ c.textContent = n + ' / ' + MAX_REPONSE; c.classList.toggle('trop', n >= MAX_REPONSE); }
+}
+
+function changeStatut(id, st){
+  var x = trouver(id);
+  if(!x) return;
+  x.statut = st;
+  /* Le serveur estampille « Traité par » tout seul au premier changement
+     (demandes-admin.js:65). On le montre pour que ce soit lisible ici. */
+  if(!x.traitePar) x.traitePar = 'Vous';
+  rendTout();
+  if(ouvert === id) rendPanneau();
+}
+
+function repondre(){
+  var x = trouver(ouvert);
+  var t = $('rep');
+  if(!x || !t || !t.value.trim()) return;
+  x.fil.push({ sens:'Réel Média', auteur:'Vous', date:new Date().toISOString(), texte:t.value.trim() });
+  if(x.statut === 'Nouvelle') x.statut = 'En cours';
+  if(!x.traitePar) x.traitePar = 'Vous';
+  rendTout();
+  rendPanneau();
+}
+
+function decider(quoi){
+  var x = trouver(ouvert);
+  if(!x) return;
+  var t = $('motif');
+  var motif = t ? t.value.trim() : '';
+  if(quoi === 'refuser' && !motif){
+    if(t){ t.focus(); t.style.borderColor = 'var(--red)'; }
+    return;
+  }
+  x.statut = (quoi === 'accepter') ? 'Acceptée' : 'Refusée';
+  x.valideCommercialPar = 'Vous';
+  if(motif) x.reponse = motif;
+  rendTout();
+  rendPanneau();
+}
+
+function allerCarte(code){
+  /* En production : ouvre la carte du sujet. Le lien existe déjà dans la
+     modale actuelle (.dem-carte-lnk). */
+  alert('Ouvrirait la carte ' + code + ' dans Production.');
+}
+
+/* ---- onglets et recherche ------------------------------------------------- */
+function onglet(v){
+  if(vue === v) return;
+  vue = v;
+  filtre = 'tous';
+  ouvert = null;
+  $('split').classList.remove('ouvert');
+  $('pan').hidden = true;
+  $('pan').innerHTML = '';
+  $('t-dem').classList.toggle('active', v === 'dem');
+  $('t-mis').classList.toggle('active', v === 'mis');
+  $('t-dem').setAttribute('aria-selected', v === 'dem' ? 'true' : 'false');
+  $('t-mis').setAttribute('aria-selected', v === 'mis' ? 'true' : 'false');
+  rendTout();
+  window.scrollTo(0, 0);
+}
+
+function chercher(v){
+  rech = String(v || '').trim();
+  $('q-x').hidden = !rech;
+  if(ouvert){
+    var enc = filtrees().some(function(x){ return x.id === ouvert; });
+    if(!enc) fermer();
+  }
+  rendTout();
+}
+function viderRech(){
+  rech = '';
+  $('q').value = '';
+  $('q-x').hidden = true;
+  rendTout();
+  $('q').focus();
+}
+
+/* ---- pastilles ------------------------------------------------------------ */
+function rendPastilles(){
+  var nd = DEMANDES.filter(function(x){ return x.statut === 'Nouvelle'; }).length;
+  var nm = MISSIONS.filter(function(x){ return x.statut === 'Nouvelle'; }).length;
+  maj($('t-dem-n'), nd);
+  maj($('t-mis-n'), nm);
+  maj($('sb-badge'), nd + nm);
+}
+function maj(el, n){
+  if(!el) return;
+  el.textContent = n;
+  el.hidden = (n === 0);
+}
+
+function rendTout(){
+  rendFiltres();
+  rendListe();
+  rendPastilles();
+}
+
+rendTout();
+</script>
+</body>
+</html>
