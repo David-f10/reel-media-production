@@ -251,7 +251,7 @@ exports.handler = async (event) => {
         interlocutrice,                                 // { nom } | null
         collaboration: { livres: livres.length, enCours: enCours.length, depuis: plusAncienneDiffusion ? moisFr(plusAncienneDiffusion) : null },
         aValider,                                       // [{ code, titre, lienSeq }] — séquencier à valider (Validation Brand posée, Client non)
-        aRelire,                                        // [{ code, titre, numero, dateDeposee }]
+        aRelire,                                        // [{ code, titre, numero, seriesAccordees, dateDeposee }]
         enCours,                                        // [{ code, titre, sousFormat, realisePar, etape 0..2, pastille|null, aMontage, valideeClient, lienSeq }]
         livres                                          // [{ code, titre, sousFormat, duree, realisePar, dateDiffusion }]
       })
