@@ -8,6 +8,7 @@
 
 const { verifyUser } = require('./_auth');
 const { appelNotion } = require('./_notionio');
+const { refDemande } = require('./_demref'); // MÊME référence d'affichage que côté client (helper partagé)
 
 const DB_DEMANDES = '41875d81-5951-8115-b6c0-ede198a923ab';
 const STATUTS = ['Nouvelle', 'En cours', 'Traitée', 'Refusée'];
@@ -83,6 +84,7 @@ exports.handler = async (event) => {
     } while (cursor && pages < 20);
     const demandes = out.map(p => ({
       id: p.id,
+      ref: refDemande(p.id),                          // MÊME étiquette « D-xxxxxxxx » que celle vue par le client
       message: _ti(p.properties, 'Message'),
       type: _sel(p.properties, 'Type'),
       codeBrand: _rt(p.properties, 'Code Brand'),
