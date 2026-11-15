@@ -245,6 +245,16 @@
    au client de demander une série de corrections de trop. */
 .p-etat{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
 .p-sub{font-family:var(--mono);font-size:9.5px;color:var(--txt3);white-space:nowrap}
+/* Un film « Séquencier à valider » vient d'une requête SÉPARÉE
+   (espace-client.js:233-244) qui ne porte que {code, titre, lienSeq} :
+   ni Sous-format, ni réalisateur, ni étape. Ce n'est pas un oubli — le
+   commentaire du serveur le dit : « le séquencier se valide AVANT tout
+   montage ». Une barre Tournage→Diffusion sur ces rangées serait FAUSSE,
+   pas approximative. Donc : tirets dans les colonnes vides, et une ligne
+   qui EXPLIQUE le vide à la place de la barre. Décision de David, 15/11. */
+.vide{color:var(--txt3)}
+.avant-tournage{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;
+  color:var(--txt3);margin-top:9px}
 /* Une pastille d'état QUI DEMANDE UNE ACTION est cliquable : c'est par elle
    qu'on ouvre le montage ou le séquencier. Les autres restent inertes. */
 button.pill{cursor:pointer;font-family:var(--sans);min-height:30px}
@@ -649,10 +659,10 @@ td.c-a .slots{display:grid;grid-template-columns:repeat(3,39px);gap:6px;align-it
       <article class="proj">
         <div class="p-code"><span class="code">B33C</span></div>
         <div class="p-film"><h3>Atelier mobile à Roubaix</h3>
-          <div class="etapes"><span class="et fait"><span class="et-b"></span><span class="et-l">Tournage</span></span><span class="et ici"><span class="et-b"></span><span class="et-l">Montage</span></span><span class="et"><span class="et-b"></span><span class="et-l">Validation</span></span><span class="et"><span class="et-b"></span><span class="et-l">Diffusion</span></span></div>
+          <div class="avant-tournage">Séquencier — à valider avant le tournage</div>
         </div>
-        <div class="p-type">Mag</div>
-        <div class="p-who">Mathilde Kaczkowski</div>
+        <div class="p-type"><span class="vide">—</span></div>
+        <div class="p-who"><span class="vide">—</span></div>
         <div class="p-etat"><button class="pill rouge">Séquencier à valider</button></div>
         <div class="proj-a"><span></span><button class="ico lire" title="Ouvrir le séquencier et décider" aria-label="Ouvrir le séquencier et décider">📄</button></div>
       </article>
