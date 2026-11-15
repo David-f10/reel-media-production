@@ -8,8 +8,8 @@ d'application : rail à gauche sur bureau, barre d'onglets en bas sur téléphon
 | vue | id | état côté production |
 |---|---|---|
 | Mes films | `s-proj` | existe (`vue-accueil`), à faire évoluer |
-| Mes demandes | `s-dem` | **n'existe pas** — serveur prêt, écran absent |
-| Proposer un film | `s-mis` | **n'existe pas** — serveur prêt, écran absent |
+| Mes demandes | `s-dem` | **existe en version réduite** — bloc « 📨 Une demande rapide » dans l'accueil (`renderDemandes()` `client.html:700`, appelé `:843`) : formulaire + liste `#mes-demandes`. La maquette en fait une **destination** avec fil, statuts et suivi |
+| Proposer un film | `s-mis` | **existe en version réduite** — bloc « 🎬 Proposer un nouveau film » (`renderMissions()` `client.html:725`, appelé `:844`). La maquette en fait une **destination** |
 | Qui a accès | `s-eq` | **n'existe pas** — rien, ni écran ni écriture |
 
 Distincte de `../maquette-B-16x9.html` et consorts, qui fixent la vue **montage**.
@@ -58,11 +58,11 @@ valeur de l'**affichage**. « Mes films » doit continuer à les afficher.
 | sujet | décision |
 |---|---|
 | modèle du fil | **option B** : base `💬 Messages`, 1 ligne = 1 message, rattachée **par code** |
-| référence de ticket | `DEM-207` / `MIS-14` — propriété `Réf` de type `auto_increment_id` |
+| référence de ticket | ⛔ **NON TRANCHÉE — ne pas partir sur `auto_increment_id`**, voir « Pièges » plus bas. Piste : dériver **6** caractères de l'id de page Notion, que l'app a déjà (`demandes-admin.js:85` renvoie `id`). Question à poser à Code |
 | 5ᵉ statut | **`Clôturée`**, posée par le client, transition bornée serveur |
 | modifier son dernier message | **on garde** — borné au dernier message, de soi, sans réponse en dessous, hors demande clôturée. **La règle doit être rejouée SERVEUR**, le navigateur n'en est pas l'autorité |
 | cibles tactiles | **44 px partout**, comme `client.html` (`.bouton` `:313`, `.lnk` `:349`). Appliqué |
-| contraste `--txt3` | à corriger vers `#84849C`, dans un **PR dédié** |
+| contraste `--txt3` | ✅ **fait** — `#5A5A70` → `#84849C`, PR #244 mergée le 15/11. ⚠ ne corrige QUE `client.html` : `review.html:14` et `css/base.css:4` (`--text3:#555`, **248 usages**) restent en échec AA |
 | « Pour combien » | c'est un **vrai format éditorial**. Option créée |
 | « YouTube » dans les deux listes | **on garde les deux** : un Mag 9:16 part souvent en YouTube Short. Plateforme ≠ format |
 | contact référent | **pas de référent pour l'instant** — tout contact d'une marque peut en ajouter un autre. Décision provisoire et assumée |
@@ -74,16 +74,22 @@ Une ligne a été créée dans chaque base, relue, puis supprimée.
 | base | créé | vérifié |
 |---|---|---|
 | Production | option `Pour combien` sur `Sous-format` | les 9 autres intactes |
-| 📨 Demandes | statut `Clôturée` · propriété `Réf` (préfixe `DEM`) | numéro attribué : 1 |
-| 🎬 Missions | propriété `Sous-format` (10 valeurs) · `Réf` (préfixe `MIS`) | numéro attribué : 1 |
+| 📨 Demandes | statut `Clôturée` | les 4 autres intactes. ⚠ `demandes-admin.js:13` ne la connaît pas : personne ne peut la poser aujourd'hui |
+| 🎬 Missions | propriété `Sous-format` (10 valeurs) | `Format image` et `Plateforme` intactes |
 | 💬 Messages | base créée : `Message` · `Réf demande` · `Sens` · `Auteur` · `Code Brand` · `Modifié le` | 2 messages du même fil acceptés, les deux sens |
 
 **Trois pièges mesurés, à ne pas redécouvrir :**
 
-1. L'API **sait** créer une propriété `auto_increment_id`. Mais le préfixe doit faire
-   **2 à 10 caractères** : `D` seul est refusé, d'où `DEM` et `MIS`.
-2. L'API renvoie le numéro **nu** (`"1"`), pas `"DEM-1"`. Le préfixe vit dans le schéma :
-   **le serveur doit le composer**.
+1. ⛔ **Une propriété `auto_increment_id` CASSE L'APP.** L'API sait la créer — mais
+   `_notionio.js:45` lit Notion en `2022-06-28`, version **antérieure** à ce type.
+   Créée le 15/11 sur 📨 Demandes et 🎬 Missions, elle a mis le panneau « Demandes &
+   missions » en **503** ; retirée le soir même. Ne pas y revenir sans monter l'app en
+   version d'API — ce qui touche **toutes** les fonctions.
+2. ⛔ **Une base neuve n'hérite d'aucun accès.** Les bases 📨 Demandes et 🎬 Missions
+   ont été créées sans être connectées à l'intégration HAVANA. Résultat : 404 Notion →
+   503 côté équipe **et** côté client, pendant des semaines, **en silence** — la
+   pastille avale les échecs (`index.html:5748`, `catch(e){}`). Toute base neuve doit
+   être connectée à la main, dans Notion : `•••` → Connexions. Aucune API ne le fait.
 3. Modifier un select **supprime toute option non listée**. Il faut rejouer les options
    existantes avec leurs couleurs, sinon les 586 fiches perdent leur sous-format.
 
@@ -98,4 +104,9 @@ Une ligne a été créée dans chaque base, relue, puis supprimée.
   Testé : la base accepte bien `["Instagram","TikTok"]`.
 - **`Format image` existe déjà** sur 🎬 Missions, en multi-select `9:16` / `16:9`.
   Rien à créer, seulement à brancher — `mission-client.js` ne l'accepte pas encore.
-- Pagination au-delà de 50 demandes, et aucun champ de recherche dans la liste.
+- ✅ **Pagination de `'mes'` : faite**, PR #245 mergée le 15/11 (curseur, `page_size` 100,
+  bornée à 20 pages). Il reste à ajouter un champ de recherche dans la liste.
+- **`sousFormat` sur les films EN COURS : le serveur l'envoie** depuis PR #245
+  (`espace-client.js:211`), **mais rien ne l'affiche** — `client.html:914` ne rend que
+  `code` et `realisePar`. L'affichage viendra avec le PR « Mes films », où le type est
+  une **colonne** de la grille (`--kt:120px`), pas un bout de texte en plus.
