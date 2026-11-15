@@ -104,7 +104,7 @@
 
   nav{display:flex;flex-direction:column;gap:1px;padding-top:15px}
   .nv{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--txt2);
-    text-align:left;font-size:13.5px;padding:9px 10px;border-radius:8px;cursor:pointer;min-height:42px}
+    text-align:left;font-size:13.5px;padding:9px 10px;border-radius:8px;cursor:pointer;min-height:44px}
   .nv:hover{background:var(--bg3);color:var(--txt)}
   .nv[aria-current="page"]{background:var(--rouge-faible);color:var(--txt);box-shadow:inset 2px 0 0 var(--rouge)}
   .nv:focus-visible{outline:2px solid var(--rouge);outline-offset:-2px}
@@ -194,12 +194,12 @@
   .attente{color:var(--txt3);font-size:11.5px;line-height:1.4}
 
   .bouton{font-size:13px;padding:9px 14px;border-radius:8px;cursor:pointer;background:transparent;
-    color:var(--txt);border:1px solid var(--line2);min-height:42px;white-space:nowrap}
+    color:var(--txt);border:1px solid var(--line2);min-height:44px;white-space:nowrap}
   .bouton:hover{border-color:var(--txt3);background:var(--bg3)}
   .bouton:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
   .bouton.plein{background:var(--rouge);border-color:var(--rouge);color:#fff;font-weight:500}
   .bouton.plein:hover{background:#d32f3c}
-  .bouton.sm{font-size:12.5px;padding:7px 11px;min-height:38px}
+  .bouton.sm{font-size:12.5px;padding:7px 13px;min-height:44px}
   /* ── Actions d'un film : icônes seules ──────────────────────────────────────────────────────────
      Repris de index.html:1505 (le ▶ rouge, title="Visionner") et :1515 (l'icône neutre bordée,
      title="Dossier Drive"). Règle maison : UNE seule icône rouge, celle qui lance la lecture ; toutes
@@ -209,8 +209,10 @@
      DÉVIATION ASSUMÉE vs client.html:349, où les actions sont des pastilles texte à min-height:44px.
      Ici 26 px, la taille réelle des boutons icône de l'app : conforme AA (24 px), pas AAA (44 px).
      À briefer à Code. */
+  /* 44px de CIBLE, pas de glyphe : client.html pose déjà min-height:44px sur .lnk, .bouton, .vch,
+     .mt-back, .voir-montage et .ret-tc-seek. Mes 31px auraient été la seule exception de l'écran. */
   .ico{border:1px solid var(--line2);background:var(--bg4);color:var(--txt2);cursor:pointer;
-       border-radius:6px;font-size:12px;line-height:1.4;padding:6px 10px;flex-shrink:0;
+       border-radius:6px;font-size:12px;line-height:1;padding:0 13px;min-height:44px;flex-shrink:0;
        font-family:inherit;display:inline-flex;align-items:center;justify-content:center}
   .ico:hover{color:var(--txt);border-color:var(--txt3)}
   .ico:focus-visible{outline:2px solid var(--bleu);outline-offset:2px}
@@ -218,8 +220,10 @@
   .ico.lire:hover{background:#d32f3c;border-color:#d32f3c}
 
   /* Lien texte — réservé à ce qui n'agit pas sur un film (le dépliage des livrés). */
+  /* Cible pleine obtenue par le padding : à l'œil ça reste un lien texte, au doigt c'est 44px.
+     WCAG 2.5.8 exempte le « lien dans une ligne de texte », mais l'écran est à 44 partout. */
   .lnk{background:none;border:none;color:var(--bleu);font-size:12.5px;cursor:pointer;
-       padding:5px 3px;font-family:inherit}
+       padding:5px 3px;font-family:inherit;min-height:44px;display:inline-flex;align-items:center}
   .lnk:hover{text-decoration:underline}
   .lnk:focus-visible{outline:2px solid var(--rouge);outline-offset:2px;border-radius:4px}
 
@@ -258,7 +262,7 @@
   label.ch-l{display:block;color:var(--txt2);font-size:12px;margin:0 0 6px}
   .rang{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
   select,input[type=text],input[type=date],textarea{width:100%;background:var(--bg3);color:var(--txt);
-    border:1px solid var(--line2);border-radius:8px;padding:10px 12px;font-family:var(--sans);font-size:13.5px;min-height:42px}
+    border:1px solid var(--line2);border-radius:8px;padding:10px 12px;font-family:var(--sans);font-size:13.5px;min-height:44px}
   textarea{min-height:84px;resize:vertical;line-height:1.55}
   select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--rouge);outline-offset:1px;border-color:var(--rouge-bord)}
   .bas{display:flex;gap:9px;align-items:center;margin-top:15px;flex-wrap:wrap}
@@ -359,12 +363,13 @@
 
   /* Référence du ticket — propriété Unique ID de Notion (préfixe + compteur auto, lecture seule).
      Elle vit partout : ici, dans Notion, et dans le ping Slack. C'est elle qui permet de dire
-     « D-207 » au téléphone, et c'est elle qui rend le rattachement PAR CODE possible pour les
+     « DEM-207 » au téléphone, et c'est elle qui rend le rattachement PAR CODE possible pour les
      messages d'un fil — la doctrine de la base interdit les relations Notion.
+     Préfixe DEM / MIS et non D / M : Notion impose un préfixe de 2 à 10 caractères.
      ⚠ Le compteur est unique PAR BASE, donc partagé entre les 65 marques : les numéros d'un même
      client ne se suivent pas. C'est visible exprès dans la maquette.
      La référence ne figure PAS dans la ligne de liste : on y cherche par SUJET (l'aperçu + le film),
-     jamais par numéro — personne ne retient « D-207 ». La retirer rend 49px à l'aperçu (240 -> 289).
+     jamais par numéro — personne ne retient « DEM-207 ». La retirer rend 49px à l'aperçu (240 -> 289).
      Elle vit dans l'en-tête du fil, là où on a besoin de citer la demande. */
   .ref{font-family:var(--mono);font-size:10px;color:var(--txt3);background:var(--bg4);
     border:1px solid var(--line2);border-radius:4px;padding:1px 5px;white-space:nowrap}
@@ -435,12 +440,12 @@
   .fr .k{color:var(--txt3);font-size:12.5px}
   .fr .v{min-width:0}
   .fv{width:100%;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--txt);
-    font-family:var(--sans);font-size:13px;padding:7px 9px;min-height:36px}
+    font-family:var(--sans);font-size:13px;padding:9px 11px;min-height:44px}
   .fv::placeholder{color:var(--txt3);font-style:italic}
   /* Dans la règle ligne 199, input[type=text] vaut 0,1,1 et bat .fv (0,1,0) — mais select ne vaut que
      0,0,1 et perd. Résultat : 42px pour les champs texte, 36px pour le select, côte à côte dans le
      même duo. On réaligne explicitement. */
-  select.fv{min-height:42px;padding:10px 12px;font-size:13.5px;border-radius:8px}
+  select.fv{min-height:44px;padding:10px 12px;font-size:13.5px;border-radius:8px}
   /* « Pour quand » est une DATE dans Notion : un sélecteur, pas du texte libre à reparser. */
   .fv-date{color-scheme:dark}
   .fv-date::-webkit-calendar-picker-indicator{opacity:.45;cursor:pointer}
@@ -450,8 +455,9 @@
   .fv:hover{border-color:var(--line2);background:var(--bg3)}
   .fv:focus{outline:2px solid var(--rouge);outline-offset:1px;border-color:var(--rouge-bord);background:var(--bg3)}
   .chips{display:flex;flex-wrap:wrap;gap:6px;padding:3px 0}
-  .chip{font-size:12px;color:var(--txt3);background:transparent;border:1px solid var(--line2);border-radius:16px;
-    padding:6px 10px;cursor:pointer;min-height:34px;white-space:nowrap}
+  .chip{font-size:12px;color:var(--txt3);background:transparent;border:1px solid var(--line2);border-radius:22px;
+    padding:6px 15px;cursor:pointer;min-height:44px;white-space:nowrap;
+    display:inline-flex;align-items:center}
   .chip:hover{color:var(--txt);border-color:var(--txt3)}
   .chip[aria-pressed="true"]{color:var(--txt);background:var(--rouge-faible);border-color:var(--rouge-bord)}
   .chip:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
@@ -472,7 +478,8 @@
   .pers-a{display:flex;justify-content:flex-end;align-items:center;gap:9px;min-width:116px;text-align:right}
   /* Retirer un accès touche quelqu'un d'autre : jamais une icône muette, toujours le mot, et en rouge
      — mais sans fond plein, l'action reste réversible et ne mérite pas d'alarme. */
-  .lnk.danger{color:var(--rouge)}
+  /* Action destructive : cible pleine, jamais 25px. */
+  .lnk.danger{color:var(--rouge);min-height:44px;display:inline-flex;align-items:center;padding:5px 7px}
   .pers-a .conf{font-size:12px;color:var(--txt2)}
 
   /* .band et .ro-note posent display:flex, qui écrase le display:none que le navigateur applique à
@@ -754,7 +761,7 @@
         <div class="ibx-r">
             <article class="fv-pan on" data-p="1">
               <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
-              <div class="fv-h"><span class="ref gros">D-212</span><h3>Aucun film précis</h3></div>
+              <div class="fv-h"><span class="ref gros">DEM-212</span><h3>Aucun film précis</h3></div>
               <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai tard">en attente depuis 3 j</span></div>
               <div class="fil">
                 <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>12 nov. 09:41</span></div><div class="msg-t">Est-ce qu&#x27;on peut récupérer les rushes du tournage de septembre pour nos archives ?</div></div></div>
@@ -766,7 +773,7 @@
             </article>
             <article class="fv-pan" data-p="2" hidden>
               <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
-              <div class="fv-h"><span class="ref gros">D-207</span><span class="code">B33I</span><h3>Teaser Salon du réemploi</h3></div>
+              <div class="fv-h"><span class="ref gros">DEM-207</span><span class="code">B33I</span><h3>Teaser Salon du réemploi</h3></div>
               <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai">première réponse en 18 h</span></div>
               <div class="fil">
                 <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>9 nov. 15:12</span></div><div class="msg-t">Le sous-titrage du teaser comporte une faute sur le nom de notre fondatrice.</div></div>
@@ -781,7 +788,7 @@
             </article>
             <article class="fv-pan" data-p="3" hidden>
               <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
-              <div class="fv-h"><span class="ref gros">D-198</span><span class="code">B33D</span><h3>Tu préfères ?</h3></div>
+              <div class="fv-h"><span class="ref gros">DEM-198</span><span class="code">B33D</span><h3>Tu préfères ?</h3></div>
               <div class="fv-m"><span>Décaler un tournage</span><span class="sep">·</span><span class="delai">première réponse en 7 h</span></div>
               <div class="fil">
                 <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>6 nov. 10:28</span></div><div class="msg-t">Notre atelier est fermé la semaine du 17, est-ce qu&#x27;on peut décaler le tournage ?</div></div>
@@ -791,7 +798,7 @@
             </article>
             <article class="fv-pan" data-p="4" hidden>
               <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
-              <div class="fv-h"><span class="ref gros">D-193</span><span class="code">B33E</span><h3>Les ateliers de Lille</h3></div>
+              <div class="fv-h"><span class="ref gros">DEM-193</span><span class="code">B33E</span><h3>Les ateliers de Lille</h3></div>
               <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai tard">en attente depuis 11 j</span></div>
               <div class="fil">
                 <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>4 nov. 18:03</span></div><div class="msg-t">Qui vient tourner jeudi ? Il nous faut les noms pour le badge d&#x27;accès du site.</div></div></div>
@@ -803,7 +810,7 @@
             </article>
             <article class="fv-pan" data-p="5" hidden>
               <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
-              <div class="fv-h"><span class="ref gros">D-181</span><span class="code">B33F</span><h3>Portrait : Sofia, couturière</h3></div>
+              <div class="fv-h"><span class="ref gros">DEM-181</span><span class="code">B33F</span><h3>Portrait : Sofia, couturière</h3></div>
               <div class="fv-m"><span>Décaler un tournage</span><span class="sep">·</span><span class="delai">première réponse en 21 h</span></div>
               <div class="fil">
                 <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>28 oct. 14:30</span></div><div class="msg-t">On aimerait déplacer le tournage du 3 au 10 décembre, c&#x27;est encore possible ?</div></div>
@@ -816,7 +823,7 @@
             </article>
             <article class="fv-pan" data-p="6" hidden>
               <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
-              <div class="fv-h"><span class="ref gros">D-174</span><span class="code">B33C</span><h3>Atelier mobile à Roubaix</h3></div>
+              <div class="fv-h"><span class="ref gros">DEM-174</span><span class="code">B33C</span><h3>Atelier mobile à Roubaix</h3></div>
               <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai">première réponse en 30 h</span></div>
               <div class="fil">
                 <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>21 oct. 09:55</span></div><div class="msg-t">Est-ce qu&#x27;on peut avoir une version sans musique pour la diffuser en salon ?</div></div>
@@ -826,7 +833,7 @@
             </article>
             <article class="fv-pan" data-p="7" hidden>
               <button class="retour" onclick="fermerFil()">&#8592; Toutes les demandes</button>
-              <div class="fv-h"><span class="ref gros">D-166</span><h3>Aucun film précis</h3></div>
+              <div class="fv-h"><span class="ref gros">DEM-166</span><h3>Aucun film précis</h3></div>
               <div class="fv-m"><span>Autre</span><span class="sep">·</span><span class="delai">première réponse en 17 h</span></div>
               <div class="fil">
                 <div class="msg moi" data-mien><div class="msg-h"><b>Vous</b><span>14 oct. 16:11</span></div><div class="msg-t">Notre logo a changé, pouvez-vous l&#x27;utiliser sur les prochains montages ?</div></div>
@@ -943,7 +950,7 @@
           <div class="fr"><label class="k" for="i-ml">Adresse e-mail<span class="req">obligatoire</span></label>
             <input id="i-ml" class="fv" type="email" placeholder="j.meyer@refashion.fr"></div>
         </div>
-        <p class="note" style="margin-top:0">Son code d'accès lui sera envoyé directement par Réel Média. Vous ne le verrez pas, nous non plus une fois créé.</p>
+        <p class="note" style="margin-top:0">Réel Média lui transmettra son code d'accès. Vous ne le verrez pas, nous non plus une fois créé.</p>
         <div class="bas"><button class="bouton plein" onclick="inviter()">Ajouter</button>
           <button class="bouton discret" onclick="fermerInv()">Annuler</button></div>
       </div>
