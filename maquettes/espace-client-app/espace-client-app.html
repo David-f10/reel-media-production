@@ -8,6 +8,56 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
 
 <!--
+  ═══════════════════════════════════════════════════════════════════════
+  MISE À JOUR DU 15/11/2026 AU SOIR — décisions prises avec David.
+  Ce fichier ne montre plus la même chose qu'avant. Lire ceci d'abord.
+  ═══════════════════════════════════════════════════════════════════════
+
+  1. « À VALIDER » ET « À RELIRE » N'EXISTENT PLUS COMME SECTIONS.
+     Ce sont des ÉTATS dans le bloc « En cours ». Décision de David :
+     un seul endroit où regarder ses films.
+       · « Séquencier à valider » — pastille ROUGE, CLIQUABLE
+       · « V4 · à relire »        — pastille AMBRE, CLIQUABLE
+       · « Montage en cours »     — pastille GRISE, inerte
+       · « Validé par vous »      — pastille BLEUE, inerte
+     La pastille d'un état qui demande une action EST le point d'entrée.
+
+  2. « tour 3 sur 5 » ET « déposée le » ONT UNE NOUVELLE MAISON.
+     Ils vivaient dans la section À relire. Ils sont maintenant sous la
+     pastille, en mono discret (.p-sub). Ne pas les supprimer : « tour N
+     sur X » est ce qui évite au client de demander une série de trop.
+
+  3. ⚠ « VALIDER LE SÉQUENCIER » ET « DEMANDER DES CORRECTIONS »
+     N'ONT PLUS DE MAISON — ET CE FICHIER NE LA MONTRE PAS.
+     Les deux boutons n'existent qu'à client.html:872-873, dans la section
+     supprimée. Ce sont des boutons à LIBELLÉ : ils ne rentrent pas dans
+     une colonne d'icônes de 150px.
+     PROPOSITION RETENUE : ils descendent dans l'overlay du séquencier
+     (client.html:1673-1686), qui n'a aujourd'hui qu'un « ✕ Fermer ».
+     La pastille rouge ouvre le document, et c'est LÀ, après lecture, que
+     le client valide ou demande des corrections.
+     C'est mieux qu'aujourd'hui : en production, les deux boutons sont
+     posés à côté d'un simple lien, donc un client peut valider un
+     séquencier SANS JAMAIS L'AVOIR OUVERT.
+     ⚠ C'est du travail NEUF, dans client.html. À chiffrer dans le PR.
+
+  4. LES ACTIONS SONT À EMPLACEMENTS FIXES, plus un simple flex.
+     Un par TYPE : ▶ puis 📄 (En cours), ▶ puis ⬇ puis 📄 (Livrés).
+     Slot vide = rien d'affiché, la place est tenue. Vérifié au pixel :
+     ▶ à 1227, 📄 à 1272, ⬇ à 1272 et 📄 à 1317 sur les livrés, sur
+     TOUTES les rangées. Sans ça, le 📄 de « Séquencier à valider »
+     tomberait sous les ▶ des autres.
+
+  5. --txt3 EST PASSÉ À #84849C (PR #244, mergée le 15/11).
+     L'ancien #5A5A70 échouait AA (2,46 de contraste). Ne pas le restaurer.
+
+  6. LA GRILLE SUPPOSE LA COQUE. Mesuré : 684px de colonnes fixes, Film
+     en 1fr. Dans .vue à 1140px → Film reçoit 400px. Dans l'accueil actuel
+     (.wrap 760px, client.html:41) → Film reçoit 44px, inutilisable.
+     Conséquence : « Mes films » ne peut PAS être monté avant la coque.
+     Code l'a mesuré et s'est arrêté avant de coder — il avait raison.
+  ═══════════════════════════════════════════════════════════════════════
+
 ═══════════════════════════════════════════════════════════════════════════════════════════════════
   MAQUETTE DE L'ESPACE CLIENT — contenu fictif, NON VALIDÉE. Ne jamais déployer ce fichier.
 
@@ -69,7 +119,7 @@
   :root{
     --bg:#08080F; --bg2:#0F0F1A; --bg3:#16161F; --bg4:#1E1E2A;
     --line:#1E1E2A; --line2:#2A2A3A;
-    --txt:#F0F0F5; --txt2:#9898B0; --txt3:#5A5A70;
+    --txt:#F0F0F5; --txt2:#9898B0; --txt3:#84849C;  /* PR #244 : #5A5A70 échouait AA (2,46) */
     --rouge:#E63946; --rouge-faible:rgba(230,57,70,.14); --rouge-bord:rgba(230,57,70,.45);
     --vert:#1D9E75; --vert-faible:rgba(29,158,117,.13);
     --ambre:#EF9F27; --ambre-faible:rgba(239,159,39,.13);
@@ -190,7 +240,22 @@
   /* Actions sur UNE ligne, calées à gauche de leur colonne — exactement comme la cellule d'actions
      des livrés. « Revoir le montage » tombe donc au même x que « Revoir », sur toutes les lignes
      des deux sections. (L'empilement de la v17 était une reprise littérale de .lrow-r ; abandonné.) */
-  .proj-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  /* « tour 3 sur 5 » et « déposée le » vivaient dans la section À relire, qui
+   disparaît : ils passent sous la pastille. « tour N sur X » est ce qui évite
+   au client de demander une série de corrections de trop. */
+.p-etat{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.p-sub{font-family:var(--mono);font-size:9.5px;color:var(--txt3);white-space:nowrap}
+/* Une pastille d'état QUI DEMANDE UNE ACTION est cliquable : c'est par elle
+   qu'on ouvre le montage ou le séquencier. Les autres restent inertes. */
+button.pill{cursor:pointer;font-family:var(--sans);min-height:30px}
+button.pill:hover{filter:brightness(1.25)}
+.pill.rouge{background:var(--rouge-faible);color:var(--rouge);border:1px solid var(--rouge-bord)}
+/* EMPLACEMENTS FIXES, un par TYPE d'action — pas un simple flex. Un flex
+   suffisait tant que toute rangée commençait par ▶. Avec « Séquencier à
+   valider », dont la seule action est 📄, le 📄 tomberait sous les ▶.
+   Slot vide = rien d'affiché, mais la place est tenue. Vérifié au pixel. */
+.proj-a{display:grid;grid-template-columns:repeat(2,39px);gap:6px;align-items:center}
+td.c-a .slots{display:grid;grid-template-columns:repeat(3,39px);gap:6px;align-items:center}
   .attente{color:var(--txt3);font-size:11.5px;line-height:1.4}
 
   .bouton{font-size:13px;padding:9px 14px;border-radius:8px;cursor:pointer;background:transparent;
@@ -251,7 +316,7 @@
   /* Largeur donnée par --k5 ci-dessus (plus width:1%, incompatible avec table-layout:fixed).
      Alignement par défaut, donc à gauche de la colonne : « Revoir » tombe au MÊME x sur toutes les
      lignes, qu'il y ait 1, 2 ou 3 actions — et au même x que « Revoir le montage » au-dessus. */
-  td.c-a{white-space:nowrap;color:var(--txt3);display:flex;gap:6px;align-items:center;height:100%}
+  td.c-a{white-space:nowrap;color:var(--txt3);display:flex;align-items:center;height:100%}
   .replier{display:flex;align-items:center;gap:9px;justify-content:center;padding:11px;color:var(--txt3);font-size:12.5px}
   tbody.cache{display:none}
 
@@ -547,7 +612,7 @@
 
     <nav>
       <button class="nv" id="n-proj" aria-current="page" onclick="aller('proj')">
-        <span class="ic">🎞</span><span class="lb">Mes films</span><span class="ct" title="2 films attendent votre relecture">2</span></button>
+        <span class="ic">🎞</span><span class="lb">Mes films</span><span class="ct" title="3 films attendent une action de votre part">3</span></button>
       <button class="nv" id="n-dem" onclick="aller('dem')">
         <span class="ic">📨</span><span class="lb">Mes demandes</span><span class="ct" title="1 nouvelle réponse">1</span></button>
       <button class="nv" id="n-mis" onclick="aller('mis')">
@@ -573,13 +638,24 @@
 
       <div class="chiffres">
         <div class="ch"><div class="n">6</div><div class="l">films livrés</div></div>
-        <div class="ch"><div class="n">5</div><div class="l">en cours</div></div>
-        <div class="ch"><div class="n">2</div><div class="l">en attente de vous</div></div>
+        <div class="ch"><div class="n">6</div><div class="l">en cours</div></div>
+        <div class="ch"><div class="n">3</div><div class="l">en attente de vous</div></div>
       </div>
 
-      <h2 class="sec sec-esp">En cours <span class="n">5</span></h2>
+      <h2 class="sec sec-esp">En cours <span class="n">6</span></h2>
 
       <div class="proj-th"><div>Code</div><div>Film</div><div>Type</div><div>Réalisé par</div><div>État</div><div></div></div>
+
+      <article class="proj">
+        <div class="p-code"><span class="code">B33C</span></div>
+        <div class="p-film"><h3>Atelier mobile à Roubaix</h3>
+          <div class="etapes"><span class="et fait"><span class="et-b"></span><span class="et-l">Tournage</span></span><span class="et ici"><span class="et-b"></span><span class="et-l">Montage</span></span><span class="et"><span class="et-b"></span><span class="et-l">Validation</span></span><span class="et"><span class="et-b"></span><span class="et-l">Diffusion</span></span></div>
+        </div>
+        <div class="p-type">Mag</div>
+        <div class="p-who">Mathilde Kaczkowski</div>
+        <div class="p-etat"><button class="pill rouge">Séquencier à valider</button></div>
+        <div class="proj-a"><span></span><button class="ico lire" title="Ouvrir le séquencier et décider" aria-label="Ouvrir le séquencier et décider">📄</button></div>
+      </article>
 
       <article class="proj">
         <div class="p-code"><span class="code">B33D</span></div>
@@ -588,7 +664,7 @@
         </div>
         <div class="p-type">Face Cam</div>
         <div class="p-who">Juliette Cohen</div>
-        <div class="p-etat"><span class="pill ambre">V4 · à relire</span></div>
+        <div class="p-etat"><button class="pill ambre">V4 · à relire</button><span class="p-sub">tour 3/5 · 12 nov.</span></div>
         <div class="proj-a"><button class="ico lire" title="Revoir le montage" aria-label="Revoir le montage">▶</button><button class="ico" title="Voir le séquencier" aria-label="Voir le séquencier">📄</button></div>
       </article>
 
@@ -599,8 +675,8 @@
         </div>
         <div class="p-type">Mag</div>
         <div class="p-who">Camille Dalicieux</div>
-        <div class="p-etat"><span class="pill ambre">V2 · à relire</span></div>
-        <div class="proj-a"><button class="ico lire" title="Revoir le montage" aria-label="Revoir le montage">▶</button></div>
+        <div class="p-etat"><button class="pill ambre">V2 · à relire</button><span class="p-sub">tour 1/5 · 09 nov.</span></div>
+        <div class="proj-a"><button class="ico lire" title="Revoir le montage" aria-label="Revoir le montage">▶</button><span></span></div>
       </article>
 
       <article class="proj">
@@ -627,7 +703,7 @@
              de 4 lignes faisait 17px de haut en plus que les autres fiches et répétait la barre
              d'étapes, qui affiche déjà MONTAGE en ambre juste en face. -->
         <div class="p-etat"><span class="pill gris">Montage en cours</span></div>
-        <div class="proj-a"></div>
+        <div class="proj-a"><span></span><span></span></div>
       </article>
 
       <article class="proj">
@@ -638,7 +714,7 @@
         <div class="p-type">Classic</div>
         <div class="p-who">Augustin Bernard</div>
         <div class="p-etat"></div>
-        <div class="proj-a"></div>
+        <div class="proj-a"><span></span><span></span></div>
       </article>
 
       <h2 class="sec sec-esp">Livrés <span class="n">6</span></h2>
@@ -647,19 +723,19 @@
           <thead><tr><th>Code</th><th>Film</th><th>Type</th><th>Réalisé par</th><th>Diffusion</th><th></th></tr></thead>
           <tbody>
             <tr><td><span class="code">B33I</span></td><td class="c-t"><b>Teaser Salon du réemploi</b><span>0:28</span></td><td class="c-ty">Décli</td><td class="c-who">Paul Henry</td><td class="c-d">2 nov. 2026</td>
-              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><button class="ico" title="Séquencier" aria-label="Séquencier">📄</button></td></tr>
+              <td class="c-a"><div class="slots"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><button class="ico" title="Séquencier" aria-label="Séquencier">📄</button></div></td></tr>
             <tr><td><span class="code">B33C</span></td><td class="c-t"><b>Atelier mobile à Roubaix</b><span>2:14</span></td><td class="c-ty">Mag</td><td class="c-who">Mathilde Kaczkowski</td><td class="c-d">17 oct. 2026</td>
-              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button></td></tr>
+              <td class="c-a"><div class="slots"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><span></span></div></td></tr>
             <tr><td><span class="code">B33B</span></td><td class="c-t"><b>Le tri, mode d'emploi</b><span>0:45</span></td><td class="c-ty">Standard</td><td class="c-who">Juliette Cohen</td><td class="c-d">3 oct. 2026</td>
-              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><button class="ico" title="Séquencier" aria-label="Séquencier">📄</button></td></tr>
+              <td class="c-a"><div class="slots"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><button class="ico" title="Séquencier" aria-label="Séquencier">📄</button></div></td></tr>
             <tr><td><span class="code">B33A</span></td><td class="c-t"><b>Manifeste Refashion</b><span>1:52</span></td><td class="c-ty">Classic</td><td class="c-who">Camille Dalicieux</td><td class="c-d">12 sept. 2026</td>
-              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button></td></tr>
+              <td class="c-a"><div class="slots"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><span></span></div></td></tr>
           </tbody>
           <tbody id="cache" class="cache">
             <tr><td><span class="code">B33J</span></td><td class="c-t"><b>Rentrée 2026</b><span>0:31</span></td><td class="c-ty">Mag</td><td class="c-who">Nico Wan</td><td class="c-d">28 août 2026</td>
-              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button></td></tr>
+              <td class="c-a"><div class="slots"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><button class="ico" title="Télécharger" aria-label="Télécharger">⬇</button><span></span></div></td></tr>
             <tr><td><span class="code">B33K</span></td><td class="c-t"><b>Interview fondatrice</b><span>3:40</span></td><td class="c-ty">Face Cam</td><td class="c-who">Augustin Bernard</td><td class="c-d">14 juin 2026</td>
-              <td class="c-a"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button></td></tr>
+              <td class="c-a"><div class="slots"><button class="ico lire" title="Revoir" aria-label="Revoir">▶</button><span></span><span></span></div></td></tr>
           </tbody>
         </table>
         <div class="replier" id="rep"><span>2 films plus anciens</span><button class="lnk" onclick="plier()">Afficher</button></div>

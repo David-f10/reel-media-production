@@ -7,7 +7,7 @@ d'application : rail à gauche sur bureau, barre d'onglets en bas sur téléphon
 
 | vue | id | état côté production |
 |---|---|---|
-| Mes films | `s-proj` | existe (`vue-accueil`), à faire évoluer |
+| Mes films | `s-proj` | existe (`vue-accueil`), à faire évoluer. ⚠ **ne peut pas être monté avant la coque** — voir plus bas |
 | Mes demandes | `s-dem` | **existe en version réduite** — bloc « 📨 Une demande rapide » dans l'accueil (`renderDemandes()` `client.html:700`, appelé `:843`) : formulaire + liste `#mes-demandes`. La maquette en fait une **destination** avec fil, statuts et suivi |
 | Proposer un film | `s-mis` | **existe en version réduite** — bloc « 🎬 Proposer un nouveau film » (`renderMissions()` `client.html:725`, appelé `:844`). La maquette en fait une **destination** |
 | Qui a accès | `s-eq` | **n'existe pas** — rien, ni écran ni écriture |
@@ -52,6 +52,34 @@ Le sélecteur « Type de film » ne propose que 7 des 9 valeurs de `Sous-format`
 Classic, Standard et Desk en ont été retirés **sur demande**. Mais **50 fiches
 existantes les portent** (24 / 20 / 6). On retire un **choix à la création**, pas une
 valeur de l'**affichage**. « Mes films » doit continuer à les afficher.
+
+## Décidé le 15/11 au soir — ce qui a changé dans ce fichier
+
+| sujet | décision |
+|---|---|
+| **« À valider » et « À relire »** | **supprimées en tant que sections.** Ce sont des **états** dans « En cours » : un seul endroit où le client regarde ses films |
+| les quatre états | `Séquencier à valider` **rouge, cliquable** · `V4 · à relire` **ambre, cliquable** · `Montage en cours` gris, inerte · `Validé par vous` **bleu**, inerte |
+| la pastille **est** l'action | pour un état qui demande quelque chose, c'est elle le point d'entrée |
+| `tour 3 sur 5` et `déposée le` | passent **sous la pastille** (`.p-sub`). Ne pas supprimer : c'est ce qui évite au client de demander une série de corrections de trop |
+| **les deux boutons de validation** | ⚠ ils n'existent qu'à `client.html:872-873`, dans la section supprimée. **Proposition retenue : ils descendent dans l'overlay du séquencier** (`:1673-1686`), qui n'a qu'un « ✕ Fermer » aujourd'hui. Mieux qu'aujourd'hui, où un client peut valider **sans avoir ouvert le document**. C'est du travail NEUF |
+| actions de rangée | **emplacements fixes**, un par type : ▶ puis 📄 (En cours), ▶ ⬇ 📄 (Livrés). Slot vide = place tenue. Vérifié au pixel sur toutes les rangées |
+| `--txt3` | passé à `#84849C` ici aussi (PR #244). L'ancien `#5A5A70` échouait AA |
+
+### ⚠ La grille suppose la coque — mesuré, pas supposé
+
+684 px de colonnes fixes (84+120+180+150+150), Film en `1fr`.
+
+| | contenu | colonne Film |
+|---|---|---|
+| `.vue` de la maquette, 1140 px | 1084 px | **400 px** |
+| accueil actuel, `.wrap` 760 px (`client.html:41`) | 728 px | **44 px** |
+
+**Conséquence : « Mes films » ne peut pas être monté avant la coque.** Code l'a
+mesuré et s'est arrêté avant d'écrire une ligne — il avait raison. Les options
+« élargir seulement les deux sections » et « réduire les largeurs » sont écartées :
+la première viole la règle de ce fichier (« une seule largeur par vue — jamais deux
+blocs de largeurs différentes l'un sous l'autre », ligne 129), la seconde le verrou
+des colonnes. Reste : **faire la coque d'abord**.
 
 ## Décisions tranchées — état au 15/11/2026
 
