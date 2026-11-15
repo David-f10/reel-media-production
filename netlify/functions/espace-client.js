@@ -208,7 +208,7 @@ exports.handler = async (event) => {
         // mentirait pour une version jamais vue). Par construction, UN seul point d'entrée par film :
         // à relire → lien dans À relire ; tour clos/validé → lien dans En cours ; tournage → aucun lien.
         // (Validé mais pas livré : estARelire faux → aMontage vrai → il peut revenir sur le film validé.)
-        enCours.push({ code, titre, sousFormat: sel(pr, 'Sous-format'), realisePar: realisePar(pr), etape, pastille: pastille(pr, auj), aMontage: !!courante && !estARelire, lienSeq: (pr['Lien sequencier'] && pr['Lien sequencier'].url) || '' });
+        enCours.push({ code, titre, sousFormat: sel(pr, 'Sous-format'), realisePar: realisePar(pr), etape, pastille: pastille(pr, auj), aMontage: !!courante && !estARelire, valideeClient, lienSeq: (pr['Lien sequencier'] && pr['Lien sequencier'].url) || '' });
       }
       if (estARelire) aRelire.push({ code, titre, numero: vsClient.length, seriesAccordees: seriesAccordees(pr, defautMarque), dateDeposee: dstart(courante.properties, 'Date envoi client') });
     });
@@ -252,7 +252,7 @@ exports.handler = async (event) => {
         collaboration: { livres: livres.length, enCours: enCours.length, depuis: plusAncienneDiffusion ? moisFr(plusAncienneDiffusion) : null },
         aValider,                                       // [{ code, titre, lienSeq }] — séquencier à valider (Validation Brand posée, Client non)
         aRelire,                                        // [{ code, titre, numero, dateDeposee }]
-        enCours,                                        // [{ code, titre, realisePar, etape 0..2, pastille|null }]
+        enCours,                                        // [{ code, titre, sousFormat, realisePar, etape 0..2, pastille|null, aMontage, valideeClient, lienSeq }]
         livres                                          // [{ code, titre, sousFormat, duree, realisePar, dateDiffusion }]
       })
     };
