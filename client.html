@@ -419,6 +419,38 @@
     .p-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--txt3);white-space:nowrap} /* « tour N/X · date » sous la pastille à relire */
     .p-seqnote{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--txt3);margin-top:9px} /* remplace la barre d'étapes sur un séquencier à valider */
     .p-tiret{color:var(--txt3)} /* Type / Réalisé par en « — » quand le film n'a pas encore d'étape */
+    /* ── MASTER-DETAIL « Mes demandes » (PR-1) — liste à gauche, détail à droite. Classes NEUVES (md-*) : les
+       .ref/.panneau/.msg/.replier de la maquette collisionnent, et ses sélecteurs d'élément nus (select/input/
+       textarea) sont écartés. Le fil (plusieurs messages datés) viendra en PR-2. ── */
+    .dem-form{margin:4px 0 22px;max-width:620px}
+    .md{display:grid;grid-template-columns:minmax(230px,310px) 1fr;gap:16px;align-items:start}
+    .md-liste{display:flex;flex-direction:column;gap:7px}
+    .md-item{display:block;width:100%;text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;cursor:pointer;font:inherit;color:var(--txt)}
+    .md-item:hover{border-color:var(--line2)}
+    .md-item[aria-current="true"]{border-color:var(--rouge-bord);background:var(--rouge-voile)}
+    .md-item:focus-visible{outline:2px solid var(--rouge);outline-offset:1px}
+    .md-it-h{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+    .md-ref{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--txt2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .md-ref.gros{font-size:14px;color:var(--txt);font-weight:500;flex:none}
+    .md-st{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;white-space:nowrap}
+    .md-it-m{font-size:13px;color:var(--txt);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .md-it-d{font-family:var(--mono);font-size:9.5px;color:var(--txt3);margin-top:6px}
+    .md-detail{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:18px 20px;min-height:160px}
+    .md-detail:empty::before{content:"Sélectionnez une demande à gauche.";color:var(--txt3);font-size:12.5px}
+    .md-d-h{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+    .md-d-meta{font-size:12px;color:var(--txt3);margin-bottom:14px}
+    .md-meta{font-size:12px;color:var(--amber);margin-bottom:14px}
+    .md-msg{font-size:14px;color:var(--txt);line-height:1.55;white-space:pre-wrap}
+    .md-rep{margin-top:16px;padding:12px 14px;border-left:2px solid var(--line2);background:var(--bg3);border-radius:0 8px 8px 0;font-size:13.5px;color:var(--txt);line-height:1.5}
+    .md-rep-by{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:4px}
+    .md-retour{display:none;background:none;border:none;color:var(--rouge);font:inherit;font-size:12.5px;cursor:pointer;padding:0 0 10px;min-height:44px}
+    @media (max-width:720px){
+      .md{grid-template-columns:1fr}
+      .md-detail{display:none;min-height:0}
+      .md.ouvert .md-liste{display:none}
+      .md.ouvert .md-detail{display:block}
+      .md.ouvert .md-retour{display:inline-flex;align-items:center}
+    }
     .proj-a{display:flex;gap:6px;align-items:center}
     /* Icône d'action : cible 44px, slot FIXE 39px par type ; slot vide = place tenue (.ico-vide). */
     .ico{width:39px;height:44px;flex:none;border:1px solid var(--line2);background:var(--bg4);color:var(--txt2);border-radius:6px;
@@ -593,8 +625,8 @@
         <button type="button" class="nv" id="nv-films" aria-current="page">
           <span class="nv-ic" aria-hidden="true">🎞</span><span class="nv-lb">Mes films</span>
           <span class="rail-ct hidden" id="rail-badge-films" title="Films en attente de vous"></span></button>
-        <button type="button" class="nv" disabled>
-          <span class="nv-ic" aria-hidden="true">📨</span><span class="nv-lb">Mes demandes</span><span class="nv-bientot">bientôt</span></button>
+        <button type="button" class="nv" id="nv-demandes" aria-current="false">
+          <span class="nv-ic" aria-hidden="true">📨</span><span class="nv-lb">Mes demandes</span></button>
         <button type="button" class="nv" disabled>
           <span class="nv-ic" aria-hidden="true">🎬</span><span class="nv-lb">Proposer un film</span><span class="nv-bientot">bientôt</span></button>
       </nav>
@@ -633,9 +665,14 @@
           <span class="id"><span id="bonjour"></span> <a href="#" id="lien-deco">Déconnexion</a></span>
         </div>
       </div>
-      <div id="zone-projets" role="status" aria-live="polite"></div>
-      <div id="zone-demandes"></div>
-      <div id="zone-missions"></div>
+      <!-- Panneaux basculés par le rail (PR-1) : « Mes films » (défaut) ↔ « Mes demandes ». L'en-tête reste
+           partagé ; allerVue() montre un panneau et pose aria-current. « Proposer un film » reste inline dans
+           Mes films (zone-missions) jusqu'à sa propre destination. -->
+      <div id="panneau-films">
+        <div id="zone-projets" role="status" aria-live="polite"></div>
+        <div id="zone-missions"></div>
+      </div>
+      <div id="panneau-demandes" class="hidden"></div>
     </div><!-- /#vue-accueil -->
     </main>
   </div><!-- /#coque -->
@@ -792,6 +829,8 @@
     // ── Accueil + projets ──
     $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); });
     var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (parité lien-deco)
+    var _nf = $('nv-films'); if (_nf) _nf.addEventListener('click', function () { allerVue('films'); }); // rail → panneau Mes films
+    var _nd = $('nv-demandes'); if (_nd) _nd.addEventListener('click', function () { allerVue('demandes'); }); // rail → panneau Mes demandes
 
     function allerLogin(notice) {
       $('msg-login').className = notice ? 'msg wait' : 'msg';
@@ -810,6 +849,7 @@
       var rsg = document.querySelector('.rail-sig'); if (rsg) rsg.textContent = marque ? marque.trim().charAt(0).toUpperCase() : '·';
       var rsub = document.querySelector('.rail-marque .sub'); if (rsub) rsub.textContent = marque ? 'Espace client' : '';
       montrer('vue-accueil');
+      allerVue('films'); // défaut : le panneau Mes films (réinitialise si on revenait depuis « Mes demandes »)
       chargerEspace();
     }
 
@@ -846,13 +886,28 @@
     // Dépôt d'une demande hors montage + relecture de « Mes demandes » (Statut + Réponse équipe). Sous un
     // emprunt chef (ro), le FORMULAIRE est masqué (on ne dépose pas au nom du client) ; la liste reste lisible.
     function demRo() { var i = jetonInfo(); return !!(i && i.ro); }
+    // Bascule des panneaux de la coque (PR-1). Le rail appelle allerVue ; aria-current pilote la surbrillance.
+    function allerVue(dest) {
+      var films = (dest !== 'demandes');
+      var pf = $('panneau-films'), pd = $('panneau-demandes');
+      if (pf) pf.classList.toggle('hidden', !films);
+      if (pd) pd.classList.toggle('hidden', films);
+      var nf = $('nv-films'), nd = $('nv-demandes');
+      if (nf) nf.setAttribute('aria-current', films ? 'page' : 'false');
+      if (nd) nd.setAttribute('aria-current', films ? 'false' : 'page');
+      var t = $('titre-projets'); if (t) { var mq = lire(K_MARQUE); t.textContent = (films ? 'Vos projets' : 'Mes demandes') + (mq ? (' · ' + mq) : ''); }
+      try { window.scrollTo(0, 0); } catch (e) {}
+    }
+    // « Mes demandes », DESTINATION (PR-1) : le formulaire 'creer' (déménagé de Mes films) + le master-detail
+    // (liste à gauche, détail à droite). Le détail porte référence, statut, message, réponse signée, « en
+    // attente depuis N j ». Pas de fil (PR-2). Sous emprunt chef (ro), le formulaire est masqué, la liste reste.
     function renderDemandes(cartes) {
-      var z = $('zone-demandes'); if (!z) return;
+      var z = $('panneau-demandes'); if (!z) return;
       var opts = '<option value="">Aucune mission précise</option>' + (cartes || []).map(function (c) {
         return '<option value="' + escAttr(c.code) + '">' + esc(c.code) + ' — ' + esc(c.titre || '') + '</option>';
       }).join('');
       var form = demRo() ? '' : (
-        '<form id="form-demande" autocomplete="off">' +
+        '<form id="form-demande" class="dem-form" autocomplete="off">' +
           '<div class="dem-row">' +
             '<select id="dem-type" aria-label="Type de demande"><option>Décaler un tournage</option><option>Autre</option></select>' +
             '<select id="dem-carte" aria-label="Mission concernée">' + opts + '</select>' +
@@ -861,9 +916,11 @@
           '<div class="dem-bas"><button type="submit" class="bouton" id="dem-envoi">Envoyer la demande</button></div>' +
           '<div class="msg" id="dem-etat" role="status" aria-live="polite"></div>' +
         '</form>');
-      z.innerHTML = '<h2>📨 Une demande rapide</h2>' +
-        '<p class="sub dem-sub">Une question sur un film en cours, décaler un tournage. <strong>Pour une idée de nouveau film, c\'est juste en dessous.</strong></p>' +
-        form + '<div id="mes-demandes"></div>';
+      z.innerHTML = '<h2>📨 Mes demandes</h2>' +
+        '<p class="sub dem-sub">Une question sur un film en cours, décaler un tournage. Pour une idée de nouveau film, voyez « Mes films ».</p>' +
+        form +
+        '<div class="md" id="md-dem"><div class="md-liste" id="md-liste"><p class="sub" style="color:var(--txt3);padding:10px 0">Chargement…</p></div>' +
+        '<div class="md-detail" id="md-detail"></div></div>';
       if (!demRo()) { $('form-demande').addEventListener('submit', envoyerDemande); }
       chargerMesDemandes();
     }
@@ -957,27 +1014,54 @@
         })
         .catch(function () { $('dem-envoi').disabled = false; etat.className = 'msg err'; etat.textContent = 'Service indisponible, réessayez.'; });
     }
+    var _mesDemandes = [];
+    var ETIQD = { 'Nouvelle': 'reçue', 'En cours': 'en cours', 'Traitée': 'traitée', 'Refusée': 'refusée' };
+    function _coulStatut(s) { return s === 'Traitée' ? 'var(--vert)' : (s === 'Nouvelle' ? 'var(--amber)' : (s === 'Refusée' ? 'var(--txt3)' : 'var(--bleu)')); }
+    function joursDepuis(iso) { try { return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)); } catch (e) { return null; } }
     function chargerMesDemandes() {
-      var el = $('mes-demandes'); if (!el) return;
+      var liste = $('md-liste'); if (!liste) return;
       fetch(DEMANDE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'mes' }) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
         .then(function (res) {
           if (res.status === 401) { finSession(); return; }
-          if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = ''; return; } // indispo → silencieux (pas un faux « aucune »)
-          var ds = res.body.demandes || [];
-          if (!ds.length) { el.innerHTML = ''; return; }
-          var ETIQD = { 'Nouvelle': 'reçue', 'En cours': 'en cours', 'Traitée': 'traitée', 'Refusée': 'refusée' };
-          el.innerHTML = '<h3 class="dem-h">Vos demandes</h3>' + ds.map(function (x) {
-            var coul = x.statut === 'Traitée' ? 'var(--vert)' : (x.statut === 'Nouvelle' ? '#E6B33A' : (x.statut === 'Refusée' ? 'var(--txt3)' : 'var(--txt2)'));
-            return '<div class="dem-item"><div class="dem-it-h"><span class="dem-type">' + esc(x.type || '') + '</span>' +
-              (x.codeCarte ? '<span class="code">' + esc(x.codeCarte) + '</span>' : '') +
-              '<span class="dem-st" style="color:' + coul + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
-              '<div class="dem-msgtxt">' + esc(x.message || '') + '</div>' +
-              (x.reponse ? '<div class="dem-rep"><span class="dem-rep-by">Réel Média</span>' + esc(x.reponse) + '</div>' : '') +
-            '</div>';
-          }).join('');
+          var l = $('md-liste'); if (!l) return;
+          if (res.status !== 200 || !res.body || !res.body.ok) { l.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Service temporairement indisponible.</p>'; return; }
+          _mesDemandes = res.body.demandes || [];
+          renderListeDemandes();
         })
-        .catch(function () { el.innerHTML = ''; });
+        .catch(function () { var l = $('md-liste'); if (l) l.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Service temporairement indisponible.</p>'; });
+    }
+    function renderListeDemandes() {
+      var liste = $('md-liste'), det = $('md-detail'); if (!liste) return;
+      if (!_mesDemandes.length) { liste.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Aucune demande pour l\'instant.</p>'; if (det) det.innerHTML = ''; return; }
+      liste.innerHTML = _mesDemandes.map(function (x, i) {
+        var m = x.message || '', coupe = m.length > 72;
+        return '<button type="button" class="md-item" data-idx="' + i + '" aria-current="false">' +
+          '<div class="md-it-h"><span class="md-ref">' + esc(x.ref || '') + '</span>' +
+            '<span class="md-st" style="color:' + _coulStatut(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
+          '<div class="md-it-m">' + esc(m.slice(0, 72)) + (coupe ? '…' : '') + '</div>' +
+          '<div class="md-it-d">' + esc(x.type || '') + ' · ' + esc(dateFrCourte(x.date)) + '</div>' +
+        '</button>';
+      }).join('');
+      [].slice.call(liste.querySelectorAll('.md-item')).forEach(function (b) { b.addEventListener('click', function () { selectDemande(parseInt(b.getAttribute('data-idx'), 10), true); }); });
+      selectDemande(0, false); // auto-sélection : remplit le détail (desktop), SANS ouvrir le panneau mobile
+    }
+    function selectDemande(idx, ouvrir) {
+      var x = _mesDemandes[idx], det = $('md-detail'); if (!x || !det) return;
+      [].slice.call(document.querySelectorAll('#md-liste .md-item')).forEach(function (b) { b.setAttribute('aria-current', parseInt(b.getAttribute('data-idx'), 10) === idx ? 'true' : 'false'); });
+      var j = joursDepuis(x.date);
+      var attente = (!x.reponse && (x.statut === 'Nouvelle' || x.statut === 'En cours') && j != null)
+        ? '<div class="md-meta">En attente de réponse ' + (j === 0 ? 'depuis aujourd\'hui' : ('depuis ' + j + ' j')) + '</div>' : '';
+      var sign = x.traitePar ? (esc(x.traitePar) + ' · Réel Média') : 'Réel Média';
+      var rep = x.reponse ? ('<div class="md-rep"><span class="md-rep-by">' + sign + '</span>' + esc(x.reponse) + '</div>') : '';
+      det.innerHTML = '<button type="button" class="md-retour" id="md-retour">← Toutes les demandes</button>' +
+        '<div class="md-d-h"><span class="md-ref gros">' + esc(x.ref || '') + '</span>' +
+          '<span class="md-st" style="color:' + _coulStatut(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
+        '<div class="md-d-meta">' + esc(x.type || '') + (x.codeCarte ? (' · <span class="code">' + esc(x.codeCarte) + '</span>') : '') + ' · ' + esc(dateFrLongue(x.date)) + '</div>' +
+        attente +
+        '<div class="md-msg">' + esc(x.message || '') + '</div>' + rep;
+      if (ouvrir) { var mdc = $('md-dem'); if (mdc) mdc.classList.add('ouvert'); } // téléphone : un CLIC montre le détail (pas au chargement → la liste reste la 1re vue mobile)
+      var ret = $('md-retour'); if (ret) ret.addEventListener('click', function () { var m = $('md-dem'); if (m) m.classList.remove('ouvert'); });
     }
 
     function renderEspace(status, d) {

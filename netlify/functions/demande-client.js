@@ -12,6 +12,7 @@ const { contactActif } = require('./_authclient');
 const { CODE_BRAND_RE, reSujetMarque } = require('./_perimetreclient'); // autorité unique du périmètre
 const { appelNotion } = require('./_notionio');
 const { signalerSlack } = require('./_slack'); // miroir Slack à sens unique (best-effort, jamais bloquant)
+const { refDemande } = require('./_demref'); // référence d'affichage « D-xxxxxxxx » (helper PARTAGÉ avec demandes-admin)
 
 const DB_DEMANDES = '41875d81-5951-8115-b6c0-ede198a923ab';
 const TYPES = ['Décaler un tournage', 'Autre']; // select FERMÉ — aligné sur Notion
@@ -83,13 +84,15 @@ exports.handler = async (event) => {
         cursor = d.has_more ? d.next_cursor : null; pages++;
       } while (cursor && pages < 20);
       const demandes = resultats.map(p => ({
+        ref: refDemande(p.id),                       // étiquette d'affichage « D-xxxxxxxx » (id de page composé serveur)
         message: _ti(p.properties, 'Message'),
         type: _sel(p.properties, 'Type'),
         statut: _sel(p.properties, 'Statut') || 'Nouvelle',
         reponse: _rt(p.properties, 'Réponse'),
+        traitePar: _rt(p.properties, 'Traité par'),  // signe la réponse côté client (nom de membre, pas un secret)
         codeCarte: _rt(p.properties, 'Code carte'),
         date: p.created_time
-        // ⛔ jamais de code d'accès (la base n'en porte pas)
+        // ⛔ jamais de code d'accès (la base n'en porte pas) ; ⛔ jamais l'id de page brut (seule la référence sort)
       }));
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, demandes }) };
     } catch (e) { console.error('demande-client indispo (mes) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
