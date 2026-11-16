@@ -1046,18 +1046,22 @@
     var ETIQD = { 'Nouvelle': 'Envoyée', 'En cours': 'En cours', 'Traitée': 'Réponse reçue', 'Clôturée': 'Réglée', 'Refusée': 'Refusée' };
     function _pillCls(s) { return 'pill ' + (s === 'Nouvelle' ? 'gris' : s === 'Traitée' ? 'bleu' : s === 'Clôturée' ? 'vert' : s === 'Refusée' ? 'rouge' : ''); }
     function joursDepuis(iso) { try { return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)); } catch (e) { return null; } }
+    // Indispo écrite dans #md-dem (conteneur STABLE), pas #md-liste — ce dernier peut avoir été détruit par
+    // l'état vide. Les trois sorties ci-dessous passent par là.
+    function _demIndispo() { var m = $('md-dem'); if (!m) return; m.classList.add('vide'); m.innerHTML = '<p class="md-vide">Service temporairement indisponible.</p>'; }
     function chargerMesDemandes() {
-      var liste = $('md-liste'); if (!liste) return;
+      if (!$('md-dem')) return; // garde sur le conteneur STABLE : depuis l'état vide, #md-liste n'existe plus,
+                                // et renvoyer ici empêcherait une première demande tout juste envoyée de s'afficher.
       fetch(DEMANDE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'mes' }) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
         .then(function (res) {
           if (res.status === 401) { finSession(); return; }
-          var l = $('md-liste'); if (!l) return;
-          if (res.status !== 200 || !res.body || !res.body.ok) { l.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Service temporairement indisponible.</p>'; return; }
+          if (!$('md-dem')) return;
+          if (res.status !== 200 || !res.body || !res.body.ok) { _demIndispo(); return; } // échec lisible depuis l'état vide
           _mesDemandes = res.body.demandes || [];
-          renderListeDemandes();
+          renderListeDemandes(); // la branche non-vide retire .vide et reconstruit #md-liste/#md-detail si besoin
         })
-        .catch(function () { var l = $('md-liste'); if (l) l.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Service temporairement indisponible.</p>'; });
+        .catch(function () { _demIndispo(); });
     }
     function renderListeDemandes() {
       var mdc = $('md-dem'), cnt = $('md-count'); if (!mdc) return;
