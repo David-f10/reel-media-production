@@ -381,6 +381,7 @@
     .pill.gris{background:var(--bg4);color:var(--txt3);border-color:var(--line2)}       /* « Montage en cours » — inerte */
     .pill.bleu{background:var(--bleu-voile);color:var(--bleu);border-color:var(--bleu-bord)} /* « Validé par vous » — inerte */
     .pill.rouge{background:var(--rouge-voile);color:var(--rouge);border-color:var(--rouge-bord)} /* « Séquencier à valider » */
+    .pill.vert{background:var(--vert-voile);color:var(--vert);border-color:var(--vert-bord)} /* « Réglée » (statut demande) */
     .pill-clic{cursor:pointer} /* pastille qui EST le point d'entrée (à relire → montage ; séquencier → overlay) */
     .pill-clic:hover{filter:brightness(1.18)}
     .pill-clic:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
@@ -422,31 +423,42 @@
     /* ── MASTER-DETAIL « Mes demandes » (PR-1) — liste à gauche, détail à droite. Classes NEUVES (md-*) : les
        .ref/.panneau/.msg/.replier de la maquette collisionnent, et ses sélecteurs d'élément nus (select/input/
        textarea) sont écartés. Le fil (plusieurs messages datés) viendra en PR-2. ── */
-    .dem-form{margin:4px 0 22px;max-width:620px}
-    .md{display:grid;grid-template-columns:minmax(230px,310px) 1fr;gap:16px;align-items:start}
-    .md-liste{display:flex;flex-direction:column;gap:7px}
-    .md-item{display:block;width:100%;text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;cursor:pointer;font:inherit;color:var(--txt)}
-    .md-item:hover{border-color:var(--line2)}
-    .md-item[aria-current="true"]{border-color:var(--rouge-bord);background:var(--rouge-voile)}
-    .md-item:focus-visible{outline:2px solid var(--rouge);outline-offset:1px}
-    .md-it-h{display:flex;align-items:center;gap:8px;margin-bottom:5px}
-    .md-ref{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--txt2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .md-ref.gros{font-size:14px;color:var(--txt);font-weight:500;flex:none}
-    .md-st{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;white-space:nowrap}
-    .md-it-m{font-size:13px;color:var(--txt);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-    .md-it-d{font-family:var(--mono);font-size:9.5px;color:var(--txt3);margin-top:6px}
-    .md-detail{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:18px 20px;min-height:160px}
-    .md-detail:empty::before{content:"Sélectionnez une demande à gauche.";color:var(--txt3);font-size:12.5px}
+    /* « Nouvelle demande » repliée (point 1) ; panneau pleine largeur, CHAMPS bornés (point 2). */
+    .dem-top{margin:4px 0 16px}
+    .dem-form{margin:0 0 20px}
+    .dem-form.hidden{display:none}
+    .dem-form .dem-row,.dem-form textarea{max-width:560px}
+    /* ── UNE SEULE boîte encadrée (point 4) : liste à gauche (séparateur, hauteur bornée), détail à droite. ── */
+    .md{display:grid;grid-template-columns:372px minmax(0,1fr);border:1px solid var(--line);border-radius:12px;background:var(--bg2);overflow:hidden}
+    .md.vide{display:block}
+    .md-vide{padding:22px;color:var(--txt3);font-size:13px;line-height:1.5}
+    .md-liste{border-right:1px solid var(--line);max-height:600px;overflow-y:auto}
+    .md-item{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);padding:12px 15px 13px;cursor:pointer;font:inherit;color:var(--txt)}
+    .md-item:hover{background:var(--bg3)}
+    .md-item[aria-current="true"]{background:var(--bg3);box-shadow:inset 2px 0 0 var(--rouge)} /* liseré gauche (point 7) */
+    .md-item:focus-visible{outline:2px solid var(--rouge);outline-offset:-2px}
+    /* ordre de ligne : MESSAGE d'abord (point 5), puis code film · réf · type · pastille poussée à droite */
+    .md-it-h{display:flex;align-items:baseline;gap:8px}
+    .md-it-m{flex:1;min-width:0;font-size:13px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .md-it-d{font-family:var(--mono);font-size:10.5px;color:var(--txt3);flex-shrink:0}
+    .md-it-b{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}
+    .md-it-b .md-mono{font-family:var(--mono);font-size:10.5px;color:var(--txt3)}
+    .md-it-b .pill{margin-left:auto}
+    .md-detail{max-height:600px;overflow-y:auto;padding:18px 22px} /* pas de bordure propre : la boîte la porte */
     .md-d-h{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+    .md-ref{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--txt3)}
+    .md-ref.gros{font-size:14px;color:var(--txt);font-weight:500}
     .md-d-meta{font-size:12px;color:var(--txt3);margin-bottom:14px}
     .md-meta{font-size:12px;color:var(--amber);margin-bottom:14px}
     .md-msg{font-size:14px;color:var(--txt);line-height:1.55;white-space:pre-wrap}
     .md-rep{margin-top:16px;padding:12px 14px;border-left:2px solid var(--line2);background:var(--bg3);border-radius:0 8px 8px 0;font-size:13.5px;color:var(--txt);line-height:1.5}
     .md-rep-by{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:4px}
-    .md-retour{display:none;background:none;border:none;color:var(--rouge);font:inherit;font-size:12.5px;cursor:pointer;padding:0 0 10px;min-height:44px}
-    @media (max-width:720px){
+    .md-retour{display:none;background:none;border:none;color:var(--rouge);font:inherit;font-size:12.5px;cursor:pointer;padding:0 0 13px;min-height:44px}
+    /* Sous 1024px (rail présent, main étroit), la boîte s'empile : liste en 1re vue, un clic ouvre le détail. */
+    @media (max-width:1024px){
       .md{grid-template-columns:1fr}
-      .md-detail{display:none;min-height:0}
+      .md-liste{border-right:none;max-height:none}
+      .md-detail{display:none;max-height:none}
       .md.ouvert .md-liste{display:none}
       .md.ouvert .md-detail{display:block}
       .md.ouvert .md-retour{display:inline-flex;align-items:center}
@@ -895,19 +907,26 @@
       var nf = $('nv-films'), nd = $('nv-demandes');
       if (nf) nf.setAttribute('aria-current', films ? 'page' : 'false');
       if (nd) nd.setAttribute('aria-current', films ? 'false' : 'page');
-      var t = $('titre-projets'); if (t) { var mq = lire(K_MARQUE); t.textContent = (films ? 'Vos projets' : 'Mes demandes') + (mq ? (' · ' + mq) : ''); }
+      // Table de libellés par destination (point 3) : évite que « Proposer un film » affiche « Mes demandes »
+      // le jour où sa destination s'ouvrira.
+      var LIBELLES = { films: 'Vos projets', demandes: 'Mes demandes', missions: 'Proposer un film', acces: 'Qui a accès' };
+      var t = $('titre-projets'); if (t) { var mq = lire(K_MARQUE); t.textContent = (LIBELLES[dest] || LIBELLES.films) + (mq ? (' · ' + mq) : ''); }
       try { window.scrollTo(0, 0); } catch (e) {}
     }
     // « Mes demandes », DESTINATION (PR-1) : le formulaire 'creer' (déménagé de Mes films) + le master-detail
     // (liste à gauche, détail à droite). Le détail porte référence, statut, message, réponse signée, « en
     // attente depuis N j ». Pas de fil (PR-2). Sous emprunt chef (ro), le formulaire est masqué, la liste reste.
+    var _demFormOuvert = false; // état « formulaire ouvert » en variable JS, jamais dans le DOM reconstruit
     function renderDemandes(cartes) {
       var z = $('panneau-demandes'); if (!z) return;
       var opts = '<option value="">Aucune mission précise</option>' + (cartes || []).map(function (c) {
         return '<option value="' + escAttr(c.code) + '">' + esc(c.code) + ' — ' + esc(c.titre || '') + '</option>';
       }).join('');
-      var form = demRo() ? '' : (
-        '<form id="form-demande" class="dem-form" autocomplete="off">' +
+      // Formulaire REPLIÉ (point 1). L'état d'ouverture vit dans _demFormOuvert (variable JS), pas dans le DOM
+      // reconstruit : un rechargement de l'accueil ne le referme pas par surprise.
+      var bloc = demRo() ? '' : (
+        '<div class="dem-top"><button type="button" class="bouton" id="dem-nouv">Nouvelle demande</button></div>' +
+        '<form id="form-demande" class="dem-form' + (_demFormOuvert ? '' : ' hidden') + '" autocomplete="off">' +
           '<div class="dem-row">' +
             '<select id="dem-type" aria-label="Type de demande"><option>Décaler un tournage</option><option>Autre</option></select>' +
             '<select id="dem-carte" aria-label="Mission concernée">' + opts + '</select>' +
@@ -916,12 +935,18 @@
           '<div class="dem-bas"><button type="submit" class="bouton" id="dem-envoi">Envoyer la demande</button></div>' +
           '<div class="msg" id="dem-etat" role="status" aria-live="polite"></div>' +
         '</form>');
-      z.innerHTML = '<h2>📨 Mes demandes</h2>' +
-        '<p class="sub dem-sub">Une question sur un film en cours, décaler un tournage. Pour une idée de nouveau film, voyez « Mes films ».</p>' +
-        form +
-        '<div class="md" id="md-dem"><div class="md-liste" id="md-liste"><p class="sub" style="color:var(--txt3);padding:10px 0">Chargement…</p></div>' +
+      z.innerHTML = '<p class="sub dem-sub">Une question sur un film en cours, décaler un tournage. Pour une idée de nouveau film, voyez « Mes films ».</p>' +
+        bloc +
+        '<h2>Historique <span class="n" id="md-count"></span></h2>' +
+        '<div class="md" id="md-dem"><div class="md-liste" id="md-liste"><p class="md-vide">Chargement…</p></div>' +
         '<div class="md-detail" id="md-detail"></div></div>';
-      if (!demRo()) { $('form-demande').addEventListener('submit', envoyerDemande); }
+      if (!demRo()) {
+        $('form-demande').addEventListener('submit', envoyerDemande);
+        $('dem-nouv').addEventListener('click', function () {
+          _demFormOuvert = !_demFormOuvert;
+          var f = $('form-demande'); if (f) { f.classList.toggle('hidden', !_demFormOuvert); if (_demFormOuvert) { var ta = $('dem-msg'); if (ta) ta.focus(); } }
+        });
+      }
       chargerMesDemandes();
     }
 
@@ -1015,32 +1040,45 @@
         .catch(function () { $('dem-envoi').disabled = false; etat.className = 'msg err'; etat.textContent = 'Service indisponible, réessayez.'; });
     }
     var _mesDemandes = [];
-    var ETIQD = { 'Nouvelle': 'reçue', 'En cours': 'en cours', 'Traitée': 'traitée', 'Refusée': 'refusée' };
-    function _coulStatut(s) { return s === 'Traitée' ? 'var(--vert)' : (s === 'Nouvelle' ? 'var(--amber)' : (s === 'Refusée' ? 'var(--txt3)' : 'var(--bleu)')); }
+    // Vocabulaire client (validé) : « Envoyée » et non « reçue » — Nouvelle = PERSONNE ne l'a encore ouverte.
+    // « Clôturée » (→ Réglée) n'est posable par personne aujourd'hui (demandes-admin.js / demande-client.js
+    // ne la gèrent pas) : le libellé est prévu, les deux fichiers ne sont PAS touchés ici.
+    var ETIQD = { 'Nouvelle': 'Envoyée', 'En cours': 'En cours', 'Traitée': 'Réponse reçue', 'Clôturée': 'Réglée', 'Refusée': 'Refusée' };
+    function _pillCls(s) { return 'pill ' + (s === 'Nouvelle' ? 'gris' : s === 'Traitée' ? 'bleu' : s === 'Clôturée' ? 'vert' : s === 'Refusée' ? 'rouge' : ''); }
     function joursDepuis(iso) { try { return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)); } catch (e) { return null; } }
+    // Indispo écrite dans #md-dem (conteneur STABLE), pas #md-liste — ce dernier peut avoir été détruit par
+    // l'état vide. Les trois sorties ci-dessous passent par là.
+    function _demIndispo() { var m = $('md-dem'); if (!m) return; m.classList.add('vide'); m.innerHTML = '<p class="md-vide">Service temporairement indisponible.</p>'; }
     function chargerMesDemandes() {
-      var liste = $('md-liste'); if (!liste) return;
+      if (!$('md-dem')) return; // garde sur le conteneur STABLE : depuis l'état vide, #md-liste n'existe plus,
+                                // et renvoyer ici empêcherait une première demande tout juste envoyée de s'afficher.
       fetch(DEMANDE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'mes' }) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
         .then(function (res) {
           if (res.status === 401) { finSession(); return; }
-          var l = $('md-liste'); if (!l) return;
-          if (res.status !== 200 || !res.body || !res.body.ok) { l.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Service temporairement indisponible.</p>'; return; }
+          if (!$('md-dem')) return;
+          if (res.status !== 200 || !res.body || !res.body.ok) { _demIndispo(); return; } // échec lisible depuis l'état vide
           _mesDemandes = res.body.demandes || [];
-          renderListeDemandes();
+          renderListeDemandes(); // la branche non-vide retire .vide et reconstruit #md-liste/#md-detail si besoin
         })
-        .catch(function () { var l = $('md-liste'); if (l) l.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Service temporairement indisponible.</p>'; });
+        .catch(function () { _demIndispo(); });
     }
     function renderListeDemandes() {
-      var liste = $('md-liste'), det = $('md-detail'); if (!liste) return;
-      if (!_mesDemandes.length) { liste.innerHTML = '<p class="sub" style="color:var(--txt3);padding:10px 0">Aucune demande pour l\'instant.</p>'; if (det) det.innerHTML = ''; return; }
+      var mdc = $('md-dem'), cnt = $('md-count'); if (!mdc) return;
+      if (cnt) cnt.textContent = _mesDemandes.length ? String(_mesDemandes.length) : '';
+      // État vide COHÉRENT (point 8) : un seul message, pas une boîte scindée qui invite à « choisir une demande ».
+      if (!_mesDemandes.length) { mdc.classList.add('vide'); mdc.innerHTML = '<p class="md-vide">Aucune demande pour l\'instant. Votre première demande apparaîtra ici.</p>'; return; }
+      mdc.classList.remove('vide');
+      if (!$('md-liste')) { mdc.innerHTML = '<div class="md-liste" id="md-liste"></div><div class="md-detail" id="md-detail"></div>'; } // reconstruit si la branche vide l'avait remplacé
+      var liste = $('md-liste');
       liste.innerHTML = _mesDemandes.map(function (x, i) {
-        var m = x.message || '', coupe = m.length > 72;
+        // Ligne : MESSAGE d'abord (une ligne, ellipsis) + date ; puis code film · réf · type · pastille.
+        var film = x.codeCarte ? ('<span class="code">' + esc(x.codeCarte) + '</span>') : '';
+        var ref = x.ref ? ('<span class="md-mono">' + esc(x.ref) + '</span>') : '';
         return '<button type="button" class="md-item" data-idx="' + i + '" aria-current="false">' +
-          '<div class="md-it-h"><span class="md-ref">' + esc(x.ref || '') + '</span>' +
-            '<span class="md-st" style="color:' + _coulStatut(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
-          '<div class="md-it-m">' + esc(m.slice(0, 72)) + (coupe ? '…' : '') + '</div>' +
-          '<div class="md-it-d">' + esc(x.type || '') + ' · ' + esc(dateFrCourte(x.date)) + '</div>' +
+          '<div class="md-it-h"><span class="md-it-m">' + esc(x.message || '') + '</span><span class="md-it-d">' + esc(dateFrCourte(x.date)) + '</span></div>' +
+          '<div class="md-it-b">' + film + ref + '<span class="md-mono">' + esc(x.type || '') + '</span>' +
+            '<span class="' + _pillCls(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
         '</button>';
       }).join('');
       [].slice.call(liste.querySelectorAll('.md-item')).forEach(function (b) { b.addEventListener('click', function () { selectDemande(parseInt(b.getAttribute('data-idx'), 10), true); }); });
@@ -1056,7 +1094,7 @@
       var rep = x.reponse ? ('<div class="md-rep"><span class="md-rep-by">' + sign + '</span>' + esc(x.reponse) + '</div>') : '';
       det.innerHTML = '<button type="button" class="md-retour" id="md-retour">← Toutes les demandes</button>' +
         '<div class="md-d-h"><span class="md-ref gros">' + esc(x.ref || '') + '</span>' +
-          '<span class="md-st" style="color:' + _coulStatut(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
+          '<span class="' + _pillCls(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
         '<div class="md-d-meta">' + esc(x.type || '') + (x.codeCarte ? (' · <span class="code">' + esc(x.codeCarte) + '</span>') : '') + ' · ' + esc(dateFrLongue(x.date)) + '</div>' +
         attente +
         '<div class="md-msg">' + esc(x.message || '') + '</div>' + rep;
