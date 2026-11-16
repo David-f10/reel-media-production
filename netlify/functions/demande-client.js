@@ -92,6 +92,11 @@ exports.handler = async (event) => {
       const rangParId = {};
       const marques = [];
       resultats.forEach(p => { const cb = _rt(p.properties, 'Code Brand'); if (cb && marques.indexOf(cb) === -1) marques.push(cb); });
+      // ⚠ INVARIANT : demande-client et demandes-admin DOIVENT classer sur le MÊME ensemble pour composer la
+      //    même réf. Ici 50 pages PAR MARQUE ; côté équipe 20 pages sur TOUTE la base, en tri created_time DESC.
+      //    Si la base dépasse 2000, l'équipe perd les plus ANCIENNES (rangs 01, 02…) et les numéros divergent,
+      //    justes ici, décalés là-bas. Ces deux bornes (et le tri côté équipe) doivent rester cohérentes —
+      //    à relever ENSEMBLE, jamais l'une sans l'autre.
       for (const cb of marques) {
         const ids = [];
         let cur = null, pg = 0;
@@ -102,6 +107,7 @@ exports.handler = async (event) => {
           (dd.results || []).forEach(q => ids.push(normId(q.id))); // ⛔ uniquement l'id, jamais les propriétés
           cur = dd.has_more ? dd.next_cursor : null; pg++;
         } while (cur && pg < 50);
+        if (cur) console.error('demande-client : classement de la marque ' + cb + ' TRONQUÉ (borne 50 pages atteinte) — rangs susceptibles de diverger de demandes-admin ; relever les deux bornes ENSEMBLE.');
         ids.sort(); // id de page croissant = ordre chronologique (ids Notion ordonnés dans le temps)
         ids.forEach((id, i) => { rangParId[id] = i + 1; });
       }

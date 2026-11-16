@@ -72,6 +72,10 @@ exports.handler = async (event) => {
 
   // 'liste'
   try {
+    // ⚠ INVARIANT de numérotation : le rang D-<marque>-<NN> est le MÊME que celui de demande-client À CONDITION
+    //    de classer sur le même ensemble. Ici on lit TOUTE la base, bornée 20 pages (2000) en tri created_time
+    //    DESC → au-delà, les plus ANCIENNES tombent et les rangs se décalent CÔTÉ ÉQUIPE seulement (le client,
+    //    lui, lit 50 pages PAR MARQUE). Ces bornes et ce tri doivent rester cohérents — à relever ENSEMBLE.
     const out = []; let cursor = null, pages = 0;
     do {
       const b = { page_size: 100, sorts: [{ timestamp: 'created_time', direction: 'descending' }] };
@@ -82,6 +86,7 @@ exports.handler = async (event) => {
       out.push(...(d.results || []));
       cursor = d.has_more ? d.next_cursor : null; pages++;
     } while (cursor && pages < 20);
+    if (cursor) console.error('demandes-admin : base TRONQUÉE au classement (borne 20 pages / 2000 atteinte, tri DESC → les plus anciennes tombent) — rangs D-<marque>-<NN> susceptibles de diverger du client ; relever les deux bornes ENSEMBLE.');
     // RANG par marque (MÊME dérivation que côté client) : grouper par Code Brand, trier par id croissant,
     // numéroter. Zéro requête de plus — 'liste' ramène déjà toute la base. Un demande donnée obtient donc le
     // MÊME « D-<Code Brand>-<NN> » que celui vu par le client (même ensemble, même tri).
