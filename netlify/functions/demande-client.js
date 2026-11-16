@@ -189,8 +189,13 @@ exports.handler = async (event) => {
       const lignes = await lireFil(b.page.id);
       const dernierMsg = lignes.length ? lignes[lignes.length - 1] : null;
       if (!dernierMsg) {
-        // Aucune ligne de fil → le DERNIER message est l'INITIAL (📨 Demandes.Message). Il est du client par nature,
-        // pas de réponse en dessous (fil vide), demande non close (vérifié) → on édite la demande elle-même.
+        // Aucune ligne de fil → le DERNIER message est l'INITIAL (📨 Demandes.Message). MAIS une « Réponse » héritée
+        // (demande répondue AVANT PR-1) s'affiche comme un message équipe SOUS la question (cf. repli dans 'fil') :
+        // rééditer la question reviendrait alors à la modifier « sous » une réponse — ce que la règle interdit
+        // (condition 4). On ne l'édite donc QUE si aucune réponse n'existe (ni ligne fil — vérifié — ni héritée).
+        if (_rt(b.page.properties, 'Réponse')) {
+          return { statusCode: 409, headers, body: JSON.stringify({ ok: false, error: 'Le dernier message n\'est pas le vôtre' }) };
+        }
         await notionFetch('/pages/' + b.page.id, 'PATCH', token, { properties: { 'Message': { title: [{ text: { content: texte } }] } } });
         return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
       }

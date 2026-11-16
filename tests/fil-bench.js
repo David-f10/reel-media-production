@@ -207,6 +207,20 @@ const _selv = (props, k) => (props[k] && props[k].select && props[k].select.name
   r = await call(demandesAdmin, evtT({ action: 'statut', id: DEM_CLOS, statut: 'En cours', reponse: '' }));
   ok('Clôturée → En cours AUTORISÉ (geste délibéré de l\'équipe, pas un défaut d\'onglet)', r.code === 200 && _selv(patches[0].props, 'Statut') === 'En cours');
 
+  console.log('\n\x1b[1mDéfaut 1 — pas de doublon : ligne fil SSI le texte a changé\x1b[0m');
+  msgPosts = [];
+  r = await call(demandesAdmin, evtT({ action: 'statut', id: DEM_REP, statut: 'Traitée', reponse: 'REPONSE-HERITEE-OK' })); // MÊME texte que la « Réponse » actuelle (pré-remplie par index.html, renvoyée telle quelle)
+  ok('même texte que la « Réponse » actuelle → AUCUNE ligne fil (anti-doublon)', r.code === 200 && msgPosts.length === 0);
+  msgPosts = [];
+  r = await call(demandesAdmin, evtT({ action: 'statut', id: DEM_REP, statut: 'Traitée', reponse: 'un texte RÉELLEMENT différent' }));
+  ok('texte différent → UNE ligne fil', r.code === 200 && msgPosts.length === 1);
+
+  console.log('\n\x1b[1mDéfaut 2 — pas d\'édition de la question sous une réponse héritée\x1b[0m');
+  r = await call(demandeClient, evtC(TOK, { action: 'modifier', demandeId: DEM_REP, texte: 'réécriture' })); // fil vide MAIS « Réponse » héritée affichée en dessous
+  ok('modifier : fil vide mais « Réponse » héritée en dessous → 409 (pas d\'édition sous réponse)', r.code === 409);
+  r = await call(demandeClient, evtC(TOK, { action: 'modifier', demandeId: DEM1, texte: 'ok sans réponse' })); // fil vide ET pas de Réponse → toujours autorisé
+  ok('modifier : fil vide ET aucune réponse → l\'initial reste éditable (non-régression)', r.code === 200);
+
   console.log('\n\x1b[1mSentinelles globales\x1b[0m');
   ok('⛔ aucun « Code acces » dans AUCUNE réponse', allBodies.every(b => b.indexOf(CODE_SENT) === -1));
   ok('⛔ aucun contenu de collègue dans AUCUNE réponse', allBodies.every(b => b.indexOf(COLLEGUE_SENT) === -1));

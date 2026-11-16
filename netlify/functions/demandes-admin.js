@@ -87,8 +87,12 @@ exports.handler = async (event) => {
 
     // Double-écriture : l'historique dans le fil. Best-effort APRÈS l'écriture primaire — un incident sur 💬 Messages
     // ne fait PAS échouer la réponse de l'équipe (déjà dans « Réponse »), et le repli 'fil' côté client réaffiche
-    // « Réponse » tant qu'aucune ligne « Réel Média » n'existe : rien ne se perd. On n'écrit QUE s'il y a du texte.
-    if (reponse) {
+    // « Réponse » tant qu'aucune ligne « Réel Média » n'existe : rien ne se perd.
+    // ANTI-DOUBLON : index.html pré-remplit le champ avec la « Réponse » existante et la renvoie à CHAQUE
+    // enregistrement (répondre puis passer de En cours à Traitée sans toucher au texte = même texte deux fois).
+    // On n'écrit la ligne QUE si le texte a CHANGÉ vs la « Réponse » relue AVANT le PATCH (page non mutée localement),
+    // qui est — dans le chemin normal — le texte de la dernière ligne « Réel Média » du fil.
+    if (reponse && reponse !== _rt(page.properties, 'Réponse')) {
       try {
         const r = await nf('/pages', 'POST', {
           parent: { database_id: DB_MESSAGES },
