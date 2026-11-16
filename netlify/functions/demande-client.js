@@ -21,6 +21,7 @@ const MAX_TEXTE = 2000;
 const _sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
 const _rt = (pr, k) => ((pr && pr[k] && pr[k].rich_text) || []).map(t => t.plain_text || '').join('');
 const _ti = (pr, k) => ((pr && pr[k] && pr[k].title) || []).map(t => t.plain_text || '').join('');
+const normId = (s) => String(s == null ? '' : s).replace(/-/g, '').toLowerCase(); // id de page sans tirets, minuscule
 
 function acao(event) {
   const o = (event.headers && (event.headers.origin || event.headers.Origin)) || '';
@@ -83,8 +84,35 @@ exports.handler = async (event) => {
         resultats.push(...(d.results || []));
         cursor = d.has_more ? d.next_cursor : null; pages++;
       } while (cursor && pages < 20);
+      // RANG dérivé par marque (PR-B). L'AFFICHAGE reste filtré sur le contact (boucle ci-dessus) : aucune
+      // demande ne disparaît, même si la marque du contact a changé et que ses anciennes demandes portent un
+      // Code Brand gelé. Pour NUMÉROTER, on lit l'ensemble de CHAQUE Code Brand distinct présent chez le contact
+      // (normalement un seul) et on classe par id croissant. ⛔ On ne lit que les IDS des collègues (jamais leur
+      // contenu) et on n'émet QUE les lignes du contact (ci-dessous).
+      const rangParId = {};
+      const marques = [];
+      resultats.forEach(p => { const cb = _rt(p.properties, 'Code Brand'); if (cb && marques.indexOf(cb) === -1) marques.push(cb); });
+      // ⚠ INVARIANT : demande-client et demandes-admin DOIVENT classer sur le MÊME ensemble pour composer la
+      //    même réf. Ici 50 pages PAR MARQUE ; côté équipe 20 pages sur TOUTE la base, en tri created_time DESC.
+      //    Si la base dépasse 2000, l'équipe perd les plus ANCIENNES (rangs 01, 02…) et les numéros divergent,
+      //    justes ici, décalés là-bas. Ces deux bornes (et le tri côté équipe) doivent rester cohérentes —
+      //    à relever ENSEMBLE, jamais l'une sans l'autre.
+      for (const cb of marques) {
+        const ids = [];
+        let cur = null, pg = 0;
+        do {
+          const corps2 = { filter: { property: 'Code Brand', rich_text: { equals: cb } }, page_size: 100 };
+          if (cur) corps2.start_cursor = cur;
+          const dd = await notionFetch('/databases/' + DB_DEMANDES + '/query', 'POST', token, corps2);
+          (dd.results || []).forEach(q => ids.push(normId(q.id))); // ⛔ uniquement l'id, jamais les propriétés
+          cur = dd.has_more ? dd.next_cursor : null; pg++;
+        } while (cur && pg < 50);
+        if (cur) console.error('demande-client : classement de la marque ' + cb + ' TRONQUÉ (borne 50 pages atteinte) — rangs susceptibles de diverger de demandes-admin ; relever les deux bornes ENSEMBLE.');
+        ids.sort(); // id de page croissant = ordre chronologique (ids Notion ordonnés dans le temps)
+        ids.forEach((id, i) => { rangParId[id] = i + 1; });
+      }
       const demandes = resultats.map(p => ({
-        ref: refDemande(p.id),                       // étiquette d'affichage « D-xxxxxxxx » (id de page composé serveur)
+        ref: refDemande(_rt(p.properties, 'Code Brand'), rangParId[normId(p.id)] || 0), // « D-<Code Brand>-<NN> », rang dérivé
         message: _ti(p.properties, 'Message'),
         type: _sel(p.properties, 'Type'),
         statut: _sel(p.properties, 'Statut') || 'Nouvelle',
