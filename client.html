@@ -429,10 +429,14 @@
     .dem-form.hidden{display:none}
     .dem-form .dem-row,.dem-form textarea{max-width:560px}
     /* ── UNE SEULE boîte encadrée (point 4) : liste à gauche (séparateur, hauteur bornée), détail à droite. ── */
-    .md{display:grid;grid-template-columns:372px minmax(0,1fr);border:1px solid var(--line);border-radius:12px;background:var(--bg2);overflow:hidden}
+    /* --md-h : PLANCHER de la boîte. Les deux volets sont figés à cette hauteur sur desktop → la boîte NE se
+       réorganise PLUS d'une demande à l'autre (un simple min-height ne suffirait pas : un fil long dépasserait
+       le plancher). Le fil défile à l'intérieur. Sous 1024px (empilé), tout repasse en hauteur auto. */
+    .md{display:grid;grid-template-columns:372px minmax(0,1fr);border:1px solid var(--line);border-radius:12px;background:var(--bg2);overflow:hidden;--md-h:500px}
+    .md:not(.vide){min-height:var(--md-h)}
     .md.vide{display:block}
     .md-vide{padding:22px;color:var(--txt3);font-size:13px;line-height:1.5}
-    .md-liste{border-right:1px solid var(--line);max-height:600px;overflow-y:auto}
+    .md-liste{border-right:1px solid var(--line);height:var(--md-h);overflow-y:auto}
     .md-item{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);padding:12px 15px 13px;cursor:pointer;font:inherit;color:var(--txt)}
     .md-item:hover{background:var(--bg3)}
     .md-item[aria-current="true"]{background:var(--bg3);box-shadow:inset 2px 0 0 var(--rouge)} /* liseré gauche (point 7) */
@@ -444,24 +448,55 @@
     .md-it-b{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}
     .md-it-b .md-mono{font-family:var(--mono);font-size:10.5px;color:var(--txt3)}
     .md-it-b .pill{margin-left:auto}
-    .md-detail{max-height:600px;overflow-y:auto;padding:18px 22px} /* pas de bordure propre : la boîte la porte */
-    .md-d-h{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+    /* Panneau conversation : colonne flex figée à --md-h. En-tête + délai en haut (flex:0), le fil défile
+       (.md-fil, flex:1), le composeur/pied reste en bas (flex:0). Pas de bordure propre : la boîte la porte. */
+    .md-detail{height:var(--md-h);overflow:hidden;display:flex;flex-direction:column;padding:18px 22px}
+    .md-d-h{display:flex;align-items:center;gap:10px;margin-bottom:7px;flex:0 0 auto}
     .md-ref{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--txt3)}
     .md-ref.gros{font-size:14px;color:var(--txt);font-weight:500}
-    .md-d-meta{font-size:12px;color:var(--txt3);margin-bottom:14px}
-    .md-meta{font-size:12px;color:var(--amber);margin-bottom:14px}
+    .md-d-meta{font-size:12px;color:var(--txt3);margin-bottom:12px;flex:0 0 auto}
     .md-msg{font-size:14px;color:var(--txt);line-height:1.55;white-space:pre-wrap}
-    .md-rep{margin-top:16px;padding:12px 14px;border-left:2px solid var(--line2);background:var(--bg3);border-radius:0 8px 8px 0;font-size:13.5px;color:var(--txt);line-height:1.5}
-    .md-rep-by{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:4px}
-    .md-retour{display:none;background:none;border:none;color:var(--rouge);font:inherit;font-size:12.5px;cursor:pointer;padding:0 0 13px;min-height:44px}
-    /* Sous 1024px (rail présent, main étroit), la boîte s'empile : liste en 1re vue, un clic ouvre le détail. */
+    /* ── Le fil ─────────────────────────────────────────────────────────────────────────────────────
+       Chaque message porte son auteur + horodatage. Client à gauche pleine largeur ; Réel Média décalé de
+       34px avec filet rouge (même logique que l'écran équipe). L'auteur vient DÉJÀ générique du serveur
+       (« Vous » / « Réel Média ») — on n'affiche jamais rien d'autre (⛔ pas de nom de membre). */
+    .md-delai{font-family:var(--mono);font-size:10.5px;color:var(--txt3);margin:-2px 0 13px;padding-bottom:13px;border-bottom:1px solid var(--line);flex:0 0 auto}
+    .md-delai.tard{color:var(--amber)}
+    .md-fil{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:11px;padding-top:2px}
+    .md-fil-load{color:var(--txt3);font-size:13px}
+    .md-bh{display:flex;gap:9px;align-items:baseline;margin-bottom:3px}
+    .md-bh b{font-size:12px;font-weight:500;color:var(--txt)}
+    .md-bh>span{font-family:var(--mono);font-size:10.5px;color:var(--txt3)}
+    .md-modif{font-family:var(--mono);font-size:10px;color:var(--txt3);font-style:italic}
+    .md-bt{color:var(--txt2);font-size:13px;line-height:1.6;white-space:pre-wrap}
+    .md-b.eux{margin-left:34px;background:var(--bg3);border-left:2px solid var(--rouge-bord);border-radius:0 8px 8px 0;padding:10px 13px}
+    .md-b.eux .md-bh b{color:var(--rouge)}
+    .md-ed-x{background:none;border:none;color:var(--bleu,#378ADD);font:inherit;font-size:11px;cursor:pointer;padding:0;margin-left:auto}
+    .md-ed-x:hover{text-decoration:underline}
+    .md-ed{margin-top:6px}
+    .md-ed-t,.md-fc-t{width:100%;box-sizing:border-box;resize:vertical;min-height:62px;font-size:13px;background:var(--bg3);border:1px solid var(--line2);border-radius:7px;color:var(--txt);font-family:var(--sans);padding:9px 11px;line-height:1.5}
+    /* Composeur PERMANENT : il ne disparaît jamais après un envoi (on enchaîne deux messages). */
+    .md-fc{flex:0 0 auto;margin-top:12px;padding-top:13px;border-top:1px solid var(--line2)}
+    .md-fc-k{display:block;font-size:12px;color:var(--txt3);margin-bottom:6px}
+    .md-fc-b{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:9px}
+    .md-fc-b .bouton{min-height:40px;padding:8px 16px;font-size:13px}
+    .md-lnk2{background:none;border:none;color:var(--txt2);font:inherit;font-size:12.5px;cursor:pointer;padding:6px 2px;min-height:40px}
+    .md-lnk2:hover{color:var(--txt)}
+    .md-ff{flex:0 0 auto;margin-top:12px;padding-top:13px;border-top:1px solid var(--line2);color:var(--txt3);font-size:12px;font-style:italic}
+    .md-lnk{background:none;border:none;color:var(--rouge);font:inherit;font-size:12.5px;cursor:pointer;padding:0;min-height:40px}
+    .md-c-etat{font-size:12px;margin-top:7px;min-height:1px}
+    .md-c-etat.err{color:var(--rouge)}
+    .md-retour{display:none;background:none;border:none;color:var(--rouge);font:inherit;font-size:12.5px;cursor:pointer;padding:0 0 13px;min-height:44px;flex:0 0 auto}
+    /* Sous 1024px (rail présent, main étroit), la boîte s'empile : liste en 1re vue, un clic ouvre le détail.
+       Hauteurs figées retirées → tout repasse en flux naturel, la page défile (pas de double défilement). */
     @media (max-width:1024px){
-      .md{grid-template-columns:1fr}
-      .md-liste{border-right:none;max-height:none}
-      .md-detail{display:none;max-height:none}
+      .md{grid-template-columns:1fr;min-height:0}
+      .md-liste{border-right:none;height:auto;max-height:none}
+      .md-detail{display:none;height:auto;max-height:none}
       .md.ouvert .md-liste{display:none}
-      .md.ouvert .md-detail{display:block}
+      .md.ouvert .md-detail{display:flex}
       .md.ouvert .md-retour{display:inline-flex;align-items:center}
+      .md-fil{overflow-y:visible;min-height:0}
     }
     .proj-a{display:flex;gap:6px;align-items:center}
     /* Icône d'action : cible 44px, slot FIXE 39px par type ; slot vide = place tenue (.ico-vide). */
@@ -1040,6 +1075,37 @@
         .catch(function () { $('dem-envoi').disabled = false; etat.className = 'msg err'; etat.textContent = 'Service indisponible, réessayez.'; });
     }
     var _mesDemandes = [];
+    var _demSelId = null;   // id de la demande sélectionnée (clé du fil) — gardée au rafraîchissement
+    var _filData = null;    // dernière réponse 'fil' rendue (pour l'annulation d'édition, sans re-réseau)
+    // POST générique vers demande-client → { status, body }.
+    function postDem(corps) {
+      return fetch(DEMANDE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify(corps) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); });
+    }
+    function _idxParId(id) { if (!id) return -1; for (var i = 0; i < _mesDemandes.length; i++) { if (_mesDemandes[i].id === id) return i; } return -1; }
+    function _horoFil(iso) { try { var d = new Date(iso); return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+    function _heures(aIso, bIso) { try { return Math.max(0, Math.round((new Date(bIso).getTime() - new Date(aIso).getTime()) / 3600000)); } catch (e) { return null; } }
+    // Délai : en attente (ambre) si la balle est dans NOTRE camp ; sinon « première réponse en N h/j », calculée
+    // du 1er message (initial) au 1er message de l'équipe. Le serveur donne enAttente + depuis ; le reste se dérive.
+    function _delai(fil, delai) {
+      if (delai && delai.enAttente) { var j = joursDepuis(delai.depuis); return { cls: 'md-delai tard', txt: 'En attente de réponse ' + (j === 0 ? 'depuis aujourd\'hui' : ('depuis ' + j + ' j')) }; }
+      var init = (fil && fil.length) ? fil[0].date : null, prem = null;
+      for (var i = 0; i < (fil || []).length; i++) { if (fil[i].sens === 'Réel Média') { prem = fil[i].date; break; } }
+      if (init && prem) { var h = _heures(init, prem); if (h != null) return { cls: 'md-delai', txt: h < 48 ? ('Première réponse en ' + h + ' h') : ('Première réponse en ' + Math.round(h / 24) + ' j') }; }
+      return null;
+    }
+    // Rafraîchit la liste depuis le serveur en GARDANT la demande ouverte (après clore/rouvrir/modifier : le
+    // statut ou l'aperçu peuvent changer). renderListeDemandes resélectionne _demSelId → recharge son fil.
+    function rafraichir() {
+      postDem({ action: 'mes' }).then(function (res) {
+        if (res.status === 401) { finSession(); return; }
+        if (!$('md-dem')) return;
+        if (res.status !== 200 || !res.body || !res.body.ok) { _demIndispo(); return; }
+        _mesDemandes = res.body.demandes || [];
+        renderListeDemandes(_demSelId);
+      }).catch(function () { _demIndispo(); });
+    }
+    function chargerFilSel() { var i = _idxParId(_demSelId); if (i >= 0) chargerFil(_mesDemandes[i]); }
     // Vocabulaire client (validé) : « Envoyée » et non « reçue » — Nouvelle = PERSONNE ne l'a encore ouverte.
     // « Clôturée » (→ Réglée) n'est posable par personne aujourd'hui (demandes-admin.js / demande-client.js
     // ne la gèrent pas) : le libellé est prévu, les deux fichiers ne sont PAS touchés ici.
@@ -1063,7 +1129,7 @@
         })
         .catch(function () { _demIndispo(); });
     }
-    function renderListeDemandes() {
+    function renderListeDemandes(selId) {
       var mdc = $('md-dem'), cnt = $('md-count'); if (!mdc) return;
       if (cnt) cnt.textContent = _mesDemandes.length ? String(_mesDemandes.length) : '';
       // État vide COHÉRENT (point 8) : un seul message, pas une boîte scindée qui invite à « choisir une demande ».
@@ -1082,24 +1148,115 @@
         '</button>';
       }).join('');
       [].slice.call(liste.querySelectorAll('.md-item')).forEach(function (b) { b.addEventListener('click', function () { selectDemande(parseInt(b.getAttribute('data-idx'), 10), true); }); });
-      selectDemande(0, false); // auto-sélection : remplit le détail (desktop), SANS ouvrir le panneau mobile
+      var si = _idxParId(selId); // garde la sélection courante au rafraîchissement ; sinon la 1re demande
+      selectDemande(si >= 0 ? si : 0, false); // auto-sélection : remplit le détail (desktop), SANS ouvrir le panneau mobile
     }
     function selectDemande(idx, ouvrir) {
-      var x = _mesDemandes[idx], det = $('md-detail'); if (!x || !det) return;
+      var x = _mesDemandes[idx]; if (!x) return;
+      _demSelId = x.id;
       [].slice.call(document.querySelectorAll('#md-liste .md-item')).forEach(function (b) { b.setAttribute('aria-current', parseInt(b.getAttribute('data-idx'), 10) === idx ? 'true' : 'false'); });
-      var j = joursDepuis(x.date);
-      var attente = (!x.reponse && (x.statut === 'Nouvelle' || x.statut === 'En cours') && j != null)
-        ? '<div class="md-meta">En attente de réponse ' + (j === 0 ? 'depuis aujourd\'hui' : ('depuis ' + j + ' j')) + '</div>' : '';
-      var sign = x.traitePar ? (esc(x.traitePar) + ' · Réel Média') : 'Réel Média';
-      var rep = x.reponse ? ('<div class="md-rep"><span class="md-rep-by">' + sign + '</span>' + esc(x.reponse) + '</div>') : '';
-      det.innerHTML = '<button type="button" class="md-retour" id="md-retour">← Toutes les demandes</button>' +
+      if (ouvrir) { var mdc = $('md-dem'); if (mdc) mdc.classList.add('ouvert'); } // téléphone : un CLIC ouvre le détail (pas au chargement → la liste reste la 1re vue mobile)
+      chargerFil(x);
+    }
+    // En-tête de la demande (réf + pastille + type · carte · date). Le délai vient AVEC le fil, pas ici.
+    function _tete(x, statut) {
+      return '<button type="button" class="md-retour" id="md-retour">← Toutes les demandes</button>' +
         '<div class="md-d-h"><span class="md-ref gros">' + esc(x.ref || '') + '</span>' +
-          '<span class="' + _pillCls(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
-        '<div class="md-d-meta">' + esc(x.type || '') + (x.codeCarte ? (' · <span class="code">' + esc(x.codeCarte) + '</span>') : '') + ' · ' + esc(dateFrLongue(x.date)) + '</div>' +
-        attente +
-        '<div class="md-msg">' + esc(x.message || '') + '</div>' + rep;
-      if (ouvrir) { var mdc = $('md-dem'); if (mdc) mdc.classList.add('ouvert'); } // téléphone : un CLIC montre le détail (pas au chargement → la liste reste la 1re vue mobile)
-      var ret = $('md-retour'); if (ret) ret.addEventListener('click', function () { var m = $('md-dem'); if (m) m.classList.remove('ouvert'); });
+          '<span class="' + _pillCls(statut) + '">' + esc(ETIQD[statut] || statut || '') + '</span></div>' +
+        '<div class="md-d-meta">' + esc(x.type || '') + (x.codeCarte ? (' · <span class="code">' + esc(x.codeCarte) + '</span>') : '') + ' · ' + esc(dateFrLongue(x.date)) + '</div>';
+    }
+    function _bindRetour() { var ret = $('md-retour'); if (ret) ret.addEventListener('click', function () { var m = $('md-dem'); if (m) m.classList.remove('ouvert'); }); }
+    // Charge le fil d'une demande (action 'fil') et le rend. En-tête tout de suite, messages ensuite.
+    function chargerFil(x) {
+      var det = $('md-detail'); if (!det) return;
+      det.innerHTML = _tete(x, x.statut) + '<div class="md-fil" id="md-fil"><p class="md-fil-load">Chargement de la conversation…</p></div>';
+      _bindRetour();
+      postDem({ action: 'fil', demandeId: x.id }).then(function (res) {
+        if (res.status === 401) { finSession(); return; }
+        if (!$('md-detail') || _demSelId !== x.id) return; // sélection changée entre-temps : on abandonne ce rendu
+        if (res.status !== 200 || !res.body || !res.body.ok) { var f = $('md-fil'); if (f) f.innerHTML = '<p class="md-fil-load">Conversation indisponible, réessayez.</p>'; return; }
+        renderFil(x, res.body);
+      }).catch(function () { var f = $('md-fil'); if (f) f.innerHTML = '<p class="md-fil-load">Service indisponible, réessayez.</p>'; });
+    }
+    function renderFil(x, data) {
+      var det = $('md-detail'); if (!det) return;
+      _filData = data;
+      var fil = data.fil || [], statut = data.statut || x.statut, clos = (statut === 'Clôturée');
+      var del = _delai(fil, data.delai);
+      var bulles = fil.map(function (m, i) {
+        var eux = (m.sens === 'Réel Média'), dernier = (i === fil.length - 1);
+        var modEdit = dernier && m.mien && !eux && !clos; // « Modifier » : DERNIER message, DU client, demande NON close
+        var modif = m.modifieLe ? '<span class="md-modif">modifié</span>' : '';
+        var bouton = modEdit ? '<button type="button" class="md-ed-x" id="md-ed-x">Modifier</button>' : '';
+        return '<div class="md-b' + (eux ? ' eux' : '') + '">' +
+          '<div class="md-bh"><b>' + esc(m.auteur || '') + '</b><span>' + esc(_horoFil(m.date)) + '</span>' + modif + bouton + '</div>' +
+          '<div class="md-bt">' + esc(m.texte || '') + '</div></div>';
+      }).join('');
+      var delLigne = del ? ('<div class="' + del.cls + '">' + esc(del.txt) + '</div>') : '';
+      var pied;
+      if (clos) {
+        pied = '<div class="md-ff">Vous avez clôturé cette demande. <button type="button" class="md-lnk" id="md-rouvrir">Rouvrir</button></div>';
+      } else {
+        var canClore = !(data.delai && data.delai.enAttente); // balle dans NOTRE camp → « c'est réglé » ; disparaît dès qu'on réécrit
+        pied = '<div class="md-fc"><label class="md-fc-k" for="md-c">Écrire un message</label>' +
+          '<textarea id="md-c" class="md-fc-t" maxlength="2000" placeholder="Ajoutez une précision, posez une autre question…"></textarea>' +
+          '<div class="md-fc-b"><button type="button" class="bouton" id="md-send">Envoyer</button>' +
+            (canClore ? '<button type="button" class="md-lnk2" id="md-clore">C\'est réglé, merci</button>' : '') + '</div>' +
+          '<div class="md-c-etat" id="md-c-etat" aria-live="polite"></div></div>';
+      }
+      det.innerHTML = _tete(x, statut) + delLigne + '<div class="md-fil" id="md-fil">' + bulles + '</div>' + pied;
+      _bindRetour();
+      var f = $('md-fil'); if (f) f.scrollTop = f.scrollHeight; // dernier message visible
+      var s = $('md-send'); if (s) s.addEventListener('click', envoyerFil);
+      var c = $('md-clore'); if (c) c.addEventListener('click', function () { actionFil('clore'); });
+      var ro = $('md-rouvrir'); if (ro) ro.addEventListener('click', function () { actionFil('rouvrir'); });
+      var ex = $('md-ed-x'); if (ex) ex.addEventListener('click', ouvrirEdition);
+    }
+    function envoyerFil() {
+      var z = $('md-c'), etat = $('md-c-etat'), s = $('md-send'); if (!z) return;
+      var t = z.value.trim(); if (!t) { z.focus(); return; }
+      if (s) s.disabled = true;
+      postDem({ action: 'message', demandeId: _demSelId, texte: t }).then(function (res) {
+        if (res.status === 401) { finSession(); return; }
+        if (res.status === 200 && res.body && res.body.ok) { chargerFilSel(); return; } // rechargé → le message réapparaît, SANS recharger la page
+        if (s) s.disabled = false;
+        if (etat) { etat.className = 'md-c-etat err'; etat.textContent = (res.body && res.body.error) || 'Envoi impossible, réessayez.'; }
+      }).catch(function () { if (s) s.disabled = false; if (etat) { etat.className = 'md-c-etat err'; etat.textContent = 'Service indisponible, réessayez.'; } });
+    }
+    // clore / rouvrir : le statut change → rafraîchir liste + détail. Un 409 s'affiche proprement et on resynchronise.
+    function actionFil(kind) {
+      postDem({ action: kind, demandeId: _demSelId }).then(function (res) {
+        if (res.status === 401) { finSession(); return; }
+        if (res.status === 200 && res.body && res.body.ok) { rafraichir(); return; }
+        var etat = $('md-c-etat'); if (etat) { etat.className = 'md-c-etat err'; etat.textContent = (res.body && res.body.error) || 'Action impossible.'; }
+        chargerFilSel(); // resync : l'écran reflète l'état réel du serveur, jamais un geste fantôme
+      }).catch(function () { chargerFilSel(); });
+    }
+    // Édition EN PLACE du dernier message (du client). Enregistrer → 'modifier' ; Annuler → ré-affiche sans réseau.
+    function ouvrirEdition() {
+      var dernier = document.querySelector('#md-fil .md-b:last-child'); if (!dernier) return;
+      var bt = dernier.querySelector('.md-bt'), edx = dernier.querySelector('.md-ed-x'); if (edx) edx.remove();
+      var avant = (_filData && _filData.fil && _filData.fil.length) ? _filData.fil[_filData.fil.length - 1].texte : (bt ? bt.textContent : '');
+      if (bt) bt.style.display = 'none';
+      var ed = document.createElement('div'); ed.className = 'md-ed';
+      ed.innerHTML = '<textarea class="md-ed-t" maxlength="2000"></textarea>' +
+        '<div class="md-fc-b"><button type="button" class="bouton" id="md-ed-save">Enregistrer</button>' +
+        '<button type="button" class="md-lnk2" id="md-ed-cancel">Annuler</button></div>' +
+        '<div class="md-c-etat" id="md-ed-etat" aria-live="polite"></div>';
+      dernier.appendChild(ed);
+      var ta = ed.querySelector('.md-ed-t'); ta.value = avant; ta.focus();
+      $('md-ed-save').addEventListener('click', function () {
+        var t = ta.value.trim(), et = $('md-ed-etat'), sv = $('md-ed-save');
+        if (!t) { ta.focus(); return; }
+        sv.disabled = true;
+        postDem({ action: 'modifier', demandeId: _demSelId, texte: t }).then(function (res) {
+          if (res.status === 401) { finSession(); return; }
+          if (res.status === 200 && res.body && res.body.ok) { rafraichir(); return; } // éditer l'initial change l'aperçu de la liste
+          sv.disabled = false;
+          if (et) { et.className = 'md-c-etat err'; et.textContent = (res.body && res.body.error) || 'Modification impossible.'; }
+        }).catch(function () { sv.disabled = false; if (et) { et.className = 'md-c-etat err'; et.textContent = 'Service indisponible.'; } });
+      });
+      $('md-ed-cancel').addEventListener('click', function () { if (_filData) renderFil(_mesDemandes[_idxParId(_demSelId)] || x, _filData); });
     }
 
     function renderEspace(status, d) {
