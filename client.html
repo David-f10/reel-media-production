@@ -445,6 +445,7 @@
     .md-it-h{display:flex;align-items:baseline;gap:8px}
     .md-it-m{flex:1;min-width:0;font-size:13px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .md-it-d{font-family:var(--mono);font-size:10.5px;color:var(--txt3);flex-shrink:0}
+    .neuf{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rouge);flex-shrink:0;align-self:center} /* point « non lu » en tête de ligne (maquette :166) */
     .md-it-b{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}
     .md-it-b .md-mono{font-family:var(--mono);font-size:10.5px;color:var(--txt3)}
     .md-it-b .pill{margin-left:auto}
@@ -673,7 +674,8 @@
           <span class="nv-ic" aria-hidden="true">🎞</span><span class="nv-lb">Mes films</span>
           <span class="rail-ct hidden" id="rail-badge-films" title="Films en attente de vous"></span></button>
         <button type="button" class="nv" id="nv-demandes" aria-current="false">
-          <span class="nv-ic" aria-hidden="true">📨</span><span class="nv-lb">Mes demandes</span></button>
+          <span class="nv-ic" aria-hidden="true">📨</span><span class="nv-lb">Mes demandes</span>
+          <span class="rail-ct hidden" id="rail-badge-demandes" title="Réponses non lues"></span></button>
         <button type="button" class="nv" disabled>
           <span class="nv-ic" aria-hidden="true">🎬</span><span class="nv-lb">Proposer un film</span><span class="nv-bientot">bientôt</span></button>
       </nav>
@@ -769,6 +771,7 @@
     var DEMANDE = '/.netlify/functions/demande-client'; // circuit court : demandes hors montage (lot A)
     var MISSION = '/.netlify/functions/mission-client';  // nouvelle mission : proposer un film (étage 2a)
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
+    var K_DEM_VUS = 'rmc-dem-vus'; // notifs : { id_de_page : empreinte(reponse) } des réponses déjà VUES (à l'ouverture du fil)
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
     var $ = function (id) { return document.getElementById(id); };
@@ -942,6 +945,17 @@
       var nf = $('nv-films'), nd = $('nv-demandes');
       if (nf) nf.setAttribute('aria-current', films ? 'page' : 'false');
       if (nd) nd.setAttribute('aria-current', films ? 'false' : 'page');
+      // Navigation VOLONTAIRE vers « Mes demandes » : le détail de la demande sélectionnée est maintenant à
+      // l'écran → on la marque LUE. MAIS seulement si le détail est RÉELLEMENT visible (offsetParent nul en
+      // display:none → téléphone avant le clic : la règle du clic s'applique alors seule). L'auto-sélection AU
+      // CHARGEMENT n'appelle pas allerVue → rien n'est marqué tant que le client reste sur « Mes films ».
+      if (!films) {
+        var det = $('md-detail');
+        if (det && det.offsetParent !== null) {
+          var i = _idxParId(_demSelId);
+          if (i >= 0) { marquerVu(_mesDemandes[i]); var pt = document.querySelector('#md-liste .md-item[data-idx="' + i + '"] .neuf'); if (pt) pt.remove(); majBadgeDemandes(); }
+        }
+      }
       // Table de libellés par destination (point 3) : évite que « Proposer un film » affiche « Mes demandes »
       // le jour où sa destination s'ouvrira.
       var LIBELLES = { films: 'Vos projets', demandes: 'Mes demandes', missions: 'Proposer un film', acces: 'Qui a accès' };
@@ -1106,6 +1120,22 @@
       }).catch(function () { _demIndispo(); });
     }
     function chargerFilSel() { var i = _idxParId(_demSelId); if (i >= 0) chargerFil(_mesDemandes[i]); }
+    // ── Notifications « non lu » (100% CLIENT, ZÉRO requête : tout vient de 'mes', déjà chargée à chaque accès) ──
+    // NON LU = reponse non vide ET la paire (id, empreinte(reponse)) absente de l'ensemble « vu ». Clé = id de page
+    // (JAMAIS la réf : un rang dérivé se décale à la suppression, « vu » suivrait la mauvaise demande). « reponse »
+    // est le résumé « dernière réponse » que demandes-admin écrit à chaque réponse équipe : si l'équipe répond à
+    // nouveau le texte change → l'empreinte change → non lu ; si le CLIENT écrit, reponse ne bouge pas → reste lu.
+    // « vu » est posé À L'OUVERTURE du fil (clic), pas au rendu de la liste. Borné : purgé aux ids de 'mes' →
+    // |vu| ≤ nb de demandes du contact. Stockage via lire/ecrire (try/catch) : indispo → {} → tout « non lu »,
+    // rien ne plante. ⚠ Limite ASSUMÉE : deux réponses équipe au texte IDENTIQUE ne re-déclenchent pas (même empreinte).
+    function _empreinte(s) { var h = 5381, t = String(s == null ? '' : s); for (var i = 0; i < t.length; i++) { h = ((h << 5) + h + t.charCodeAt(i)) | 0; } return (h >>> 0).toString(36); }
+    function _lireVus() { try { return JSON.parse(lire(K_DEM_VUS) || '{}') || {}; } catch (e) { return {}; } }
+    function _ecrireVus(v) { var o = {}; try { o[K_DEM_VUS] = JSON.stringify(v); } catch (e) { return; } ecrire(o); }
+    function estNonLu(x) { if (!x || !x.reponse) return false; return _lireVus()[x.id] !== _empreinte(x.reponse); }
+    function nbNonLus() { var n = 0; for (var i = 0; i < _mesDemandes.length; i++) { if (estNonLu(_mesDemandes[i])) n++; } return n; }
+    function marquerVu(x) { if (!x || !x.id || !x.reponse) return; var v = _lireVus(), e = _empreinte(x.reponse); if (v[x.id] === e) return; v[x.id] = e; _ecrireVus(v); }
+    function _purgerVus() { var v = _lireVus(), ids = {}, chg = false; for (var i = 0; i < _mesDemandes.length; i++) ids[_mesDemandes[i].id] = 1; Object.keys(v).forEach(function (k) { if (!ids[k]) { delete v[k]; chg = true; } }); if (chg) _ecrireVus(v); }
+    function majBadgeDemandes() { var el = $('rail-badge-demandes'); if (!el) return; var n = nbNonLus(); el.textContent = n; el.classList.toggle('hidden', n === 0); }
     // Vocabulaire client (validé) : « Envoyée » et non « reçue » — Nouvelle = PERSONNE ne l'a encore ouverte.
     // « Clôturée » (→ Réglée) n'est posable par personne aujourd'hui (demandes-admin.js / demande-client.js
     // ne la gèrent pas) : le libellé est prévu, les deux fichiers ne sont PAS touchés ici.
@@ -1131,6 +1161,7 @@
     }
     function renderListeDemandes(selId) {
       var mdc = $('md-dem'), cnt = $('md-count'); if (!mdc) return;
+      _purgerVus(); majBadgeDemandes(); // borne « vu » aux demandes courantes + rafraîchit la pastille rail (même sur « Mes films »)
       if (cnt) cnt.textContent = _mesDemandes.length ? String(_mesDemandes.length) : '';
       // État vide COHÉRENT (point 8) : un seul message, pas une boîte scindée qui invite à « choisir une demande ».
       if (!_mesDemandes.length) { mdc.classList.add('vide'); mdc.innerHTML = '<p class="md-vide">Aucune demande pour l\'instant. Votre première demande apparaîtra ici.</p>'; return; }
@@ -1142,7 +1173,7 @@
         var film = x.codeCarte ? ('<span class="code">' + esc(x.codeCarte) + '</span>') : '';
         var ref = x.ref ? ('<span class="md-mono">' + esc(x.ref) + '</span>') : '';
         return '<button type="button" class="md-item" data-idx="' + i + '" aria-current="false">' +
-          '<div class="md-it-h"><span class="md-it-m">' + esc(x.message || '') + '</span><span class="md-it-d">' + esc(dateFrCourte(x.date)) + '</span></div>' +
+          '<div class="md-it-h">' + (estNonLu(x) ? '<span class="neuf" aria-label="Réponse non lue"></span>' : '') + '<span class="md-it-m">' + esc(x.message || '') + '</span><span class="md-it-d">' + esc(dateFrCourte(x.date)) + '</span></div>' +
           '<div class="md-it-b">' + film + ref + '<span class="md-mono">' + esc(x.type || '') + '</span>' +
             '<span class="' + _pillCls(x.statut) + '">' + esc(ETIQD[x.statut] || x.statut || '') + '</span></div>' +
         '</button>';
@@ -1155,7 +1186,13 @@
       var x = _mesDemandes[idx]; if (!x) return;
       _demSelId = x.id;
       [].slice.call(document.querySelectorAll('#md-liste .md-item')).forEach(function (b) { b.setAttribute('aria-current', parseInt(b.getAttribute('data-idx'), 10) === idx ? 'true' : 'false'); });
-      if (ouvrir) { var mdc = $('md-dem'); if (mdc) mdc.classList.add('ouvert'); } // téléphone : un CLIC ouvre le détail (pas au chargement → la liste reste la 1re vue mobile)
+      if (ouvrir) {
+        var mdc = $('md-dem'); if (mdc) mdc.classList.add('ouvert'); // téléphone : un CLIC ouvre le détail (pas au chargement → la liste reste la 1re vue mobile)
+        // OUVERTURE = le client lit le fil → on pose « vu » (jamais à l'auto-sélection idx0 ouvrir=false).
+        marquerVu(x);
+        var pt = document.querySelector('#md-liste .md-item[data-idx="' + idx + '"] .neuf'); if (pt) pt.remove();
+        majBadgeDemandes();
+      }
       chargerFil(x);
     }
     // En-tête de la demande (réf + pastille + type · carte · date). Le délai vient AVEC le fil, pas ici.
