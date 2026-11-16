@@ -945,6 +945,17 @@
       var nf = $('nv-films'), nd = $('nv-demandes');
       if (nf) nf.setAttribute('aria-current', films ? 'page' : 'false');
       if (nd) nd.setAttribute('aria-current', films ? 'false' : 'page');
+      // Navigation VOLONTAIRE vers « Mes demandes » : le détail de la demande sélectionnée est maintenant à
+      // l'écran → on la marque LUE. MAIS seulement si le détail est RÉELLEMENT visible (offsetParent nul en
+      // display:none → téléphone avant le clic : la règle du clic s'applique alors seule). L'auto-sélection AU
+      // CHARGEMENT n'appelle pas allerVue → rien n'est marqué tant que le client reste sur « Mes films ».
+      if (!films) {
+        var det = $('md-detail');
+        if (det && det.offsetParent !== null) {
+          var i = _idxParId(_demSelId);
+          if (i >= 0) { marquerVu(_mesDemandes[i]); var pt = document.querySelector('#md-liste .md-item[data-idx="' + i + '"] .neuf'); if (pt) pt.remove(); majBadgeDemandes(); }
+        }
+      }
       // Table de libellés par destination (point 3) : évite que « Proposer un film » affiche « Mes demandes »
       // le jour où sa destination s'ouvrira.
       var LIBELLES = { films: 'Vos projets', demandes: 'Mes demandes', missions: 'Proposer un film', acces: 'Qui a accès' };
