@@ -5,13 +5,18 @@
 //   'liste'  → toutes les demandes (tri Nouvelle d'abord, puis récentes). La pastille compte les Nouvelle.
 //   'statut' → change le Statut (+ Réponse visible client, + Traité par). Écriture bornée À LA base Demandes
 //              (on relit la page et on vérifie son parent avant tout PATCH : jamais un id forgé vers une autre base).
+//              DOUBLE-ÉCRITURE (lot 2) : l'historique vit désormais dans 💬 Messages (une ligne « Réel Média » par
+//              réponse, jamais écrasée) ; « Réponse » reste écrite en plus, comme RÉSUMÉ « dernière réponse » que
+//              relit l'écran équipe (index.html). Garde : on refuse de RÉTROGRADER une demande Clôturée vers Nouvelle
+//              (une page restée ouverte dans un onglet ne doit pas annuler en silence la clôture du client).
 
 const { verifyUser } = require('./_auth');
 const { appelNotion } = require('./_notionio');
 const { refDemande } = require('./_demref'); // MÊME référence d'affichage que côté client (helper partagé)
 
 const DB_DEMANDES = '41875d81-5951-8115-b6c0-ede198a923ab';
-const STATUTS = ['Nouvelle', 'En cours', 'Traitée', 'Refusée'];
+const DB_MESSAGES = '41975d81-5951-81c7-b7f1-c2f2203ccd77'; // 💬 Messages — le fil (historique) ; cf. double-écriture
+const STATUTS = ['Nouvelle', 'En cours', 'Traitée', 'Refusée', 'Clôturée']; // Clôturée = statut CLIENT ; l'équipe ne le POSE pas mais DOIT pouvoir le resoumettre (sinon sa réponse à une demande close est rejetée en 400)
 const MAX_REPONSE = 2000;
 const EST_ID = (s) => /^[0-9a-f]{32}$/.test(String(s || '').replace(/-/g, '').toLowerCase());
 const normId = (s) => String(s || '').replace(/-/g, '').toLowerCase();
@@ -63,10 +68,45 @@ exports.handler = async (event) => {
       return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Accès refusé' }) };
     }
 
-    const props = { 'Statut': { select: { name: statut } }, 'Traité par': { rich_text: [{ text: { content: auth.user.nom || '' } }] } };
+    // GARDE anti-rétrogradation : une demande actuellement Clôturée (par le client, « c'est réglé ») ne peut pas
+    // retomber à « Nouvelle ». C'est le chemin NORMAL du bug : un onglet resté ouvert AVANT que Clôturée n'existe
+    // dans le sélecteur voit la 1re option (Nouvelle) pré-sélectionnée et la renvoie en répondant → la clôture
+    // serait annulée en silence. On conserve alors Clôturée (et la réponse est bien enregistrée malgré tout).
+    // Clôturée→En cours/Traitée/Refusée reste permis : c'est un geste DÉLIBÉRÉ de l'équipe (pas un défaut d'onglet).
+    const statutActuel = _sel(page.properties, 'Statut');
+    let statutFinal = statut;
+    if (statutActuel === 'Clôturée' && statut === 'Nouvelle') {
+      statutFinal = 'Clôturée';
+      console.error('demandes-admin : rétrogradation Clôturée→Nouvelle REFUSÉE (demande ' + id.slice(0, 8) + ') — clôture client préservée.');
+    }
+
+    const props = { 'Statut': { select: { name: statutFinal } }, 'Traité par': { rich_text: [{ text: { content: auth.user.nom || '' } }] } };
     if (body.reponse !== undefined) props['Réponse'] = { rich_text: reponse ? [{ text: { content: reponse } }] : [] };
     try { const r = await nf('/pages/' + id, 'PATCH', { properties: props }); if (!r.ok) throw new Error('PATCH ' + r.status); }
     catch (e) { console.error('demandes-admin indispo (écriture) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
+
+    // Double-écriture : l'historique dans le fil. Best-effort APRÈS l'écriture primaire — un incident sur 💬 Messages
+    // ne fait PAS échouer la réponse de l'équipe (déjà dans « Réponse »), et le repli 'fil' côté client réaffiche
+    // « Réponse » tant qu'aucune ligne « Réel Média » n'existe : rien ne se perd.
+    // ANTI-DOUBLON : index.html pré-remplit le champ avec la « Réponse » existante et la renvoie à CHAQUE
+    // enregistrement (répondre puis passer de En cours à Traitée sans toucher au texte = même texte deux fois).
+    // On n'écrit la ligne QUE si le texte a CHANGÉ vs la « Réponse » relue AVANT le PATCH (page non mutée localement),
+    // qui est — dans le chemin normal — le texte de la dernière ligne « Réel Média » du fil.
+    if (reponse && reponse !== _rt(page.properties, 'Réponse')) {
+      try {
+        const r = await nf('/pages', 'POST', {
+          parent: { database_id: DB_MESSAGES },
+          properties: {
+            'Message': { title: [{ text: { content: reponse } }] },
+            'Réf demande': { rich_text: [{ text: { content: page.id } }] },     // id de page COMPLET relu (clé du fil, exactement ce par quoi le client filtre), jamais « D-… »
+            'Sens': { select: { name: 'Réel Média' } },                         // estampillé SERVEUR
+            'Auteur': { rich_text: [{ text: { content: 'Réel Média' } }] },      // ⛔ générique : le nom du membre reste équipe-side (Traité par), jamais dans le fil
+            'Code Brand': { rich_text: [{ text: { content: _rt(page.properties, 'Code Brand') } }] }
+          }
+        });
+        if (!r.ok) throw new Error('POST ' + r.status);
+      } catch (e) { console.error('demandes-admin : ligne 💬 Messages NON écrite (fil) : ' + (e && e.message || '') + ' — « Réponse » conservée, repli fil assuré.'); }
+    }
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   }
 

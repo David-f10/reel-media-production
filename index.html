@@ -5781,7 +5781,7 @@ function renderDemandesListe(ds) {
   const COL = {'Nouvelle':'#EF9F27','En cours':'#378ADD','Traitée':'#1D9E75','Refusée':'var(--text3)'};
   body.innerHTML = ds.map(function(x){
     const carte = x.codeCarte ? '<button class="dem-carte-lnk" data-code="'+escapeHtml(x.codeCarte)+'" style="font-family:var(--mono);font-size:11px;color:var(--blue);background:none;border:none;cursor:pointer;padding:0">'+escapeHtml(x.codeCarte)+' ↗</button>' : '';
-    const opts = ['Nouvelle','En cours','Traitée','Refusée'].map(function(s){ return '<option '+(x.statut===s?'selected':'')+'>'+s+'</option>'; }).join('');
+    const opts = ['Nouvelle','En cours','Traitée','Refusée','Clôturée'].map(function(s){ return '<option '+(x.statut===s?'selected':'')+'>'+s+'</option>'; }).join('');
     return '<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px">'+
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'+
         '<span style="font-size:11px;font-weight:600;color:'+(COL[x.statut]||'var(--text2)')+'">'+escapeHtml(x.type||'')+'</span>'+
