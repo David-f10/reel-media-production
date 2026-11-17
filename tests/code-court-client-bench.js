@@ -98,6 +98,21 @@ async function login(p, code) {
     ok('aucun POST code-client', changeBodies.length === 0);
     await p.close();
 
+    // ── crypto indisponible → ÉCHEC FERMÉ : aucune suggestion, aucun code fabriqué ──
+    console.log('\n\x1b[1mcrypto indisponible → aucune suggestion fabriquée\x1b[0m');
+    p = await b.newPage({ viewport: { width: 1100, height: 900 } });
+    await p.addInitScript(() => { try { Object.defineProperty(window, 'crypto', { configurable: true, get: function () { return undefined; } }); } catch (e) {} });
+    await p.goto(URL); await p.waitForTimeout(300);
+    changeBodies = [];
+    await login(p, 'ABC');
+    ok('écran forcé affiché', await visible(p, 'vue-codecourt'));
+    ok('⛔ pas de CSPRNG → le champ reste VIDE (aucune suggestion fabriquée)', (await p.inputValue('#cc-code')) === '');
+    await p.click('#cc-autre'); await p.waitForTimeout(100);
+    ok('⛔ « Proposer un autre » ne fabrique rien non plus (champ vide)', (await p.inputValue('#cc-code')) === '');
+    await p.click('#cc-valider'); await p.waitForTimeout(200);
+    ok('valider sur champ vide → erreur client, aucun POST (aucun code fabriqué)', changeBodies.length === 0);
+    await p.close();
+
     console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
     srv.close(); await b.close();
     process.exit(fails ? 1 : 0);

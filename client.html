@@ -910,14 +910,16 @@
     // Suggestion générée DANS LE NAVIGATEUR (jamais renvoyée par le serveur) : le code naît chez son titulaire,
     // ne fait que monter pour être stocké. Format = CODE_ALPHABET + CODE_ALEAS (cf. le commentaire de ces consts).
     function genererSuggestion(cb) {
+      // ⛔ ÉCHEC FERMÉ : pas de CSPRNG → AUCUNE suggestion (champ vide). Le client tape alors son code ; la
+      //   validation SERVEUR (min 8 + tout-identique) le borne de toute façon. On ne remplace JAMAIS un
+      //   générateur sûr par un approximatif (Math.random est prévisible — un secret faible sans bruit).
+      var g = (window.crypto && window.crypto.getRandomValues) ? window.crypto
+        : ((window.msCrypto && window.msCrypto.getRandomValues) ? window.msCrypto : null);
+      if (!g) return '';
       var pref = String(cb || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'RM';
-      var n = CODE_ALPHABET.length, out = '', i;
-      try {
-        var buf = new Uint32Array(CODE_ALEAS); (window.crypto || window.msCrypto).getRandomValues(buf);
-        for (i = 0; i < CODE_ALEAS; i++) out += CODE_ALPHABET.charAt(buf[i] % n); // 32 | 2^32 → aucun biais modulo
-      } catch (e) { // repli (pas de WebCrypto, très improbable) — ce n'est qu'une SUGGESTION éditable, le serveur borne la longueur
-        for (i = 0; i < CODE_ALEAS; i++) out += CODE_ALPHABET.charAt(Math.floor(Math.random() * n));
-      }
+      var n = CODE_ALPHABET.length, out = '', buf = new Uint32Array(CODE_ALEAS);
+      g.getRandomValues(buf);
+      for (var i = 0; i < CODE_ALEAS; i++) out += CODE_ALPHABET.charAt(buf[i] % n); // 32 | 2^32 → aucun biais modulo
       return pref + '-' + out;
     }
     function montrerCodeCourt(codeActuel, codeBrand) {

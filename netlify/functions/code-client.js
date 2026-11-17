@@ -86,7 +86,9 @@ exports.handler = async (event) => {
     await enregistrerSucces(ip, vt.id);
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) }; // ⛔ réponse NUE : ni nouveau code, ni ancien, ni longueur
   } catch (e) {
-    console.error('code-client indispo : ' + (e && e.message || '')); // ⛔ jamais une valeur de code
+    // ⛔ marqueur fixe + NOM de l'erreur seulement, JAMAIS e.message : depuis Node 20, une erreur de parsing JSON
+    //   inclut un EXTRAIT du corps reçu — ici une page Notion, Code acces compris. Le nom ne porte aucune donnée.
+    console.error('code-client indispo (' + (e && e.name || 'Error') + ')');
     return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
   }
 };

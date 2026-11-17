@@ -22,6 +22,14 @@ const NEW = 'NOUVEAUCODE12';         // nouveau code (≥8, pas tout-identique)
 const CONTACT = { id: CID, parent: { database_id: 'dbcontacts' }, properties: { 'Mail': { rich_text: [{ plain_text: 'c@refashion.fr' }] }, 'Nom': { title: [{ plain_text: 'Claire' }] }, 'Code acces': { rich_text: [{ plain_text: OLD }] }, 'Actif': { checkbox: true }, 'Code Brand': { rich_text: [{ plain_text: 'B33' }] }, 'Marque': { rich_text: [{ plain_text: 'Refashion' }] } } };
 const BRAND = { id: 'brand', properties: { 'Code': { rich_text: [{ plain_text: 'B33' }] }, 'Espace client activé': { checkbox: true } } };
 
+// Capture des console.error (pour prouver qu'aucun fragment de corps ne fuit).
+const _logs = []; console.error = function () { _logs.push(Array.prototype.join.call(arguments, ' ')); };
+// Mode « corps JSON tronqué » : le GET /pages renvoie un 200 dont .json() REJETTE avec une SyntaxError portant
+// un EXTRAIT (comme Node 20+) contenant une sentinelle — simule un code dans le fragment d'erreur.
+const LEAK_SENT = 'FUITE-CODE-SENTINELLE';
+let leakMode = false;
+const repLeak = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, json: () => Promise.reject(new SyntaxError('Unexpected token in JSON "{\\"Code acces\\":\\"' + LEAK_SENT + '\\"} tronq…" is not valid JSON')), text: () => Promise.resolve('x') });
+
 let patches = [];
 const rep = (obj, status) => Promise.resolve({ ok: !(status >= 400), status: status || 200, headers: { get: () => null }, json: () => Promise.resolve(obj), text: () => Promise.resolve(JSON.stringify(obj)) });
 global.fetch = function (url, opt) {
@@ -31,6 +39,7 @@ global.fetch = function (url, opt) {
   const mp = u.match(/\/pages\/([0-9a-fA-F-]+)$/);
   if (mp) {
     if (method === 'PATCH') { patches.push({ id: mp[1], props: (opt && opt.body ? JSON.parse(opt.body).properties : {}) }); return rep({ id: mp[1] }); }
+    if (leakMode) return repLeak();
     return mp[1] === CID ? rep(CONTACT) : rep({ object: 'error' }, 404);
   }
   return rep({});
@@ -80,6 +89,13 @@ async function appel(jeton, b, ip) { mem.clear(); patches = []; const r = await 
   for (let i = 0; i < 4; i++) { const rr = await codeClient(evt(TOK, { oldCode: 'FAUX', newCode: NEW }, ipT)); codes.push(rr.statusCode); reponses.push(rr.body || ''); }
   ok('les 3 premiers ancien-codes faux → 401', codes[0] === 401 && codes[1] === 401 && codes[2] === 401);
   ok('le 4e est BLOQUÉ par le throttle → 429', codes[3] === 429);
+
+  console.log('\n\x1b[1m⛔ le catch ne laisse PAS fuir un fragment de corps\x1b[0m');
+  mem.clear(); _logs.length = 0; leakMode = true;
+  const rl = await codeClient(evt(TOK, { oldCode: OLD, newCode: NEW }, '203.0.113.50'));
+  leakMode = false;
+  ok('corps JSON tronqué (200) → 503 propre (pas de crash)', rl.statusCode === 503);
+  ok('⛔ la sentinelle du fragment n\'apparaît dans AUCUN console.error', _logs.length > 0 && _logs.every(l => l.indexOf(LEAK_SENT) === -1));
 
   console.log('\n\x1b[1mSentinelle globale\x1b[0m');
   ok('⛔ la valeur de l\'ancien code n\'apparaît dans AUCUNE réponse', reponses.every(b => b.indexOf(OLD) === -1));
