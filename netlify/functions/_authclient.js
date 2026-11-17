@@ -271,15 +271,19 @@ async function adminClients() {
   }
 }
 
-// accesClient(codeBrand) → { ok:true, acces:[{ nom, mail, actif, aCode }] } | { ok:false, raison:'indispo' }.
+// accesClient(codeBrand, callerId) → { ok:true, acces:[{ nom, mail, actif, aCode, moi }] } | { ok:false, raison:'indispo' }.
 // Écran client « Qui a accès » (LECTURE SEULE), BORNÉ au Code Brand de l'appelant. Réutilise le cache _getContacts
 // (0 requête à chaud). ⛔ aCode = BOOLÉEN (présence d'un code), JAMAIS la valeur, JAMAIS la longueur.
-async function accesClient(codeBrand) {
+// moi = BOOLÉEN : cette ligne est-elle celle de l'appelant ? Le serveur tranche par comparaison d'id ; ⛔ on ne
+// renvoie JAMAIS l'id d'un contact au navigateur. callerId nul (ex. session d'emprunt ro) → moi FALSE sur TOUTES
+// les lignes, par un garde EXPLICITE — pas en se reposant sur le fait que normId('') ne collisionne aucun id.
+async function accesClient(codeBrand, callerId) {
   const token = process.env.NOTION_TOKEN;
   const dbId = process.env.DB_CONTACTS_CLIENT;
   if (!token || !dbId) { console.error('accesClient indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
   const code = String(codeBrand == null ? '' : codeBrand).trim();
   if (!code) return { ok: true, acces: [] }; // pas de marque sur l'appelant → liste vide (donnée, pas une panne)
+  const moiId = callerId ? normId(callerId) : null; // ⛔ garde explicite : callerId nul → aucune ligne « moi »
   try {
     const contacts = await _getContacts(token, dbId, false);
     const acces = (contacts || [])
@@ -288,7 +292,8 @@ async function accesClient(codeBrand) {
         nom: _nom(p.properties),
         mail: _mail(p.properties),
         actif: _actif(p.properties),
-        aCode: _rt(p.properties, 'Code acces').length > 0            // ⛔ BOOLÉEN seul — ni la valeur, ni la longueur
+        aCode: _rt(p.properties, 'Code acces').length > 0,           // ⛔ BOOLÉEN seul — ni la valeur, ni la longueur
+        moi: moiId !== null && normId(p.id) === moiId                 // ⛔ booléen (jamais l'id) ; faux partout si callerId nul
       }));
     return { ok: true, acces };
   } catch (e) {

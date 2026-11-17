@@ -35,8 +35,10 @@ exports.handler = async (event) => {
   const liv = await contactActif(vt.id);
   if (!liv.ok) return { statusCode: liv.raison === 'indispo' ? 503 : 401, headers, body: JSON.stringify({ ok: false, error: liv.raison === 'indispo' ? 'Service temporairement indisponible' : 'Authentification requise' }) };
 
-  const r = await accesClient(liv.codeBrand);
+  // callerId = l'id de l'appelant SAUF en emprunt (ro) : là, null → moi false sur chaque ligne (rien de vrai à
+  // afficher, le marquage « Vous » ne peut pas apparaître même si le navigateur l'oublie). ⛔ l'id ne sort jamais.
+  const r = await accesClient(liv.codeBrand, vt.ro ? null : vt.id);
   if (!r.ok) return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
-  // ⛔ { nom, mail, actif, aCode } par personne — jamais de valeur ni de longueur de code.
+  // ⛔ { nom, mail, actif, aCode, moi } par personne — jamais de valeur ni de longueur de code, jamais d'id.
   return { statusCode: 200, headers, body: JSON.stringify({ ok: true, acces: r.acces }) };
 };
