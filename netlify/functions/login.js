@@ -164,7 +164,7 @@ exports.handler = async (event) => {
 
   } catch (e) {
     // Ne plus avaler l'erreur (ex. 401 Notion) en silence — c'est le trou de diagnostic du 24, côté équipe.
-    console.error('login indispo : ' + (e && e.message || ''));
+    console.error('login indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul : try englobe la lecture Équipe (membres + Code acces)
     return {
       statusCode: 503,
       headers,
