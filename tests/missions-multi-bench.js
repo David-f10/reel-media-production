@@ -39,6 +39,12 @@ const MISSION = { id: '22222222-2222-2222-2222-222222222222', parent: { database
   'Code Brand': { rich_text: [{ plain_text: 'B33' }] }, 'Contact client': { rich_text: [{ plain_text: ID }] },
   'Demandeur': { rich_text: [{ plain_text: 'Claire' }] }, 'Réponse': { rich_text: [] }, 'Carte créée': { rich_text: [] },
   'Validé commercial par': { rich_text: [] }, 'Code acces': { rich_text: [{ plain_text: SECRET }] } } };
+// Une mission SANS plateforme (le cas de TOUTES les missions actuelles, le formulaire 503ant dès qu'on en choisit
+// une) — pour prouver que le payload ÉQUIPE porte '' (falsy, masqué par index.html), jamais [] (truthy → « · » suspendu).
+const MISSION2 = { id: '33333333-3333-3333-3333-333333333333', parent: { database_id: DB_MISSIONS }, created_time: '2026-03-02T09:00:00Z', properties: {
+  'Objet': { title: [{ plain_text: 'Sans plateforme' }] }, 'Statut': { select: { name: 'Nouvelle' } },
+  'Code Brand': { rich_text: [{ plain_text: 'B33' }] }, 'Contact client': { rich_text: [{ plain_text: ID }] },
+  'Demandeur': { rich_text: [{ plain_text: 'Claire' }] }, 'Réponse': { rich_text: [] }, 'Carte créée': { rich_text: [] } } };
 
 let posts = []; // corps des POST /pages (création)
 const rep = (obj, status) => Promise.resolve({ ok: (status || 200) < 400, status: status || 200, headers: { get: () => null }, json: () => Promise.resolve(obj), text: () => Promise.resolve(JSON.stringify(obj)) });
@@ -51,7 +57,7 @@ global.fetch = function (url, opt) {
     if (db === process.env.DB_CONTACTS_CLIENT) return rep({ results: [CONTACT] });
     if (db === DB_CLIENTS_BRAND) return rep({ results: [BRAND] });
     if (db === DB_EQUIPE) return rep({ results: [CHEF] });
-    if (db === DB_MISSIONS) return rep({ results: [MISSION] });
+    if (db === DB_MISSIONS) return rep({ results: body && body.filter ? [MISSION] : [MISSION, MISSION2] }); // 'mes' filtre par contact ; 'liste' prend tout
     return rep({ results: [] });
   }
   if (/\/pages$/.test(u) && method === 'POST') {
@@ -110,12 +116,14 @@ const noms = (ms) => (ms || []).map(o => o.name);
   ok('mes : plateforme relue en TABLEAU (Instagram + TikTok)', (mb.missions[0].plateforme || []).join(',') === 'Instagram,TikTok');
   ok('mes : formatImage + lieu exposés', (mb.missions[0].formatImage || []).join(',') === '9:16' && mb.missions[0].lieu === 'Lille');
 
-  console.log('\n\x1b[1mmissions-admin : relit le multi_select des deux côtés\x1b[0m');
+  console.log('\n\x1b[1mmissions-admin : lecture multi_select, mais payload équipe en CHAÎNE (index.html imprime)\x1b[0m');
   r = await missionsAdmin(evtT({ action: 'liste' }));
   const lb = JSON.parse(r.body || '{}');
-  ok('liste → 200', r.statusCode === 200 && lb.ok);
-  ok('liste : plateforme en TABLEAU (Instagram + TikTok), MÊME lecture que le client', (lb.missions[0].plateforme || []).join(',') === 'Instagram,TikTok');
-  ok('liste : formatImage + sousFormat renvoyés au payload (pour le dashboard)', (lb.missions[0].formatImage || []).join(',') === '9:16' && lb.missions[0].sousFormat === 'Classic');
+  ok('liste → 200 + 2 missions', r.statusCode === 200 && lb.ok && lb.missions.length === 2);
+  const m1 = lb.missions.find(m => m.objet === 'Film ateliers'), m2 = lb.missions.find(m => m.objet === 'Sans plateforme');
+  ok('deux plateformes → UNE chaîne lisible « Instagram, TikTok »', m1.plateforme === 'Instagram, TikTok' && typeof m1.plateforme === 'string');
+  ok('SANS plateforme → \'\' (falsy, masqué par index.html), JAMAIS [] (truthy → « · » suspendu)', m2.plateforme === '' && typeof m2.plateforme === 'string');
+  ok('formatImage reste un TABLEAU (dashboard ; index.html ne le lit pas) + sousFormat chaîne', Array.isArray(m1.formatImage) && m1.formatImage.join(',') === '9:16' && m1.sousFormat === 'Classic');
 
   console.log('\n\x1b[1mobjet : vide → 400 ; 2001 car. → 400 (refusé)\x1b[0m');
   r = await missionClient(evtC({ action: 'creer', objet: '' }));

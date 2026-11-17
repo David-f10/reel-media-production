@@ -105,9 +105,14 @@ exports.handler = async (event) => {
       id: p.id,
       objet: _ti(p.properties, 'Objet'),
       statut: _sel(p.properties, 'Statut') || 'Nouvelle',
-      plateforme: _ms(p.properties, 'Plateforme'),       // MULTI_SELECT → tableau (était lu en _sel : bug symétrique du write)
-      formatImage: _ms(p.properties, 'Format image'),    // ⚠ renvoyé au payload mais NON AFFICHÉ par index.html (interdit) : pour le dashboard
-      sousFormat: _sel(p.properties, 'Sous-format'),     // ⚠ idem — l'équipe le lit dans Notion, sur la page de la mission
+      // _ms lit le MULTI_SELECT (la vraie correction du bug), PUIS on JOINT en chaîne pour le payload équipe :
+      // index.html:5839 fait « x.plateforme ? … » et IMPRIME la valeur. Un [] serait TRUTHY → « · » suspendu sur
+      // les missions sans plateforme (toutes, aujourd'hui) ; escapeHtml([]) collerait « Instagram,TikTok ». La
+      // chaîne jointe rend '' (falsy → masqué, comme avant) ou « Instagram, TikTok » (lisible). Le TABLEAU ne sert
+      // qu'au client ('mes' → tags PR-B) ; l'équipe ne fait qu'imprimer.
+      plateforme: _ms(p.properties, 'Plateforme').join(', '),
+      formatImage: _ms(p.properties, 'Format image'),    // ⚠ TABLEAU — index.html NE LE LIT PAS → inoffensif ; pour le futur dashboard
+      sousFormat: _sel(p.properties, 'Sous-format'),     // chaîne — ⚠ idem, non affiché par index.html ; l'équipe le lit dans Notion
       codeBrand: _rt(p.properties, 'Code Brand'),
       demandeur: _rt(p.properties, 'Demandeur'),
       lieu: _rt(p.properties, 'Lieu de tournage'),
