@@ -2,7 +2,7 @@
 // Banc — étage 2a : mission-client (proposer un nouveau film + mes missions). Réseau mocké.
 // Prouve : estampille serveur (Origine 'Espace client', Statut 'Nouvelle', Code Brand / Demandeur / Contact
 // client), un SEUL champ obligatoire (Objet), tolérance du « je ne sais pas encore » (tout le reste facultatif
-// passe), validation de forme des champs fournis (Plateforme select fermé 5 valeurs dont « Interne », date
+// passe), validation de forme des champs fournis (Plateforme MULTI_SELECT fermé 5 valeurs dont « Interne », date
 // « Pour quand »), refus d'écriture sous emprunt ro, et ⛔ ZÉRO « Code acces »/valeur de code dans les réponses
 // (une sentinelle est injectée dans les lignes simulées pour le prouver).
 
@@ -23,7 +23,7 @@ const BRAND = { id: 'brand', properties: { 'Code': { rich_text: [{ plain_text: '
 // Une mission simulée AVEC une sentinelle « Code acces » (que le vrai schéma n'a pas) : prouve que la fonction ne la renvoie jamais.
 const MISSION = { id: '22222222-2222-2222-2222-222222222222', parent: { database_id: DB_MISSIONS }, created_time: '2026-03-01T09:00:00Z', properties: {
   'Objet': { title: [{ plain_text: 'Un film sur nos ateliers' }] }, 'Statut': { select: { name: 'Nouvelle' } },
-  'Plateforme': { select: { name: 'Interne' } }, 'Réponse': { rich_text: [] }, 'Carte créée': { rich_text: [] },
+  'Plateforme': { multi_select: [{ name: 'Interne' }] }, 'Réponse': { rich_text: [] }, 'Carte créée': { rich_text: [] },
   'Pour quand': { date: { start: '2026-05-01' } }, 'Code Brand': { rich_text: [{ plain_text: 'B33' }] },
   'Contact client': { rich_text: [{ plain_text: ID }] }, 'Demandeur': { rich_text: [{ plain_text: 'Claire' }] },
   'Code acces': { rich_text: [{ plain_text: SECRET }] } } };
@@ -83,7 +83,7 @@ const jNorm = signer(ID).token, jRo = signer(ID, { ro: true }).token;
   r = await missionClient(evtC(jNorm, { action: 'mes' }));
   const mb = JSON.parse(r.body || '{}');
   ok('mes → 200 + liste', r.statusCode === 200 && mb.ok && (mb.missions || []).length === 1);
-  ok('mes : objet + statut + plateforme + carte exposés', mb.missions[0].objet && mb.missions[0].statut === 'Nouvelle' && mb.missions[0].plateforme === 'Interne' && ('carteCreee' in mb.missions[0]));
+  ok('mes : objet + statut + plateforme (TABLEAU multi) + carte exposés', mb.missions[0].objet && mb.missions[0].statut === 'Nouvelle' && Array.isArray(mb.missions[0].plateforme) && mb.missions[0].plateforme.indexOf('Interne') !== -1 && ('carteCreee' in mb.missions[0]));
   ok('mes : ⛔ aucune valeur de code', r.body.indexOf(SECRET) === -1);
   ok('mes : ⛔ aucune mention « Code acces »', r.body.indexOf('Code acces') === -1);
 

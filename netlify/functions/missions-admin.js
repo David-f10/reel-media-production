@@ -20,6 +20,7 @@ const EST_ID = (s) => /^[0-9a-f]{32}$/.test(String(s || '').replace(/-/g, '').to
 const normId = (s) => String(s || '').replace(/-/g, '').toLowerCase();
 
 const _sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
+const _ms = (pr, k) => ((pr && pr[k] && pr[k].multi_select) || []).map(o => (o && o.name) || '').filter(Boolean);
 const _rt = (pr, k) => ((pr && pr[k] && pr[k].rich_text) || []).map(t => t.plain_text || '').join('');
 const _ti = (pr, k) => ((pr && pr[k] && pr[k].title) || []).map(t => t.plain_text || '').join('');
 const _date = (pr, k) => (pr && pr[k] && pr[k].date && pr[k].date.start) || '';
@@ -104,7 +105,9 @@ exports.handler = async (event) => {
       id: p.id,
       objet: _ti(p.properties, 'Objet'),
       statut: _sel(p.properties, 'Statut') || 'Nouvelle',
-      plateforme: _sel(p.properties, 'Plateforme'),
+      plateforme: _ms(p.properties, 'Plateforme'),       // MULTI_SELECT → tableau (était lu en _sel : bug symétrique du write)
+      formatImage: _ms(p.properties, 'Format image'),    // ⚠ renvoyé au payload mais NON AFFICHÉ par index.html (interdit) : pour le dashboard
+      sousFormat: _sel(p.properties, 'Sous-format'),     // ⚠ idem — l'équipe le lit dans Notion, sur la page de la mission
       codeBrand: _rt(p.properties, 'Code Brand'),
       demandeur: _rt(p.properties, 'Demandeur'),
       lieu: _rt(p.properties, 'Lieu de tournage'),
