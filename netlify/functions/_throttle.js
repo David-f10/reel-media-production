@@ -20,7 +20,7 @@ const W = 10 * 60 * 1000; // fenêtre commune : 10 min
 const POLICE_CLIENT = {
   prefixe: 'c',
   ip:  { type: 'dur',  cle: 'ip', windowMs: W, seuil: 10, lockMs: 15 * 60 * 1000 },
-  sec: { type: 'prog', cle: 'm',  windowMs: W, libres: 2, base: 2, capS: 30 }
+  sec: { type: 'prog', cle: 'm',  windowMs: W, libres: 2, base: 2, capS: 300 } // cap PROGRESSIF relevé (DoS-safe, pas un verrou dur) : ralentit le brute-force par compte (axe mail, indépendant de l'IP)
 };
 const POLICE_EQUIPE = {
   prefixe: 'e',
