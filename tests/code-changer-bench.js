@@ -26,6 +26,9 @@ function serveur() {
         if (u.endsWith('login-client')) return res.end(JSON.stringify({ ok: true, token: 'jeton-factice.sig', nom: 'Claire', marque: 'Refashion', codeBrand: 'B33' })); // ⛔ plus de codeCourt
         if (u.endsWith('code-client')) { changeBodies.push(b); if (b.oldCode !== CODE_ACTUEL) { res.statusCode = 401; return res.end(JSON.stringify({ ok: false, error: 'Code actuel incorrect' })); } return res.end(JSON.stringify({ ok: true })); }
         if (u.endsWith('espace-client')) return res.end(JSON.stringify(ESPACE));
+        // Le lien « Changer mon code » vit dans la ligne de l'appelant (.moi) de l'écran « Qui a accès » → il faut
+        // une entrée moi:true pour que le lien soit rendu, donc cliquable.
+        if (u.endsWith('acces-client')) return res.end(JSON.stringify({ ok: true, acces: [{ nom: 'Claire', mail: 'claire@refashion.fr', actif: true, aCode: true, moi: true }] }));
         if (u.endsWith('mission-client')) return res.end(JSON.stringify({ ok: true, missions: [] }));
         if (u.endsWith('demande-client')) return res.end(JSON.stringify({ ok: true, demandes: [] }));
         return res.end(JSON.stringify({ ok: true }));

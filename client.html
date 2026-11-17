@@ -132,15 +132,33 @@
     .ligne-aide{font-size:12.5px;color:var(--txt3);margin:16px 0 0;line-height:1.5;padding-top:16px;border-top:1px solid var(--line)}
     .lien-inline{background:none;border:none;color:var(--rouge);font:inherit;cursor:pointer;padding:0;text-decoration:underline}
     .cc-annuler{display:block;margin:13px auto 0;color:var(--txt3)}
-    /* « Qui a accès » — liste de personnes (lecture seule). Classes préfixées acc-*, pastille via .pill existante. */
-    .acc-pers{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
+    /* « Qui a accès » — personnes (lecture seule) en CARTES. Grille 4 colonnes : avatar · identité · pastille · action.
+       La 4e colonne (.acc-a, 132px) existe sur CHAQUE ligne pour aligner les pastilles ; elle ne porte le lien
+       « Changer mon code » que sur la ligne de l'appelant (.moi). ⛔ .acc-ml (mono) inchangé. */
+    #panneau-acces{max-width:720px}
+    #acc-liste{display:flex;flex-direction:column;gap:10px}
+    .acc-pers{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:12px;
+              background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+    .acc-pers.off{opacity:.55}                                  /* contact inactif (!actif) */
+    .acc-pers.moi{box-shadow:inset 2px 0 0 var(--rouge);border-color:var(--line2)}  /* repris du rail « vous êtes ici » */
     .acc-av{width:30px;height:30px;border-radius:50%;background:var(--bg4);border:1px solid var(--line2);display:inline-flex;align-items:center;justify-content:center;color:var(--txt2);font-size:13px;flex:none}
-    .acc-id{flex:1;min-width:0}
+    .acc-pers.moi .acc-av{background:var(--rouge-voile);border-color:var(--rouge-bord);color:var(--rouge)}
+    .acc-id{min-width:0}
     .acc-nm{font-size:13.5px;color:var(--txt);font-weight:500}
+    .vous{margin-left:8px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--rouge);vertical-align:middle}
     .acc-ml{font-size:12px;color:var(--txt3);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .acc-pers .pill{flex:none}
+    .acc-a{min-width:132px;display:flex;align-items:center;justify-content:flex-end}
+    .acc-chg{font-size:12.5px;color:var(--rouge);text-decoration:none;border-bottom:1px solid var(--rouge-bord);white-space:nowrap}
+    .acc-chg:hover{border-bottom-color:var(--rouge)}
     .acc-note{font-size:12.5px;color:var(--txt3);margin:16px 0 0;line-height:1.5}
-    .acc-lien{margin:14px 0 0}
+    @media (max-width:620px){                                   /* repli téléphone (620 = point maison) : identité en haut, pastille puis action dessous */
+      .acc-pers{grid-template-columns:auto 1fr;row-gap:8px;padding:12px}
+      .acc-pers .acc-av{grid-column:1;grid-row:1}
+      .acc-pers .acc-id{grid-column:2;grid-row:1}
+      .acc-pers .pill{grid-column:2;grid-row:2;justify-self:start}
+      .acc-pers .acc-a{grid-column:2;grid-row:3;min-width:0;justify-content:flex-start}
+    }
 
     /* ── écran 05 — en-tête (traitement .head de la maquette) ── */
     .head{padding-block:40px 20px;border-bottom:1px solid var(--line);margin-bottom:26px}
@@ -149,9 +167,13 @@
     #titre-projets{font-size:clamp(25px,5vw,33px);font-weight:500;letter-spacing:-.025em;margin:0 0 12px;text-wrap:balance}
     .topbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
     .topbar .id{font-size:13.5px;color:var(--txt2);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
-    /* déconnexion NEUTRE : le rouge est réservé aux actions principales */
-    #lien-deco{color:var(--txt2);text-decoration:none;border-bottom:1px solid var(--line2)}
+    /* « Déconnexion » d'en-tête : le MÊME élément #lien-deco reste en permanence dans le DOM (son handler n'est donc
+       jamais sur un null). MASQUÉ >860px, où le rail porte la déco ; AFFICHÉ <860px, où le rail passe en barre du bas
+       et masque sa propre déco (:616). Jamais les deux visibles : une seule déconnexion joignable à chaque largeur. */
+    #lien-deco{display:none;margin-left:auto;color:var(--txt2);text-decoration:none;border-bottom:1px solid var(--line2);font-size:13px}
     #lien-deco:hover{color:var(--txt);border-bottom-color:var(--txt3)}
+    @media (max-width:860px){ #lien-deco{display:inline-block} }
+    /* déconnexion NEUTRE : le rouge est réservé aux actions principales */
 
     /* ── écran 05 — la liste (balisage imposé : li > span.code + span). AUCUNE colonne inventée ── */
     ul.projets{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:9px}
@@ -965,11 +987,11 @@
     var _ccv = $('cc-valider'); if (_ccv) _ccv.addEventListener('click', validerNouveauCode);
     var _cca = $('cc-autre'); if (_cca) _cca.addEventListener('click', function () { var f = $('cc-code'); if (f) f.value = genererSuggestion(lire(K_CODEBRAND)); });
     var _ccx = $('cc-annuler'); if (_ccx) _ccx.addEventListener('click', fermerChangerCode);
-    // « Changer mon code » vit désormais dans l'écran « Qui a accès » (rendu dynamiquement) → câblé dans renderAcces.
+    // « Changer mon code » vit désormais dans l'écran « Qui a accès » (rendu dynamiquement) → câblé dans chargerAcces.
 
     // ── Accueil + projets ──
-    $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); });
-    var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (parité lien-deco)
+    $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco d'en-tête ; #lien-deco reste EN PERMANENCE dans le DOM (CSS : masqué >860px, affiché <860px) → jamais null, pas de TypeError
+    var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (desktop ; masquée <860px où l'en-tête prend le relais)
     var _nf = $('nv-films'); if (_nf) _nf.addEventListener('click', function () { allerVue('films'); }); // rail → panneau Mes films
     var _nd = $('nv-demandes'); if (_nd) _nd.addEventListener('click', function () { allerVue('demandes'); }); // rail → panneau Mes demandes
     var _nm = $('nv-missions'); if (_nm) _nm.addEventListener('click', function () { allerVue('missions'); }); // rail → panneau Proposer un film
@@ -1070,13 +1092,11 @@
     function renderAcces() {
       var z = $('panneau-acces'); if (!z) return;
       var marque = lire(K_MARQUE);
-      // Le lien « Changer mon code » (déménagé de la barre du haut) est MASQUÉ en emprunt ro : code-client refuse
-      // en ro, on n'affiche donc pas un geste voué au 403.
-      var lien = demRo() ? '' : '<p class="acc-lien"><a href="#" id="lien-code">Changer mon code</a></p>';
+      // Le lien « Changer mon code » (déménagé de la barre du haut) vit désormais DANS la ligne de l'appelant (.moi),
+      // rendu par chargerAcces après la lecture. Son câblage suit donc le rendu de la liste, pas ce squelette.
       z.innerHTML = '<p class="sub dem-sub">Les personnes de ' + (marque ? esc(marque) : 'votre société') + ' qui peuvent se connecter à cet espace.</p>' +
         '<div id="acc-liste" role="status" aria-live="polite"><p class="md-vide">Chargement…</p></div>' +
-        '<p class="acc-note">Pour ajouter ou retirer un collègue, écrivez à votre interlocuteur chez Réel Média.</p>' + lien;
-      var lc = $('lien-code'); if (lc) lc.addEventListener('click', function (e) { e.preventDefault(); montrerChangerCode(); });
+        '<p class="acc-note">Pour ajouter ou retirer un collègue, écrivez à votre interlocuteur chez Réel Média.</p>';
       chargerAcces();
     }
     function chargerAcces() {
@@ -1089,15 +1109,23 @@
           if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = '<p class="md-vide">Service temporairement indisponible.</p>'; return; }
           var gens = res.body.acces || [];
           if (!gens.length) { el.innerHTML = '<p class="md-vide">Aucune personne pour l\'instant.</p>'; return; }
+          var roMode = demRo();
           el.innerHTML = gens.map(function (x) {
             // État dérivé des DEUX booléens (le serveur n'envoie que ça) : actif+aCode→Actif ; actif+!aCode→en
             // attente ; !actif→sans accès. Pastille : vert / ambre (base .pill, classe '') / gris.
             var et = !x.actif ? { l: 'Sans accès', c: 'gris' } : (x.aCode ? { l: 'Actif', c: 'vert' } : { l: 'En attente d\'accès', c: '' });
             var ini = (String(x.nom || '').trim().charAt(0) || '·').toUpperCase();
-            return '<div class="acc-pers"><span class="acc-av">' + esc(ini) + '</span>' +
-              '<div class="acc-id"><div class="acc-nm">' + esc(x.nom || '') + '</div><div class="acc-ml">' + esc(x.mail || '') + '</div></div>' +
-              '<span class="pill ' + et.c + '">' + esc(et.l) + '</span></div>';
+            // x.moi : booléen SERVEUR (faux partout en emprunt ro). Le marquage « Vous » suit moi, SANS branche demRo.
+            // Le lien « Changer mon code » GARDE son masquage ro (sa 2e couche = le refus 403 de code-client).
+            var vous = x.moi ? '<span class="vous">Vous</span>' : '';
+            var action = (x.moi && !roMode) ? '<a href="#" id="lien-code" class="acc-chg">Changer mon code</a>' : '';
+            return '<div class="acc-pers' + (x.moi ? ' moi' : '') + (x.actif ? '' : ' off') + '">' +
+              '<span class="acc-av">' + esc(ini) + '</span>' +
+              '<div class="acc-id"><div class="acc-nm">' + esc(x.nom || '') + vous + '</div><div class="acc-ml">' + esc(x.mail || '') + '</div></div>' +
+              '<span class="pill ' + et.c + '">' + esc(et.l) + '</span>' +
+              '<div class="acc-a">' + action + '</div></div>';
           }).join('');
+          var lc = $('lien-code'); if (lc) lc.addEventListener('click', function (e) { e.preventDefault(); montrerChangerCode(); });
         })
         .catch(function () { var e = $('acc-liste'); if (e) e.innerHTML = '<p class="md-vide">Service indisponible, réessayez.</p>'; });
     }

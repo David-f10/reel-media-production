@@ -1,7 +1,9 @@
 'use strict';
 // Banc — « Qui a accès » (serveur) : accesClient + la route acces-client. Réseau mocké.
 // Prouve : (a) cloisonnement — aucun contact d'une AUTRE marque ne sort ; (b) ⛔ aucune valeur NI longueur de
-// code, seul le booléen aCode ; (c) les trois états, dont le cas « propriété Actif ABSENTE » (= actif).
+// code, seul le booléen aCode ; (c) les trois états, dont le cas « propriété Actif ABSENTE » (= actif) ;
+// (d) moi = booléen SERVEUR : vrai sur la SEULE ligne de l'appelant, faux PARTOUT si callerId nul (emprunt ro) ;
+// ⛔ aucun id de contact ne sort ; la liste blanche de clés RESTE une liste blanche (mordante sur une clé en plus).
 
 process.env.CLIENT_SIGN_SECRET = 'banc-secret';
 process.env.NOTION_TOKEN = 'banc-token';
@@ -40,28 +42,51 @@ const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗
 const parMail = (acces) => { const o = {}; (acces || []).forEach(x => { o[x.nom] = x; }); return o; };
 
 (async () => {
-  console.log('\n\x1b[1maccesClient(codeBrand) — cloisonnement + états + aCode\x1b[0m');
-  const r = await accesClient('B33');
+  console.log('\n\x1b[1maccesClient(codeBrand, callerId) — cloisonnement + états + aCode + moi\x1b[0m');
+  const r = await accesClient('B33', CID);
   ok('→ ok + 4 personnes de B33 (jamais B50)', r.ok && r.acces.length === 4);
   ok('⛔ aucun contact d\'une autre marque (B50) dans la réponse', JSON.stringify(r).indexOf(COLLEGUE_AUTRE) === -1);
   ok('⛔ aucune valeur de code', JSON.stringify(r).indexOf(CODE_SENT) === -1);
+  ok('⛔ aucun id de contact dans la réponse (ni avec tirets, ni normalisé)', JSON.stringify(r).indexOf(CID) === -1 && JSON.stringify(r).indexOf(CID.replace(/-/g, '')) === -1);
   const g = parMail(r.acces);
-  // LISTE BLANCHE : chaque personne porte EXACTEMENT ces 4 clés. Toute clé en plus (quel que soit son nom —
+  // LISTE BLANCHE : chaque personne porte EXACTEMENT ces 5 clés. Toute clé en plus (quel que soit son nom —
   // longueur, valeur, n'importe quoi) fait tomber le banc. Sur CHAQUE entrée, pas seulement la première.
-  const CLES = ['nom', 'mail', 'actif', 'aCode'].sort().join(',');
-  ok('CHAQUE personne porte EXACTEMENT {nom, mail, actif, aCode} — aucune clé en plus', r.acces.every(x => Object.keys(x).sort().join(',') === CLES));
+  const CLES = ['nom', 'mail', 'actif', 'aCode', 'moi'].sort().join(',');
+  const blanche = (x) => Object.keys(x).sort().join(',') === CLES;
+  // MORDANT BAKÉ : le prédicat REJETTE une 6e clé arbitraire ('zz') et ACCEPTE la forme nue — la preuve vit dans le banc.
+  ok('liste blanche MORDANTE : une 6e clé arbitraire fait tomber le prédicat', blanche({ nom: 'x', mail: 'y', actif: true, aCode: true, moi: false }) === true && blanche({ nom: 'x', mail: 'y', actif: true, aCode: true, moi: false, zz: 1 }) === false);
+  ok('CHAQUE personne porte EXACTEMENT {nom, mail, actif, aCode, moi} — aucune clé en plus', r.acces.every(blanche));
   ok('aCode est un BOOLÉEN sur chaque personne', r.acces.every(x => typeof x.aCode === 'boolean'));
+  ok('moi est un BOOLÉEN sur chaque personne', r.acces.every(x => typeof x.moi === 'boolean'));
+  ok('moi=true sur EXACTEMENT une entrée', r.acces.filter(x => x.moi === true).length === 1);
+  ok('cette entrée est bien l\'appelant (Claire = CID)', g.Claire.moi === true);
+  ok('les autres portent moi=false', g.Marc.moi === false && g.Sofia.moi === false && g.Theo.moi === false);
   ok('état Actif : actif + aCode true (Claire)', g.Claire.actif === true && g.Claire.aCode === true);
   ok('état En attente : actif + aCode false (Marc)', g.Marc.actif === true && g.Marc.aCode === false);
   ok('état Sans accès : inactif (Sofia)', g.Sofia.actif === false);
   ok('propriété Actif ABSENTE → actif true (Theo)', g.Theo.actif === true && g.Theo.aCode === true);
 
-  console.log('\n\x1b[1mla route acces-client — bornée au jeton\x1b[0m');
+  console.log('\n\x1b[1mcallerId nul (emprunt ro) — moi false PARTOUT, forme inchangée\x1b[0m');
+  const rn = await accesClient('B33', null);
+  ok('→ ok + 4 personnes (liste lisible malgré callerId nul)', rn.ok && rn.acces.length === 4);
+  ok('moi=false sur CHAQUE entrée (garde explicite, pas une coïncidence normId(\'\'))', rn.acces.every(x => x.moi === false));
+  ok('la FORME ne varie pas : 5 clés même sans appelant', rn.acces.every(blanche));
+
+  console.log('\n\x1b[1mla route acces-client — bornée au jeton, moi selon ro\x1b[0m');
   let res = await accesHandler(evt(signer(CID).token));
   let b = JSON.parse(res.body || '{}');
   ok('appelant B33 → 200 + 4 personnes de B33', res.statusCode === 200 && b.ok && (b.acces || []).length === 4);
   ok('⛔ aucun contact B50 dans la réponse de la route', res.body.indexOf(COLLEGUE_AUTRE) === -1);
   ok('⛔ aucune valeur de code dans la réponse de la route', res.body.indexOf(CODE_SENT) === -1);
+  ok('⛔ aucun id de contact dans la réponse de la route', res.body.indexOf(CID) === -1 && res.body.indexOf(CID.replace(/-/g, '')) === -1);
+  ok('la route marque moi=true sur la SEULE ligne de l\'appelant', (b.acces || []).filter(x => x.moi === true).length === 1);
+
+  // EMPRUNT (ro) : la route passe callerId=null → moi false partout. La lecture reste permise (liste complète).
+  res = await accesHandler(evt(signer(CID, { ro: true, acteur: '99999999-9999-9999-9999-999999999999' }).token));
+  b = JSON.parse(res.body || '{}');
+  ok('emprunt ro → 200 + liste complète (4)', res.statusCode === 200 && b.ok && (b.acces || []).length === 4);
+  ok('emprunt ro → moi false sur CHAQUE entrée (assertion SERVEUR, pas DOM)', (b.acces || []).every(x => x.moi === false));
+
   res = await accesHandler(evt(''));
   ok('sans jeton → 401', res.statusCode === 401);
 
