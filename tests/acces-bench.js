@@ -46,7 +46,11 @@ const parMail = (acces) => { const o = {}; (acces || []).forEach(x => { o[x.nom]
   ok('⛔ aucun contact d\'une autre marque (B50) dans la réponse', JSON.stringify(r).indexOf(COLLEGUE_AUTRE) === -1);
   ok('⛔ aucune valeur de code', JSON.stringify(r).indexOf(CODE_SENT) === -1);
   const g = parMail(r.acces);
-  ok('aCode est un BOOLÉEN (jamais une longueur ni une valeur)', typeof g.Claire.aCode === 'boolean' && !('codeLen' in g.Claire) && !('code' in g.Claire));
+  // LISTE BLANCHE : chaque personne porte EXACTEMENT ces 4 clés. Toute clé en plus (quel que soit son nom —
+  // longueur, valeur, n'importe quoi) fait tomber le banc. Sur CHAQUE entrée, pas seulement la première.
+  const CLES = ['nom', 'mail', 'actif', 'aCode'].sort().join(',');
+  ok('CHAQUE personne porte EXACTEMENT {nom, mail, actif, aCode} — aucune clé en plus', r.acces.every(x => Object.keys(x).sort().join(',') === CLES));
+  ok('aCode est un BOOLÉEN sur chaque personne', r.acces.every(x => typeof x.aCode === 'boolean'));
   ok('état Actif : actif + aCode true (Claire)', g.Claire.actif === true && g.Claire.aCode === true);
   ok('état En attente : actif + aCode false (Marc)', g.Marc.actif === true && g.Marc.aCode === false);
   ok('état Sans accès : inactif (Sofia)', g.Sofia.actif === false);
