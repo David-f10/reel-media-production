@@ -58,9 +58,6 @@ const _mail = (pr) => (pr && pr['Mail'] && typeof pr['Mail'].email === 'string' 
 const _nom = (pr) => { const t = pr && pr['Nom'] && pr['Nom'].title; return (t && t[0] && t[0].plain_text) || ''; };
 // Actif OPTIONNEL : propriété absente → actif ; présente et décochée → inactif (fail-closed sur un compte désactivé).
 const _actif = (pr) => { const a = pr && pr['Actif']; return a ? !!a.checkbox : true; };
-// Seuil « code court » : en-dessous, le login force un changement de code ; c'est AUSSI le minimum d'un code
-// choisi (code-client). ⛔ Seul un BOOLÉEN (codeCourt) sort de verifyClient, JAMAIS la longueur ni la valeur.
-const SEUIL_CODE_COURT = 8;
 
 // ── ACTIVATION DE L'ESPACE PAR MARQUE ───────────────────────────────────────────────────────────────────
 // Drapeau PORTE : tant que la marque n'est pas activée, personne de cette marque n'entre (ferme d'un coup le
@@ -147,10 +144,7 @@ async function verifyClient({ mail, code }) {
     // `marque` = nom d'affichage DÉNORMALISÉ sur le contact (comme Code Brand), posé par l'admin en tranche 3
     // depuis la marque choisie, jamais tapé. Absent → '' (l'écran affiche « Vos projets » sans marque). Lu
     // sur la ligne déjà chargée → zéro requête supplémentaire, y compris sur le chemin chaud projets-client.
-    // codeCourt : BOOLÉEN seul (longueur < seuil) — pour que le login force un changement de code court.
-    // ⛔ jamais la valeur, ⛔ jamais la longueur exacte. Le login le met dans la RÉPONSE (jamais dans le jeton,
-    // qui est signé-non-chiffré : y mettre ce booléen publierait la liste des comptes faibles).
-    return { ok: true, contact: { id: page.id, mail: m, nom: _nom(page.properties), codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque'), codeCourt: _rt(page.properties, 'Code acces').length < SEUIL_CODE_COURT } };
+    return { ok: true, contact: { id: page.id, mail: m, nom: _nom(page.properties), codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque') } };
   } catch (e) {
     // ⛔ e.name seulement, jamais e.message : son try englobe _getContacts, qui parse une réponse portant TOUS
     //   les contacts ET leurs codes — un corps tronqué (Node 20+) mettrait un fragment, code compris, au journal.
@@ -274,4 +268,4 @@ async function adminClients() {
   }
 }
 
-module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients, SEUIL_CODE_COURT };
+module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients };
