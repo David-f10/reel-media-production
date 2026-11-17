@@ -131,6 +131,7 @@
     /* le filet traverse toute la carte */
     .ligne-aide{font-size:12.5px;color:var(--txt3);margin:16px 0 0;line-height:1.5;padding-top:16px;border-top:1px solid var(--line)}
     .lien-inline{background:none;border:none;color:var(--rouge);font:inherit;cursor:pointer;padding:0;text-decoration:underline}
+    .cc-annuler{display:block;margin:13px auto 0;color:var(--txt3)}
 
     /* ── écran 05 — en-tête (traitement .head de la maquette) ── */
     .head{padding-block:40px 20px;border-bottom:1px solid var(--line);margin-bottom:26px}
@@ -667,16 +668,19 @@
       </div>
     </div>
 
-    <!-- Code trop court (forcé après un login réussi) : choisir un nouveau code AVANT l'espace. Les mots ne
-         promettent RIEN sur la sécurité des sessions — changer son code ne révoque aucune session (jeton 14 j). -->
-    <div id="vue-codecourt" class="hidden">
+    <!-- Changer son code (VOLONTAIRE) — ouvert depuis l'espace via « Changer mon code ». Le client saisit son
+         code actuel + un nouveau (suggestion générée dans le navigateur). Aucune promesse sur les sessions. -->
+    <div id="vue-code" class="hidden">
       <div class="gate">
-        <h1>Choisissez un nouveau code</h1>
-        <p class="sub">Votre code d'accès actuel est très court. Choisissez-en un nouveau, plus long, que vous utiliserez pour vos prochaines connexions. Nous vous en proposons un ci-dessous — gardez-le ou modifiez-le.</p>
-        <label class="champ"><span>Votre nouveau code</span>
+        <h1>Changer mon code</h1>
+        <p class="sub">Choisissez un nouveau code d'accès. Il remplacera l'actuel pour vos prochaines connexions. Nous vous en proposons un ci-dessous — gardez-le ou saisissez le vôtre.</p>
+        <label class="champ"><span>Code actuel</span>
+          <input id="cc-actuel" type="password" autocomplete="off" spellcheck="false"></label>
+        <label class="champ"><span>Nouveau code</span>
           <input id="cc-code" type="text" autocomplete="off" spellcheck="false"></label>
         <p class="ligne-aide">Au moins 8 caractères. <button type="button" id="cc-autre" class="lien-inline">Proposer un autre</button></p>
-        <button type="button" class="primary" id="cc-valider">Valider et continuer →</button>
+        <button type="button" class="primary" id="cc-valider">Valider</button>
+        <button type="button" id="cc-annuler" class="lien-inline cc-annuler">Annuler</button>
         <div id="cc-msg" class="msg" role="status" aria-live="polite"></div>
       </div>
     </div>
@@ -734,7 +738,7 @@
           <h1 id="titre-projets">Vos projets</h1>
         </div>
         <div class="topbar">
-          <span class="id"><span id="bonjour"></span> <a href="#" id="lien-deco">Déconnexion</a></span>
+          <span class="id"><span id="bonjour"></span> <a href="#" id="lien-code">Changer mon code</a> · <a href="#" id="lien-deco">Déconnexion</a></span>
         </div>
       </div>
       <!-- Panneaux basculés par le rail : « Mes films » (défaut), « Mes demandes », « Proposer un film ».
@@ -797,19 +801,19 @@
     //   générateur serveur code-reset.js:12 (et, à venir, celui de l'ajout de collègue). Sans ambigus
     //   (ni O/0, ni I/1). 32 valeurs = pas de biais modulo (2^32 % 32 == 0). Si tu changes l'un, change l'autre.
     var CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', CODE_ALEAS = 7;
-    var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
+    var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque', K_CODEBRAND = 'rmc-codebrand';
     var K_DEM_VUS = 'rmc-dem-vus'; // notifs : { id_de_page : empreinte(reponse) } des réponses déjà VUES (à l'ouverture du fil)
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
     var $ = function (id) { return document.getElementById(id); };
     function montrer(vue) {
-      ['vue-chargement', 'vue-login', 'vue-codecourt', 'vue-accueil', 'vue-montage'].forEach(function (v) { var e = $(v); if (e) e.classList.add('hidden'); });
+      ['vue-chargement', 'vue-login', 'vue-code', 'vue-accueil', 'vue-montage'].forEach(function (v) { var e = $(v); if (e) e.classList.add('hidden'); });
       $(vue).classList.remove('hidden');
       var cq = $('coque'); if (cq) cq.classList.toggle('hidden', vue !== 'vue-accueil'); // la coque (rail) n'existe que pour l'accueil
     }
     function lire(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
     function ecrire(o) { try { Object.keys(o).forEach(function (k) { localStorage.setItem(k, o[k]); }); } catch (e) {} }
-    function effacer() { try { [K_TOKEN, K_NOM, K_MARQUE].concat(K_LEGACY).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} }
+    function effacer() { try { [K_TOKEN, K_NOM, K_MARQUE, K_CODEBRAND].concat(K_LEGACY).forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} }
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     // esc() n'échappe PAS les guillemets (spec §8) → escAttr pour les valeurs serveur en position d'ATTRIBUT.
     function escAttr(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
@@ -887,8 +891,7 @@
         $('btn-login').disabled = false;
         if (res.status === 200 && res.body && res.body.ok && res.body.token) {
           ecrire(fromLogin(res.body));
-          if (res.body.codeCourt) { montrerCodeCourt(code, res.body.codeBrand); return; } // code trop court → forcer un nouveau code avant l'espace
-          entrerAccueil();
+          entrerAccueil(); // le client entre DIRECT dans son espace — aucun écran intermédiaire
           return;
         }
         if (res.status === 429) { msg.className = 'msg wait'; msg.textContent = 'Trop de tentatives, réessayez dans ' + (res.retry || 'un instant') + (res.retry ? ' s.' : '.'); return; }
@@ -902,11 +905,9 @@
         var m = $('msg-login'); m.className = 'msg wait'; m.textContent = 'Service temporairement indisponible, réessayez.';
       });
     });
-    function fromLogin(b) { var o = {}; o[K_TOKEN] = b.token || ''; o[K_NOM] = b.nom || ''; o[K_MARQUE] = b.marque || ''; return o; } // F1 : on stocke le JETON, jamais le code
+    function fromLogin(b) { var o = {}; o[K_TOKEN] = b.token || ''; o[K_NOM] = b.nom || ''; o[K_MARQUE] = b.marque || ''; o[K_CODEBRAND] = b.codeBrand || ''; return o; } // F1 : on stocke le JETON, jamais le code ; codeBrand = préfixe du code suggéré (non secret)
 
-    // ── Code trop court → changement FORCÉ (après login réussi, avant l'espace) ──────────────────────────────
-    // Le code actuel (celui qu'on vient de taper) et le Code Brand restent EN MÉMOIRE, jamais dans localStorage.
-    var _codeActuel = '', _ccBrand = '';
+    // ── Changer son code (VOLONTAIRE) — ouvert depuis l'espace via « Changer mon code » ──────────────────────
     // Suggestion générée DANS LE NAVIGATEUR (jamais renvoyée par le serveur) : le code naît chez son titulaire,
     // ne fait que monter pour être stocké. Format = CODE_ALPHABET + CODE_ALEAS (cf. le commentaire de ces consts).
     function genererSuggestion(cb) {
@@ -922,32 +923,38 @@
       for (var i = 0; i < CODE_ALEAS; i++) out += CODE_ALPHABET.charAt(buf[i] % n); // 32 | 2^32 → aucun biais modulo
       return pref + '-' + out;
     }
-    function montrerCodeCourt(codeActuel, codeBrand) {
-      _codeActuel = codeActuel || ''; _ccBrand = codeBrand || '';
-      var f = $('cc-code'); if (f) f.value = genererSuggestion(_ccBrand);
+    function montrerChangerCode() {
+      var a = $('cc-actuel'); if (a) a.value = '';
+      var f = $('cc-code'); if (f) f.value = genererSuggestion(lire(K_CODEBRAND)); // préfixe = Code Brand stocké au login
       var m = $('cc-msg'); if (m) { m.className = 'msg'; m.textContent = ''; }
-      montrer('vue-codecourt');
+      montrer('vue-code');
+      if (a) a.focus();
     }
+    function fermerChangerCode() { var a = $('cc-actuel'); if (a) a.value = ''; entrerAccueil(); } // retour à l'espace (Annuler / succès)
     function validerNouveauCode() {
+      var oc = (($('cc-actuel') && $('cc-actuel').value) || '').trim();
       var nc = (($('cc-code') && $('cc-code').value) || '').trim(), m = $('cc-msg');
+      if (!oc) { m.className = 'msg err'; m.textContent = 'Saisissez votre code actuel.'; return; }
       if (nc.length < 8) { m.className = 'msg err'; m.textContent = 'Au moins 8 caractères.'; return; }
       if (/^(.)\1*$/.test(nc)) { m.className = 'msg err'; m.textContent = 'Choisissez un code moins simple.'; return; }
       $('cc-valider').disabled = true; m.className = 'msg'; m.textContent = '';
-      fetch(CODE_CHANGE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ oldCode: _codeActuel, newCode: nc }) })
+      fetch(CODE_CHANGE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ oldCode: oc, newCode: nc }) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b, retry: r.headers.get('Retry-After') }; }); })
         .then(function (res) {
           $('cc-valider').disabled = false;
-          if (res.status === 200 && res.body && res.body.ok) { _codeActuel = ''; _ccBrand = ''; entrerAccueil(); return; } // code changé → on entre
+          if (res.status === 200 && res.body && res.body.ok) { fermerChangerCode(); return; } // changé → retour à l'espace
           if (res.status === 429) { m.className = 'msg wait'; m.textContent = 'Trop de tentatives, réessayez dans ' + (res.retry || 'un instant') + (res.retry ? ' s.' : '.'); return; }
           if (res.status === 400 && res.body && res.body.error) { m.className = 'msg err'; m.textContent = res.body.error; return; }
-          if (res.status === 401) { m.className = 'msg err'; m.textContent = 'Votre code n\'a pas pu être vérifié. Reconnectez-vous.'; return; }
+          if (res.status === 401) { m.className = 'msg err'; m.textContent = 'Code actuel incorrect.'; return; }
           if (res.status === 503) { m.className = 'msg wait'; m.textContent = 'Service temporairement indisponible, réessayez.'; return; }
           m.className = 'msg err'; m.textContent = 'Changement impossible, réessayez.';
         })
         .catch(function () { $('cc-valider').disabled = false; var mm = $('cc-msg'); mm.className = 'msg wait'; mm.textContent = 'Service temporairement indisponible, réessayez.'; });
     }
     var _ccv = $('cc-valider'); if (_ccv) _ccv.addEventListener('click', validerNouveauCode);
-    var _cca = $('cc-autre'); if (_cca) _cca.addEventListener('click', function () { var f = $('cc-code'); if (f) f.value = genererSuggestion(_ccBrand); });
+    var _cca = $('cc-autre'); if (_cca) _cca.addEventListener('click', function () { var f = $('cc-code'); if (f) f.value = genererSuggestion(lire(K_CODEBRAND)); });
+    var _ccx = $('cc-annuler'); if (_ccx) _ccx.addEventListener('click', fermerChangerCode);
+    var _lc = $('lien-code'); if (_lc) _lc.addEventListener('click', function (e) { e.preventDefault(); montrerChangerCode(); }); // « Changer mon code » (barre du haut)
 
     // ── Accueil + projets ──
     $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); });
@@ -960,7 +967,6 @@
       $('msg-login').className = notice ? 'msg wait' : 'msg';
       $('msg-login').textContent = notice || '';
       $('in-code').value = '';
-      _codeActuel = ''; _ccBrand = ''; // ⛔ ne laisse jamais traîner le code en mémoire après une sortie
       montrer('vue-login');
       majBandeau(); // jeton effacé → le bandeau d'emprunt disparaît (déconnexion, session expirée)
     }

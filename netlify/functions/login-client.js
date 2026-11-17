@@ -67,10 +67,9 @@ exports.handler = async (event) => {
       return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
     }
     await enregistrerSucces(ip, mail); // async (efface le compteur mail dans Blobs)
-    // codeCourt : BOOLÉEN dans la RÉPONSE (jamais dans le jeton signé-non-chiffré) → le client force un nouveau
-    // code s'il est trop court. codeBrand : préfixe du code suggéré côté navigateur (donnée non secrète, déjà
+    // codeBrand : préfixe du code suggéré par l'écran VOLONTAIRE « Changer mon code » (donnée non secrète, déjà
     // visible du client). ⛔ aucune valeur de code renvoyée.
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, token: jeton.token, nom: v.contact.nom, marque: v.contact.marque || '', codeBrand: v.contact.codeBrand || '', codeCourt: !!v.contact.codeCourt }) };
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, token: jeton.token, nom: v.contact.nom, marque: v.contact.marque || '', codeBrand: v.contact.codeBrand || '' }) };
   }
   if (v.raison === 'indispo') return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
   await enregistrerEchec(ip, mail);

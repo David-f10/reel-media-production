@@ -7,10 +7,10 @@
 // ⚠ Changer son code NE RÉVOQUE PAS les sessions existantes (jetons id-based, sans révocation) — limite assumée.
 
 const { verifier } = require('./_clienttoken');
-const { contactActif, SEUIL_CODE_COURT } = require('./_authclient');
+const { contactActif } = require('./_authclient');
 const { verifierThrottle, enregistrerEchec, enregistrerSucces } = require('./_throttle');
 
-const MIN_CODE = SEUIL_CODE_COURT; // même seuil que « code court » (source unique dans _authclient)
+const MIN_CODE = 8; // longueur minimale d'un code choisi (constante locale — le « code court » au login n'existe plus)
 const normId = (s) => String(s == null ? '' : s).replace(/-/g, '').toLowerCase();
 const _rt = (pr, k) => ((pr && pr[k] && pr[k].rich_text) || []).map(t => t.plain_text || '').join('');
 
