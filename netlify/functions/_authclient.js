@@ -46,6 +46,9 @@ async function _getContacts(token, dbId, force) {
     cursor = d.has_more ? d.next_cursor : null;
     pages++;
   } while (cursor && pages < 20);
+  // Borne atteinte = des contacts TOMBENT sans bruit (login refusé pour eux, ET absents de « Qui a accès » — un
+  // client y verrait « mon collègue n'est pas là » sans aucun log). Journalisé (classe #251). ⛔ aucune valeur de code.
+  if (cursor) console.error('_authclient : base contacts TRONQUÉE (borne 20 pages / 2000 atteinte) — des contacts manquent SANS BRUIT ; relever la borne.');
   _cache = all; _ts = now;
   return _cache;
 }
@@ -268,4 +271,30 @@ async function adminClients() {
   }
 }
 
-module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients };
+// accesClient(codeBrand) → { ok:true, acces:[{ nom, mail, actif, aCode }] } | { ok:false, raison:'indispo' }.
+// Écran client « Qui a accès » (LECTURE SEULE), BORNÉ au Code Brand de l'appelant. Réutilise le cache _getContacts
+// (0 requête à chaud). ⛔ aCode = BOOLÉEN (présence d'un code), JAMAIS la valeur, JAMAIS la longueur.
+async function accesClient(codeBrand) {
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.DB_CONTACTS_CLIENT;
+  if (!token || !dbId) { console.error('accesClient indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
+  const code = String(codeBrand == null ? '' : codeBrand).trim();
+  if (!code) return { ok: true, acces: [] }; // pas de marque sur l'appelant → liste vide (donnée, pas une panne)
+  try {
+    const contacts = await _getContacts(token, dbId, false);
+    const acces = (contacts || [])
+      .filter(p => _rt(p.properties, 'Code Brand').trim() === code)   // ⛔ cloisonnement : jamais une autre marque
+      .map(p => ({
+        nom: _nom(p.properties),
+        mail: _mail(p.properties),
+        actif: _actif(p.properties),
+        aCode: _rt(p.properties, 'Code acces').length > 0            // ⛔ BOOLÉEN seul — ni la valeur, ni la longueur
+      }));
+    return { ok: true, acces };
+  } catch (e) {
+    console.error('accesClient indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul (try englobe _getContacts = les codes)
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
+module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients, accesClient };

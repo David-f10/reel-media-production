@@ -59,7 +59,7 @@ async function login(p, code) { await p.fill('#in-mail', 'c@refashion.fr'); awai
     ok('⛔ aucune redirection, aucun POST code-client', changeBodies.length === 0);
 
     console.log('\n\x1b[1mLe lien « Changer mon code » (volontaire) ouvre l\'écran\x1b[0m');
-    await p.click('#lien-code'); await p.waitForTimeout(250);
+    await p.click('#nv-acces'); await p.waitForTimeout(250); await p.click('#panneau-acces #lien-code'); await p.waitForTimeout(250);
     ok('vue-code affichée, espace masqué', await visible(p, 'vue-code') && !(await visible(p, 'vue-accueil')));
     ok('suggestion pré-remplie (B33 + 7)', SUGG.test(await p.inputValue('#cc-code')));
     ok('le champ « Code actuel » est vide', (await p.inputValue('#cc-actuel')) === '');
@@ -76,7 +76,7 @@ async function login(p, code) { await p.fill('#in-mail', 'c@refashion.fr'); awai
 
     console.log('\n\x1b[1mAncien code faux → 401 propre, on reste sur l\'écran\x1b[0m');
     changeBodies = [];
-    await p.click('#lien-code'); await p.waitForTimeout(200);
+    await p.click('#nv-acces'); await p.waitForTimeout(250); await p.click('#panneau-acces #lien-code'); await p.waitForTimeout(200);
     await p.fill('#cc-actuel', 'MAUVAIS'); await p.click('#cc-valider'); await p.waitForTimeout(400);
     ok('message « Code actuel incorrect »', /code actuel incorrect/i.test(await p.evaluate(() => document.getElementById('cc-msg').innerText)));
     ok('on reste sur l\'écran de changement', await visible(p, 'vue-code'));
@@ -93,7 +93,7 @@ async function login(p, code) { await p.fill('#in-mail', 'c@refashion.fr'); awai
     await p.addInitScript(() => { try { Object.defineProperty(window, 'crypto', { configurable: true, get: function () { return undefined; } }); } catch (e) {} });
     await p.goto(URL); await p.waitForTimeout(300);
     await login(p, CODE_ACTUEL);
-    await p.click('#lien-code'); await p.waitForTimeout(200);
+    await p.click('#nv-acces'); await p.waitForTimeout(250); await p.click('#panneau-acces #lien-code'); await p.waitForTimeout(200);
     ok('⛔ pas de CSPRNG → le champ nouveau code reste VIDE', (await p.inputValue('#cc-code')) === '');
     await p.close();
 
