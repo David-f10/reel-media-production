@@ -167,11 +167,12 @@
     #titre-projets{font-size:clamp(25px,5vw,33px);font-weight:500;letter-spacing:-.025em;margin:0 0 12px;text-wrap:balance}
     .topbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
     .topbar .id{font-size:13.5px;color:var(--txt2);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
-    /* « Déconnexion » d'en-tête : MASQUÉE sur desktop (le rail porte la déco) ; AFFICHÉE <860px, où le rail passe en
-       barre du bas et masque sa propre déco (:616). Une seule déconnexion joignable à chaque point de rupture. */
-    .deco-mob{display:none;margin-left:auto;color:var(--txt2);text-decoration:none;border-bottom:1px solid var(--line2);font-size:13px}
-    .deco-mob:hover{color:var(--txt);border-bottom-color:var(--txt3)}
-    @media (max-width:860px){ .deco-mob{display:inline-block} }
+    /* « Déconnexion » d'en-tête : le MÊME élément #lien-deco reste en permanence dans le DOM (son handler n'est donc
+       jamais sur un null). MASQUÉ >860px, où le rail porte la déco ; AFFICHÉ <860px, où le rail passe en barre du bas
+       et masque sa propre déco (:616). Jamais les deux visibles : une seule déconnexion joignable à chaque largeur. */
+    #lien-deco{display:none;margin-left:auto;color:var(--txt2);text-decoration:none;border-bottom:1px solid var(--line2);font-size:13px}
+    #lien-deco:hover{color:var(--txt);border-bottom-color:var(--txt3)}
+    @media (max-width:860px){ #lien-deco{display:inline-block} }
     /* déconnexion NEUTRE : le rouge est réservé aux actions principales */
 
     /* ── écran 05 — la liste (balisage imposé : li > span.code + span). AUCUNE colonne inventée ── */
@@ -768,8 +769,7 @@
           <h1 id="titre-projets">Vos projets</h1>
         </div>
         <div class="topbar">
-          <span class="id"><span id="bonjour"></span></span>
-          <a href="#" id="deco-mob" class="deco-mob">Déconnexion</a>
+          <span class="id"><span id="bonjour"></span> <a href="#" id="lien-deco">Déconnexion</a></span>
         </div>
       </div>
       <!-- Panneaux basculés par le rail : « Mes films » (défaut), « Mes demandes », « Proposer un film ».
@@ -988,13 +988,10 @@
     var _cca = $('cc-autre'); if (_cca) _cca.addEventListener('click', function () { var f = $('cc-code'); if (f) f.value = genererSuggestion(lire(K_CODEBRAND)); });
     var _ccx = $('cc-annuler'); if (_ccx) _ccx.addEventListener('click', fermerChangerCode);
     // « Changer mon code » vit désormais dans l'écran « Qui a accès » (rendu dynamiquement) → câblé dans chargerAcces.
-    // La « Déconnexion » de la barre du haut a été retirée (doublon du rail) ; son handler a disparu AVEC l'élément.
-    // ⛔ Ne PAS recâbler un $('lien-deco').addEventListener ici : sur un élément absent il jetterait un TypeError au
-    // chargement, qui tuerait TOUT le câblage déclaré en dessous (rail, destinations). La déco reste via rail-deco.
 
     // ── Accueil + projets ──
-    var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (déconnexion de l'accueil sur desktop)
-    var _dm = $('deco-mob'); if (_dm) _dm.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco d'en-tête, AFFICHÉE <860px seulement (CSS) ; élément toujours présent (juste masqué sur desktop) → garde sûre, pas de trap
+    $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco d'en-tête ; #lien-deco reste EN PERMANENCE dans le DOM (CSS : masqué >860px, affiché <860px) → jamais null, pas de TypeError
+    var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (desktop ; masquée <860px où l'en-tête prend le relais)
     var _nf = $('nv-films'); if (_nf) _nf.addEventListener('click', function () { allerVue('films'); }); // rail → panneau Mes films
     var _nd = $('nv-demandes'); if (_nd) _nd.addEventListener('click', function () { allerVue('demandes'); }); // rail → panneau Mes demandes
     var _nm = $('nv-missions'); if (_nm) _nm.addEventListener('click', function () { allerVue('missions'); }); // rail → panneau Proposer un film
@@ -2417,7 +2414,7 @@
       });
     }
     $('mt-retour').addEventListener('click', function (e) { e.preventDefault(); mQuitter(); });
-    $('mt-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déconnexion depuis l'en-tête montage (parité avec rail-deco de l'accueil)
+    $('mt-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déconnexion depuis l'en-tête montage (parité avec lien-deco accueil)
     // ═══ FIN VUE MONTAGE ═══════════════════════════════════════════════════════════════════════════════
 
     // ── Démarrage : projets-client (via le jeton) est la source de vérité. ──

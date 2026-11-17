@@ -4,8 +4,8 @@
 //  (b) la ligne de l'appelant (moi:true) est marquée .moi + « Vous », une seule fois ; l'inactif porte .off ;
 //  (d) « Changer mon code » est DANS la ligne .moi de l'écran, ABSENT de la barre du haut (il a déménagé) ;
 //  (e) en emprunt (ro, moi:false partout), le lien est MASQUÉ et aucun « Vous » n'apparaît, mais la LISTE reste ;
-//  (f) « Déconnexion » : EXACTEMENT une joignable à CHAQUE point de rupture (desktop → le rail ; <860px → l'en-tête,
-//      le rail masquant alors sa propre déco) — le doublon de la barre du haut retiré, SANS cul-de-sac mobile ;
+//  (f1/f2) « Déconnexion » : EXACTEMENT une VISIBLE à chaque point de rupture — desktop → le rail (#lien-deco masqué) ;
+//      <860px → l'en-tête #lien-deco (MÊME élément, jamais retiré du DOM), rail masqué, barre du bas à QUATRE onglets ;
 //  (g) ⛔ LE CRITIQUE : après retrait de l'élément #lien-deco ET de son handler non gardé, une destination du rail
 //      (câblée APRÈS la ligne retirée) répond toujours — preuve qu'aucun TypeError n'a tué le câblage du dessous.
 
@@ -49,8 +49,9 @@ let fails = 0;
 const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗ ') + n + (c ? '' : '\x1b[0m')); if (!c) fails++; };
 const nb = (p, s) => p.evaluate(x => document.querySelectorAll(x).length, s);
 const vis = (p, id) => p.evaluate(x => { var e = document.getElementById(x); return !!e && !e.classList.contains('hidden'); }, id);
-// Nombre de contrôles « Déconnexion » RÉELLEMENT rendus (feuille au texte exact, getClientRects robuste au position:fixed
-// du rail). mt-deco dit « Se déconnecter » → jamais compté. Hors-écran (display:none, vue masquée) → non rendu → 0.
+// Nombre de contrôles « Déconnexion » RÉELLEMENT rendus (feuille au texte exact). getClientRects, PAS offsetParent :
+// le rail est position:fixed, donc offsetParent y est null MÊME visible — getClientRects reste vrai pour un fixed à
+// l'écran, faux pour display:none / vue masquée. mt-deco dit « Se déconnecter » → jamais compté.
 const decoVisibles = (p) => p.evaluate(() => [].slice.call(document.querySelectorAll('*'))
   .filter(function (e) { return e.children.length === 0 && e.textContent.trim() === 'Déconnexion' && e.getClientRects().length > 0; }).length);
 
@@ -96,25 +97,32 @@ async function ouvrirAcces(b, token, URL) {
     ok('⛔ aucune ligne .moi en ro', await nb(p, '#acc-liste .acc-pers.moi') === 0);
     await p.close();
 
-    console.log('\n\x1b[1m(f) une seule « Déconnexion » joignable À CHAQUE point de rupture\x1b[0m');
+    console.log('\n\x1b[1m(f1) desktop >860px : UNE déconnexion visible, celle du rail\x1b[0m');
     p = await ouvrir(b, TOK, URL); // desktop 1100
-    ok('⛔ aucune « Déconnexion » dans la barre du haut (#lien-deco retiré)', await nb(p, '.topbar #lien-deco') === 0);
-    ok('(f-desktop) EXACTEMENT une déconnexion visible (le rail)', await decoVisibles(p) === 1);
+    ok('#lien-deco est TOUJOURS dans le DOM (élément permanent, masqué en CSS >860px)', await nb(p, '.topbar #lien-deco') === 1);
+    ok('(f1) EXACTEMENT une déconnexion visible', await decoVisibles(p) === 1);
+    ok('(f1) et c\'est le rail (#lien-deco de l\'en-tête masqué >860px)', await p.evaluate(() => {
+      var l = document.getElementById('lien-deco'), r = document.querySelector('#rail-deco .nv-lb');
+      return !!r && r.getClientRects().length > 0 && !!l && l.getClientRects().length === 0;
+    }));
 
-    console.log('\n\x1b[1m(g) ⛔ LE CRITIQUE — le câblage du rail survit au retrait du handler non gardé\x1b[0m');
-    // #nv-films est câblé APRÈS la ligne $(\'lien-deco\')... retirée. Si cette ligne était restée sur un élément
-    // absent, un TypeError au chargement aurait tué ce câblage → ce clic ne ferait rien.
+    console.log('\n\x1b[1m(g) ⛔ LE CRITIQUE — l\'initialisation va jusqu\'au bout (câblages déclarés après :971)\x1b[0m');
+    // #nv-films est câblé APRÈS la ligne $(\'lien-deco\').addEventListener. Cette ligne n'est plus un piège (l'élément
+    // est permanent), mais (g) reste : il prouve que l'init ne casse nulle part avant d'atteindre les destinations.
     await p.click('#nv-films'); await p.waitForTimeout(300);
     ok('(g) un clic sur une destination du rail ouvre son panneau', await vis(p, 'panneau-films'));
     ok('(g) et referme « Qui a accès »', !(await vis(p, 'panneau-acces')));
 
-    console.log('\n\x1b[1m(f) bascule <860px : le rail masque sa déco, l\'en-tête prend le relais\x1b[0m');
+    console.log('\n\x1b[1m(f2) <860px : le rail masque sa déco, l\'en-tête (#lien-deco) prend le relais\x1b[0m');
     await p.setViewportSize({ width: 500, height: 900 }); await p.waitForTimeout(250);
-    ok('(f-mobile) EXACTEMENT une déconnexion visible (<860px)', await decoVisibles(p) === 1);
-    ok('(f-mobile) et c\'est l\'en-tête (#deco-mob), PAS le rail', await p.evaluate(() => {
-      var d = document.getElementById('deco-mob'), r = document.querySelector('#rail-deco .nv-lb');
-      return !!d && d.getClientRects().length > 0 && (!r || r.getClientRects().length === 0);
+    ok('(f2) EXACTEMENT une déconnexion visible', await decoVisibles(p) === 1);
+    ok('(f2) et c\'est l\'en-tête (#lien-deco), PAS le rail', await p.evaluate(() => {
+      var l = document.getElementById('lien-deco'), r = document.querySelector('#rail-deco .nv-lb');
+      return !!l && l.getClientRects().length > 0 && (!r || r.getClientRects().length === 0);
     }));
+    ok('(f2) la barre du bas porte QUATRE contrôles, pas cinq (aucune déco en 5e item)', await p.evaluate(() => {
+      return [].slice.call(document.querySelectorAll('.rail button')).filter(function (e) { return e.getClientRects().length > 0; }).length;
+    }) === 4);
     await p.close();
 
     console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
