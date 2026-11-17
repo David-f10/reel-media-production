@@ -61,30 +61,38 @@
     #form-demande textarea{width:100%;resize:vertical;min-height:70px;line-height:1.5}
     #form-demande select:focus,#form-demande textarea:focus{outline:none;border-color:var(--rouge);background:var(--bg3)}
     .dem-bas{margin-top:10px}
-    .dem-h{font-size:13px;color:var(--txt2);margin:22px 0 8px}
-    .dem-item{border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:10px}
-    .dem-it-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
-    .dem-type{font-size:12px;font-weight:600;color:var(--txt)}
-    .dem-st{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:5px;background:var(--bg4)}
-    .dem-msgtxt{font-size:14px;line-height:1.5;color:var(--txt)}
     .dem-rep{margin-top:8px;padding:8px 11px;border-left:2px solid var(--line2);background:var(--bg2);border-radius:0 6px 6px 0;font-size:13.5px;color:var(--txt);line-height:1.5}
     .dem-rep-by{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:2px}
     #bandeau-emprunt::before{content:"👁 ";font-weight:400}
-    /* ── Proposer un nouveau film (étage 2a) — voisine de « Une demande ». ── */
-    #zone-missions{margin-top:30px}
-    #zone-missions:empty{display:none}
+    /* ── Proposer un film (PR-B : destination à part entière) — styles du formulaire. ── */
     #form-mission textarea,#form-mission input[type=text],#form-mission input[type=date],#form-mission select{box-sizing:border-box;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font:inherit;font-size:14px;padding:10px 12px}
     #form-mission textarea{width:100%;resize:vertical;min-height:80px;line-height:1.5}
     #form-mission textarea:focus,#form-mission input:focus,#form-mission select:focus{outline:none;border-color:var(--rouge);background:var(--bg3)}
-    .mis-plus{margin:12px 0 2px}
-    .mis-plus>summary{cursor:pointer;font-size:13px;color:var(--txt2);list-style:none;user-select:none}
-    .mis-plus>summary::-webkit-details-marker{display:none}
-    .mis-plus>summary::before{content:"▸ ";color:var(--txt3)}
-    .mis-plus[open]>summary::before{content:"▾ "}
     .mis-champ{margin:12px 0}
     .mis-champ label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px}
     .mis-champ input,.mis-champ select{width:100%}
     .mis-aide{font-size:11.5px;color:var(--txt3);margin-top:4px}
+    /* PR-B — « Proposer un film » devient une destination. Label obligatoire, note facultatif, chips multi,
+       duo de champs, et liste « Vos propositions » À PLAT. Classes préfixées mis-* (jamais .chip nu). */
+    .mis-lbl{display:block;font-size:14px;color:var(--txt);margin-bottom:6px}
+    .mis-champ .mis-lbl{font-size:12px;color:var(--txt2)}
+    .mis-req{font-size:10px;color:var(--rouge);margin-left:8px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+    .mis-fac{font-size:12px;color:var(--txt3);margin:20px 0 2px}
+    .mis-fac b{color:var(--txt2);font-weight:500}
+    .mis-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+    .mis-chip{font-size:12.5px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:22px;padding:7px 13px;cursor:pointer;font-family:inherit;min-height:40px;box-sizing:border-box}
+    .mis-chip:hover{color:var(--txt);border-color:var(--txt3)}
+    .mis-chip[aria-pressed="true"]{color:var(--txt);background:var(--rouge-voile);border-color:var(--rouge-bord)}
+    .mis-chip:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+    .mis-duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .mis-c{border:1px solid var(--line);border-radius:10px;padding:13px 15px;margin-bottom:11px}
+    .mis-c-h{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+    .mis-c-dt{font-family:var(--mono);font-size:10.5px;color:var(--txt3);margin-left:auto}
+    .mis-c-obj{font-size:14px;color:var(--txt);line-height:1.55;white-space:pre-wrap;margin-bottom:10px}
+    .mis-tags{display:flex;flex-wrap:wrap;gap:6px}
+    .mis-tag{font-family:var(--mono);font-size:10.5px;color:var(--txt2);background:var(--bg4);border:1px solid var(--line2);border-radius:5px;padding:2px 8px}
+    .mis-tag.vide{border-style:dashed;color:var(--txt3);background:transparent}
+    @media (max-width:620px){ .mis-duo{grid-template-columns:1fr} }
 
     /* ── écran 04 — connexion : carte bordée, tout aligné à gauche. Marque PAS affichée ici. ── */
     #vue-login{min-height:74vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-block:48px}
@@ -676,8 +684,8 @@
         <button type="button" class="nv" id="nv-demandes" aria-current="false">
           <span class="nv-ic" aria-hidden="true">📨</span><span class="nv-lb">Mes demandes</span>
           <span class="rail-ct hidden" id="rail-badge-demandes" title="Réponses non lues"></span></button>
-        <button type="button" class="nv" disabled>
-          <span class="nv-ic" aria-hidden="true">🎬</span><span class="nv-lb">Proposer un film</span><span class="nv-bientot">bientôt</span></button>
+        <button type="button" class="nv" id="nv-missions" aria-current="false">
+          <span class="nv-ic" aria-hidden="true">🎬</span><span class="nv-lb">Proposer un film</span></button>
       </nav>
       <!-- rail-bas = gestion du COMPTE, séparée des destinations : « Qui a accès » (placeholder) + déconnexion.
            La maquette (nav vs rail-bas) groupe ainsi. Sur téléphone, Qui a accès rejoint la barre, pas la déco. -->
@@ -714,14 +722,13 @@
           <span class="id"><span id="bonjour"></span> <a href="#" id="lien-deco">Déconnexion</a></span>
         </div>
       </div>
-      <!-- Panneaux basculés par le rail (PR-1) : « Mes films » (défaut) ↔ « Mes demandes ». L'en-tête reste
-           partagé ; allerVue() montre un panneau et pose aria-current. « Proposer un film » reste inline dans
-           Mes films (zone-missions) jusqu'à sa propre destination. -->
+      <!-- Panneaux basculés par le rail : « Mes films » (défaut), « Mes demandes », « Proposer un film ».
+           L'en-tête reste partagé ; allerVue() montre un panneau et pose aria-current (PR-B active missions). -->
       <div id="panneau-films">
         <div id="zone-projets" role="status" aria-live="polite"></div>
-        <div id="zone-missions"></div>
       </div>
       <div id="panneau-demandes" class="hidden"></div>
+      <div id="panneau-missions" class="hidden"></div>
     </div><!-- /#vue-accueil -->
     </main>
   </div><!-- /#coque -->
@@ -881,6 +888,7 @@
     var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (parité lien-deco)
     var _nf = $('nv-films'); if (_nf) _nf.addEventListener('click', function () { allerVue('films'); }); // rail → panneau Mes films
     var _nd = $('nv-demandes'); if (_nd) _nd.addEventListener('click', function () { allerVue('demandes'); }); // rail → panneau Mes demandes
+    var _nm = $('nv-missions'); if (_nm) _nm.addEventListener('click', function () { allerVue('missions'); }); // rail → panneau Proposer un film
 
     function allerLogin(notice) {
       $('msg-login').className = notice ? 'msg wait' : 'msg';
@@ -938,18 +946,20 @@
     function demRo() { var i = jetonInfo(); return !!(i && i.ro); }
     // Bascule des panneaux de la coque (PR-1). Le rail appelle allerVue ; aria-current pilote la surbrillance.
     function allerVue(dest) {
-      var films = (dest !== 'demandes');
-      var pf = $('panneau-films'), pd = $('panneau-demandes');
-      if (pf) pf.classList.toggle('hidden', !films);
-      if (pd) pd.classList.toggle('hidden', films);
-      var nf = $('nv-films'), nd = $('nv-demandes');
-      if (nf) nf.setAttribute('aria-current', films ? 'page' : 'false');
-      if (nd) nd.setAttribute('aria-current', films ? 'false' : 'page');
+      var d = (dest === 'demandes' || dest === 'missions') ? dest : 'films'; // 3 destinations (+ acces à venir)
+      var pf = $('panneau-films'), pd = $('panneau-demandes'), pm = $('panneau-missions');
+      if (pf) pf.classList.toggle('hidden', d !== 'films');
+      if (pd) pd.classList.toggle('hidden', d !== 'demandes');
+      if (pm) pm.classList.toggle('hidden', d !== 'missions');
+      var nf = $('nv-films'), nd = $('nv-demandes'), nm = $('nv-missions');
+      if (nf) nf.setAttribute('aria-current', d === 'films' ? 'page' : 'false');
+      if (nd) nd.setAttribute('aria-current', d === 'demandes' ? 'page' : 'false');
+      if (nm) nm.setAttribute('aria-current', d === 'missions' ? 'page' : 'false');
       // Navigation VOLONTAIRE vers « Mes demandes » : le détail de la demande sélectionnée est maintenant à
       // l'écran → on la marque LUE. MAIS seulement si le détail est RÉELLEMENT visible (offsetParent nul en
       // display:none → téléphone avant le clic : la règle du clic s'applique alors seule). L'auto-sélection AU
       // CHARGEMENT n'appelle pas allerVue → rien n'est marqué tant que le client reste sur « Mes films ».
-      if (!films) {
+      if (d === 'demandes') {
         var det = $('md-detail');
         if (det && det.offsetParent !== null) {
           var i = _idxParId(_demSelId);
@@ -1003,39 +1013,54 @@
     // Un seul champ nécessaire (l'idée). Tout le reste est caché dans un dépliant « Préciser » : l'état vide
     // est l'état NORMAL, jamais pénalisé. Sous emprunt chef (ro), le formulaire est masqué ; la liste reste.
     function renderMissions() {
-      var z = $('zone-missions'); if (!z) return;
+      var z = $('panneau-missions'); if (!z) return;
+      var chips = function (id, lbl, vals) {
+        return '<div class="mis-champ"><span class="mis-lbl" id="' + id + '-l">' + lbl + '</span>' +
+          '<div class="mis-chips" role="group" aria-labelledby="' + id + '-l" id="' + id + '">' +
+          vals.map(function (v) { return '<button type="button" class="mis-chip" aria-pressed="false">' + v + '</button>'; }).join('') +
+          '</div></div>';
+      };
       var form = demRo() ? '' : (
         '<form id="form-mission" autocomplete="off">' +
-          '<textarea id="mis-objet" rows="3" placeholder="Votre idée de film — de quoi ça parle ?"></textarea>' +
-          '<details class="mis-plus"><summary>Préciser (facultatif)</summary>' +
-            '<div class="mis-champ"><label for="mis-plateforme">Où le film sera diffusé</label>' +
-              '<select id="mis-plateforme"><option value="">Je ne sais pas encore</option>' +
-                '<option>Instagram</option><option>TikTok</option><option>Facebook</option><option>YouTube</option><option>Interne</option>' +
+          '<label class="mis-lbl" for="mis-objet">De quoi parle votre film ?<span class="mis-req">obligatoire</span></label>' +
+          '<textarea id="mis-objet" rows="3" maxlength="2000" placeholder="Un format court sur nos ateliers de réparation, pour nos réseaux."></textarea>' +
+          '<div class="mis-fac"><b>Le tournage</b> · facultatif — si vous le savez déjà, ça nous évite un appel.</div>' +
+          chips('mis-diffusion', 'Diffusion', ['Instagram', 'TikTok', 'Facebook', 'YouTube', 'Interne']) +
+          chips('mis-format', 'Format', ['9:16', '16:9']) +
+          '<div class="mis-duo">' +
+            '<div class="mis-champ"><label for="mis-type">Type de film</label>' +
+              '<select id="mis-type"><option value="">Non précisé</option>' +
+                ['Mag', 'Face Cam', 'Prodige', 'Vrai ou Faux', 'Pour combien', 'YouTube', 'Décli'].map(function (v) { return '<option>' + v + '</option>'; }).join('') +
               '</select></div>' +
-            '<div class="mis-champ"><label for="mis-quand">Pour quand</label>' +
-              '<input type="date" id="mis-quand"><div class="mis-aide">Pas encore fixé ? Laissez vide.</div></div>' +
-            '<div class="mis-champ"><label for="mis-lieu">Lieu de tournage</label>' +
-              '<input type="text" id="mis-lieu" placeholder="Une adresse, si vous la connaissez déjà"></div>' +
-            '<div class="mis-champ"><label for="mis-pers">Personnes à filmer / interviewer</label>' +
-              '<input type="text" id="mis-pers" placeholder="Des noms, si vous les avez déjà"></div>' +
-            '<div class="mis-champ"><label for="mis-contact">Contact sur place</label>' +
-              '<input type="text" id="mis-contact" placeholder="Qui appeler sur place : nom + téléphone"></div>' +
-          '</details>' +
+            '<div class="mis-champ"><label for="mis-quand">Pour quand</label><input type="date" id="mis-quand"><div class="mis-aide">Pas encore fixé ? Laissez vide.</div></div>' +
+          '</div>' +
+          '<div class="mis-duo">' +
+            '<div class="mis-champ"><label for="mis-lieu">Lieu de tournage</label><input type="text" id="mis-lieu" placeholder="Nos ateliers, 14 rue des Arts, Lille"></div>' +
+            '<div class="mis-champ"><label for="mis-contact">Contact sur place</label><input type="text" id="mis-contact" placeholder="Nom et téléphone"></div>' +
+          '</div>' +
+          '<div class="mis-champ"><label for="mis-pers">Personnes à filmer / interviewer</label><input type="text" id="mis-pers" placeholder="Des noms, si vous les avez déjà"></div>' +
           '<div class="dem-bas"><button type="submit" class="bouton" id="mis-envoi">Proposer ce film</button></div>' +
           '<div class="msg" id="mis-etat" role="status" aria-live="polite"></div>' +
         '</form>');
       z.innerHTML = '<h2>🎬 Proposer un nouveau film</h2>' +
         '<p class="sub dem-sub">Une nouvelle idée de vidéo. On revient vers vous avec une réponse, puis un devis. Un seul champ nécessaire : votre idée.</p>' +
         form + '<div id="mes-missions"></div>';
-      if (!demRo()) { $('form-mission').addEventListener('submit', envoyerMission); }
+      if (!demRo()) {
+        $('form-mission').addEventListener('submit', envoyerMission);
+        // Chips = bascule aria-pressed (plusieurs choix). Le serveur revalide contre la liste fermée (PR-A).
+        [].slice.call(z.querySelectorAll('.mis-chip')).forEach(function (b) { b.addEventListener('click', function () { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); }); });
+      }
       chargerMesMissions();
     }
+    // Valeurs sélectionnées d'un groupe de chips (tableau de libellés).
+    function _chipsVal(id) { var g = $(id); return g ? [].slice.call(g.querySelectorAll('.mis-chip[aria-pressed="true"]')).map(function (b) { return b.textContent; }) : []; }
     function envoyerMission(e) {
       e.preventDefault();
       var objet = $('mis-objet').value.trim(), etat = $('mis-etat');
       if (!objet) { etat.className = 'msg err'; etat.textContent = 'Dites au moins de quoi parle le film.'; return; }
       var corps = { action: 'creer', objet: objet,
-        plateforme: $('mis-plateforme').value, pourQuand: $('mis-quand').value,
+        plateforme: _chipsVal('mis-diffusion'), formatImage: _chipsVal('mis-format'), sousFormat: $('mis-type').value,
+        pourQuand: $('mis-quand').value,
         lieu: $('mis-lieu').value.trim(), personnes: $('mis-pers').value.trim(), contactSurPlace: $('mis-contact').value.trim() };
       $('mis-envoi').disabled = true; etat.className = 'msg'; etat.textContent = '';
       fetch(MISSION, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify(corps) })
@@ -1044,12 +1069,19 @@
           $('mis-envoi').disabled = false;
           if (res.status === 401) { finSession(); return; }
           if (res.status === 200 && res.body && res.body.ok) {
-            $('form-mission').reset(); etat.className = 'msg ok'; etat.textContent = 'Proposition envoyée.'; chargerMesMissions(); return;
+            $('form-mission').reset();
+            [].slice.call(document.querySelectorAll('#form-mission .mis-chip')).forEach(function (b) { b.setAttribute('aria-pressed', 'false'); }); // reset() ne touche pas aria-pressed
+            etat.className = 'msg ok'; etat.textContent = 'Proposition envoyée.'; chargerMesMissions(); return;
           }
           etat.className = 'msg err'; etat.textContent = (res.body && res.body.error) || 'Envoi impossible, réessayez.';
         })
         .catch(function () { $('mis-envoi').disabled = false; etat.className = 'msg err'; etat.textContent = 'Service indisponible, réessayez.'; });
     }
+    // Vocabulaire des statuts (validé David) — UN SEUL endroit. Grammaire couleur : gris = envoyé · ambre = chez
+    // nous (base .pill, aucune classe) · bleu = chez vous · vert = ça tourne · rouge = refusé.
+    var MIS_ETIQ = { 'Nouvelle': 'Envoyée', 'Acceptée': 'Acceptée', 'Devis': 'Devis envoyé', 'Validée': 'Validée', 'En production': 'En production', 'Refusée': 'Refusée' };
+    var MIS_PILL = { 'Nouvelle': 'gris', 'Acceptée': '', 'Devis': 'bleu', 'Validée': '', 'En production': 'vert', 'Refusée': 'rouge' };
+    function _moisAnnee(iso) { try { var s = new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); } catch (e) { return ''; } }
     function chargerMesMissions() {
       var el = $('mes-missions'); if (!el) return;
       fetch(MISSION, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'mes' }) })
@@ -1059,16 +1091,18 @@
           if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = ''; return; } // indispo → silencieux
           var ms = res.body.missions || [];
           if (!ms.length) { el.innerHTML = ''; return; }
-          var ETIQM = { 'Nouvelle': 'reçue', 'Acceptée': 'acceptée', 'Devis': 'devis en cours', 'Validée': 'validée', 'En production': 'en production', 'Refusée': 'refusée' };
-          el.innerHTML = '<h3 class="dem-h">Vos propositions de film</h3>' + ms.map(function (x) {
-            var coul = (x.statut === 'Validée' || x.statut === 'En production') ? 'var(--vert)'
-              : (x.statut === 'Nouvelle' ? '#E6B33A' : (x.statut === 'Refusée' ? 'var(--txt3)' : 'var(--txt2)'));
-            return '<div class="dem-item"><div class="dem-it-h"><span class="dem-type">' + esc(x.objet || '') + '</span>' +
-              (x.plateforme ? '<span class="code">' + esc(x.plateforme) + '</span>' : '') +
-              (x.carteCreee ? '<span class="code">' + esc(x.carteCreee) + '</span>' : '') +
-              '<span class="dem-st" style="color:' + coul + '">' + esc(ETIQM[x.statut] || x.statut || '') + '</span></div>' +
-              (x.reponse ? '<div class="dem-rep"><span class="dem-rep-by">Réel Média</span>' + esc(x.reponse) + '</div>' : '') +
-            '</div>';
+          el.innerHTML = '<h2>Vos propositions <span class="n">' + ms.length + '</span></h2>' + ms.map(function (x) {
+            // Précisions en tags : plateformes + formats (tableaux) + type + échéance (mois) + lieu. Rien → un tag pointillé.
+            var tags = [].concat(x.plateforme || [], x.formatImage || [], x.sousFormat ? [x.sousFormat] : [], x.pourQuand ? [_moisAnnee(x.pourQuand)] : [], x.lieu ? [x.lieu] : []);
+            var tagsH = tags.length ? tags.map(function (t) { return '<span class="mis-tag">' + esc(t) + '</span>'; }).join('')
+              : '<span class="mis-tag vide">Aucune précision donnée</span>';
+            var rep = x.reponse ? '<div class="dem-rep"><span class="dem-rep-by">Réel Média</span>' + esc(x.reponse) + '</div>' : ''; // ⛔ générique, jamais un nom de membre
+            return '<article class="mis-c">' +
+              '<div class="mis-c-h"><span class="pill ' + (MIS_PILL[x.statut] || '') + '">' + esc(MIS_ETIQ[x.statut] || x.statut || '') + '</span>' +
+                '<span class="mis-c-dt">' + esc(dateFrCourte(x.date)) + '</span></div>' +
+              '<div class="mis-c-obj">' + esc(x.objet || '') + '</div>' +
+              '<div class="mis-tags">' + tagsH + '</div>' + rep +
+            '</article>';
           }).join('');
         })
         .catch(function () { el.innerHTML = ''; });
