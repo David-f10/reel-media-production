@@ -152,7 +152,9 @@ async function verifyClient({ mail, code }) {
     // qui est signé-non-chiffré : y mettre ce booléen publierait la liste des comptes faibles).
     return { ok: true, contact: { id: page.id, mail: m, nom: _nom(page.properties), codeBrand: _rt(page.properties, 'Code Brand'), marque: _rt(page.properties, 'Marque'), codeCourt: _rt(page.properties, 'Code acces').length < SEUIL_CODE_COURT } };
   } catch (e) {
-    console.error('verifyClient indispo : ' + (e && e.message || ''));
+    // ⛔ e.name seulement, jamais e.message : son try englobe _getContacts, qui parse une réponse portant TOUS
+    //   les contacts ET leurs codes — un corps tronqué (Node 20+) mettrait un fragment, code compris, au journal.
+    console.error('verifyClient indispo (' + (e && e.name || 'Error') + ')');
     return { ok: false, raison: 'indispo' };
   }
 }
@@ -202,7 +204,7 @@ async function contactActif(id) {
     // (row déjà lue pour la porte). null si absent. Additif — les appelants qui l'ignorent ne voient rien changer.
     return { ok: true, nom: _nom(page.properties), codeBrand, marque: _rt(page.properties, 'Marque'), seriesMarque: act.series };
   } catch (e) {
-    console.error('contactActif indispo : ' + (e && e.message || ''));
+    console.error('contactActif indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul (try englobe _getContacts = les codes)
     return { ok: false, raison: 'indispo' };
   }
 }
@@ -231,7 +233,7 @@ async function premierContactActif(codeBrand) {
     actifs.sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr') || normId(a.id).localeCompare(normId(b.id)));
     return { ok: true, contact: actifs[0] };
   } catch (e) {
-    console.error('premierContactActif indispo : ' + (e && e.message || ''));
+    console.error('premierContactActif indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul (try englobe _getContacts = les codes)
     return { ok: false, raison: 'indispo' };
   }
 }
@@ -267,7 +269,7 @@ async function adminClients() {
     }));
     return { ok: true, marques, contacts: contactsSafe };
   } catch (e) {
-    console.error('adminClients indispo : ' + (e && e.message || ''));
+    console.error('adminClients indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul (try englobe _getContacts = les codes)
     return { ok: false, raison: 'indispo' };
   }
 }

@@ -82,7 +82,7 @@ async function verifyUser({ id, code }) {
   } catch (e) {
     // Ne plus avaler l'erreur (ex. 401 Notion) en silence — c'est le chemin chaud de chaque appel proxy,
     // et ce catch muet était l'angle mort de diagnostic du 24. Message seul, aucun secret.
-    console.error('verifyUser indispo : ' + (e && e.message || ''));
+    console.error('verifyUser indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul : try englobe la lecture Équipe (membres + Code acces)
     return { ok: false, error: 'Service temporairement indisponible' };
   }
 }
