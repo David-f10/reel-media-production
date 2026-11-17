@@ -132,6 +132,15 @@
     .ligne-aide{font-size:12.5px;color:var(--txt3);margin:16px 0 0;line-height:1.5;padding-top:16px;border-top:1px solid var(--line)}
     .lien-inline{background:none;border:none;color:var(--rouge);font:inherit;cursor:pointer;padding:0;text-decoration:underline}
     .cc-annuler{display:block;margin:13px auto 0;color:var(--txt3)}
+    /* « Qui a accès » — liste de personnes (lecture seule). Classes préfixées acc-*, pastille via .pill existante. */
+    .acc-pers{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
+    .acc-av{width:30px;height:30px;border-radius:50%;background:var(--bg4);border:1px solid var(--line2);display:inline-flex;align-items:center;justify-content:center;color:var(--txt2);font-size:13px;flex:none}
+    .acc-id{flex:1;min-width:0}
+    .acc-nm{font-size:13.5px;color:var(--txt);font-weight:500}
+    .acc-ml{font-size:12px;color:var(--txt3);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .acc-pers .pill{flex:none}
+    .acc-note{font-size:12.5px;color:var(--txt3);margin:16px 0 0;line-height:1.5}
+    .acc-lien{margin:14px 0 0}
 
     /* ── écran 05 — en-tête (traitement .head de la maquette) ── */
     .head{padding-block:40px 20px;border-bottom:1px solid var(--line);margin-bottom:26px}
@@ -709,8 +718,8 @@
       <!-- rail-bas = gestion du COMPTE, séparée des destinations : « Qui a accès » (placeholder) + déconnexion.
            La maquette (nav vs rail-bas) groupe ainsi. Sur téléphone, Qui a accès rejoint la barre, pas la déco. -->
       <div class="rail-bas">
-        <button type="button" class="nv" disabled>
-          <span class="nv-ic" aria-hidden="true">👥</span><span class="nv-lb">Qui a accès</span><span class="nv-bientot">bientôt</span></button>
+        <button type="button" class="nv" id="nv-acces" aria-current="false">
+          <span class="nv-ic" aria-hidden="true">👥</span><span class="nv-lb">Qui a accès</span></button>
         <button type="button" class="rail-deco" id="rail-deco"><span class="nv-ic" aria-hidden="true">⏻</span><span class="nv-lb">Déconnexion</span></button>
       </div>
     </aside>
@@ -738,7 +747,7 @@
           <h1 id="titre-projets">Vos projets</h1>
         </div>
         <div class="topbar">
-          <span class="id"><span id="bonjour"></span> <a href="#" id="lien-code">Changer mon code</a> · <a href="#" id="lien-deco">Déconnexion</a></span>
+          <span class="id"><span id="bonjour"></span> <a href="#" id="lien-deco">Déconnexion</a></span>
         </div>
       </div>
       <!-- Panneaux basculés par le rail : « Mes films » (défaut), « Mes demandes », « Proposer un film ».
@@ -748,6 +757,7 @@
       </div>
       <div id="panneau-demandes" class="hidden"></div>
       <div id="panneau-missions" class="hidden"></div>
+      <div id="panneau-acces" class="hidden"></div>
     </div><!-- /#vue-accueil -->
     </main>
   </div><!-- /#coque -->
@@ -797,6 +807,7 @@
     var DEMANDE = '/.netlify/functions/demande-client'; // circuit court : demandes hors montage (lot A)
     var MISSION = '/.netlify/functions/mission-client';  // nouvelle mission : proposer un film (étage 2a)
     var CODE_CHANGE = '/.netlify/functions/code-client'; // changer son propre code d'accès
+    var ACCES = '/.netlify/functions/acces-client'; // « Qui a accès » (lecture seule, bornée au Code Brand du jeton)
     // ⚠ FORMAT DU CODE SUGGÉRÉ — DUPLIQUÉ. Cet alphabet (+ la longueur 7) DOIT rester d'accord avec le
     //   générateur serveur code-reset.js:12 (et, à venir, celui de l'ajout de collègue). Sans ambigus
     //   (ni O/0, ni I/1). 32 valeurs = pas de biais modulo (2^32 % 32 == 0). Si tu changes l'un, change l'autre.
@@ -930,7 +941,7 @@
       montrer('vue-code');
       if (a) a.focus();
     }
-    function fermerChangerCode() { var a = $('cc-actuel'); if (a) a.value = ''; entrerAccueil(); } // retour à l'espace (Annuler / succès)
+    function fermerChangerCode() { var a = $('cc-actuel'); if (a) a.value = ''; montrer('vue-accueil'); allerVue(_vueActuelle); } // retour sur la destination d'origine (Qui a accès), sans recharger l'espace
     function validerNouveauCode() {
       var oc = (($('cc-actuel') && $('cc-actuel').value) || '').trim();
       var nc = (($('cc-code') && $('cc-code').value) || '').trim(), m = $('cc-msg');
@@ -954,7 +965,7 @@
     var _ccv = $('cc-valider'); if (_ccv) _ccv.addEventListener('click', validerNouveauCode);
     var _cca = $('cc-autre'); if (_cca) _cca.addEventListener('click', function () { var f = $('cc-code'); if (f) f.value = genererSuggestion(lire(K_CODEBRAND)); });
     var _ccx = $('cc-annuler'); if (_ccx) _ccx.addEventListener('click', fermerChangerCode);
-    var _lc = $('lien-code'); if (_lc) _lc.addEventListener('click', function (e) { e.preventDefault(); montrerChangerCode(); }); // « Changer mon code » (barre du haut)
+    // « Changer mon code » vit désormais dans l'écran « Qui a accès » (rendu dynamiquement) → câblé dans renderAcces.
 
     // ── Accueil + projets ──
     $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); });
@@ -962,6 +973,7 @@
     var _nf = $('nv-films'); if (_nf) _nf.addEventListener('click', function () { allerVue('films'); }); // rail → panneau Mes films
     var _nd = $('nv-demandes'); if (_nd) _nd.addEventListener('click', function () { allerVue('demandes'); }); // rail → panneau Mes demandes
     var _nm = $('nv-missions'); if (_nm) _nm.addEventListener('click', function () { allerVue('missions'); }); // rail → panneau Proposer un film
+    var _na = $('nv-acces'); if (_na) _na.addEventListener('click', function () { allerVue('acces'); }); // rail-bas → Qui a accès
 
     function allerLogin(notice) {
       $('msg-login').className = notice ? 'msg wait' : 'msg';
@@ -1018,16 +1030,21 @@
     // emprunt chef (ro), le FORMULAIRE est masqué (on ne dépose pas au nom du client) ; la liste reste lisible.
     function demRo() { var i = jetonInfo(); return !!(i && i.ro); }
     // Bascule des panneaux de la coque (PR-1). Le rail appelle allerVue ; aria-current pilote la surbrillance.
+    var _vueActuelle = 'films'; // destination affichée (retour après « Changer mon code »)
     function allerVue(dest) {
-      var d = (dest === 'demandes' || dest === 'missions') ? dest : 'films'; // 3 destinations (+ acces à venir)
-      var pf = $('panneau-films'), pd = $('panneau-demandes'), pm = $('panneau-missions');
+      var d = (dest === 'demandes' || dest === 'missions' || dest === 'acces') ? dest : 'films'; // 4 destinations
+      var pf = $('panneau-films'), pd = $('panneau-demandes'), pm = $('panneau-missions'), pa = $('panneau-acces');
       if (pf) pf.classList.toggle('hidden', d !== 'films');
       if (pd) pd.classList.toggle('hidden', d !== 'demandes');
       if (pm) pm.classList.toggle('hidden', d !== 'missions');
-      var nf = $('nv-films'), nd = $('nv-demandes'), nm = $('nv-missions');
+      if (pa) pa.classList.toggle('hidden', d !== 'acces');
+      var nf = $('nv-films'), nd = $('nv-demandes'), nm = $('nv-missions'), na = $('nv-acces');
       if (nf) nf.setAttribute('aria-current', d === 'films' ? 'page' : 'false');
       if (nd) nd.setAttribute('aria-current', d === 'demandes' ? 'page' : 'false');
       if (nm) nm.setAttribute('aria-current', d === 'missions' ? 'page' : 'false');
+      if (na) na.setAttribute('aria-current', d === 'acces' ? 'page' : 'false');
+      _vueActuelle = d;                   // retenue pour le retour après « Changer mon code »
+      if (d === 'acces') renderAcces();   // lazy : la lecture ne part que quand on ouvre l'écran
       // Navigation VOLONTAIRE vers « Mes demandes » : le détail de la demande sélectionnée est maintenant à
       // l'écran → on la marque LUE. MAIS seulement si le détail est RÉELLEMENT visible (offsetParent nul en
       // display:none → téléphone avant le clic : la règle du clic s'applique alors seule). L'auto-sélection AU
@@ -1049,6 +1066,41 @@
     // (liste à gauche, détail à droite). Le détail porte référence, statut, message, réponse signée, « en
     // attente depuis N j ». Pas de fil (PR-2). Sous emprunt chef (ro), le formulaire est masqué, la liste reste.
     var _demFormOuvert = false; // état « formulaire ouvert » en variable JS, jamais dans le DOM reconstruit
+    // ── « Qui a accès » (4e destination, LECTURE SEULE) ──────────────────────────────────────────────────────
+    function renderAcces() {
+      var z = $('panneau-acces'); if (!z) return;
+      var marque = lire(K_MARQUE);
+      // Le lien « Changer mon code » (déménagé de la barre du haut) est MASQUÉ en emprunt ro : code-client refuse
+      // en ro, on n'affiche donc pas un geste voué au 403.
+      var lien = demRo() ? '' : '<p class="acc-lien"><a href="#" id="lien-code">Changer mon code</a></p>';
+      z.innerHTML = '<p class="sub dem-sub">Les personnes de ' + (marque ? esc(marque) : 'votre société') + ' qui peuvent se connecter à cet espace.</p>' +
+        '<div id="acc-liste" role="status" aria-live="polite"><p class="md-vide">Chargement…</p></div>' +
+        '<p class="acc-note">Pour ajouter ou retirer un collègue, écrivez à votre interlocuteur chez Réel Média.</p>' + lien;
+      var lc = $('lien-code'); if (lc) lc.addEventListener('click', function (e) { e.preventDefault(); montrerChangerCode(); });
+      chargerAcces();
+    }
+    function chargerAcces() {
+      var el = $('acc-liste'); if (!el) return;
+      fetch(ACCES, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({}) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          if (res.status === 401) { finSession(); return; }
+          if (!$('acc-liste')) return;
+          if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = '<p class="md-vide">Service temporairement indisponible.</p>'; return; }
+          var gens = res.body.acces || [];
+          if (!gens.length) { el.innerHTML = '<p class="md-vide">Aucune personne pour l\'instant.</p>'; return; }
+          el.innerHTML = gens.map(function (x) {
+            // État dérivé des DEUX booléens (le serveur n'envoie que ça) : actif+aCode→Actif ; actif+!aCode→en
+            // attente ; !actif→sans accès. Pastille : vert / ambre (base .pill, classe '') / gris.
+            var et = !x.actif ? { l: 'Sans accès', c: 'gris' } : (x.aCode ? { l: 'Actif', c: 'vert' } : { l: 'En attente d\'accès', c: '' });
+            var ini = (String(x.nom || '').trim().charAt(0) || '·').toUpperCase();
+            return '<div class="acc-pers"><span class="acc-av">' + esc(ini) + '</span>' +
+              '<div class="acc-id"><div class="acc-nm">' + esc(x.nom || '') + '</div><div class="acc-ml">' + esc(x.mail || '') + '</div></div>' +
+              '<span class="pill ' + et.c + '">' + esc(et.l) + '</span></div>';
+          }).join('');
+        })
+        .catch(function () { var e = $('acc-liste'); if (e) e.innerHTML = '<p class="md-vide">Service indisponible, réessayez.</p>'; });
+    }
     function renderDemandes(cartes) {
       var z = $('panneau-demandes'); if (!z) return;
       var opts = '<option value="">Aucune mission précise</option>' + (cartes || []).map(function (c) {
