@@ -130,6 +130,7 @@
     #msg-login{margin-top:13px}
     /* le filet traverse toute la carte */
     .ligne-aide{font-size:12.5px;color:var(--txt3);margin:16px 0 0;line-height:1.5;padding-top:16px;border-top:1px solid var(--line)}
+    .lien-inline{background:none;border:none;color:var(--rouge);font:inherit;cursor:pointer;padding:0;text-decoration:underline}
 
     /* ── écran 05 — en-tête (traitement .head de la maquette) ── */
     .head{padding-block:40px 20px;border-bottom:1px solid var(--line);margin-bottom:26px}
@@ -666,6 +667,20 @@
       </div>
     </div>
 
+    <!-- Code trop court (forcé après un login réussi) : choisir un nouveau code AVANT l'espace. Les mots ne
+         promettent RIEN sur la sécurité des sessions — changer son code ne révoque aucune session (jeton 14 j). -->
+    <div id="vue-codecourt" class="hidden">
+      <div class="gate">
+        <h1>Choisissez un nouveau code</h1>
+        <p class="sub">Votre code d'accès actuel est très court. Choisissez-en un nouveau, plus long, que vous utiliserez pour vos prochaines connexions. Nous vous en proposons un ci-dessous — gardez-le ou modifiez-le.</p>
+        <label class="champ"><span>Votre nouveau code</span>
+          <input id="cc-code" type="text" autocomplete="off" spellcheck="false"></label>
+        <p class="ligne-aide">Au moins 8 caractères. <button type="button" id="cc-autre" class="lien-inline">Proposer un autre</button></p>
+        <button type="button" class="primary" id="cc-valider">Valider et continuer →</button>
+        <div id="cc-msg" class="msg" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
   </div><!-- /.wrap : chargement + login gardent la colonne 760. -->
 
   <!-- COQUE DE L'ESPACE CLIENT (PR-A) — rail fixe 252px + main large (.vue à 1140). N'enveloppe QUE l'accueil
@@ -777,13 +792,18 @@
     var EMPRUNT = '/.netlify/functions/client-emprunt-consume'; // emprunt chef « Voir incognito » (lecture seule)
     var DEMANDE = '/.netlify/functions/demande-client'; // circuit court : demandes hors montage (lot A)
     var MISSION = '/.netlify/functions/mission-client';  // nouvelle mission : proposer un film (étage 2a)
+    var CODE_CHANGE = '/.netlify/functions/code-client'; // changer son propre code d'accès
+    // ⚠ FORMAT DU CODE SUGGÉRÉ — DUPLIQUÉ. Cet alphabet (+ la longueur 7) DOIT rester d'accord avec le
+    //   générateur serveur code-reset.js:12 (et, à venir, celui de l'ajout de collègue). Sans ambigus
+    //   (ni O/0, ni I/1). 32 valeurs = pas de biais modulo (2^32 % 32 == 0). Si tu changes l'un, change l'autre.
+    var CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', CODE_ALEAS = 7;
     var K_TOKEN = 'rmc-token', K_NOM = 'rmc-nom', K_MARQUE = 'rmc-marque';
     var K_DEM_VUS = 'rmc-dem-vus'; // notifs : { id_de_page : empreinte(reponse) } des réponses déjà VUES (à l'ouverture du fil)
     var K_LEGACY = ['rmc-mail', 'rmc-code']; // F1 : anciennes clés (code en clair) — purgées, plus jamais écrites
 
     var $ = function (id) { return document.getElementById(id); };
     function montrer(vue) {
-      ['vue-chargement', 'vue-login', 'vue-accueil', 'vue-montage'].forEach(function (v) { $(v).classList.add('hidden'); });
+      ['vue-chargement', 'vue-login', 'vue-codecourt', 'vue-accueil', 'vue-montage'].forEach(function (v) { var e = $(v); if (e) e.classList.add('hidden'); });
       $(vue).classList.remove('hidden');
       var cq = $('coque'); if (cq) cq.classList.toggle('hidden', vue !== 'vue-accueil'); // la coque (rail) n'existe que pour l'accueil
     }
@@ -867,6 +887,7 @@
         $('btn-login').disabled = false;
         if (res.status === 200 && res.body && res.body.ok && res.body.token) {
           ecrire(fromLogin(res.body));
+          if (res.body.codeCourt) { montrerCodeCourt(code, res.body.codeBrand); return; } // code trop court → forcer un nouveau code avant l'espace
           entrerAccueil();
           return;
         }
@@ -883,6 +904,49 @@
     });
     function fromLogin(b) { var o = {}; o[K_TOKEN] = b.token || ''; o[K_NOM] = b.nom || ''; o[K_MARQUE] = b.marque || ''; return o; } // F1 : on stocke le JETON, jamais le code
 
+    // ── Code trop court → changement FORCÉ (après login réussi, avant l'espace) ──────────────────────────────
+    // Le code actuel (celui qu'on vient de taper) et le Code Brand restent EN MÉMOIRE, jamais dans localStorage.
+    var _codeActuel = '', _ccBrand = '';
+    // Suggestion générée DANS LE NAVIGATEUR (jamais renvoyée par le serveur) : le code naît chez son titulaire,
+    // ne fait que monter pour être stocké. Format = CODE_ALPHABET + CODE_ALEAS (cf. le commentaire de ces consts).
+    function genererSuggestion(cb) {
+      var pref = String(cb || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'RM';
+      var n = CODE_ALPHABET.length, out = '', i;
+      try {
+        var buf = new Uint32Array(CODE_ALEAS); (window.crypto || window.msCrypto).getRandomValues(buf);
+        for (i = 0; i < CODE_ALEAS; i++) out += CODE_ALPHABET.charAt(buf[i] % n); // 32 | 2^32 → aucun biais modulo
+      } catch (e) { // repli (pas de WebCrypto, très improbable) — ce n'est qu'une SUGGESTION éditable, le serveur borne la longueur
+        for (i = 0; i < CODE_ALEAS; i++) out += CODE_ALPHABET.charAt(Math.floor(Math.random() * n));
+      }
+      return pref + '-' + out;
+    }
+    function montrerCodeCourt(codeActuel, codeBrand) {
+      _codeActuel = codeActuel || ''; _ccBrand = codeBrand || '';
+      var f = $('cc-code'); if (f) f.value = genererSuggestion(_ccBrand);
+      var m = $('cc-msg'); if (m) { m.className = 'msg'; m.textContent = ''; }
+      montrer('vue-codecourt');
+    }
+    function validerNouveauCode() {
+      var nc = (($('cc-code') && $('cc-code').value) || '').trim(), m = $('cc-msg');
+      if (nc.length < 8) { m.className = 'msg err'; m.textContent = 'Au moins 8 caractères.'; return; }
+      if (/^(.)\1*$/.test(nc)) { m.className = 'msg err'; m.textContent = 'Choisissez un code moins simple.'; return; }
+      $('cc-valider').disabled = true; m.className = 'msg'; m.textContent = '';
+      fetch(CODE_CHANGE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ oldCode: _codeActuel, newCode: nc }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b, retry: r.headers.get('Retry-After') }; }); })
+        .then(function (res) {
+          $('cc-valider').disabled = false;
+          if (res.status === 200 && res.body && res.body.ok) { _codeActuel = ''; _ccBrand = ''; entrerAccueil(); return; } // code changé → on entre
+          if (res.status === 429) { m.className = 'msg wait'; m.textContent = 'Trop de tentatives, réessayez dans ' + (res.retry || 'un instant') + (res.retry ? ' s.' : '.'); return; }
+          if (res.status === 400 && res.body && res.body.error) { m.className = 'msg err'; m.textContent = res.body.error; return; }
+          if (res.status === 401) { m.className = 'msg err'; m.textContent = 'Votre code n\'a pas pu être vérifié. Reconnectez-vous.'; return; }
+          if (res.status === 503) { m.className = 'msg wait'; m.textContent = 'Service temporairement indisponible, réessayez.'; return; }
+          m.className = 'msg err'; m.textContent = 'Changement impossible, réessayez.';
+        })
+        .catch(function () { $('cc-valider').disabled = false; var mm = $('cc-msg'); mm.className = 'msg wait'; mm.textContent = 'Service temporairement indisponible, réessayez.'; });
+    }
+    var _ccv = $('cc-valider'); if (_ccv) _ccv.addEventListener('click', validerNouveauCode);
+    var _cca = $('cc-autre'); if (_cca) _cca.addEventListener('click', function () { var f = $('cc-code'); if (f) f.value = genererSuggestion(_ccBrand); });
+
     // ── Accueil + projets ──
     $('lien-deco').addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); });
     var _rd = $('rail-deco'); if (_rd) _rd.addEventListener('click', function (e) { e.preventDefault(); effacer(); allerLogin(''); }); // déco du rail (parité lien-deco)
@@ -894,6 +958,7 @@
       $('msg-login').className = notice ? 'msg wait' : 'msg';
       $('msg-login').textContent = notice || '';
       $('in-code').value = '';
+      _codeActuel = ''; _ccBrand = ''; // ⛔ ne laisse jamais traîner le code en mémoire après une sortie
       montrer('vue-login');
       majBandeau(); // jeton effacé → le bandeau d'emprunt disparaît (déconnexion, session expirée)
     }
