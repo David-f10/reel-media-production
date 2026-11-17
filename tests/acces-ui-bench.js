@@ -15,6 +15,9 @@ const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\
 const EXP = Math.floor(Date.now() / 1000) + 99999;
 const TOK = b64u({ id: '0'.repeat(32), exp: EXP }) + '.sig';
 const TOK_RO = b64u({ id: '0'.repeat(32), exp: EXP, ro: 1, acteur: 'chef' }) + '.sig';
+// Jeton ro pour lequel le serveur (simulé) SE TROMPE : il renverra moi:true malgré la lecture seule. Même charge ro:1
+// que TOK_RO (le client lira donc demRo=true), seul le suffixe diffère pour que le mock distingue ce cas « serveur fautif ».
+const TOK_RO_BUG = b64u({ id: '0'.repeat(32), exp: EXP, ro: 1, acteur: 'chef' }) + '.bug';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
 const ESPACE = { ok: true, marque: 'Refashion', interlocutrice: null, collaboration: { livres: 0, enCours: 0, depuis: null }, aValider: [], aRelire: [], enCours: [], livres: [] };
 const PERS = [
@@ -33,7 +36,11 @@ function serveur() {
       req.on('end', function () {
         res.setHeader('content-type', 'application/json');
         if (u.endsWith('espace-client')) return res.end(JSON.stringify(ESPACE));
-        if (u.endsWith('acces-client')) return res.end(JSON.stringify(accesPour((req.headers['x-rmc-token'] || '') === TOK_RO)));
+        if (u.endsWith('acces-client')) {
+          var tok = req.headers['x-rmc-token'] || '';
+          if (tok === TOK_RO_BUG) return res.end(JSON.stringify({ ok: true, acces: PERS.map(function (x, i) { return Object.assign({ moi: i === 0 }, x); }) })); // serveur QUI SE TROMPE : moi:true en ro
+          return res.end(JSON.stringify(accesPour(tok === TOK_RO)));
+        }
         if (u.endsWith('mission-client')) return res.end(JSON.stringify({ ok: true, missions: [] }));
         if (u.endsWith('demande-client')) return res.end(JSON.stringify({ ok: true, demandes: [] }));
         return res.end(JSON.stringify({ ok: true }));
@@ -95,6 +102,15 @@ async function ouvrirAcces(b, token, URL) {
     ok('⛔ « Changer mon code » est MASQUÉ en ro (pas affiché-puis-refusé)', await nb(p, '#panneau-acces #lien-code') === 0);
     ok('⛔ aucun marquage « Vous » en ro (serveur : moi false partout)', await nb(p, '#acc-liste .vous') === 0);
     ok('⛔ aucune ligne .moi en ro', await nb(p, '#acc-liste .acc-pers.moi') === 0);
+    await p.close();
+
+    console.log('\n\x1b[1m(e-bis) 2e couche du LIEN : serveur FAUTIF (moi:true en ro) → le lien reste masqué\x1b[0m');
+    // La 1re couche (moi serveur, faux en ro) est ici VOLONTAIREMENT en panne : le mock renvoie moi:true malgré la
+    // lecture seule. Le lien ne doit PAS apparaître pour autant — c'est demRo (2e couche) qui tient seul. Sans ce cas,
+    // le masquage du lien passait toujours par x.moi (déjà faux), jamais par !roMode : la 2e couche n'était pas exercée.
+    p = await ouvrirAcces(b, TOK_RO_BUG, URL);
+    ok('le serveur a marqué la ligne moi À TORT → .moi présent (1re couche en panne)', await nb(p, '#acc-liste .acc-pers.moi') === 1);
+    ok('⛔ MAIS le lien « Changer mon code » reste MASQUÉ (2e couche : demRo, indépendante de moi)', await nb(p, '#panneau-acces #lien-code') === 0);
     await p.close();
 
     console.log('\n\x1b[1m(f1) desktop >860px : UNE déconnexion visible, celle du rail\x1b[0m');
