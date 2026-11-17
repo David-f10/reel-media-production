@@ -21,7 +21,8 @@ const CONTACTS = [
   row('22222222-2222-2222-2222-222222222222', 'Marc', 'B33', true, ''),    // actif + pas de code → En attente
   row('33333333-3333-3333-3333-333333333333', 'Sofia', 'B33', false, 'x'), // inactif → Sans accès
   row('44444444-4444-4444-4444-444444444444', 'Theo', 'B33', 'absent', 'y'),// Actif ABSENTE → actif (défaut)
-  row('55555555-5555-5555-5555-555555555555', COLLEGUE_AUTRE, 'B50', true, 'zzz') // AUTRE marque
+  row('55555555-5555-5555-5555-555555555555', COLLEGUE_AUTRE, 'B50', true, 'zzz'), // AUTRE marque
+  row('---', 'Vide', 'B99', true, '') // id → normId('') ; marque DÉDIÉE B99, hors des comptages B33 (piège de la garde explicite)
 ];
 const BRAND = { id: 'brand', properties: { 'Code': { rich_text: [{ plain_text: 'B33' }] }, 'Espace client activé': { checkbox: true } } };
 
@@ -89,6 +90,14 @@ const parMail = (acces) => { const o = {}; (acces || []).forEach(x => { o[x.nom]
 
   res = await accesHandler(evt(''));
   ok('sans jeton → 401', res.statusCode === 401);
+
+  console.log('\n\x1b[1mGARDE EXPLICITE — un id normalisé en chaîne vide ne devient JAMAIS « moi »\x1b[0m');
+  // Jeu DÉDIÉ (marque B99, isolée des comptages B33) : la ligne 'Vide' a un id ('---') qui se normalise en ''.
+  // Avec la version naïve (const moiId = normId(callerId) → normId(null) === ''), normId('---') === '' la marquerait
+  // « moi » sous callerId nul. La garde explicite distingue « pas d'appelant » de « id vide » : ce cas le MESURE.
+  const rv = await accesClient('B99', null); // callerId nul = session d'emprunt (ro)
+  ok('→ ok + la ligne à l\'id vide est bien présente (sinon every() passerait à vide)', rv.ok && rv.acces.length === 1);
+  ok('id normalisé en \'\' → moi FAUX avec callerId nul (garde explicite, pas coïncidence normId(\'\'))', rv.acces.every(x => x.moi === false));
 
   console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
   process.exit(fails ? 1 : 0);
