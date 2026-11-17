@@ -20,6 +20,7 @@ const EST_ID = (s) => /^[0-9a-f]{32}$/.test(String(s || '').replace(/-/g, '').to
 const normId = (s) => String(s || '').replace(/-/g, '').toLowerCase();
 
 const _sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
+const _ms = (pr, k) => ((pr && pr[k] && pr[k].multi_select) || []).map(o => (o && o.name) || '').filter(Boolean);
 const _rt = (pr, k) => ((pr && pr[k] && pr[k].rich_text) || []).map(t => t.plain_text || '').join('');
 const _ti = (pr, k) => ((pr && pr[k] && pr[k].title) || []).map(t => t.plain_text || '').join('');
 const _date = (pr, k) => (pr && pr[k] && pr[k].date && pr[k].date.start) || '';
@@ -104,7 +105,14 @@ exports.handler = async (event) => {
       id: p.id,
       objet: _ti(p.properties, 'Objet'),
       statut: _sel(p.properties, 'Statut') || 'Nouvelle',
-      plateforme: _sel(p.properties, 'Plateforme'),
+      // _ms lit le MULTI_SELECT (la vraie correction du bug), PUIS on JOINT en chaîne pour le payload équipe :
+      // index.html:5839 fait « x.plateforme ? … » et IMPRIME la valeur. Un [] serait TRUTHY → « · » suspendu sur
+      // les missions sans plateforme (toutes, aujourd'hui) ; escapeHtml([]) collerait « Instagram,TikTok ». La
+      // chaîne jointe rend '' (falsy → masqué, comme avant) ou « Instagram, TikTok » (lisible). Le TABLEAU ne sert
+      // qu'au client ('mes' → tags PR-B) ; l'équipe ne fait qu'imprimer.
+      plateforme: _ms(p.properties, 'Plateforme').join(', '),
+      formatImage: _ms(p.properties, 'Format image'),    // ⚠ TABLEAU — index.html NE LE LIT PAS → inoffensif ; pour le futur dashboard
+      sousFormat: _sel(p.properties, 'Sous-format'),     // chaîne — ⚠ idem, non affiché par index.html ; l'équipe le lit dans Notion
       codeBrand: _rt(p.properties, 'Code Brand'),
       demandeur: _rt(p.properties, 'Demandeur'),
       lieu: _rt(p.properties, 'Lieu de tournage'),

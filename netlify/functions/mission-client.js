@@ -16,16 +16,39 @@ const { appelNotion } = require('./_notionio');
 const { signalerSlack } = require('./_slack'); // miroir Slack à sens unique (best-effort, jamais bloquant)
 
 const DB_MISSIONS = '41875d81-5951-81b6-a6aa-ff03bfbcfd49';
-// select FERMÉ — aligné sur Notion (5 valeurs : David a ajouté « Interne » pour les films sans diffusion publique).
+// Plateforme = MULTI_SELECT dans Notion (plusieurs diffusions possibles). 5 valeurs fermées (« Interne » = films
+// sans diffusion publique). ⚠ Écrire { select } sur une propriété multi_select → 400 Notion → 503, demande PERDUE.
 const PLATEFORMES = ['Instagram', 'TikTok', 'Facebook', 'YouTube', 'Interne'];
+const FORMATS = ['9:16', '16:9']; // Format image = MULTI_SELECT fermé
+// Sous-format = SELECT simple. Notion porte 10 valeurs ; le formulaire n'en propose que 7 à la CRÉATION
+// (Classic / Standard / Desk retirés sur demande). ⚠ On retire un CHOIX à la création, JAMAIS une valeur de
+// l'affichage : la LECTURE ne filtre pas (une fiche portant Classic/Standard/Desk s'affiche quand même).
+const SOUSFORMATS_CREATION = ['Vrai ou Faux', 'Prodige', 'Décli', 'Mag', 'Face Cam', 'YouTube', 'Pour combien'];
 const MAX_OBJET = 2000;   // Objet porte la description du film (seul champ libre long)
 const MAX_TEXTE = 500;    // adresse, contact sur place
 const MAX_PERS = 1000;    // personnes à interviewer
 
 const _sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
+const _ms = (pr, k) => ((pr && pr[k] && pr[k].multi_select) || []).map(o => (o && o.name) || '').filter(Boolean);
 const _rt = (pr, k) => ((pr && pr[k] && pr[k].rich_text) || []).map(t => t.plain_text || '').join('');
 const _ti = (pr, k) => ((pr && pr[k] && pr[k].title) || []).map(t => t.plain_text || '').join('');
 const _date = (pr, k) => (pr && pr[k] && pr[k].date && pr[k].date.start) || '';
+
+// Liste FERMÉE multi-valeurs : coercition chaîne→tableau (pont de compat : l'ancien formulaire envoyait UNE
+// chaîne), on ne garde que des chaînes, trim, dédup, et CHAQUE valeur DOIT appartenir à la liste — sinon rejet
+// (jamais droppée en silence : un hors-liste = navigateur trafiqué/buggé). Le serveur recompose [{name}].
+function listeFermee(val, LISTE) {
+  const arr = Array.isArray(val) ? val : (val == null || val === '' ? [] : [val]);
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (typeof arr[i] !== 'string') return { ok: false };
+    const v = arr[i].trim();
+    if (!v) continue;
+    if (LISTE.indexOf(v) === -1) return { ok: false };
+    if (out.indexOf(v) === -1) out.push(v);
+  }
+  return { ok: true, arr: out };
+}
 
 // Date « Pour quand » FACULTATIVE : si fournie, une vraie date YYYY-MM-DD (sinon vide = « pas encore fixé »).
 function dateValide(s) {
@@ -87,7 +110,10 @@ exports.handler = async (event) => {
       const missions = (d.results || []).map(p => ({
         objet: _ti(p.properties, 'Objet'),
         statut: _sel(p.properties, 'Statut') || 'Nouvelle',
-        plateforme: _sel(p.properties, 'Plateforme'),
+        plateforme: _ms(p.properties, 'Plateforme'),       // MULTI_SELECT → tableau (tags côté client)
+        formatImage: _ms(p.properties, 'Format image'),    // MULTI_SELECT → tableau
+        sousFormat: _sel(p.properties, 'Sous-format'),     // SELECT — AFFICHÉ tel quel (même Classic/Standard/Desk)
+        lieu: _rt(p.properties, 'Lieu de tournage'),       // tag « lieu »
         reponse: _rt(p.properties, 'Réponse'),       // mot de l'équipe, visible client (motif si refus)
         carteCreee: _rt(p.properties, 'Carte créée'), // code de la carte au bout (rempli En production)
         pourQuand: _date(p.properties, 'Pour quand'),
@@ -106,9 +132,14 @@ exports.handler = async (event) => {
   if (!objet) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Dites au moins de quoi parle le film' }) };
   if (objet.length > MAX_OBJET) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Description trop longue' }) };
 
-  // Tout le reste est FACULTATIF. On ne valide que la forme de ce qui est fourni ; un champ vide n'est jamais une erreur.
-  const plateforme = String(body.plateforme || '').trim();
-  if (plateforme && PLATEFORMES.indexOf(plateforme) === -1) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Plateforme inconnue' }) };
+  // Tout le reste est FACULTATIF. On valide la FORME de ce qui est fourni ; un champ vide n'est jamais une erreur.
+  // Listes FERMÉES recomposées serveur (jamais le tableau du navigateur tel quel) : un hors-liste → 400, rien écrit.
+  const vPlat = listeFermee(body.plateforme, PLATEFORMES);
+  if (!vPlat.ok) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Plateforme inconnue' }) };
+  const vFmt = listeFermee(body.formatImage, FORMATS);
+  if (!vFmt.ok) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Format image inconnu' }) };
+  const sousFormat = String(body.sousFormat || '').trim(); // SELECT : seules les 7 valeurs À LA CRÉATION sont acceptées
+  if (sousFormat && SOUSFORMATS_CREATION.indexOf(sousFormat) === -1) return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Type de film inconnu' }) };
   const lieu = String(body.lieu || '').trim().slice(0, MAX_TEXTE);           // VRAIE adresse (pas Studio/Extérieur)
   const personnes = String(body.personnes || '').trim().slice(0, MAX_PERS);  // souvent vide à la demande
   const contactSurPlace = String(body.contactSurPlace || '').trim().slice(0, MAX_TEXTE);
@@ -123,7 +154,9 @@ exports.handler = async (event) => {
     'Demandeur': { rich_text: [{ text: { content: liv.nom || '' } }] },      // ← fiche contact, live
     'Contact client': { rich_text: [{ text: { content: vt.id } }] }          // ← id de page du contact, serveur
   };
-  if (plateforme) props['Plateforme'] = { select: { name: plateforme } };
+  if (vPlat.arr.length) props['Plateforme'] = { multi_select: vPlat.arr.map(n => ({ name: n })) }; // MULTI_SELECT, jamais { select }
+  if (vFmt.arr.length) props['Format image'] = { multi_select: vFmt.arr.map(n => ({ name: n })) };
+  if (sousFormat) props['Sous-format'] = { select: { name: sousFormat } };
   if (lieu) props['Lieu de tournage'] = { rich_text: [{ text: { content: lieu } }] };
   if (personnes) props['Personnes à interviewer'] = { rich_text: [{ text: { content: personnes } }] };
   if (contactSurPlace) props['Contact sur place'] = { rich_text: [{ text: { content: contactSurPlace } }] };
