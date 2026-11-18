@@ -37,8 +37,11 @@ exports.handler = async (event) => {
 
   // callerId = l'id de l'appelant SAUF en emprunt (ro) : là, null → moi false sur chaque ligne (rien de vrai à
   // afficher, le marquage « Vous » ne peut pas apparaître même si le navigateur l'oublie). ⛔ l'id ne sort jamais.
-  const r = await accesClient(liv.codeBrand, vt.ro ? null : vt.id);
+  // gere = case « Peut gérer les accès » de l'appelant : si vrai, chaque entrée porte EN PLUS la valeur `code`
+  // (décision David, codes non secrets). La lecture reste permise en ro (le chef voit ce que le client voit).
+  const r = await accesClient(liv.codeBrand, vt.ro ? null : vt.id, liv.gere);
   if (!r.ok) return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
-  // ⛔ { nom, mail, actif, aCode, moi } par personne — jamais de valeur ni de longueur de code, jamais d'id.
-  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, acces: r.acces }) };
+  // ⛔ { nom, mail, actif, aCode, moi[, code] } par personne — jamais la longueur, jamais d'id ; `code` seulement si gère.
+  // `gere` de tête : le navigateur affiche l'UI gérant (ajouter / retirer / colonne code) si et seulement si vrai.
+  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, acces: r.acces, gere: !!liv.gere }) };
 };
