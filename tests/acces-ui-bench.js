@@ -18,6 +18,8 @@ const TOK_RO = b64u({ id: '0'.repeat(32), exp: EXP, ro: 1, acteur: 'chef' }) + '
 // Jeton ro pour lequel le serveur (simulé) SE TROMPE : il renverra moi:true malgré la lecture seule. Même charge ro:1
 // que TOK_RO (le client lira donc demRo=true), seul le suffixe diffère pour que le mock distingue ce cas « serveur fautif ».
 const TOK_RO_BUG = b64u({ id: '0'.repeat(32), exp: EXP, ro: 1, acteur: 'chef' }) + '.bug';
+const TOK_GERE = b64u({ id: '0'.repeat(32), exp: EXP }) + '.gere';          // gérant, session normale
+const TOK_GERE_RO = b64u({ id: '0'.repeat(32), exp: EXP, ro: 1, acteur: 'chef' }) + '.gere'; // gérant EMPRUNTÉ (ro)
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
 const ESPACE = { ok: true, marque: 'Refashion', interlocutrice: null, collaboration: { livres: 0, enCours: 0, depuis: null }, aValider: [], aRelire: [], enCours: [], livres: [] };
 const PERS = [
@@ -25,8 +27,11 @@ const PERS = [
   { nom: 'Marc', mail: 'marc@refashion.fr', actif: true, aCode: false },       // En attente
   { nom: 'Sofia', mail: 'sofia@refashion.fr', actif: false, aCode: true }      // Sans accès (inactif → .off)
 ];
+const codePour = (x) => 'REF.' + String(x.nom).slice(0, 3).toUpperCase();     // code synthétique (pas un code réel)
 // Comme le vrai serveur : hors ro, l'appelant (Claire, index 0) est marqué moi:true ; en ro, moi:false PARTOUT.
-const accesPour = (ro) => ({ ok: true, acces: PERS.map((x, i) => Object.assign({ moi: !ro && i === 0 }, x)) });
+// gere → `gere:true` de tête + `code` par entrée (y compris en ro : la lecture montre tout). Sinon aucun des deux.
+const accesPour = (ro, gere) => ({ ok: true, gere: !!gere, acces: PERS.map(function (x, i) { var e = Object.assign({ moi: !ro && i === 0 }, x); if (gere) e.code = codePour(x); return e; }) });
+let gererCalls = [];
 
 function serveur() {
   return http.createServer(function (req, res) {
@@ -39,8 +44,11 @@ function serveur() {
         if (u.endsWith('acces-client')) {
           var tok = req.headers['x-rmc-token'] || '';
           if (tok === TOK_RO_BUG) return res.end(JSON.stringify({ ok: true, acces: PERS.map(function (x, i) { return Object.assign({ moi: i === 0 }, x); }) })); // serveur QUI SE TROMPE : moi:true en ro
-          return res.end(JSON.stringify(accesPour(tok === TOK_RO)));
+          var ro = (tok === TOK_RO || tok === TOK_GERE_RO);
+          var gere = (tok === TOK_GERE || tok === TOK_GERE_RO);
+          return res.end(JSON.stringify(accesPour(ro, gere)));
         }
+        if (u.endsWith('acces-gerer')) { var b = {}; try { b = JSON.parse(body || '{}'); } catch (e) {} gererCalls.push(b); return res.end(JSON.stringify({ ok: true })); }
         if (u.endsWith('mission-client')) return res.end(JSON.stringify({ ok: true, missions: [] }));
         if (u.endsWith('demande-client')) return res.end(JSON.stringify({ ok: true, demandes: [] }));
         return res.end(JSON.stringify({ ok: true }));
@@ -139,6 +147,42 @@ async function ouvrirAcces(b, token, URL) {
     ok('(f2) la barre du bas porte QUATRE contrôles, pas cinq (aucune déco en 5e item)', await p.evaluate(() => {
       return [].slice.call(document.querySelectorAll('.rail button')).filter(function (e) { return e.getClientRects().length > 0; }).length;
     }) === 4);
+    await p.close();
+
+    console.log('\n\x1b[1m(gérant) colonne code + ajouter + retirer par MAIL — ⛔ aucun id\x1b[0m');
+    gererCalls = [];
+    p = await ouvrirAcces(b, TOK_GERE, URL);
+    ok('mode gérant : #acc-liste porte la classe .gere (colonne code)', await p.evaluate(() => document.getElementById('acc-liste').classList.contains('gere')));
+    ok('colonne code sur chaque ligne (3) + valeur affichée', await nb(p, '#acc-liste .acc-code') === 3 && await p.evaluate(() => /REF\./.test(document.querySelector('#acc-liste .acc-code').textContent)));
+    ok('bouton « Ajouter un collègue » présent', await nb(p, '#acc-add-ouvrir') === 1);
+    ok('2 boutons retirer/redonner (les lignes non-self)', await nb(p, '#acc-liste .acc-btn') === 2);
+    ok('la ligne .moi porte « Changer mon code », PAS un bouton retirer', await p.evaluate(() => { var r = document.querySelector('#acc-liste .acc-pers.moi'); return !!r && !!r.querySelector('#lien-code') && !r.querySelector('.acc-btn'); }));
+    ok('⛔ les boutons ciblent un MAIL (data-mail avec @), jamais un id', await p.evaluate(() => [].slice.call(document.querySelectorAll('#acc-liste .acc-btn')).length > 0 && [].slice.call(document.querySelectorAll('#acc-liste .acc-btn')).every(b => /@/.test(b.getAttribute('data-mail') || ''))));
+    ok('Marc (actif) → « Retirer » ; Sofia (inactif) → « Redonner »', await p.evaluate(() => { var t = document.getElementById('acc-liste').innerText; return /Retirer l'accès/.test(t) && /Redonner l'accès/.test(t); }));
+    // Ajouter : ouvrir le formulaire, remplir, soumettre → POST acces-gerer {action:ajouter, nom, mail} (jamais de code saisi).
+    await p.click('#acc-add-ouvrir'); await p.waitForTimeout(150);
+    await p.fill('#acc-add-nom', 'Nadia Koné'); await p.fill('#acc-add-mail', 'nadia@refashion.fr');
+    await p.click('#acc-add-valider'); await p.waitForTimeout(300);
+    ok('ajouter → POST {action:ajouter, nom, mail}, ⛔ aucun champ code', gererCalls.some(c => c.action === 'ajouter' && c.nom === 'Nadia Koné' && c.mail === 'nadia@refashion.fr' && !('code' in c)));
+    // Retirer : clic sur le bouton de Marc → POST {action, mail}, par le MAIL, jamais un id.
+    gererCalls = [];
+    await p.evaluate(() => { var b = [].slice.call(document.querySelectorAll('#acc-liste .acc-btn')).find(x => (x.getAttribute('data-mail') || '').indexOf('marc@') === 0); if (b) b.click(); });
+    await p.waitForTimeout(300);
+    ok('retirer → POST {action, mail} par le MAIL (⛔ ni id, ni cible)', gererCalls.some(c => (c.action === 'retirer' || c.action === 'redonner') && c.mail === 'marc@refashion.fr' && !('id' in c) && !('cible' in c)));
+    await p.close();
+
+    console.log('\n\x1b[1m(gérant emprunté, ro) : codes LUS, mais écritures MASQUÉES\x1b[0m');
+    p = await ouvrirAcces(b, TOK_GERE_RO, URL);
+    ok('ro gérant : les codes restent visibles (lecture)', await nb(p, '#acc-liste .acc-code') === 3);
+    ok('⛔ ro : AUCUN bouton « Ajouter un collègue »', await nb(p, '#acc-add-ouvrir') === 0);
+    ok('⛔ ro : AUCUN bouton retirer/redonner', await nb(p, '#acc-liste .acc-btn') === 0);
+    await p.close();
+
+    console.log('\n\x1b[1m(non-gérant) : l\'écran d\'avant — note, pas de code, pas d\'ajout\x1b[0m');
+    p = await ouvrirAcces(b, TOK, URL);
+    ok('non-gérant : aucune colonne code', await nb(p, '#acc-liste .acc-code') === 0);
+    ok('non-gérant : aucun bouton d\'ajout ni de retrait', await nb(p, '#acc-add-ouvrir') === 0 && await nb(p, '#acc-liste .acc-btn') === 0);
+    ok('non-gérant : la note « écrivez à votre interlocuteur » est présente', await p.evaluate(() => /interlocuteur/.test((document.querySelector('.acc-note') || {}).textContent || '')));
     await p.close();
 
     console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');

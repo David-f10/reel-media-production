@@ -3,7 +3,9 @@
 // Prouve : (a) cloisonnement — aucun contact d'une AUTRE marque ne sort ; (b) ⛔ aucune valeur NI longueur de
 // code, seul le booléen aCode ; (c) les trois états, dont le cas « propriété Actif ABSENTE » (= actif) ;
 // (d) moi = booléen SERVEUR : vrai sur la SEULE ligne de l'appelant, faux PARTOUT si callerId nul (emprunt ro) ;
-// ⛔ aucun id de contact ne sort ; la liste blanche de clés RESTE une liste blanche (mordante sur une clé en plus).
+// (e) DEUX formes exactes de liste blanche : sans la case {nom,mail,actif,aCode,moi} ; avec la case +code. ⛔ FRONTIÈRE :
+// un appelant sans la case (gere !== true) ne reçoit JAMAIS de code. ⛔ aucun id de contact ne sort ; chaque forme
+// reste une liste blanche (mordante sur une clé en plus).
 
 process.env.CLIENT_SIGN_SECRET = 'banc-secret';
 process.env.NOTION_TOKEN = 'banc-token';
@@ -72,6 +74,25 @@ const parMail = (acces) => { const o = {}; (acces || []).forEach(x => { o[x.nom]
   ok('→ ok + 4 personnes (liste lisible malgré callerId nul)', rn.ok && rn.acces.length === 4);
   ok('moi=false sur CHAQUE entrée (garde explicite, pas une coïncidence normId(\'\'))', rn.acces.every(x => x.moi === false));
   ok('la FORME ne varie pas : 5 clés même sans appelant', rn.acces.every(blanche));
+
+  console.log('\n\x1b[1mgérant (gere=true) — DEUXIÈME forme exacte : les cinq clés + code\x1b[0m');
+  const rg = await accesClient('B33', CID, true);
+  const CLES_G = ['nom', 'mail', 'actif', 'aCode', 'moi', 'code'].sort().join(',');
+  const blancheG = (x) => Object.keys(x).sort().join(',') === CLES_G;
+  // MORDANT BAKÉ (2e forme) : le prédicat ACCEPTE la forme à 6 clés et REJETTE une 7e clé arbitraire.
+  ok('liste blanche MORDANTE (forme gérant) : une 7e clé arbitraire fait tomber le prédicat', blancheG({ nom: 'x', mail: 'y', actif: true, aCode: true, moi: false, code: 'z' }) === true && blancheG({ nom: 'x', mail: 'y', actif: true, aCode: true, moi: false, code: 'z', zz: 1 }) === false);
+  ok('CHAQUE personne porte EXACTEMENT {nom, mail, actif, aCode, moi, code}', rg.acces.every(blancheG));
+  ok('code est une CHAÎNE sur chaque personne', rg.acces.every(x => typeof x.code === 'string'));
+  ok('le gérant voit bien la valeur du code (Claire porte le sien)', parMail(rg.acces).Claire.code === CODE_SENT);
+
+  console.log('\n\x1b[1m⛔ FRONTIÈRE — un appelant SANS la case ne reçoit JAMAIS de code\x1b[0m');
+  // La garde est `gere === true` (strict) : seul true ouvre les codes. Toute autre valeur (y compris truthy) → aucune
+  // clé code, aucune valeur. Mordant baké : si la garde devenait `if (gere)`, gere=1 / 'true' / {} ferait fuiter.
+  for (const g0 of [undefined, false, 0, '', 'true', 1, {}, null]) {
+    const rf = await accesClient('B33', CID, g0);
+    const fuite = rf.acces.some(x => Object.prototype.hasOwnProperty.call(x, 'code')) || JSON.stringify(rf).indexOf(CODE_SENT) !== -1;
+    ok('gere=' + JSON.stringify(g0) + ' → aucune clé code, aucune valeur de code', !fuite);
+  }
 
   console.log('\n\x1b[1mla route acces-client — bornée au jeton, moi selon ro\x1b[0m');
   let res = await accesHandler(evt(signer(CID).token));

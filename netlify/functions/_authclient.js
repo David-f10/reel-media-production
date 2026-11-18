@@ -61,6 +61,10 @@ const _mail = (pr) => (pr && pr['Mail'] && typeof pr['Mail'].email === 'string' 
 const _nom = (pr) => { const t = pr && pr['Nom'] && pr['Nom'].title; return (t && t[0] && t[0].plain_text) || ''; };
 // Actif OPTIONNEL : propriété absente → actif ; présente et décochée → inactif (fail-closed sur un compte désactivé).
 const _actif = (pr) => { const a = pr && pr['Actif']; return a ? !!a.checkbox : true; };
+// « Peut gérer les accès » : MIROIR fail-closed de _actif. Propriété absente OU décochée → false. ⚠ L'asymétrie est
+// VOULUE, ne pas l'« harmoniser » : _actif absent → true (un schéma manquant ne doit pas FERMER un espace), _gere
+// absent → false (un schéma manquant ne doit pas OUVRIR un pouvoir). Les deux défauts vont dans le sens de la prudence.
+const _gere = (pr) => { const a = pr && pr['Peut gérer les accès']; return !!(a && a.checkbox); };
 
 // ── ACTIVATION DE L'ESPACE PAR MARQUE ───────────────────────────────────────────────────────────────────
 // Drapeau PORTE : tant que la marque n'est pas activée, personne de cette marque n'entre (ferme d'un coup le
@@ -199,7 +203,9 @@ async function contactActif(id) {
     // (montage-client ne fait jamais confiance au navigateur pour l'auteur). Additif — projets-client l'ignore.
     // `seriesMarque` ajouté (lot 2) : défaut marque de la cascade carte→marque→5, relayé depuis marqueOuverte
     // (row déjà lue pour la porte). null si absent. Additif — les appelants qui l'ignorent ne voient rien changer.
-    return { ok: true, nom: _nom(page.properties), codeBrand, marque: _rt(page.properties, 'Marque'), seriesMarque: act.series };
+    // `gere` ajouté (lot « gérer les accès ») : la case « Peut gérer les accès » de l'appelant, lue sur la ligne DÉJÀ
+    // chargée. Additif — les appelants qui l'ignorent ne voient rien changer. Défaut false (cf. _gere).
+    return { ok: true, nom: _nom(page.properties), codeBrand, marque: _rt(page.properties, 'Marque'), seriesMarque: act.series, gere: _gere(page.properties) };
   } catch (e) {
     console.error('contactActif indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul (try englobe _getContacts = les codes)
     return { ok: false, raison: 'indispo' };
@@ -271,30 +277,38 @@ async function adminClients() {
   }
 }
 
-// accesClient(codeBrand, callerId) → { ok:true, acces:[{ nom, mail, actif, aCode, moi }] } | { ok:false, raison:'indispo' }.
+// accesClient(codeBrand, callerId, gere) → { ok:true, acces:[{ nom, mail, actif, aCode, moi[, code] }] } | { ok:false, raison:'indispo' }.
 // Écran client « Qui a accès » (LECTURE SEULE), BORNÉ au Code Brand de l'appelant. Réutilise le cache _getContacts
 // (0 requête à chaud). ⛔ aCode = BOOLÉEN (présence d'un code), JAMAIS la valeur, JAMAIS la longueur.
 // moi = BOOLÉEN : cette ligne est-elle celle de l'appelant ? Le serveur tranche par comparaison d'id ; ⛔ on ne
 // renvoie JAMAIS l'id d'un contact au navigateur. callerId nul (ex. session d'emprunt ro) → moi FALSE sur TOUTES
 // les lignes, par un garde EXPLICITE — pas en se reposant sur le fait que normId('') ne collisionne aucun id.
-async function accesClient(codeBrand, callerId) {
+// gere = BOOLÉEN (case « Peut gérer les accès » de l'appelant) : s'il est VRAI, chaque entrée porte EN PLUS `code`
+// (la valeur, visible par un gérant — décision David : « rien de secret entre gens qui travaillent ensemble »).
+// ⛔ NOUVELLE FRONTIÈRE : si gere n'est pas strictement true, `code` n'est JAMAIS posé, sous aucune circonstance.
+async function accesClient(codeBrand, callerId, gere) {
   const token = process.env.NOTION_TOKEN;
   const dbId = process.env.DB_CONTACTS_CLIENT;
   if (!token || !dbId) { console.error('accesClient indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
   const code = String(codeBrand == null ? '' : codeBrand).trim();
   if (!code) return { ok: true, acces: [] }; // pas de marque sur l'appelant → liste vide (donnée, pas une panne)
   const moiId = callerId ? normId(callerId) : null; // ⛔ garde explicite : callerId nul → aucune ligne « moi »
+  const avecCode = gere === true;                   // ⛔ code visible UNIQUEMENT pour un gérant ; sinon JAMAIS
   try {
     const contacts = await _getContacts(token, dbId, false);
     const acces = (contacts || [])
       .filter(p => _rt(p.properties, 'Code Brand').trim() === code)   // ⛔ cloisonnement : jamais une autre marque
-      .map(p => ({
-        nom: _nom(p.properties),
-        mail: _mail(p.properties),
-        actif: _actif(p.properties),
-        aCode: _rt(p.properties, 'Code acces').length > 0,           // ⛔ BOOLÉEN seul — ni la valeur, ni la longueur
-        moi: moiId !== null && normId(p.id) === moiId                 // ⛔ booléen (jamais l'id) ; faux partout si callerId nul
-      }));
+      .map(p => {
+        const e = {
+          nom: _nom(p.properties),
+          mail: _mail(p.properties),
+          actif: _actif(p.properties),
+          aCode: _rt(p.properties, 'Code acces').length > 0,         // ⛔ BOOLÉEN seul — ni la valeur, ni la longueur
+          moi: moiId !== null && normId(p.id) === moiId              // ⛔ booléen (jamais l'id) ; faux partout si callerId nul
+        };
+        if (avecCode) e.code = _rt(p.properties, 'Code acces');      // ⛔ valeur de code : seulement si l'appelant gère
+        return e;
+      });
     return { ok: true, acces };
   } catch (e) {
     console.error('accesClient indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul (try englobe _getContacts = les codes)
@@ -302,4 +316,78 @@ async function accesClient(codeBrand, callerId) {
   }
 }
 
-module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients, accesClient };
+// statutAjoutMail(codeBrand, mail) → { ok:true, statut:'libre'|'memeMarque'|'ailleurs' } | { ok:false, raison:'indispo' }.
+// Unicité du mail AVANT un ajout : trouver() (login) rend le PREMIER contact au mail — deux mails identiques et le
+// second ne peut PLUS se connecter, en silence. Donc le refus est obligatoire. La distinction se décide d'un SEUL
+// scan en mémoire (contacts cachés), AUCUNE I/O dépendante de la branche → pas de canal temporel. ⛔ C'est la ROUTE
+// qui mappe 'ailleurs' sur un refus GÉNÉRIQUE : on ne révèle jamais l'existence d'un contact d'une autre marque.
+async function statutAjoutMail(codeBrand, mail) {
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.DB_CONTACTS_CLIENT;
+  if (!token || !dbId) { console.error('statutAjoutMail indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
+  const m = norm(mail), code = String(codeBrand == null ? '' : codeBrand).trim();
+  if (!m) return { ok: true, statut: 'libre' }; // mail vide : refusé par la validation de la route, pas ici
+  try {
+    const contacts = await _getContacts(token, dbId, false);
+    let memeMarque = false, ailleurs = false;
+    for (const p of (contacts || [])) {
+      if (norm(_mail(p.properties)) !== m) continue;
+      if (_rt(p.properties, 'Code Brand').trim() === code) memeMarque = true; else ailleurs = true;
+    }
+    return { ok: true, statut: memeMarque ? 'memeMarque' : (ailleurs ? 'ailleurs' : 'libre') };
+  } catch (e) {
+    console.error('statutAjoutMail indispo (' + (e && e.name || 'Error') + ')');
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
+// baseCode(marque, nom) : 3 lettres de la marque, un point, 3 lettres du DERNIER mot du nom. Capitales, accents et
+// non-lettres retirés (Refashion + « Maria Oliveira » → REF.OLI). PUR, benchable sans I/O. ⛔ format humain, distinct
+// du générateur aléatoire du self-service (code-reset) — ils n'ont pas à s'accorder. Repli : si une partie n'a pas
+// 3 lettres, on prend ce qu'il y a (code plus court) ; marque sans lettre → préfixe vide (cas dégénéré, non bloquant).
+const _lettres = (s) => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z]/g, '').toUpperCase();
+function baseCode(marque, nom) {
+  const mk = _lettres(marque).slice(0, 3);
+  const mots = String(nom == null ? '' : nom).trim().split(/\s+/);
+  const dernier = _lettres(mots[mots.length - 1] || '').slice(0, 3);
+  return mk + '.' + dernier;
+}
+// genererCodeAcces(marque, nom, codesExistants) : baseCode, puis suffixe numérique sur COLLISION (REF.OLI, REF.OLI2…)
+// contre les codes DÉJÀ présents dans la marque (actifs ET inactifs). PUR. Une course concurrente retombe au pire sur
+// deux codes identiques — exactement la situation sans suffixe, acceptable.
+function genererCodeAcces(marque, nom, codesExistants) {
+  const base = baseCode(marque, nom);
+  const pris = new Set((codesExistants || []).map(c => String(c == null ? '' : c)));
+  if (!pris.has(base)) return base;
+  for (let n = 2; ; n++) { const cand = base + n; if (!pris.has(cand)) return cand; }
+}
+
+// trouverCible(codeBrand, mail) → { ok:true, id } | { ok:false, raison:'absent'|'ambigu'|'indispo' }.
+// Résout la page cible d'un retrait/redonner CÔTÉ SERVEUR, depuis _getContacts. ⛔ La requête ne fournit JAMAIS d'id
+// de page : on ne peut pas viser une autre marque via un id forgé — plus fort que « GET + revérif parent », il n'y a
+// aucun id de requête à croire. L'id rendu est INTERNE (à PATCHer), ne transite jamais par le navigateur.
+//   ⛔ (1) ON FILTRE SUR LA MARQUE D'ABORD, puis on cherche le mail DEDANS. Sinon « pas trouvé » vs « pas ta marque »
+//          serait un oracle d'existence sur une AUTRE marque. Hors-marque = inexistant : MÊME chemin, MÊME refus.
+//   ⛔ (2) FAIL-CLOSED sur l'ambiguïté : deux lignes de la marque au même mail → REFUS, jamais un choix arbitraire
+//          (la base est éditable à la main ; mieux vaut refuser qu'écrire sur la mauvaise personne).
+// La ROUTE mappe 'absent' ET 'ambigu' sur le MÊME 403 (indiscernables côté client).
+async function trouverCible(codeBrand, mail) {
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.DB_CONTACTS_CLIENT;
+  if (!token || !dbId) { console.error('trouverCible indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
+  const m = norm(mail), code = String(codeBrand == null ? '' : codeBrand).trim();
+  if (!m || !code) return { ok: false, raison: 'absent' };
+  try {
+    const contacts = await _getContacts(token, dbId, false);
+    const dansMarque = (contacts || []).filter(q => _rt(q.properties, 'Code Brand').trim() === code); // (1) marque D'ABORD
+    const matches = dansMarque.filter(q => norm(_mail(q.properties)) === m);                            //     mail DEDANS
+    if (matches.length === 0) return { ok: false, raison: 'absent' };
+    if (matches.length > 1) return { ok: false, raison: 'ambigu' };                                     // (2) fail-closed
+    return { ok: true, id: matches[0].id };
+  } catch (e) {
+    console.error('trouverCible indispo (' + (e && e.name || 'Error') + ')');
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
+module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients, accesClient, statutAjoutMail, baseCode, genererCodeAcces, trouverCible };

@@ -152,12 +152,27 @@
     .acc-chg{font-size:12.5px;color:var(--rouge);text-decoration:none;border-bottom:1px solid var(--rouge-bord);white-space:nowrap}
     .acc-chg:hover{border-bottom-color:var(--rouge)}
     .acc-note{font-size:12.5px;color:var(--txt3);margin:16px 0 0;line-height:1.5}
+    /* Vue GÉRANT (« Peut gérer les accès ») : une colonne code en plus + actions retirer/redonner + formulaire d'ajout.
+       La liste reçoit la classe .gere → grille à 5 colonnes (avatar · identité · code · pastille · action). */
+    #acc-liste.gere .acc-pers{grid-template-columns:auto 1fr auto auto auto}
+    .acc-code{font-family:var(--mono);font-size:12px;color:var(--txt2);white-space:nowrap;align-self:center}
+    .acc-btn{font-size:12.5px;background:transparent;border:1px solid var(--line2);color:var(--txt2);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap}
+    .acc-btn:hover{color:var(--txt);border-color:var(--txt3)}
+    .acc-btn[disabled]{opacity:.5;cursor:default}
+    .acc-add{margin:16px 0 0}
+    .acc-add-row{margin:0 0 8px}
+    .acc-add-row input{box-sizing:border-box;width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font:inherit;font-size:14px;padding:10px 12px}
+    .acc-add-row input:focus{outline:none;border-color:var(--rouge);background:var(--bg3)}
+    .acc-add-bas{display:flex;align-items:center;gap:14px;margin-top:4px}
     @media (max-width:620px){                                   /* repli téléphone (620 = point maison) : identité en haut, pastille puis action dessous */
       .acc-pers{grid-template-columns:auto 1fr;row-gap:8px;padding:12px}
       .acc-pers .acc-av{grid-column:1;grid-row:1}
       .acc-pers .acc-id{grid-column:2;grid-row:1}
       .acc-pers .pill{grid-column:2;grid-row:2;justify-self:start}
       .acc-pers .acc-a{grid-column:2;grid-row:3;min-width:0;justify-content:flex-start}
+      #acc-liste.gere .acc-pers .acc-code{grid-column:2;grid-row:2;justify-self:start} /* code sous l'identité */
+      #acc-liste.gere .acc-pers .pill{grid-row:3}
+      #acc-liste.gere .acc-pers .acc-a{grid-row:4}
     }
 
     /* ── écran 05 — en-tête (traitement .head de la maquette) ── */
@@ -830,6 +845,7 @@
     var MISSION = '/.netlify/functions/mission-client';  // nouvelle mission : proposer un film (étage 2a)
     var CODE_CHANGE = '/.netlify/functions/code-client'; // changer son propre code d'accès
     var ACCES = '/.netlify/functions/acces-client'; // « Qui a accès » (lecture seule, bornée au Code Brand du jeton)
+    var GERER = '/.netlify/functions/acces-gerer';  // gérer les accès (ajouter / retirer / redonner) — réservé « Peut gérer les accès »
     // ⚠ FORMAT DU CODE SUGGÉRÉ — DUPLIQUÉ. Cet alphabet (+ la longueur 7) DOIT rester d'accord avec le
     //   générateur serveur code-reset.js:12 (et, à venir, celui de l'ajout de collègue). Sans ambigus
     //   (ni O/0, ni I/1). 32 valeurs = pas de biais modulo (2^32 % 32 == 0). Si tu changes l'un, change l'autre.
@@ -1092,11 +1108,12 @@
     function renderAcces() {
       var z = $('panneau-acces'); if (!z) return;
       var marque = lire(K_MARQUE);
-      // Le lien « Changer mon code » (déménagé de la barre du haut) vit désormais DANS la ligne de l'appelant (.moi),
-      // rendu par chargerAcces après la lecture. Son câblage suit donc le rendu de la liste, pas ce squelette.
+      // Le lien « Changer mon code » (ligne .moi) ET l'UI gérant (colonne code, retirer/redonner, formulaire d'ajout)
+      // dépendent de la réponse serveur → rendus par chargerAcces APRÈS la lecture. Le pied (#acc-pied) porte, selon
+      // le cas, la note « écrivez à votre interlocuteur » (non-gérant) ou le formulaire d'ajout (gérant hors ro).
       z.innerHTML = '<p class="sub dem-sub">Les personnes de ' + (marque ? esc(marque) : 'votre société') + ' qui peuvent se connecter à cet espace.</p>' +
         '<div id="acc-liste" role="status" aria-live="polite"><p class="md-vide">Chargement…</p></div>' +
-        '<p class="acc-note">Pour ajouter ou retirer un collègue, écrivez à votre interlocuteur chez Réel Média.</p>';
+        '<div id="acc-pied"></div>';
       chargerAcces();
     }
     function chargerAcces() {
@@ -1106,28 +1123,88 @@
         .then(function (res) {
           if (res.status === 401) { finSession(); return; }
           if (!$('acc-liste')) return;
-          if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = '<p class="md-vide">Service temporairement indisponible.</p>'; return; }
+          var pied = $('acc-pied');
+          if (res.status !== 200 || !res.body || !res.body.ok) { el.innerHTML = '<p class="md-vide">Service temporairement indisponible.</p>'; if (pied) pied.innerHTML = ''; return; }
           var gens = res.body.acces || [];
-          if (!gens.length) { el.innerHTML = '<p class="md-vide">Aucune personne pour l\'instant.</p>'; return; }
+          // gere = l'appelant gère-t-il les accès ? Le serveur tranche (booléen de tête) ; il n'envoie `code` par ligne
+          // QUE si gere. Le navigateur n'affiche les contrôles d'écriture que si gere ET hors emprunt ro.
+          var gere = res.body.gere === true;
           var roMode = demRo();
-          el.innerHTML = gens.map(function (x) {
-            // État dérivé des DEUX booléens (le serveur n'envoie que ça) : actif+aCode→Actif ; actif+!aCode→en
-            // attente ; !actif→sans accès. Pastille : vert / ambre (base .pill, classe '') / gris.
+          el.className = gere ? 'gere' : ''; // #acc-liste.gere → colonne code
+          if (!gens.length) { el.innerHTML = '<p class="md-vide">Aucune personne pour l\'instant.</p>'; }
+          else el.innerHTML = gens.map(function (x) {
+            // État dérivé des DEUX booléens : actif+aCode→Actif ; actif+!aCode→en attente ; !actif→sans accès.
             var et = !x.actif ? { l: 'Sans accès', c: 'gris' } : (x.aCode ? { l: 'Actif', c: 'vert' } : { l: 'En attente d\'accès', c: '' });
             var ini = (String(x.nom || '').trim().charAt(0) || '·').toUpperCase();
-            // x.moi : booléen SERVEUR (faux partout en emprunt ro). Le marquage « Vous » suit moi, SANS branche demRo.
-            // Le lien « Changer mon code » GARDE son masquage ro (sa 2e couche = le refus 403 de code-client).
             var vous = x.moi ? '<span class="vous">Vous</span>' : '';
-            var action = (x.moi && !roMode) ? '<a href="#" id="lien-code" class="acc-chg">Changer mon code</a>' : '';
+            // Colonne code : seulement en mode gérant (le serveur n'a envoyé `code` que dans ce cas), y compris en ro (lecture).
+            var codeCell = gere ? '<div class="acc-code" title="Code d\'accès">' + esc(x.code || '') + '</div>' : '';
+            // Action : sa propre ligne → « Changer mon code » (hors ro) ; sinon, gérant hors ro → retirer/redonner.
+            // ⛔ La cible est le MAIL (data-mail), jamais un id : aucun id de contact ne circule.
+            var action = '';
+            if (x.moi && !roMode) action = '<a href="#" id="lien-code" class="acc-chg">Changer mon code</a>';
+            else if (gere && !roMode && !x.moi) action = '<button type="button" class="acc-btn" data-mail="' + escAttr(x.mail || '') + '" data-act="' + (x.actif ? 'retirer' : 'redonner') + '">' + (x.actif ? 'Retirer l\'accès' : 'Redonner l\'accès') + '</button>';
             return '<div class="acc-pers' + (x.moi ? ' moi' : '') + (x.actif ? '' : ' off') + '">' +
               '<span class="acc-av">' + esc(ini) + '</span>' +
               '<div class="acc-id"><div class="acc-nm">' + esc(x.nom || '') + vous + '</div><div class="acc-ml">' + esc(x.mail || '') + '</div></div>' +
+              codeCell +
               '<span class="pill ' + et.c + '">' + esc(et.l) + '</span>' +
               '<div class="acc-a">' + action + '</div></div>';
           }).join('');
+          // Pied : non-gérant → note inchangée ; gérant hors ro → formulaire d'ajout ; gérant en ro → rien (lecture seule).
+          if (pied) {
+            if (!gere) pied.innerHTML = '<p class="acc-note">Pour ajouter ou retirer un collègue, écrivez à votre interlocuteur chez Réel Média.</p>';
+            else if (!roMode) pied.innerHTML = formAjoutHTML();
+            else pied.innerHTML = '';
+          }
           var lc = $('lien-code'); if (lc) lc.addEventListener('click', function (e) { e.preventDefault(); montrerChangerCode(); });
+          if (gere && !roMode) cablerGestion();
         })
         .catch(function () { var e = $('acc-liste'); if (e) e.innerHTML = '<p class="md-vide">Service indisponible, réessayez.</p>'; });
+    }
+    function formAjoutHTML() {
+      return '<div class="acc-add">' +
+        '<button type="button" class="bouton" id="acc-add-ouvrir">Ajouter un collègue</button>' +
+        '<form id="acc-add-form" class="hidden" autocomplete="off">' +
+          '<div class="acc-add-row"><input type="text" id="acc-add-nom" placeholder="Nom et prénom" aria-label="Nom du collègue"></div>' +
+          '<div class="acc-add-row"><input type="email" id="acc-add-mail" placeholder="adresse@societe.fr" aria-label="Adresse e-mail du collègue"></div>' +
+          '<div class="acc-add-bas"><button type="submit" class="bouton" id="acc-add-valider">Ajouter</button><button type="button" class="cc-annuler" id="acc-add-annuler">Annuler</button></div>' +
+          '<div class="msg" id="acc-add-msg" role="status" aria-live="polite"></div>' +
+        '</form></div>';
+    }
+    function cablerGestion() {
+      var ouvrir = $('acc-add-ouvrir'); if (ouvrir) ouvrir.addEventListener('click', function () { var f = $('acc-add-form'); if (f) f.classList.remove('hidden'); ouvrir.classList.add('hidden'); var n = $('acc-add-nom'); if (n) n.focus(); });
+      var annuler = $('acc-add-annuler'); if (annuler) annuler.addEventListener('click', function () { var f = $('acc-add-form'); if (f) f.classList.add('hidden'); var o = $('acc-add-ouvrir'); if (o) o.classList.remove('hidden'); });
+      var form = $('acc-add-form'); if (form) form.addEventListener('submit', function (e) { e.preventDefault(); soumettreAjout(); });
+      var btns = document.querySelectorAll('#acc-liste .acc-btn');
+      Array.prototype.forEach.call(btns, function (b) { b.addEventListener('click', function () { gestionAction(b.getAttribute('data-act'), b.getAttribute('data-mail'), b); }); });
+    }
+    function soumettreAjout() {
+      var nom = (($('acc-add-nom') || {}).value || '').trim(), mail = (($('acc-add-mail') || {}).value || '').trim();
+      var msg = $('acc-add-msg'), v = $('acc-add-valider');
+      if (!nom || !mail) { if (msg) { msg.className = 'msg err'; msg.textContent = 'Nom et adresse e-mail requis.'; } return; }
+      if (v) v.disabled = true; if (msg) { msg.className = 'msg'; msg.textContent = ''; }
+      fetch(GERER, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: 'ajouter', nom: nom, mail: mail }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          if (res.status === 401) { finSession(); return; }
+          if (res.status === 200 && res.body && res.body.ok) { chargerAcces(); return; } // recharge → la nouvelle ligne et son code apparaissent
+          if (v) v.disabled = false;
+          if (msg) { msg.className = 'msg err'; msg.textContent = (res.body && res.body.error) || 'Ajout impossible.'; }
+        })
+        .catch(function () { if (v) v.disabled = false; if (msg) { msg.className = 'msg err'; msg.textContent = 'Service indisponible, réessayez.'; } });
+    }
+    function gestionAction(act, mail, btn) {
+      if (!act || !mail) return;
+      if (btn) btn.disabled = true;
+      fetch(GERER, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-rmc-token': lire(K_TOKEN) }, body: JSON.stringify({ action: act, mail: mail }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { status: r.status, body: b }; }); })
+        .then(function (res) {
+          if (res.status === 401) { finSession(); return; }
+          if (res.status === 200 && res.body && res.body.ok) { chargerAcces(); return; } // recharge → l'état bascule (Actif ↔ Sans accès)
+          if (btn) btn.disabled = false;
+        })
+        .catch(function () { if (btn) btn.disabled = false; });
     }
     function renderDemandes(cartes) {
       var z = $('panneau-demandes'); if (!z) return;
