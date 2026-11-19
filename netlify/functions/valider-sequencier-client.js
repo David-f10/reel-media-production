@@ -23,7 +23,7 @@
 // Blobs à la lane client est précisément ce qu'on refuse). Jeton CLIENT → ne peut pas appeler notify.js.
 
 const { verifier } = require('./_clienttoken');
-const { contactActif } = require('./_authclient');
+const { contactActif, adminsMarque, phraseValidation, MSG_VALIDATION_INDISPO } = require('./_authclient'); // + lot « validation réservée »
 const { CODE_BRAND_RE, PRE_TOURNAGE } = require('./_perimetreclient'); // PRE_TOURNAGE : source unique partagée
 const { appelNotion } = require('./_notionio');
 
@@ -145,6 +145,13 @@ exports.handler = async (event) => {
   }
 
   // ── VALIDER ──
+  // GARDE « validation réservée » (lot G) : SEULE cette action est restreinte ('corrections' est déjà repartie plus
+  // haut). Repli : aucun porteur de « Peut gérer les accès » dans la marque → tout le monde valide. ⛔ FAIL-CLOSED si
+  // adminsMarque échoue : on refuse, mais message/code DISTINCTS du « pas administrateur » (503 indispo, pas 403 noms).
+  const adm = await adminsMarque(codeBrand);
+  if (!adm.ok) return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: MSG_VALIDATION_INDISPO }) };
+  if (adm.existe && !liv.gere) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: phraseValidation(adm.noms, liv.marque) }) };
+
   // Idempotent : déjà validé → succès sans réécrire ni re-notifier (anti double-fire / rechargement). Passe
   // AVANT la garde de statut : un projet validé est déjà En tournage (hors pré-tournage), c'est normal.
   if (_cb(pr, 'Validation Client')) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, dejaValide: true }) };

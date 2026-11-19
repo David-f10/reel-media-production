@@ -27,7 +27,7 @@
 // espace client » ) : à valider (pré-montage) OU consultation historique (livré / en cours).
 
 const { verifier } = require('./_clienttoken');
-const { contactActif } = require('./_authclient');
+const { contactActif, adminsMarque, phraseValidation, MSG_VALIDATION_INDISPO } = require('./_authclient'); // + lot « validation réservée »
 const { CODE_BRAND_RE } = require('./_perimetreclient');
 const { getSA } = require('./_drive');
 
@@ -176,6 +176,15 @@ exports.handler = async (event) => {
   if (!sujet) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Accès refusé' }) };
   const pr = sujet.properties || {};
   if (_sel(pr, 'Format') !== 'Brand' || !reCode.test(_rt(pr, 'Code'))) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Accès refusé' }) };
+
+  // ── « Validation réservée » : l'overlay séquencier cache le bouton « Valider » (UX) selon peutValider ; le verrou
+  // reste le 403 de valider-sequencier-client. Repli : aucun porteur → tout le monde valide. ⛔ FAIL-CLOSED si
+  // adminsMarque échoue : bouton caché + note « momentanément indisponible ». Coût : 0 requête à chaud (cache déjà
+  // réchauffé par contactActif). Servi avec TOUTES les réponses 200 ci-dessous (y compris « indisponible »).
+  const adm = await adminsMarque(codeBrand);
+  let peutValider, validationNote;
+  if (!adm.ok) { peutValider = false; validationNote = MSG_VALIDATION_INDISPO; }
+  else { peutValider = !adm.existe || !!liv.gere; validationNote = peutValider ? '' : phraseValidation(adm.noms, liv.marque); }
   // Le séquencier est consultable si le projet est dans le monde du client pour l'une des deux raisons :
   //  • « Validation Brand » posée → étape « À valider » (pré-montage, pas encore Visible) ;
   //  • « Visible espace client » → historique (livré / en cours, montage déjà envoyé).
@@ -185,7 +194,7 @@ exports.handler = async (event) => {
 
   // ── Résolution de l'id de Doc. Absent / illisible → DÉGRADATION (pas une erreur). ──
   const id = docId(_url(pr, 'Lien sequencier'));
-  if (!id) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, indisponible: true }) };
+  if (!id) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, indisponible: true, peutValider, validationNote }) };
 
   // ── Lecture via le SA (API Docs, mode sans suggestions). 403/404 (SA sans accès) → DÉGRADATION. ──
   let sa;
@@ -194,7 +203,7 @@ exports.handler = async (event) => {
   let doc;
   try {
     const r = await fetch(DOCS_API + encodeURIComponent(id) + '?suggestionsViewMode=PREVIEW_WITHOUT_SUGGESTIONS', { headers: { 'Authorization': `Bearer ${sa.token}` } });
-    if (r.status === 403 || r.status === 404) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, indisponible: true }) };
+    if (r.status === 403 || r.status === 404) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, indisponible: true, peutValider, validationNote }) };
     if (!r.ok) throw new Error('docs.get ' + r.status);
     doc = await r.json();
   } catch (e) { console.error('sequencier-doc indispo (docs.get) : ' + (e && e.message || '')); return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) }; }
@@ -203,7 +212,7 @@ exports.handler = async (event) => {
   if (suggestionsIgnorees) console.error('sequencier-doc : ' + suggestionsIgnorees + ' run(s) suggéré(s) ignoré(s) pour ' + sujetCode + ' (garde runtime — le mode preview aurait dû les retirer)');
   if (structurelsIgnores) console.error('sequencier-doc : ' + structurelsIgnores + ' élément(s) structurel(s) non affiché(s) pour ' + sujetCode + ' (sommaire / tableau trop imbriqué / autre) → client prévenu');
   // tronque = une partie du Doc n'a pas pu être rendue → le client doit le savoir (jamais de troncature muette).
-  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, titre: _ti(pr, 'Titre'), html, tronque: structurelsIgnores > 0 }) };
+  return { statusCode: 200, headers, body: JSON.stringify({ ok: true, titre: _ti(pr, 'Titre'), html, tronque: structurelsIgnores > 0, peutValider, validationNote }) };
 };
 
 module.exports._test = { rendreDoc, docId };

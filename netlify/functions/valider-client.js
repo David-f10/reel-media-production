@@ -26,6 +26,7 @@
 
 const { autoriserMontage } = require('./_montageclient');
 const { appelNotion } = require('./_notionio');
+const { adminsMarque, phraseValidation, MSG_VALIDATION_INDISPO } = require('./_authclient'); // lot « validation réservée »
 
 const DB_PROD = '01a8dc7d-1cc2-4209-9afe-a3bd90a87e20';
 const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
@@ -145,6 +146,14 @@ exports.handler = async (event) => {
 
   // ───────────────────────────────── VALIDER ─────────────────────────────────
   if (action === 'valider') {
+    // ── GARDE « validation réservée » (lot G) : SEULE cette action est restreinte. envoyer-retours ne passe JAMAIS
+    // ici. Repli : aucun porteur de « Peut gérer les accès » dans la marque → tout le monde valide (comme avant).
+    // ⛔ FAIL-CLOSED : si on ne PEUT PAS vérifier (adminsMarque en échec), on REFUSE — valider clôt le film, très dur
+    // à défaire. Mais message et code DISTINCTS du « pas administrateur » : 503 indispo, PAS le 403 des noms.
+    const adm = await adminsMarque(az.contact.codeBrand);
+    if (!adm.ok) return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: MSG_VALIDATION_INDISPO }) };
+    if (adm.existe && !az.contact.gere) return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: phraseValidation(adm.noms, az.contact.marque) }) };
+
     // Idempotent : déjà validée → succès sans ré-écrire ni re-notifier (anti double-fire / rechargement).
     if (dejaValidee) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, dejaValide: true }) };
 

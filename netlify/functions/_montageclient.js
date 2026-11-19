@@ -136,7 +136,7 @@ async function autoriserMontage(event, params, deadline) {
   return {
     ok: true,
     ro: !!vt.ro, // emprunt chef = lecture seule : relayé aux appelants, qui refusent toute écriture (403)
-    contact: { id: vt.id, nom: liv.nom || '', codeBrand, marque: liv.marque || '' }, // nom : estampillage serveur de l'Auteur d'un retour (fiche lue en live)
+    contact: { id: vt.id, nom: liv.nom || '', codeBrand, marque: liv.marque || '', gere: !!liv.gere }, // nom : estampillage serveur de l'Auteur d'un retour ; gere : case « Peut gérer les accès » (lot validation réservée). Additifs.
     sujet: { code: sujetCode, pageId: sujetPage.id, titre: _titreSujet(sujetPage.properties) },
     versions,
     courante // null = sujet exposé mais aucune version encore envoyée (vrai vide, PAS une panne)

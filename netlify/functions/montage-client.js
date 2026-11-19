@@ -22,6 +22,7 @@
 // les envoie dans le corps, elles sont ignorées.
 
 const { autoriserMontage } = require('./_montageclient');
+const { adminsMarque, phraseValidation, MSG_VALIDATION_INDISPO } = require('./_authclient'); // lot « validation réservée » : l'écran sait QUI peut valider
 const { appelNotion } = require('./_notionio');
 
 const DB_RETOURS = '02880609-ee82-4acc-b239-d8aac9cae439';
@@ -193,6 +194,15 @@ exports.handler = async (event) => {
         mien: _eqId(_rt(r.properties, 'Contact client'), az.contact.id)
       })) : [];
 
+    // ── « Validation réservée » : l'écran cache le bouton (UX) et écrit la note au RENDU ; le vrai verrou reste le
+    // 403 de valider-client. peutValider = repli (aucun porteur) OU l'appelant porte la case. ⛔ FAIL-CLOSED si
+    // adminsMarque échoue : bouton caché + note « momentanément indisponible » (on ne rouvre pas sur une panne).
+    // Coût : 0 requête à chaud — autoriserMontage a déjà réchauffé le cache _getContacts juste avant.
+    const adm = await adminsMarque(az.contact.codeBrand);
+    let peutValider, validationNote;
+    if (!adm.ok) { peutValider = false; validationNote = MSG_VALIDATION_INDISPO; }
+    else { peutValider = !adm.existe || !!az.contact.gere; validationNote = peutValider ? '' : phraseValidation(adm.noms, az.contact.marque); }
+
     return {
       statusCode: 200, headers,
       body: JSON.stringify({
@@ -202,7 +212,9 @@ exports.handler = async (event) => {
         versions,                                   // [{ rang, dateEnvoi, etat }]
         courante,                                   // { rang } | null (null = rien encore envoyé)
         affichee: vAffichee ? { rang: vAffichee.rang } : null,
-        retours: retoursAffiches
+        retours: retoursAffiches,
+        peutValider,                                // bool : afficher le bouton « Valider cette version » ?
+        validationNote                              // '' si peutValider ; sinon la phrase « La validation revient à … »
       })
     };
   }
