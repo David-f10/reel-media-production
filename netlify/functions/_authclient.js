@@ -390,4 +390,43 @@ async function trouverCible(codeBrand, mail) {
   }
 }
 
-module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients, accesClient, statutAjoutMail, baseCode, genererCodeAcces, trouverCible };
+// adminsMarque(codeBrand) → { ok:true, existe, noms } | { ok:false, raison:'indispo' }.
+// Lot « validation réservée ». existe = AU MOINS un porteur de « Peut gérer les accès » dans la marque, ACTIFS ET
+// INACTIFS comptés — repli fail-closed : désactiver l'unique admin BLOQUE la validation, ne la rouvre pas en silence.
+// noms = les porteurs ACTIFS seulement (eux seuls peuvent agir), CAPÉS : la liste si 1..3, sinon [] (0 ou >3 → phrase
+// générique). ⛔ noms seuls — jamais mail/code/id. Réutilise le cache _getContacts (0 requête à chaud : contactActif
+// l'a déjà réchauffé juste avant, dans la même invocation). Un ÉCHEC ici (Notion indispo) → { ok:false } : l'appelant
+// DOIT fail-closed (refuser la validation), mais avec un message et un code DISTINCTS du refus « pas administrateur ».
+async function adminsMarque(codeBrand) {
+  const token = process.env.NOTION_TOKEN;
+  const dbId = process.env.DB_CONTACTS_CLIENT;
+  if (!token || !dbId) { console.error('adminsMarque indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
+  const code = String(codeBrand == null ? '' : codeBrand).trim();
+  if (!code) return { ok: true, existe: false, noms: [] }; // pas de marque → repli (tout le monde valide)
+  try {
+    const contacts = await _getContacts(token, dbId, false);
+    const porteurs = (contacts || []).filter(p => _rt(p.properties, 'Code Brand').trim() === code && _gere(p.properties)); // actifs ET inactifs
+    const actifs = porteurs.filter(p => _actif(p.properties)).map(p => _nom(p.properties)).filter(Boolean);
+    const noms = (actifs.length >= 1 && actifs.length <= 3) ? actifs : []; // affichés : 1..3 nommés, sinon générique
+    return { ok: true, existe: porteurs.length > 0, noms };
+  } catch (e) {
+    console.error('adminsMarque indispo (' + (e && e.name || 'Error') + ')');
+    return { ok: false, raison: 'indispo' };
+  }
+}
+
+// phraseValidation(noms, marque) : UNE forme, quatre remplissages (décision David). ⛔ Aucun genre, aucun point médian.
+// L'exclusivité est portée par « revient à » ; le cas générique est le MÊME gabarit avec « un administrateur de … ».
+const phraseValidation = (noms, marque) => {
+  const n = (noms || []).filter(Boolean);
+  let cible;
+  if (n.length === 1) cible = n[0];
+  else if (n.length === 2) cible = n[0] + ' ou ' + n[1];
+  else if (n.length === 3) cible = n[0] + ', ' + n[1] + ' ou ' + n[2];
+  else cible = 'un administrateur de ' + (String(marque == null ? '' : marque).trim() || 'votre société');
+  return 'La validation revient à ' + cible + '.';
+};
+// Message du refus « on n'a pas pu vérifier » — DISTINCT de la phrase des noms, et servi avec un code 503 (pas 403).
+const MSG_VALIDATION_INDISPO = 'La validation est momentanément indisponible, réessayez dans un instant.';
+
+module.exports = { verifyClient, contactActif, marqueOuverte, premierContactActif, adminClients, accesClient, statutAjoutMail, baseCode, genererCodeAcces, trouverCible, adminsMarque, phraseValidation, MSG_VALIDATION_INDISPO };

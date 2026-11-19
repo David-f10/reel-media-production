@@ -1794,6 +1794,10 @@
       $('mt-marque').textContent = data.marque || '';
       var sepSujet = document.querySelector('#vue-montage .mt-sep-sujet'); if (sepSujet) sepSujet.style.display = (data.marque ? '' : 'none');
       M.nbVersions = (data.versions || []).length;
+      // « Validation réservée » : le serveur tranche qui peut valider. Défaut affiché si le champ manque (le 403 de
+      // valider-client reste le verrou). validationNote = la phrase « La validation revient à … » (ou l'indispo).
+      M.peutValider = data.peutValider !== false;
+      M.validationNote = data.validationNote || '';
       // notice one-shot (ex. péremption) affichée en tête, puis consommée
       $('mt-notice').innerHTML = M.notice ? ('<div class="mt-bandeau">' + esc(M.notice) + '</div>') : '';
       M.notice = '';
@@ -1886,7 +1890,7 @@
       if (formulaire) {
         $('mt-ajout').addEventListener('click', mAjouter);
         $('mt-annuler').addEventListener('click', mAnnulerRetour);
-        $('mt-valider').addEventListener('click', function () { mTerminal('valider'); });
+        var _mv = $('mt-valider'); if (_mv) _mv.addEventListener('click', function () { mTerminal('valider'); }); // ⛔ gardé : le bouton DISPARAÎT quand !peutValider (lot validation réservée) → jamais un addEventListener sur null
         $('mt-envoyer').addEventListener('click', function () { mTerminal('envoyer-retours'); });
         // Timecode éditable : formatage identique à review.html/index.html (0035 → 0:35) au blur ; ESPACE formate
         // et saute à la description. Avec le lecteur natif, l'ajustement se fait aussi en relisant video.currentTime.
@@ -1938,14 +1942,18 @@
         '<div class="msg" id="mt-forme-msg" role="status" aria-live="polite"></div></div>';
     }
     function mFinHtml() {
-      // Pas de section titrée « Quand vous avez terminé » (absente des maquettes) : les deux actions terminales
-      // (le deux-temps conservé) en une rangée discrète sous le bloc d'écriture, avec la note explicative.
+      // Les actions terminales sous le bloc d'écriture. « Validation réservée » : si l'appelant ne peut pas valider,
+      // le bouton « Valider cette version » DISPARAÎT (pas grisé) et la note est RÉÉCRITE — elle décrit « Envoyer mes
+      // retours » puis dit qui peut valider (M.validationNote, posée par le serveur). « Envoyer mes retours » passe
+      // alors pleine largeur via le flex existant (:368) — on ne compense pas (conforme à :369).
+      var boutons = '<button class="bouton vert-plein" type="button" id="mt-envoyer">Envoyer mes retours</button>';
+      if (M.peutValider) boutons += '<button class="bouton danger" type="button" id="mt-valider">Valider cette version</button>';
+      var note = M.peutValider
+        ? 'Valider clôt le film : il part en diffusion tel quel. Envoyer vos retours clôt ce tour de relecture et lance une nouvelle version. Dans les deux cas l\'équipe est prévenue tout de suite.'
+        : ('Envoyer vos retours clôt ce tour de relecture et lance une nouvelle version — l\'équipe est prévenue tout de suite.' + (M.validationNote ? ' ' + M.validationNote : ''));
       return '<div class="mt-fin">' +
-        '<div class="mt-fin-r">' +
-          '<button class="bouton vert-plein" type="button" id="mt-envoyer">Envoyer mes retours</button>' +
-          '<button class="bouton danger" type="button" id="mt-valider">Valider cette version</button>' +
-        '</div>' +
-        '<p class="mt-fin-n">Valider clôt le film : il part en diffusion tel quel. Envoyer vos retours clôt ce tour de relecture et lance une nouvelle version. Dans les deux cas l\'équipe est prévenue tout de suite.</p>' +
+        '<div class="mt-fin-r">' + boutons + '</div>' +
+        '<p class="mt-fin-n">' + esc(note) + '</p>' +
         '<div class="msg" id="mt-fin-msg" role="status" aria-live="polite"></div></div>';
     }
     function mBandeauEtat(etat) {
@@ -2388,9 +2396,10 @@
     function mChargerSequencier(code, boxId) {
       boxId = boxId || ('sq-doc-' + code); // défaut : conteneur inline « À valider » ; l'overlay passe le sien
       var box = $(boxId);
-      if (!box) return;
-      mPost(SEQ_DOC, { sujetCode: code }).then(function (res) {
-        if (!(box = $(boxId))) return; // la vue a pu changer
+      if (!box) return Promise.resolve({});
+      // Retourne la réponse (peutValider / validationNote) : l'overlay rend ses actions APRÈS, pas à l'aveugle.
+      return mPost(SEQ_DOC, { sujetCode: code }).then(function (res) {
+        if (!(box = $(boxId))) return (res && res.body) || {}; // la vue a pu changer
         if (res.status === 401) { finSession(); return; }
         if (res.status === 200 && res.body && res.body.ok && !res.body.indisponible && typeof res.body.html === 'string') {
           box.innerHTML = '';
@@ -2407,7 +2416,8 @@
           // validation et « Demander des corrections » restent actives au-dessus.
           box.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>';
         }
-      }).catch(function () { var b = $(boxId); if (b) b.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>'; });
+        return (res && res.body) || {}; // peutValider / validationNote pour les actions de l'overlay
+      }).catch(function () { var b = $(boxId); if (b) b.innerHTML = '<p class="sub" style="color:var(--txt3)">Le séquencier n\'est pas encore disponible ici. Votre interlocuteur chez Réel Média peut vous le partager.</p>'; return {}; });
     }
     // Historique (En cours / Livrés) : OVERLAY, pas inline — un séquencier fait plusieurs centaines de mots,
     // il lui faut une LARGEUR DE LECTURE bornée ; et déplier un document dans une cellule du tableau Livrés
@@ -2433,16 +2443,23 @@
       $('seqdoc-x').addEventListener('click', close);
       document.addEventListener('keydown', onEsc);
       // L'overlay vit hors de #zone-projets (la délégation ne l'atteint pas) → on câble ses boutons EN DIRECT.
-      if (actionnable) _seqActions(code, close);
-      mChargerSequencier(code, 'sq-doc-ov');
+      // On charge le doc PUIS on rend les actions, pour connaître peutValider (lot validation réservée) : le bouton
+      // « Valider le séquencier » n'est rendu que si l'appelant peut valider ; sinon la note dit qui le peut.
+      var pSeq = mChargerSequencier(code, 'sq-doc-ov');
+      if (actionnable && pSeq && pSeq.then) pSeq.then(function (info) { _seqActions(code, close, info || {}); });
     }
     // Les deux boutons du mode actionnable. On ne peut plus valider un séquencier sans l'avoir ouvert : c'est
     // le gain du déplacement (avant, les boutons côtoyaient un simple lien, donc on validait à l'aveugle).
-    function _seqActions(code, close) {
+    function _seqActions(code, close, info) {
       var zone = $('seqov-actions'); if (!zone) return;
-      zone.innerHTML = '<button type="button" class="bouton vert" id="seqov-ok">Valider le séquencier</button>' +
-        '<button type="button" class="lnk" id="seqov-corr">Demander des corrections</button>';
-      $('seqov-ok').addEventListener('click', function () { mValiderSequencier(code, $('seqov-ok'), zone); });
+      info = info || {};
+      var peut = info.peutValider !== false; // le serveur tranche ; défaut affiché (le 403 de valider-sequencier reste le verrou)
+      var html = '';
+      if (peut) html += '<button type="button" class="bouton vert" id="seqov-ok">Valider le séquencier</button>'; // ⛔ absent, pas grisé, quand !peutValider
+      html += '<button type="button" class="lnk" id="seqov-corr">Demander des corrections</button>'; // ⛔ « corrections » reste ouvert à tous
+      if (!peut && info.validationNote) html += '<span style="font-size:12.5px;color:var(--txt3);flex-basis:100%;margin-top:2px">' + esc(info.validationNote) + '</span>';
+      zone.innerHTML = html;
+      var ok = $('seqov-ok'); if (ok) ok.addEventListener('click', function () { mValiderSequencier(code, ok, zone); }); // gardé : le bouton peut être absent
       $('seqov-corr').addEventListener('click', function () { mDemanderCorrections(code, zone, close); });
     }
     // Valider → POST { action:'valider' }. Succès → on NE recharge PAS : le film quitte aValider et n'est pas
