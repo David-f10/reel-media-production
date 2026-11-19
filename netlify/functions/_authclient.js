@@ -241,11 +241,13 @@ async function premierContactActif(codeBrand) {
   }
 }
 
-// adminClients() → { ok:true, marques:[…], contacts:[…] } | { ok:false, raison:'indispo' }.
-// Données de l'écran d'admin clients (lot 3, LECTURE SEULE). Réutilise les DEUX caches 60 s existants
-// (_getClientsBrand + _getContacts) → 0 requête à chaud, 2 à froid. NE MAPPE QUE des champs sûrs :
-// ⛔ JAMAIS 'Code acces' (ni lu, ni renvoyé — comme le proxy équipe le strippe). Aucune écriture.
-async function adminClients() {
+// adminClients(avecCodes) → { ok:true, marques:[…], contacts:[…] } | { ok:false, raison:'indispo' }.
+// Données de l'écran d'admin clients (LECTURE SEULE). Réutilise les DEUX caches 60 s (_getClientsBrand +
+// _getContacts) → 0 requête à chaud, 2 à froid. Aucune écriture.
+// ⛔ 'Code acces' n'est lu et attaché aux contacts QUE si avecCodes === true (OPT-IN, décision David lot B). DÉFAUT
+// faux : qui n'en demande pas n'en reçoit pas. Seule la route clients-admin le demande, et SEULEMENT pour la FICHE
+// (bornée à une marque, gardée par « Peut gérer les clients ») ; la LISTE ne sérialise aucun contact → jamais de code.
+async function adminClients(avecCodes) {
   const token = process.env.NOTION_TOKEN;
   const dbId = process.env.DB_CONTACTS_CLIENT;
   if (!token || !dbId) { console.error('adminClients indispo : config manquante (NOTION_TOKEN=' + !!token + ', DB_CONTACTS_CLIENT=' + !!dbId + ')'); return { ok: false, raison: 'indispo' }; }
@@ -263,13 +265,18 @@ async function adminClients() {
         nbProjets: _num(pr, 'Nb projets')
       };
     });
-    const contactsSafe = (contacts || []).map(p => ({
-      codeBrand: _rt(p.properties, 'Code Brand').trim(),
-      nom: _nom(p.properties),
-      mail: _mail(p.properties),
-      actif: _actif(p.properties)
-      // ⛔ pas de 'Code acces' : jamais lu ici, jamais renvoyé.
-    }));
+    const contactsSafe = (contacts || []).map(p => {
+      const c = {
+        codeBrand: _rt(p.properties, 'Code Brand').trim(),
+        nom: _nom(p.properties),
+        mail: _mail(p.properties),
+        actif: _actif(p.properties)
+      };
+      // ⛔ 'Code acces' attaché UNIQUEMENT en opt-in (avecCodes === true). Défaut faux → aucun code. C'est ici que
+      // se joue le garde-fou du défaut : inverser ce `=== true` ferait fuiter tous les codes (banc dédié mordant).
+      if (avecCodes === true) c.code = _rt(p.properties, 'Code acces');
+      return c;
+    });
     return { ok: true, marques, contacts: contactsSafe };
   } catch (e) {
     console.error('adminClients indispo (' + (e && e.name || 'Error') + ')'); // ⛔ e.name seul (try englobe _getContacts = les codes)

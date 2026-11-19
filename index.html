@@ -5720,8 +5720,9 @@ function _suisGestionnaireClients() { return currentUser?.peutGererClients === t
 function _tousDroits() { return currentUser?.tousLesDroits === true; }
 
 // ── Écran « Accès clients » (lot 3, LECTURE SEULE) ────────────────────────────────────────────────────
-// Montre les 65 marques et leurs interlocuteurs ; n'écrit RIEN (créer / coder / désactiver = lot 4). Le
-// serveur (clients-admin) ne renvoie JAMAIS de code d'accès. Gardé par le droit client.
+// Montre les 65 marques et leurs interlocuteurs ; n'écrit RIEN (créer / coder / désactiver = lot 4). Gardé par le
+// droit client. Le serveur (clients-admin) renvoie le code d'accès de chaque interlocuteur DANS LA FICHE (bornée à
+// une marque), sous cette même garde ; la LISTE n'en renvoie jamais (lot B).
 function _serieTxt(s) { return (typeof s === 'number' && s > 0) ? String(s) : '5 (par défaut)'; }
 // ── File « Demandes clients » (lot A, circuit court) ─────────────────────────────────────────────────
 // Lecture + changement de statut/réponse via demandes-admin (gardé serveur par « Peut gérer les clients »).
@@ -5935,10 +5936,13 @@ function renderFicheMarque(d) {
     (typeof m.nbProjets === 'number' ? '<span>' + m.nbProjets + ' mission' + (m.nbProjets>1?'s':'') + '</span>' : '') +
     '</div>';
   const liste = inter.length ? inter.map(function (c) {
+    // Code d'accès (valeur) en var(--mono), groupé avec le statut à droite — même grammaire que l'espace client (#265).
+    const codeSpan = c.code ? '<span style="font-family:var(--mono);font-size:11px;color:var(--text2)">' + escapeHtml(c.code) + '</span>' : '';
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border)">' +
       '<div style="min-width:0"><div style="font-size:13px;color:var(--text)">' + escapeHtml(c.nom || '—') + '</div>' +
       '<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(c.mail || '') + '</div></div>' +
-      '<span style="font-size:11px;flex-shrink:0;' + (c.actif?'color:#1D9E75':'color:var(--text3)') + '">' + (c.actif?'actif':'désactivé') + '</span>' +
+      '<div style="display:flex;align-items:center;gap:12px;flex-shrink:0">' + codeSpan +
+      '<span style="font-size:11px;' + (c.actif?'color:#1D9E75':'color:var(--text3)') + '">' + (c.actif?'actif':'désactivé') + '</span></div>' +
       '</div>';
   }).join('') : '<div style="font-size:12px;color:var(--text3);padding:10px 0">Aucun interlocuteur.</div>';
   body.innerHTML = back + entete + meta + '<div class="field-label" style="margin-bottom:6px">Interlocuteurs</div>' + liste;
