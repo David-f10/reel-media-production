@@ -31,8 +31,8 @@ let fails = 0;
 const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗ ') + n + (c ? '' : '\x1b[0m')); if (!c) fails++; };
 
 // Monte le montage, laisse le flux EN ATTENTE, mesure le ratio de #mt-video + son readyState.
-async function mesurer(browser, port, orientation) {
-  const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+async function mesurer(browser, port, orientation, vp) {
+  const ctx = await browser.newContext({ viewport: vp || { width: 1100, height: 900 } });
   await ctx.route('**/.netlify/functions/**', (route) => {
     const nom = new URL(route.request().url()).pathname.split('/').pop();
     if (nom === 'espace-client') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, projets: [] }) });
@@ -52,23 +52,31 @@ async function mesurer(browser, port, orientation) {
   return { page, ctx, m };
 }
 
+// Les DEUX largeurs : bureau ET téléphone (390×844). 45 films sur 46 sont verticaux → regardés au téléphone ;
+// c'est la largeur qui compte le plus, et sous la media query 620px (:400) le CSS portrait change — on le fige.
+const LARGEURS = [
+  { nom: 'bureau (1100)', vp: { width: 1100, height: 900 } },
+  { nom: 'téléphone (390)', vp: { width: 390, height: 844 } }
+];
+
 (async () => {
   const { srv, port } = await servirStatique();
   const browser = await chromium.launch();
   try {
-    console.log('\n\x1b[1mportrait → boîte 9:16 réservée AVANT la vidéo (pixels, pas la classe)\x1b[0m');
-    let { page, ctx, m } = await mesurer(browser, port, 'portrait');
-    ok('la vidéo n\'a PAS chargé (readyState 0) — on mesure bien AVANT', m.rs === 0);
-    ok('boîte non plate (hauteur > largeur)', m.h > m.w && m.w > 0);
-    ok('ratio ≈ 9/16 (0.50–0.65), mesuré en pixels : ' + m.ratio.toFixed(3), m.ratio > 0.50 && m.ratio < 0.65);
-    await ctx.close();
+    for (const L of LARGEURS) {
+      console.log('\n\x1b[1m' + L.nom + ' — portrait 9:16 / paysage 16:9 réservés AVANT la vidéo (pixels)\x1b[0m');
+      let { ctx, m } = await mesurer(browser, port, 'portrait', L.vp);
+      ok('[' + L.nom + '] portrait : readyState 0 (mesuré AVANT la vidéo)', m.rs === 0);
+      ok('[' + L.nom + '] portrait : boîte non plate (hauteur > largeur)', m.h > m.w && m.w > 0);
+      ok('[' + L.nom + '] portrait : ratio ≈ 9/16 (0.50–0.65) : ' + m.ratio.toFixed(3), m.ratio > 0.50 && m.ratio < 0.65);
+      await ctx.close();
 
-    console.log('\n\x1b[1mpaysage → boîte 16:9 réservée AVANT la vidéo\x1b[0m');
-    ({ page, ctx, m } = await mesurer(browser, port, 'paysage'));
-    ok('la vidéo n\'a PAS chargé (readyState 0)', m.rs === 0);
-    ok('boîte non plate (largeur > hauteur)', m.w > m.h && m.h > 0);
-    ok('ratio ≈ 16/9 (1.70–1.85), mesuré en pixels : ' + m.ratio.toFixed(3), m.ratio > 1.70 && m.ratio < 1.85);
-    await ctx.close();
+      ({ ctx, m } = await mesurer(browser, port, 'paysage', L.vp));
+      ok('[' + L.nom + '] paysage : readyState 0', m.rs === 0);
+      ok('[' + L.nom + '] paysage : boîte non plate (largeur > hauteur)', m.w > m.h && m.h > 0);
+      ok('[' + L.nom + '] paysage : ratio ≈ 16/9 (1.70–1.85) : ' + m.ratio.toFixed(3), m.ratio > 1.70 && m.ratio < 1.85);
+      await ctx.close();
+    }
 
     console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
     srv.close(); await browser.close();
