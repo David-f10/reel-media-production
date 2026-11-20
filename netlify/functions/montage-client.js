@@ -214,7 +214,8 @@ exports.handler = async (event) => {
         affichee: vAffichee ? { rang: vAffichee.rang } : null,
         retours: retoursAffiches,
         peutValider,                                // bool : afficher le bouton « Valider cette version » ?
-        validationNote                              // '' si peutValider ; sinon la phrase « La validation revient à … »
+        validationNote,                             // '' si peutValider ; sinon la phrase « La validation revient à … »
+        orientation: az.sujet.orientation           // 'paysage' | 'portrait' (DÉRIVÉE) → le navigateur réserve le cadre AVANT la vidéo
       })
     };
   }

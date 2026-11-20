@@ -45,6 +45,10 @@ function extractFileId(raw) {
 
 const _titre = (pr) => ((pr && pr['Titre'] && pr['Titre'].title) || []).map(t => t.plain_text || '').join('');
 const _titreSujet = _titre; // DB_PROD porte aussi le film dans une propriété title 'Titre'
+const _sel = (pr, k) => (pr && pr[k] && pr[k].select && pr[k].select.name) || '';
+// Orientation du cadre vidéo, DÉRIVÉE (jamais le champ éditorial brut) : SEUL « YouTube » (dans Sous-format, PAS
+// Plateforme) est en 16:9 ; tout le reste — et un Sous-format VIDE — est vertical. La règle vit ICI, à un seul endroit.
+const _orientation = (pr) => (_sel(pr, 'Sous-format') === 'YouTube') ? 'paysage' : 'portrait';
 const _dateEnvoi = (pr) => (pr && pr['Date envoi client'] && pr['Date envoi client'].date && pr['Date envoi client'].date.start) || '';
 
 async function _query(dbId, body, token) {
@@ -137,7 +141,7 @@ async function autoriserMontage(event, params, deadline) {
     ok: true,
     ro: !!vt.ro, // emprunt chef = lecture seule : relayé aux appelants, qui refusent toute écriture (403)
     contact: { id: vt.id, nom: liv.nom || '', codeBrand, marque: liv.marque || '', gere: !!liv.gere }, // nom : estampillage serveur de l'Auteur d'un retour ; gere : case « Peut gérer les accès » (lot validation réservée). Additifs.
-    sujet: { code: sujetCode, pageId: sujetPage.id, titre: _titreSujet(sujetPage.properties) },
+    sujet: { code: sujetCode, pageId: sujetPage.id, titre: _titreSujet(sujetPage.properties), orientation: _orientation(sujetPage.properties) }, // orientation DÉRIVÉE (voir _orientation). 0 requête : page déjà lue.
     versions,
     courante // null = sujet exposé mais aucune version encore envoyée (vrai vide, PAS une panne)
   };
