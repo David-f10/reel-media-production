@@ -35,6 +35,7 @@ function ok(cond, nom) { if (cond) { nPass++; console.log('  \x1b[32m✓\x1b[0m 
 // Payload « lire » du montage (une version courante à relire, deux retours timecodés).
 const MONTAGE = {
   ok: true, titre: 'Montage de test',
+  orientation: 'portrait',   // (e) FILET : on ANNONCE portrait, mais le webm généré est PAYSAGE (160×90) → :2011 corrige
   versions: [{ rang: 1, dateEnvoi: '2026-10-01', etat: 'a-relire' }],
   courante: { rang: 1 }, affichee: { rang: 1 },
   retours: [
@@ -148,6 +149,10 @@ async function main() {
     ok((await page.locator('#mt-fr-m, .mt-fr-m').count()) === 2, 'deux repères sur la bande');
     ok((await page.locator('.mt-fr-m:not(.eq)').count()) === 1 && (await page.locator('.mt-fr-m.eq').count()) === 1, 'un repère rouge (mien) + un gris (autre)');
     ok((await page.locator('#mt-fr-head').count()) === 1, 'trait de position présent');
+
+    // (e) LE FILET du cadre réservé : MONTAGE annonçait 'portrait', mais la vraie vidéo est PAYSAGE (160×90). Après
+    // loadedmetadata, :2011 a re-toggle → scene-portrait est RETIRÉ (la vérité-fichier gagne la prédiction serveur).
+    ok(!(await page.evaluate(() => document.getElementById('mt-scene').classList.contains('scene-portrait'))), '(e) orientation portrait annoncée + vidéo réelle paysage → filet :2011 retire scene-portrait');
 
     // 3a. Capture au focus d'un champ VIDE : pause + timecode = currentTime.
     await page.evaluate(() => { const v = document.querySelector('#mt-video'); v.currentTime = 2.0; });
