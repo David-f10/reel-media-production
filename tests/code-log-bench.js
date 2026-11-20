@@ -19,7 +19,7 @@ global.fetch = function (url) {
   return Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, json: () => Promise.resolve({}), text: () => Promise.resolve('{}') });
 };
 
-const { verifyClient, contactActif, accesClient } = require('../netlify/functions/_authclient');
+const { verifyClient, contactActif, accesClient, adminClients } = require('../netlify/functions/_authclient');
 
 let fails = 0;
 const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗ ') + n + (c ? '' : '\x1b[0m')); if (!c) fails++; };
@@ -42,6 +42,14 @@ const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗
   _logs.length = 0;
   let a = await accesClient('B33');
   ok('corps tronqué → indispo', a && a.ok === false && a.raison === 'indispo');
+  ok('⛔ aucune sentinelle dans les console.error', _logs.length > 0 && _logs.every(l => l.indexOf(LEAK_SENT) === -1));
+
+  console.log('\n\x1b[1madminClients(avecCodes) — même garantie (lot B : le chemin qui LIT les codes)\x1b[0m');
+  _logs.length = 0;
+  // avecCodes=true = le cas STRICT : même quand on DEMANDE les codes, un corps tronqué ne doit rien mettre au journal
+  // (le try englobe _getContacts, qui parse TOUS les contacts ET leurs codes).
+  let ac = await adminClients(true);
+  ok('corps tronqué → indispo', ac && ac.ok === false && ac.raison === 'indispo');
   ok('⛔ aucune sentinelle dans les console.error', _logs.length > 0 && _logs.every(l => l.indexOf(LEAK_SENT) === -1));
 
   console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');

@@ -2,12 +2,15 @@
 // Lot 3 — écran d'administration des accès clients, en LECTURE SEULE. N'ÉCRIT RIEN (créer / coder / désactiver
 // = lot 4). Authentifié comme access-set.js : membre vérifié (verifyUser, x-rm-id / x-rm-code) ET porteur du
 // droit CLIENT « Peut gérer les clients » (distinct de la clé équipe). Réutilise les caches 60 s de
-// _authclient.adminClients (0 requête à chaud). ⛔ Ne lit ni ne renvoie JAMAIS un « Code acces ».
+// _authclient.adminClients (0 requête à chaud).
+// Le « Code acces » (valeur) n'est renvoyé QUE dans la FICHE (bornée à une marque), sous CETTE MÊME garde 403 — pas
+// de nouvelle condition (lot B). La LISTE ne sérialise aucun contact → elle n'en renvoie jamais. Clé `code`, jamais
+// le nom de propriété « Code acces ». L'opt-in vit dans l'appel adminClients(action === 'fiche').
 //
 // Actions :
 //   'liste' (défaut) → { ok:true, marques:[{ code, nom, ouverte, series, nbProjets, nbActifs }] } (tri par code)
 //   'fiche' (codeBrand) → { ok:true, marque:{ code, nom, ouverte, series, nbProjets },
-//                           interlocuteurs:[{ nom, mail, actif }] }
+//                           interlocuteurs:[{ nom, mail, actif, code }] }  (code = valeur, porteur du droit uniquement)
 
 const { verifyUser } = require('./_auth');          // IMPORT seul
 const { adminClients } = require('./_authclient');
@@ -36,11 +39,13 @@ exports.handler = async (event) => {
     return { statusCode: 403, headers, body: JSON.stringify({ ok: false, error: 'Réservé aux gestionnaires des clients' }) };
   }
 
-  const d = await adminClients();
+  // Opt-in des codes : on les demande SEULEMENT pour la fiche (bornée à une marque). La liste n'en a pas besoin et
+  // n'en sérialise aucun. Le droit a déjà été vérifié ci-dessus (403) → tout appelant qui arrive ici est porteur.
+  const action = String(body.action || 'liste');
+  const d = await adminClients(action === 'fiche');
   if (!d.ok) return { statusCode: 503, headers, body: JSON.stringify({ ok: false, error: 'Service temporairement indisponible' }) };
 
   const nbActifs = (code) => d.contacts.filter(c => norm(c.codeBrand) === norm(code) && c.actif).length;
-  const action = String(body.action || 'liste');
 
   if (action === 'fiche') {
     const code = String(body.codeBrand || '').trim();
@@ -48,7 +53,7 @@ exports.handler = async (event) => {
     if (!m) return { statusCode: 404, headers, body: JSON.stringify({ ok: false, error: 'Marque inconnue' }) };
     const interlocuteurs = d.contacts
       .filter(c => norm(c.codeBrand) === norm(code))
-      .map(c => ({ nom: c.nom, mail: c.mail, actif: c.actif }))   // ⛔ jamais de code
+      .map(c => ({ nom: c.nom, mail: c.mail, actif: c.actif, code: c.code }))   // `code` = valeur (opt-in), sous la garde 403 ci-dessus
       .sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr'));
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, marque: m, interlocuteurs }) };
   }

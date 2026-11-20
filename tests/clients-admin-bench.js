@@ -2,7 +2,8 @@
 // Banc — écran d'admin clients (lot 3, LECTURE SEULE). Prouve, sans réseau :
 //   • gardé par le droit CLIENT « Peut gérer les clients » (la clé ÉQUIPE seule ne suffit pas) ;
 //   • la liste (marques + comptage actifs + séries + Nb projets) et la fiche (interlocuteurs) ;
-//   • ⛔ AUCUN « Code acces » ni aucune valeur de code dans la réponse — le point non négociable.
+//   • les codes (lot B) : présents dans la FICHE (porteur du droit), JAMAIS dans la liste, et le DÉFAUT du helper
+//     adminClients est sûr (opt-in) — c'est cette dernière assertion, directe sur le helper, qui est le vrai verrou.
 
 process.env.NOTION_TOKEN = 'banc-token';
 process.env.DB_CONTACTS_CLIENT = 'dbcontacts';
@@ -31,6 +32,7 @@ global.fetch = function (url) {
 };
 
 const { handler } = require('../netlify/functions/clients-admin');
+const { adminClients } = require('../netlify/functions/_authclient'); // pour le garde-fou DIRECT du défaut (lot B)
 const evt = (id, code, body) => ({ httpMethod: 'POST', headers: { 'x-rm-id': id, 'x-rm-code': code }, body: JSON.stringify(body) });
 
 let fails = 0;
@@ -62,13 +64,31 @@ const ok = (n, c) => { console.log((c ? '  \x1b[32m✓\x1b[0m ' : '  \x1b[31m✗
   ok('2 interlocuteurs (nom, mail, actif)', (fb.interlocuteurs || []).length === 2);
   const claire = (fb.interlocuteurs || []).find(c => c.nom === 'Claire Besson');
   ok('Claire : actif + mail présent', claire && claire.actif === true && claire.mail === 'claire@refashion.fr');
+  ok('(a) fiche + porteur du droit → le code EST là (clé `code`)', claire && claire.code === SECRET);
   ok('fiche marque inconnue → 404', (await handler(evt('chef-client', 'CHEFCODE1', { action: 'fiche', codeBrand: 'B99' }))).statusCode === 404);
 
-  console.log('\n\x1b[1m⛔ Aucun code d\'accès dans les réponses\x1b[0m');
+  console.log('\n\x1b[1m⛔ Les codes : fiche gardée (les deux sens), liste jamais, clé `code`\x1b[0m');
+  // (b) fiche + appelant SANS le droit → 403, et ⛔ aucune valeur de code dans la réponse.
+  const Fno = await handler(evt('chef-equipe', 'EQUIPECODE', { action: 'fiche', codeBrand: 'B33' }));
+  ok('(b) fiche SANS le droit client → 403', Fno.statusCode === 403);
+  ok('(b) ⛔ aucune valeur de code dans la réponse 403', Fno.body.indexOf(SECRET) === -1);
+  // (71) la fiche ne nomme jamais la propriété Notion (clé `code`, pas « Code acces »).
+  ok('fiche : aucune mention « Code acces » (clé nommée `code`)', F.body.indexOf('Code acces') === -1);
+  // (c) liste → jamais de code. ⚠ Ces deux assertions NE PEUVENT PAS tomber (la branche liste ne sérialise aucun
+  //     contact) : elles documentent l'intention, elles ne protègent RIEN. Le vrai verrou est le garde-fou du défaut.
   ok('liste : aucune valeur de code', L.body.indexOf(SECRET) === -1);
   ok('liste : aucune mention « Code acces »', L.body.indexOf('Code acces') === -1);
-  ok('fiche : aucune valeur de code', F.body.indexOf(SECRET) === -1);
-  ok('fiche : aucune mention « Code acces »', F.body.indexOf('Code acces') === -1);
+
+  console.log('\n\x1b[1m⛔ GARDE-FOU DU DÉFAUT — directement sur le helper (pas via la route)\x1b[0m');
+  // La route garde l'opt-in, mais personne ne garde le DÉFAUT. Passer avecCodes=true en défaut, ou un 2e appelant qui
+  // oublie l'argument → les codes sortent, et AUCUNE assertion « route » ne bouge. C'est ELLE qui vise cette pièce.
+  const aucunCode = (d) => (d.contacts || []).every(c => !Object.prototype.hasOwnProperty.call(c, 'code'));
+  const sansArg = await adminClients();
+  const faux = await adminClients(false);
+  const vrai = await adminClients(true);
+  ok('adminClients() (sans argument) → ⛔ aucun contact ne porte de code', sansArg.ok && aucunCode(sansArg));
+  ok('adminClients(false) → ⛔ aucun contact ne porte de code', faux.ok && aucunCode(faux));
+  ok('adminClients(true) → le code EST là (opt-in assumé)', vrai.ok && (vrai.contacts || []).some(c => c.code === SECRET));
 
   console.log('\n' + (fails ? '\x1b[31m' + fails + ' FAIL' : '\x1b[32mTOUT VERT') + '\x1b[0m');
   process.exit(fails ? 1 : 0);
