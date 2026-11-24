@@ -32,6 +32,15 @@ function jour() { return new Date().toISOString().slice(0, 10).replace(/-/g, '')
 function mois() { return new Date().toISOString().slice(0, 7).replace('-', ''); }
 const NOSTORE = { 'cache-control': 'private, no-store' };
 
+// ── INSTRUMENT TEMPORAIRE (diag) — à retirer en bloc, avec les lignes marquées /* diag */ et le banc
+// tests/diag-instrument-bench.js. MESURE PURE, aucun effet hors ?diag=1 : sous ce paramètre seulement, émet
+// quatre en-têtes de DURÉE en ms (froid 0/1, budget, getSA, Drive) — AUCUNE valeur (pas d'octet du film, pas
+// de fileId, pas de jeton). Le démarrage à froid de la plateforme n'est pas chronométrable de l'intérieur :
+// on ne donne qu'un DRAPEAU (1 = première requête de cette instance), le client déduit le reste par soustraction.
+let _dejaServi = false;
+const DIAG = (req) => { try { return new URL(req.url).searchParams.get('diag') === '1'; } catch (e) { return false; } };
+// ── FIN INSTRUMENT ──
+
 export default async (req) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('', { status: 405, headers: NOSTORE });
 
@@ -43,6 +52,8 @@ export default async (req) => {
   const fileId = payload.fid;
 
   const { start, end } = construireRange(req.headers.get('range'), CAP);
+
+  const _diag = DIAG(req); const _froid = _dejaServi ? 0 : 1; _dejaServi = true; let _dBudget = 0, _dSA = 0, _dDrive = 0; const _b0 = Date.now(); /* diag */
 
   // Garde-fou COARSE : une passe Blobs par palier de 64 Mo, pas par tranche (préserve la fluidité). Deux
   // compteurs : SITE (mensuel, global → protège la facture) et CONTACT (quotidien → borne un abus individuel).
@@ -72,15 +83,20 @@ export default async (req) => {
       await store.setJSON(kCid, { octets: cid.octets + BUDGET_STEP }).catch(() => {});
     } catch (e) { /* Blobs indispo → fail-open */ }
   }
+  _dBudget = Date.now() - _b0; /* diag */
 
+  const _s0 = Date.now(); /* diag */
   let sa; try { sa = await getSA(); } catch (e) { return new Response('', { status: 500, headers: NOSTORE }); }
+  _dSA = Date.now() - _s0; /* diag */
 
+  const _d0 = Date.now(); /* diag */
   let r;
   try {
     r = await fetch(API + encodeURIComponent(fileId) + '?alt=media&supportsAllDrives=true', {
       headers: { Authorization: 'Bearer ' + sa.token, Range: 'bytes=' + start + '-' + end }
     });
   } catch (e) { return new Response('', { status: 502, headers: NOSTORE }); }
+  _dDrive = Date.now() - _d0; /* diag */
   if (r.status !== 206 && r.status !== 200) return new Response('', { status: 502, headers: NOSTORE });
 
   // En-têtes FABRIQUÉS (rien de Google relayé sauf les octets) : Accept-Ranges (Google l'omet → sans ça Safari
@@ -93,6 +109,8 @@ export default async (req) => {
     'cache-control': 'private, max-age=3600'
   };
   const cl = r.headers.get('content-length'); if (cl) headers['content-length'] = cl;
+
+  if (_diag) { headers['x-diag-froid'] = String(_froid); headers['x-diag-budget'] = String(_dBudget); headers['x-diag-getsa'] = String(_dSA); headers['x-diag-drive'] = String(_dDrive); } /* diag */
 
   if (req.method === 'HEAD') return new Response(null, { status: 206, headers });
   // On TUBE le corps de Drive directement (ReadableStream), sans base64 ni buffer-whole.
