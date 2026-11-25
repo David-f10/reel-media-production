@@ -2015,8 +2015,63 @@
       v.addEventListener('timeupdate', mMajPlayhead);
       v.addEventListener('error', function () { if (v !== $('mt-video')) return; mVideoErreur(rang); }); // ignore l'erreur d'un <video> déjà remplacé
       scene.appendChild(v);
+      mDiagDemarrer(v); /* diag */
       M.flux = true;
     }
+
+    // ── INSTRUMENT TEMPORAIRE (diag) — à retirer en bloc, avec la ligne mDiagDemarrer(v) /* diag */ ci-dessus et
+    // le banc tests/diag-instrument-bench.js. VISIBLE et ACTIF seulement sous ?diag=1 : sans ce paramètre, rien ne
+    // s'affiche et AUCUN fetch n'est émis. Mesure PURE (durées + nombres, aucune valeur). Lit les quatre en-têtes
+    // x-diag-* du relais via deux fetches bytes=0-0 (amorce start=0 → froid + palier budget ; milieu 24 Mio →
+    // chaud + hors-palier), compte les tranches réelles du <video> par Resource Timing (hors diag=), le temps
+    // jusqu'à la 1re image, et DÉDUIT la plateforme (froid + routage + réseau) par soustraction : total client −
+    // (budget + getSA + Drive). Le master n'est pas chronométrable de l'intérieur ; cette différence est le reste.
+    var _DIAG = false; try { _DIAG = new URLSearchParams(location.search).get('diag') === '1'; } catch (e) {}
+    var _diagE = { froidA: '?', budA: 0, saA: 0, drA: 0, platA: 0, froidM: '?', budM: 0, saM: 0, drM: 0, img: 0, t0: 0 };
+    function mDiagDemarrer(v) {
+      if (!_DIAG) return;
+      _diagE.t0 = performance.now();
+      v.addEventListener('loadeddata', function () { if (!_diagE.img) { _diagE.img = Math.round(performance.now() - _diagE.t0); mDiagRendre(); } });
+      mDiagBandeau();
+      mDiagRendre();
+      setInterval(mDiagRendre, 1000); // rafraîchit le compte de tranches + le rythme pendant la lecture
+      mDiagUneSonde('bytes=0-0', 'amorce').then(function (a) {
+        _diagE.froidA = a.froid; _diagE.budA = a.bud; _diagE.saA = a.sa; _diagE.drA = a.dr;
+        _diagE.platA = Math.max(0, a.total - (a.bud + a.sa + a.dr));
+        mDiagRendre();
+        return mDiagUneSonde('bytes=25165824-25165824', 'milieu'); // 24 Mio : hors palier de 64 Mio → budget attendu ≈ 0
+      }).then(function (mm) {
+        _diagE.froidM = mm.froid; _diagE.budM = mm.bud; _diagE.saM = mm.sa; _diagE.drM = mm.dr; mDiagRendre();
+      }).catch(function () {});
+    }
+    function mDiagUneSonde(range, tag) {
+      var t0 = performance.now();
+      return fetch(STREAM + '?diag=1&t=' + tag, { headers: { Range: range }, cache: 'no-store' }).then(function (r) {
+        return { froid: r.headers.get('x-diag-froid') === '1' ? 'oui' : 'non', bud: +(r.headers.get('x-diag-budget') || 0), sa: +(r.headers.get('x-diag-getsa') || 0), dr: +(r.headers.get('x-diag-drive') || 0), total: Math.round(performance.now() - t0) };
+      });
+    }
+    function mDiagTranches() {
+      var es = [];
+      try { es = performance.getEntriesByType('resource').filter(function (e) { return e.name.indexOf('drive-stream') !== -1 && e.name.indexOf('diag=') === -1; }); } catch (e) {}
+      es.sort(function (a, b) { return a.startTime - b.startTime; });
+      var n = es.length, ry = 0; if (n >= 2) ry = (es[n - 1].startTime - es[0].startTime) / 1000 / (n - 1);
+      return { n: n, ry: ry };
+    }
+    function mDiagBandeau() {
+      if ($('mt-diag')) return;
+      var d = document.createElement('div'); d.id = 'mt-diag';
+      d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111;color:#4ade80;font:12px/1.5 ui-monospace,monospace;padding:6px 10px;white-space:pre-wrap;word-break:break-word';
+      document.body.appendChild(d);
+    }
+    function mDiagRendre() {
+      var d = $('mt-diag'); if (!d) return; var tr = mDiagTranches();
+      d.textContent =
+        'amorce : froid ' + _diagE.froidA + ' · budget ' + _diagE.budA + ' ms · getSA ' + _diagE.saA + ' ms · Drive ' + _diagE.drA + ' ms · plateforme ' + _diagE.platA + ' ms (par différence)' +
+        ' — milieu : froid ' + _diagE.froidM + ' · budget ' + _diagE.budM + ' ms · getSA ' + _diagE.saM + ' ms · Drive ' + _diagE.drM + ' ms' +
+        ' — ' + tr.n + ' tranches' + (tr.ry ? ', une toutes les ' + tr.ry.toFixed(1) + ' s' : '') +
+        ' — 1re image à ' + (_diagE.img || '…') + ' ms';
+    }
+    // ── FIN INSTRUMENT ──
     // Erreur du <video> : 1re fois → une ré-ouverture transparente (le cookie a pu expirer, TTL 2 h) ; au-delà
     // → repli. (Garde anti-boucle ; réarmée sur loadedmetadata.)
     function mVideoErreur(rang) {
