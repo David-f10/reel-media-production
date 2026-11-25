@@ -2021,20 +2021,32 @@
 
     // ── INSTRUMENT TEMPORAIRE (diag) — à retirer en bloc, avec la ligne mDiagDemarrer(v) /* diag */ ci-dessus et
     // le banc tests/diag-instrument-bench.js. VISIBLE et ACTIF seulement sous ?diag=1 : sans ce paramètre, rien ne
-    // s'affiche et AUCUN fetch n'est émis. Mesure PURE (durées + nombres, aucune valeur). Lit les quatre en-têtes
-    // x-diag-* du relais via deux fetches bytes=0-0 (amorce start=0 → froid + palier budget ; milieu 24 Mio →
-    // chaud + hors-palier), compte les tranches réelles du <video> par Resource Timing (hors diag=), le temps
-    // jusqu'à la 1re image, et DÉDUIT la plateforme (froid + routage + réseau) par soustraction : total client −
-    // (budget + getSA + Drive). Le master n'est pas chronométrable de l'intérieur ; cette différence est le reste.
+    // s'affiche et AUCUN fetch n'est émis. Mesure PURE (durées + octets, aucune valeur). Ce qu'il FERME : la fenêtre
+    // v.src → 1re image, décomposée depuis Resource Timing de la VRAIE première tranche du <video> (hors diag= et
+    // hors drive-stream-open) : attente du 1er octet (tSrc→responseStart), transfert jusqu'à l'image (→loadeddata),
+    // avec le NOMBRE D'OCTETS réellement tirés (encodedBodySize) — c'est lui qui dit si le transfert explique le
+    // délai ou non. L'open (drive-stream-open) est lu côté client par Resource Timing (gratuit, aucune fonction
+    // modifiée) ; il est EN AMONT de tSrc, donc hors du trou — on l'affiche pour compléter la chaîne. Les deux
+    // sondes x-diag (amorce bytes=0-0, milieu 24 Mio) partent APRÈS loadeddata, pour ne pas troubler la fenêtre
+    // qu'on chronomètre (elles frappent la même fonction). Somme des postes de la fenêtre = loadeddata − tSrc, par
+    // construction : tout résidu est un nombre nommé, jamais un trou muet.
     var _DIAG = false; try { _DIAG = new URLSearchParams(location.search).get('diag') === '1'; } catch (e) {}
-    var _diagE = { froidA: '?', budA: 0, saA: 0, drA: 0, platA: 0, froidM: '?', budM: 0, saM: 0, drM: 0, img: 0, t0: 0 };
+    var _diagE = { froidA: '?', budA: 0, saA: 0, drA: 0, platA: 0, froidM: '?', budM: 0, saM: 0, drM: 0, t0: 0, imgT: 0, img: 0, meta: 0 };
     function mDiagDemarrer(v) {
       if (!_DIAG) return;
-      _diagE.t0 = performance.now();
-      v.addEventListener('loadeddata', function () { if (!_diagE.img) { _diagE.img = Math.round(performance.now() - _diagE.t0); mDiagRendre(); } });
-      mDiagBandeau();
-      mDiagRendre();
-      setInterval(mDiagRendre, 1000); // rafraîchit le compte de tranches + le rythme pendant la lecture
+      _diagE.t0 = performance.now(); // ≈ pose de v.src (tSrc)
+      mDiagBandeau(); mDiagRendre();
+      setInterval(mDiagRendre, 1000); // rafraîchit tranches + transfert pendant la lecture
+      v.addEventListener('loadedmetadata', function () { if (!_diagE.meta) _diagE.meta = Math.round(performance.now() - _diagE.t0); mDiagRendre(); });
+      var fait = false;
+      v.addEventListener('loadeddata', function () {
+        if (fait) return; fait = true;
+        _diagE.imgT = performance.now(); _diagE.img = Math.round(_diagE.imgT - _diagE.t0);
+        mDiagRendre();
+        mDiagSonder(); // ⛔ sondes APRÈS la 1re image : on mesure le démarrage sans le troubler, on sonde ensuite
+      });
+    }
+    function mDiagSonder() {
       mDiagUneSonde('bytes=0-0', 'amorce').then(function (a) {
         _diagE.froidA = a.froid; _diagE.budA = a.bud; _diagE.saA = a.sa; _diagE.drA = a.dr;
         _diagE.platA = Math.max(0, a.total - (a.bud + a.sa + a.dr));
@@ -2050,12 +2062,32 @@
         return { froid: r.headers.get('x-diag-froid') === '1' ? 'oui' : 'non', bud: +(r.headers.get('x-diag-budget') || 0), sa: +(r.headers.get('x-diag-getsa') || 0), dr: +(r.headers.get('x-diag-drive') || 0), total: Math.round(performance.now() - t0) };
       });
     }
-    function mDiagTranches() {
+    // Entrées Resource Timing des VRAIES tranches du <video> : drive-stream, hors diag= (nos sondes) et hors
+    // drive-stream-open (l'open contient la sous-chaîne « drive-stream » → à exclure explicitement).
+    function mDiagEntrees() {
       var es = [];
-      try { es = performance.getEntriesByType('resource').filter(function (e) { return e.name.indexOf('drive-stream') !== -1 && e.name.indexOf('diag=') === -1; }); } catch (e) {}
+      try { es = performance.getEntriesByType('resource').filter(function (e) { return e.name.indexOf('drive-stream') !== -1 && e.name.indexOf('drive-stream-open') === -1 && e.name.indexOf('diag=') === -1; }); } catch (e) {}
       es.sort(function (a, b) { return a.startTime - b.startTime; });
-      var n = es.length, ry = 0; if (n >= 2) ry = (es[n - 1].startTime - es[0].startTime) / 1000 / (n - 1);
-      return { n: n, ry: ry };
+      return es;
+    }
+    function mDiagOpenMs() {
+      try { var o = performance.getEntriesByType('resource').filter(function (e) { return e.name.indexOf('drive-stream-open') !== -1; }); if (o.length) return Math.round(o[0].responseEnd - o[0].startTime); } catch (e) {}
+      return 0;
+    }
+    // Décompose v.src → 1re image depuis la PREMIÈRE vraie tranche. Octets = encodedBodySize (obligatoire : sans
+    // lui, la durée seule est ininterprétable). Les champs se finalisent au fil de l'eau (la tranche peut encore
+    // charger à loadeddata) → recalculés à chaque rendu.
+    function mDiagDemarrage() {
+      var es = mDiagEntrees(); var r = { att: 0, trImg: 0, mio: 0, ttfb: 0, tot: 0, k: 0, finie: '…' };
+      if (!es.length || !_diagE.t0) return r;
+      var s = es[0];
+      r.k = _diagE.imgT ? es.filter(function (e) { return e.startTime < _diagE.imgT; }).length : es.length;
+      if (s.responseStart) { r.att = Math.round(s.responseStart - _diagE.t0); r.ttfb = Math.round(s.responseStart - s.startTime); }
+      if (_diagE.img) r.trImg = _diagE.img - r.att;
+      if (s.responseEnd && s.responseStart) r.tot = Math.round(s.responseEnd - s.responseStart);
+      var oct = s.encodedBodySize || s.transferSize || 0; r.mio = oct ? oct / 1048576 : 0;
+      if (s.responseEnd && _diagE.imgT) r.finie = (s.responseEnd <= _diagE.imgT) ? 'avant' : 'après';
+      return r;
     }
     function mDiagBandeau() {
       if ($('mt-diag')) return;
@@ -2064,12 +2096,14 @@
       document.body.appendChild(d);
     }
     function mDiagRendre() {
-      var d = $('mt-diag'); if (!d) return; var tr = mDiagTranches();
+      var d = $('mt-diag'); if (!d) return;
+      var es = mDiagEntrees(); var n = es.length, ry = 0; if (n >= 2) ry = (es[n - 1].startTime - es[0].startTime) / 1000 / (n - 1);
+      var g = mDiagDemarrage(), open = mDiagOpenMs();
       d.textContent =
-        'amorce : froid ' + _diagE.froidA + ' · budget ' + _diagE.budA + ' ms · getSA ' + _diagE.saA + ' ms · Drive ' + _diagE.drA + ' ms · plateforme ' + _diagE.platA + ' ms (par différence)' +
-        ' — milieu : froid ' + _diagE.froidM + ' · budget ' + _diagE.budM + ' ms · getSA ' + _diagE.saM + ' ms · Drive ' + _diagE.drM + ' ms' +
-        ' — ' + tr.n + ' tranches' + (tr.ry ? ', une toutes les ' + tr.ry.toFixed(1) + ' s' : '') +
-        ' — 1re image à ' + (_diagE.img || '…') + ' ms';
+        'DÉMARRAGE  open ' + open + ' ms · attente 1er octet ' + g.att + ' ms · transfert→image ' + g.trImg + ' ms → 1re image ' + (_diagE.img || '…') + ' ms (métadonnées ' + (_diagE.meta || '…') + ' ms)' +
+        '\n1re tranche  ' + (g.mio ? g.mio.toFixed(1) : '…') + ' Mio · TTFB ' + g.ttfb + ' ms · transfert total ' + (g.tot || '…') + ' ms · ' + g.k + ' tranche(s) avant l\'image · finie ' + g.finie +
+        '\nSONDES (après image)  amorce froid ' + _diagE.froidA + ' budget ' + _diagE.budA + ' getSA ' + _diagE.saA + ' Drive ' + _diagE.drA + ' plateforme ' + _diagE.platA + ' · milieu froid ' + _diagE.froidM + ' budget ' + _diagE.budM + ' getSA ' + _diagE.saM + ' Drive ' + _diagE.drM +
+        '\nTRANCHES  ' + n + (ry ? ', une toutes les ' + ry.toFixed(1) + ' s' : '');
     }
     // ── FIN INSTRUMENT ──
     // Erreur du <video> : 1re fois → une ré-ouverture transparente (le cookie a pu expirer, TTL 2 h) ; au-delà

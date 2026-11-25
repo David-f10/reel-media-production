@@ -95,7 +95,12 @@ async function monter(browser, port, avecDiag) {
     if (nom === 'espace-client') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, projets: [] }) });
     if (nom === 'montage-client') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MONTAGE) });
     if (nom === 'drive-stream-open') return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Set-Cookie': 'rmv=t; Path=/' }, body: JSON.stringify({ ok: true, expiresDansSec: 7200 }) });
-    if (nom === 'drive-stream') return route.fulfill({ status: 206, contentType: 'video/mp4', headers: { 'x-diag-froid': '1', 'x-diag-budget': '10', 'x-diag-getsa': '5', 'x-diag-drive': '20', 'accept-ranges': 'bytes' }, body: 'x' });
+    if (nom === 'drive-stream') {
+      // Sondes (diag=) → on répond avec les en-têtes x-diag. Requêtes du <video> (sans diag=) → on laisse PENDRE
+      // (comme montage-cadre) : le <video> reste en attente, pas d'erreur, pas de repli, #mt-video persiste.
+      if (u.search.indexOf('diag=') !== -1) return route.fulfill({ status: 206, contentType: 'video/mp4', headers: { 'x-diag-froid': '1', 'x-diag-budget': '10', 'x-diag-getsa': '5', 'x-diag-drive': '20', 'accept-ranges': 'bytes' }, body: 'x' });
+      return; // <video> : requête laissée pendante
+    }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
   const page = await ctx.newPage();
@@ -104,9 +109,15 @@ async function monter(browser, port, avecDiag) {
   await page.waitForTimeout(400);
   await page.evaluate(() => { var z = document.getElementById('zone-projets'); var b = document.createElement('button'); b.setAttribute('data-code', 'TESTCODE'); b.id = 'go'; z.appendChild(b); b.click(); });
   await page.waitForSelector('#mt-video', { timeout: 8000 });
-  await page.waitForTimeout(600); // laisse mDiagDemarrer poser le bandeau et émettre les sondes
-  const aBandeau = await page.evaluate(() => !!document.getElementById('mt-diag'));
-  return { ctx, aBandeau, fetchsDiag: urlsDiag.length };
+  await page.waitForTimeout(400); // laisse mDiagDemarrer poser le bandeau (les sondes, elles, attendent loadeddata)
+  return {
+    ctx, page,
+    bandeau: () => page.evaluate(() => !!document.getElementById('mt-diag')),
+    texte: () => page.evaluate(() => { var d = document.getElementById('mt-diag'); return d ? d.textContent : ''; }),
+    nbDiag: () => urlsDiag.length,
+    // Le corps factice ne décode pas → loadeddata n'arrive jamais seul : on le simule pour déclencher les sondes.
+    simulerImage: () => page.evaluate(() => { var v = document.getElementById('mt-video'); if (v) v.dispatchEvent(new Event('loadeddata')); })
+  };
 }
 
 async function partieNavigateur() {
@@ -114,16 +125,23 @@ async function partieNavigateur() {
   const { chromium } = require('playwright');
   const browser = await chromium.launch();
   try {
-    console.log('\n\x1b[1mPARTIE B — client.html : bandeau + sondes seulement sous ?diag=1\x1b[0m');
+    console.log('\n\x1b[1mPARTIE B — client.html : bandeau + sondes sous ?diag=1, sondes APRÈS la 1re image\x1b[0m');
 
+    // SANS ?diag=1 : ni bandeau ni sonde, même après une 1re image.
     let r = await monter(browser, port, false);
-    ok('⛔ sans ?diag=1 : pas de bandeau #mt-diag', r.aBandeau === false);
-    ok('⛔ sans ?diag=1 : aucun fetch vers drive-stream?diag=', r.fetchsDiag === 0);
+    ok('⛔ sans ?diag=1 : pas de bandeau #mt-diag', (await r.bandeau()) === false);
+    await r.simulerImage(); await r.page.waitForTimeout(300);
+    ok('⛔ sans ?diag=1 : aucune sonde drive-stream?diag= (même après loadeddata)', r.nbDiag() === 0);
     await r.ctx.close();
 
+    // AVEC ?diag=1 : bandeau tout de suite, sondes RETENUES jusqu'à loadeddata, puis émises.
     r = await monter(browser, port, true);
-    ok('avec ?diag=1 : le bandeau #mt-diag est présent', r.aBandeau === true);
-    ok('avec ?diag=1 : au moins un fetch vers drive-stream?diag= est émis', r.fetchsDiag >= 1);
+    ok('avec ?diag=1 : le bandeau #mt-diag est présent', (await r.bandeau()) === true);
+    ok('⛔ avant la 1re image : AUCUNE sonde émise (report confirmé)', r.nbDiag() === 0);
+    await r.simulerImage(); await r.page.waitForTimeout(500);
+    ok('après la 1re image : au moins une sonde drive-stream?diag= est émise', r.nbDiag() >= 1);
+    const t = await r.texte();
+    ok('le bandeau porte la décomposition (« attente 1er octet ») et une 1re image chiffrée (loadeddata vu)', /attente 1er octet/.test(t) && /1re image \d+ ms/.test(t));
     await r.ctx.close();
   } finally {
     srv.close(); await browser.close();
